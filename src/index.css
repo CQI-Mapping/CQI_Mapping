@@ -49,6 +49,37 @@ code {
   color: var(--text-muted);
 }
 
+/* ---- Config error screen (shown when Supabase keys are missing) ---- */
+
+.config-error {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--bg-app);
+}
+
+.config-error__card {
+  max-width: 520px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px;
+  box-shadow: var(--shadow);
+}
+
+.config-error__card h1 {
+  margin: 0 0 10px;
+  font-size: 20px;
+}
+
+.config-error__card p {
+  margin: 0 0 10px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
 .app-layout {
   display: flex;
   min-height: 100vh;

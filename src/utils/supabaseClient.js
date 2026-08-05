@@ -6,4 +6,12 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// True only when both keys were inlined at build time. On Vercel this is false
+// if the env vars are missing from the project settings — main.jsx then shows a
+// readable "not configured" screen instead of a silent white page.
+export const supabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey)
+
+// createClient throws on undefined input, so only build the client when configured.
+export const supabase = supabaseConfigured
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null
