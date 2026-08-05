@@ -313,6 +313,76 @@ code {
   max-width: 380px;
 }
 
+/* ---- Curriculum-map background (pure SVG, no deps) ---- */
+
+.login-map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.login-map__grid {
+  stroke: #93c5fd;
+  stroke-width: 1;
+  opacity: 0.06;
+}
+
+.login-map__edge {
+  stroke: #93c5fd;
+  stroke-width: 1.6;
+  fill: none;
+  opacity: 0.35;
+  stroke-dasharray: 3 9;
+  animation: login-map-flow 9s linear infinite;
+}
+
+.login-map__node {
+  fill: #60a5fa;
+  stroke: #dbeafe;
+  stroke-width: 1.5;
+  animation: login-map-pulse 3.4s ease-in-out infinite;
+}
+
+.login-map__node-label {
+  fill: #bfdbfe;
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+@keyframes login-map-flow {
+  to {
+    stroke-dashoffset: -48;
+  }
+}
+
+@keyframes login-map-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+.login-map-legend {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: rgba(191, 219, 254, 0.75);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 5px 14px;
+  white-space: nowrap;
+}
+
 .login-left-mark {
   width: 56px;
   height: 56px;
@@ -350,34 +420,6 @@ code {
   color: var(--login-sky);
   font-size: 0.95rem;
   line-height: 1.7;
-}
-
-.blob {
-  position: absolute;
-  border-radius: 50%;
-  opacity: 0.12;
-  background: var(--primary);
-}
-
-.blob-1 {
-  width: 300px;
-  height: 300px;
-  top: -80px;
-  left: -80px;
-}
-
-.blob-2 {
-  width: 200px;
-  height: 200px;
-  bottom: -50px;
-  right: -50px;
-}
-
-.blob-3 {
-  width: 120px;
-  height: 120px;
-  top: 40%;
-  right: 20%;
 }
 
 .login-features {
@@ -430,6 +472,11 @@ code {
   border-radius: 14px;
   padding: 32px;
   box-shadow: var(--shadow);
+  /* Faint graph-paper grid, echoing the map panel on the left */
+  background-image:
+    linear-gradient(rgba(37, 99, 235, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37, 99, 235, 0.045) 1px, transparent 1px);
+  background-size: 22px 22px;
 }
 
 .login-brand {
