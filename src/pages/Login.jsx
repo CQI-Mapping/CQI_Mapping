@@ -6,6 +6,105 @@ import { useState } from 'react'
 import { supabase } from '../utils/supabaseClient'
 import { recordLoginEvent } from '../services/database'
 
+// Inline SVG curriculum map — a decorative background that evokes the
+// D3.js course/outcome mapping central to the thesis. Pure SVG + CSS,
+// no dependencies, scales with the panel via viewBox.
+function LoginMap() {
+  const X_CO = 85 // x of the course-node column
+  const X_PO = 400 // x of the outcome-node column
+
+  // Left column: course nodes (CO). Right column: program outcome nodes (PO).
+  const courses = [
+    { id: 'CO1', y: 100 },
+    { id: 'CO2', y: 240 },
+    { id: 'CO3', y: 380 },
+    { id: 'CO4', y: 510 },
+  ]
+  const outcomes = [
+    { id: 'PO1', y: 70 },
+    { id: 'PO2', y: 190 },
+    { id: 'PO3', y: 310 },
+    { id: 'PO4', y: 430 },
+    { id: 'PO5', y: 540 },
+  ]
+
+  // CO -> PO connections, like checked cells in a mapping matrix.
+  const edges = [
+    { co: 0, po: 0 }, { co: 0, po: 1 },
+    { co: 1, po: 1 }, { co: 1, po: 2 },
+    { co: 2, po: 2 }, { co: 2, po: 3 },
+    { co: 3, po: 3 }, { co: 3, po: 4 },
+  ]
+
+  // Positions for the faint graph-paper grid lines.
+  const gridLines = (step, max) =>
+    Array.from({ length: Math.floor(max / step) + 1 }, (_, i) => i * step)
+
+  return (
+    <svg
+      className="login-map"
+      viewBox="0 0 480 600"
+      preserveAspectRatio="xMidYMid slice"
+      aria-hidden="true"
+    >
+      <g className="login-map__grid">
+        {gridLines(40, 480).map((x) => (
+          <line key={`v${x}`} x1={x} y1="0" x2={x} y2="600" />
+        ))}
+        {gridLines(40, 600).map((y) => (
+          <line key={`h${y}`} x1="0" y1={y} x2="480" y2={y} />
+        ))}
+      </g>
+
+      {/* Mapping edges (curved lines with animated flow) */}
+      {edges.map(({ co, po }, i) => {
+        const mx = (X_CO + X_PO) / 2
+        const my = (courses[co].y + outcomes[po].y) / 2
+        return (
+          <path
+            key={`${co}-${po}`}
+            className="login-map__edge"
+            style={{ animationDelay: `${(i % 4) * 0.4}s` }}
+            d={`M ${X_CO} ${courses[co].y} Q ${mx} ${my} ${X_PO} ${outcomes[po].y}`}
+          />
+        )
+      })}
+
+      {/* Course nodes + labels */}
+      {courses.map((c, i) => (
+        <g key={c.id}>
+          <circle
+            className="login-map__node"
+            style={{ animationDelay: `${i * 0.45}s` }}
+            cx={X_CO}
+            cy={c.y}
+            r="8"
+          />
+          <text className="login-map__node-label" x={X_CO - 16} y={c.y + 4} textAnchor="end">
+            {c.id}
+          </text>
+        </g>
+      ))}
+
+      {/* Program outcome nodes + labels */}
+      {outcomes.map((o, i) => (
+        <g key={o.id}>
+          <circle
+            className="login-map__node"
+            style={{ animationDelay: `${i * 0.45}s` }}
+            cx={X_PO}
+            cy={o.y}
+            r="8"
+          />
+          <text className="login-map__node-label" x={X_PO + 16} y={o.y + 4} textAnchor="start">
+            {o.id}
+          </text>
+        </g>
+      ))}
+    </svg>
+  )
+}
+
 function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -48,9 +147,7 @@ function Login() {
     <div className="login-page">
       {/* Left branding panel (hidden on small screens) */}
       <div className="login-left">
-        <div className="blob blob-1" />
-        <div className="blob blob-2" />
-        <div className="blob blob-3" />
+        <LoginMap />
         <div className="login-left-inner">
           <div className="login-left-mark">CQI</div>
           <h2 className="login-left-title">
@@ -87,6 +184,9 @@ function Login() {
             </div>
           </div>
         </div>
+
+        {/* Legend for the map behind */}
+        <div className="login-map-legend">CO = Course Outcome · PO = Program Outcome</div>
       </div>
 
       {/* Sign-in form panel */}
