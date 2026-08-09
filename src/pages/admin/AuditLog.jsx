@@ -1,8 +1,8 @@
-// Audit Log page: shows the latest 100 recorded actions.
-// Only admins and managers can reach it (RLS blocks users from reading audit_log).
+// Admin Audit Log page: shows the latest 100 recorded actions.
+// Only admins can reach this page (RLS blocks other roles from reading audit_log).
 
 import { useState, useEffect } from 'react'
-import { fetchAuditLog } from '../services/database'
+import { fetchAuditLog } from '../../services/database'
 
 function AuditLog() {
   const [entries, setEntries] = useState([])

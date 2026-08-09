@@ -1,7 +1,5 @@
-// Curriculum (resources) page: everyone can read the list.
-//  - Admin/manager: can create, edit, and archive/restore records.
-//  - Admin only: can delete records.
-//  - User: read-only browse.
+// Admin Curriculum page: full management of curriculum records.
+// Admin can create, edit, archive/restore, and permanently delete records.
 // Every mutation writes an audit entry.
 
 import { useState, useEffect } from 'react'
@@ -11,10 +9,10 @@ import {
   updateResource,
   deleteResource,
   addAuditLog,
-} from '../services/database'
-import { supabase } from '../utils/supabaseClient'
+} from '../../services/database'
+import { supabase } from '../../utils/supabaseClient'
 
-function Resources({ role, userEmail }) {
+function Curriculum({ userEmail }) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -28,10 +26,6 @@ function Resources({ role, userEmail }) {
   const [editTitle, setEditTitle] = useState('')
   const [editDescription, setEditDescription] = useState('')
   const [busy, setBusy] = useState(false)
-
-  // Role gates (UI only — the DB enforces the same rules via RLS).
-  const canManage = role === 'admin' || role === 'manager'
-  const canDelete = role === 'admin'
 
   // Fetch the list from the DB.
   const load = async () => {
@@ -140,44 +134,36 @@ function Resources({ role, userEmail }) {
     <div className="resources">
       <div className="page-heading">
         <h2>Curriculum</h2>
-        <p>
-          {canManage
-            ? 'Create, edit, and archive curriculum records.'
-            : 'Browse published curriculum records.'}
-        </p>
+        <p>Create, edit, archive, and delete curriculum records.</p>
       </div>
 
       {error && <p className="msg msg--error">{error}</p>}
       {message && <p className="msg msg--success">{message}</p>}
 
-      {/* "New record" form, shown only to admin/manager */}
-      {canManage && (
-        <form className="panel create-resource" onSubmit={handleCreate}>
-          <h3>New curriculum record</h3>
-          <div className="create-resource__row">
-            <input
-              className="input"
-              type="text"
-              placeholder="Title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-            />
-            <input
-              className="input"
-              type="text"
-              placeholder="Description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-            <button className="btn btn--primary" type="submit" disabled={busy}>
-              {busy ? 'Saving...' : 'Add'}
-            </button>
-          </div>
-        </form>
-      )}
+      <form className="panel create-resource" onSubmit={handleCreate}>
+        <h3>New curriculum record</h3>
+        <div className="create-resource__row">
+          <input
+            className="input"
+            type="text"
+            placeholder="Title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
+          />
+          <input
+            className="input"
+            type="text"
+            placeholder="Description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+          <button className="btn btn--primary" type="submit" disabled={busy}>
+            {busy ? 'Saving...' : 'Add'}
+          </button>
+        </div>
+      </form>
 
-      {/* Record list */}
       {loading ? (
         <p>Loading curriculum...</p>
       ) : (
@@ -186,7 +172,6 @@ function Resources({ role, userEmail }) {
           {items.map((item) => (
             <div className={`resource-card ${item.status === 'archived' ? 'resource-card--archived' : ''}`} key={item.id}>
               {editingId === item.id ? (
-                // Inline edit mode for this card
                 <div className="resource-card__edit">
                   <input
                     className="input"
@@ -219,25 +204,20 @@ function Resources({ role, userEmail }) {
                     </div>
                   </div>
 
-                  {/* Action buttons, role-gated */}
-                  {canManage && (
-                    <div className="resource-card__actions">
-                      <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)}>
-                        Edit
-                      </button>
-                      <button
-                        className="btn btn--ghost btn--sm"
-                        onClick={() => handleToggleStatus(item)}
-                      >
-                        {item.status === 'active' ? 'Archive' : 'Restore'}
-                      </button>
-                      {canDelete && (
-                        <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id)}>
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                  )}
+                  <div className="resource-card__actions">
+                    <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)}>
+                      Edit
+                    </button>
+                    <button
+                      className="btn btn--ghost btn--sm"
+                      onClick={() => handleToggleStatus(item)}
+                    >
+                      {item.status === 'active' ? 'Archive' : 'Restore'}
+                    </button>
+                    <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id)}>
+                      Delete
+                    </button>
+                  </div>
                 </>
               )}
             </div>
@@ -248,4 +228,4 @@ function Resources({ role, userEmail }) {
   )
 }
 
-export default Resources
+export default Curriculum

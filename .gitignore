@@ -5,3 +5,4 @@ dist
 *.local
 npm-debug.log*
 .DS_Store
+.rbxsync-trash/

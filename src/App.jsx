@@ -1,20 +1,29 @@
 // App shell: manages the session, loads the signed-in user's profile, and decides
 // which page to render based on their role. No router library — the active page is
 // just state, and the role-based NAV map below controls what's visible.
+//
+// Each role has its own pages in its own folder (src/pages/admin|manager|user),
+// mirroring the reference repo's per-role structure.
 
 import { useState, useEffect } from 'react'
 import Sidebar from './components/Sidebar.jsx'
 import Login from './pages/Login.jsx'
-import Dashboard from './pages/Dashboard.jsx'
-import Users from './pages/Users.jsx'
-import Resources from './pages/Resources.jsx'
-import AuditLog from './pages/AuditLog.jsx'
 import Profile from './pages/Profile.jsx'
+import AdminDashboard from './pages/admin/Dashboard.jsx'
+import AdminUsers from './pages/admin/Users.jsx'
+import AdminCurriculum from './pages/admin/Curriculum.jsx'
+import AdminAuditLog from './pages/admin/AuditLog.jsx'
+import ManagerDashboard from './pages/manager/Dashboard.jsx'
+import ManagerUsers from './pages/manager/Users.jsx'
+import ManagerCurriculum from './pages/manager/Curriculum.jsx'
+import ManagerAuditLog from './pages/manager/AuditLog.jsx'
+import UserDashboard from './pages/user/Dashboard.jsx'
+import UserCurriculum from './pages/user/Curriculum.jsx'
 import { supabase } from './utils/supabaseClient'
 import { ensureProfile } from './services/database'
 
 // NAV map: which sidebar items each role can see.
-// 'id' must match the keys used in renderPage() below.
+// 'id' must match the keys used in the PAGES map below.
 const NAV = {
   admin: [
     { id: 'dashboard', label: 'Dashboard' },
@@ -35,6 +44,29 @@ const NAV = {
     { id: 'resources', label: 'Curriculum' },
     { id: 'profile', label: 'Profile' },
   ],
+}
+
+// PAGES map: page id -> component for each role. 'profile' is shared across roles.
+const PAGES = {
+  admin: {
+    dashboard: AdminDashboard,
+    users: AdminUsers,
+    resources: AdminCurriculum,
+    'audit-log': AdminAuditLog,
+    profile: Profile,
+  },
+  manager: {
+    dashboard: ManagerDashboard,
+    resources: ManagerCurriculum,
+    users: ManagerUsers,
+    'audit-log': ManagerAuditLog,
+    profile: Profile,
+  },
+  user: {
+    dashboard: UserDashboard,
+    resources: UserCurriculum,
+    profile: Profile,
+  },
 }
 
 function App() {
@@ -101,18 +133,11 @@ function App() {
   const page = navItems.some((n) => n.id === activePage) ? activePage : 'dashboard'
 
   const renderPage = () => {
-    switch (page) {
-      case 'users':
-        return <Users role={role} />
-      case 'resources':
-        return <Resources role={role} userEmail={profile?.email} />
-      case 'audit-log':
-        return <AuditLog />
-      case 'profile':
-        return <Profile profile={profile} onSaved={setProfile} />
-      default:
-        return <Dashboard profile={profile} role={role} />
-    }
+    const Page = PAGES[role]?.[page] ?? UserDashboard
+
+    if (page === 'profile') return <Page profile={profile} onSaved={setProfile} />
+    if (page === 'resources' && role !== 'user') return <Page userEmail={profile?.email} />
+    return <Page profile={profile} />
   }
 
   return (

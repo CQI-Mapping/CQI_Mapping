@@ -101,11 +101,20 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
     │   └── Sidebar.jsx       # Nav shell (items change per role) + logout
     ├── pages/
     │   ├── Login.jsx         # Sign in (login only, no create-account tab)
-    │   ├── Dashboard.jsx     # Role-aware stat cards + "what you can do" list
-    │   ├── Users.jsx         # Admin: manage roles + create users; Manager: read-only directory
-    │   ├── Resources.jsx     # Resource CRUD, role-gated
-    │   ├── AuditLog.jsx      # Table of logged actions (admin/manager)
-    │   └── Profile.jsx       # View/edit own profile
+    │   ├── Profile.jsx       # View/edit own profile (shared by all roles)
+    │   ├── admin/            # Admin's own pages
+    │   │   ├── Dashboard.jsx # Admin overview: role/resources/user counts + capabilities
+    │   │   ├── Users.jsx     # Manage roles + create users (account management)
+    │   │   ├── Curriculum.jsx# Full CRUD incl. permanent delete
+    │   │   └── AuditLog.jsx  # Table of logged actions
+    │   ├── manager/          # Manager's own pages
+    │   │   ├── Dashboard.jsx # Manager overview + capabilities
+    │   │   ├── Users.jsx     # Read-only faculty directory
+    │   │   ├── Curriculum.jsx# Create/edit/archive (no delete)
+    │   │   └── AuditLog.jsx  # Table of logged actions
+    │   └── user/             # User's own pages
+    │       ├── Dashboard.jsx # User overview + capabilities
+    │       └── Curriculum.jsx# Read-only browse
     ├── services/
     │   └── database.js       # ALL Supabase queries used by the app
     ├── styles/
@@ -284,29 +293,36 @@ All queries live in `src/services/database.js`. Signatures, purpose, and who can
 - Every attempt is written to `audit_log` via the `record_login_event` RPC (`auth.login` on success, `auth.login_failed` on failure).
 - Shows a hint with the SQL to promote an account to admin.
 
-### `Dashboard.jsx`
-- Reads `profile` and `role` props. Shows stat cards: your role, total resources, and (admin/manager only) total users. Counts use `head: true` queries.
-- Lists what the current role can do.
+### `admin/Dashboard.jsx`
+- Reads the `profile` prop. Shows stat cards: your role, total resources, and total users. Counts use `head: true` queries.
+- Lists what the admin role can do.
 
-### `Users.jsx`
-- Prop: `role`.
-- **Admin:** table of all users with an inline role `<select>` (calls `updateUserRole`, then writes an audit entry) plus a "Create user" form (calls `adminCreateUser`).
-- **Manager:** read-only faculty directory showing role badges.
-- **User:** page not in nav; direct navigation is redirected to Dashboard.
+### `manager/Dashboard.jsx` and `user/Dashboard.jsx`
+- Same overview pattern for the manager and user roles, with their own stat cards and capability lists.
 
-### `Resources.jsx`
-- Props: `role`, `userEmail`.
-- Everyone sees the curriculum list. Creator name comes from an embedded join — note that a `user` (or a creator other than yourself) may show as "Unknown" because RLS hides other users' profiles.
-- Admin/manager: "New record" form, per-card Edit / Archive / Restore. Admin additionally gets Delete.
+### `admin/Users.jsx`
+- Full account management: table of all users with an inline role `<select>` (calls `updateUserRole`, then writes an audit entry) plus a "Create user" form (calls `adminCreateUser`).
 
-### `AuditLog.jsx`
+### `manager/Users.jsx`
+- Read-only faculty directory showing role badges. Role changes are admin-only.
+
+### `admin/Curriculum.jsx`
+- Props: `userEmail`. Full curriculum management: "New record" form, per-card Edit / Archive / Restore, plus Delete.
+
+### `manager/Curriculum.jsx`
+- Props: `userEmail`. Same as admin but without the Delete button.
+
+### `user/Curriculum.jsx`
+- Read-only browse of published curriculum records.
+
+### `AuditLog.jsx` (admin and manager)
 - Fetches the latest 100 entries. Columns: when, user, action, details.
 
 ### `Profile.jsx`
-- Props: `profile`, `onSaved`. Edits `full_name`, writes an audit entry, and reports the updated profile back to `App.jsx` via `onSaved`.
+- Props: `profile`, `onSaved`. Edits `full_name`, writes an audit entry, and reports the updated profile back to `App.jsx` via `onSaved`. Shared by all roles.
 
 ### `App.jsx`
-- Holds `session`, `profile`, `activePage`. Defines the `NAV` map (role → nav items). On session change, loads the profile via `ensureProfile` (auto-creates the row if missing — e.g. after a schema re-run) and renders `Login` when signed out; otherwise renders the Sidebar + topbar + current page.
+- Holds `session`, `profile`, `activePage`. Defines the `NAV` map (role → nav items) and the `PAGES` map (role → page components, one per role folder; `Profile` is shared). On session change, loads the profile via `ensureProfile` (auto-creates the row if missing — e.g. after a schema re-run) and renders `Login` when signed out; otherwise renders the Sidebar + topbar + current page.
 - **Gating:** `page` is coerced to a role-valid page, so even a crafted `activePage` value can't show an unauthorized page.
 
 ### `Sidebar.jsx`
@@ -339,9 +355,9 @@ New role-restricted feature, end to end. Example: a `reports` table that admins 
 
 3. **Service functions** — add `fetchReports()` and `createReport()` to `src/services/database.js` following the existing pattern (try/catch, return `[]`/`null` on error).
 
-4. **Page** — create `src/pages/Reports.jsx` modeled on `Resources.jsx`.
+4. **Page** — create the page in the folder of the role(s) that should see it, e.g. `src/pages/manager/Reports.jsx` modeled on `src/pages/manager/Curriculum.jsx`.
 
-5. **Nav + gating** — add `{ id: 'reports', label: 'Reports' }` to the role entries you want in `NAV` inside `App.jsx`, and a case in `renderPage()`.
+5. **Nav + gating** — add `{ id: 'reports', label: 'Reports' }` to the role entries you want in `NAV` inside `App.jsx`, and add the matching entry to the `PAGES` map.
 
 6. **Style** — reuse classes from `src/index.css` or add new ones.
 
