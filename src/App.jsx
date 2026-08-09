@@ -143,6 +143,7 @@ function App() {
 
     if (page === 'profile') return <Page profile={profile} onSaved={setProfile} />
     if (page === 'curriculum' && role !== 'user') return <Page userEmail={profile?.email} />
+    if (page === 'clo-po' && role !== 'user') return <Page userEmail={profile?.email} />
     return <Page profile={profile} />
   }
 

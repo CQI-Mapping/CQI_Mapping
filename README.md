@@ -263,6 +263,7 @@ The CQI curriculum domain is seeded with:
 - Five courses across the two programs (e.g. `IT101 Intro to IT`, `CS201 Data Structures`)
 - Eight program outcomes (PO1–PO8 per program, covering the program educational objectives)
 - Nine course learning outcomes (CLO1–CLO9) distributed across the courses
+- Sample `clo_po_matrix` rows with strength levels (1–3) mapping CLOs to POs of the same program
 
 ---
 
@@ -298,6 +299,9 @@ All queries live in `src/services/database.js`. Signatures, purpose, and who can
 | `createCourseLearningOutcome` | `(payload)` | Insert a course learning outcome | admins/managers |
 | `updateCourseLearningOutcome` | `(id, updates)` | Edit a course learning outcome | admins/managers |
 | `deleteCourseLearningOutcome` | `(id)` | Permanently delete a course learning outcome | admins |
+| `fetchCloPoMatrix` | `(courseId = null)` | List CLO/PO matrix rows with CLO and PO embedded, optionally by course | all signed-in users |
+| `upsertCloPoMapping` | `(cloId, poId, level)` | Insert or update a CLO/PO strength cell (1–3) | admins/managers |
+| `deleteCloPoMapping` | `(cloId, poId)` | Remove a CLO/PO mapping (blank the cell) | admins |
 | `fetchAuditLog` | `()` | Latest 100 audit entries | admins/managers |
 | `recordLoginEvent` | `(email, success, reason?)` | Record a sign-in attempt via the `record_login_event` RPC | any caller (RPC) |
 | `addAuditLog` | `(userEmail, action, details)` | Insert an audit entry | any signed-in user |
@@ -332,6 +336,11 @@ All queries live in `src/services/database.js`. Signatures, purpose, and who can
 - Props: `userEmail`. Sub-tabbed curriculum domain manager with four views: **Programs**, **Courses**, **Program Outcomes (PO)**, **Course Learning Outcomes (CLO)**. Every view supports create, inline edit, and delete, and writes an audit entry per mutation.
 - Courses are created under a program (with a program filter on the list). POs are managed per selected program; CLOs per selected program → course.
 - Views live in `src/pages/admin/curriculum/` and share state/CRUD logic via the `useEntityCrud` hook.
+
+### `admin/CloPoMapping.jsx`
+- Props: `userEmail`. Interactive CLO/PO mapping matrix. Pick a program, then a course; rows are the course's CLOs, columns are the program's POs.
+- Each cell holds a strength level (1 = low, 2 = medium, 3 = high, blank = not mapped). Clicking a cell cycles blank → 1 → 2 → 3 → blank and persists via `upsertCloPoMapping` / `deleteCloPoMapping`, writing an audit entry per change.
+- A D3.js heatmap (SVG) renders below the matrix with the same color scheme. The `clo_po_matrix` table's `validate_clo_po_program` trigger rejects mappings whose CLO course and PO belong to different programs.
 
 ### `manager/Curriculum.jsx`
 - Props: `userEmail`. Same as admin but without the Delete button.

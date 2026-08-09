@@ -25,6 +25,7 @@
 -- Cleanup
 DROP TABLE IF EXISTS public.audit_log CASCADE;
 DROP TABLE IF EXISTS public.resources CASCADE;
+DROP TABLE IF EXISTS public.clo_po_matrix CASCADE;
 DROP TABLE IF EXISTS public.course_learning_outcomes CASCADE;
 DROP TABLE IF EXISTS public.program_outcomes CASCADE;
 DROP TABLE IF EXISTS public.courses CASCADE;
@@ -108,6 +109,54 @@ CREATE TABLE public.course_learning_outcomes (
     UNIQUE (course_id, code)
 );
 
+-- CLO/PO matrix: strength (1-3) of each course learning outcome's
+-- contribution to each program outcome of the same program. One row per
+-- (CLO, PO) pair; blank cells have no row. The BEFORE trigger keeps data
+-- consistent by rejecting pairs whose CLO course and PO are in different
+-- programs.
+
+CREATE TABLE public.clo_po_matrix (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    clo_id UUID NOT NULL REFERENCES public.course_learning_outcomes(id) ON DELETE CASCADE,
+    po_id UUID NOT NULL REFERENCES public.program_outcomes(id) ON DELETE CASCADE,
+    level INTEGER NOT NULL CHECK (level BETWEEN 1 AND 3),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (clo_id, po_id)
+);
+
+CREATE OR REPLACE FUNCTION public.validate_clo_po_program()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_clo_program UUID;
+    v_po_program UUID;
+BEGIN
+    SELECT c.program_id INTO v_clo_program
+    FROM public.course_learning_outcomes clo
+    JOIN public.courses c ON c.id = clo.course_id
+    WHERE clo.id = NEW.clo_id;
+
+    SELECT program_id INTO v_po_program
+    FROM public.program_outcomes
+    WHERE id = NEW.po_id;
+
+    IF v_clo_program IS DISTINCT FROM v_po_program THEN
+        RAISE EXCEPTION 'CLO and PO must belong to the same program';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_clo_po_program_match ON public.clo_po_matrix;
+CREATE TRIGGER trg_clo_po_program_match
+    BEFORE INSERT OR UPDATE ON public.clo_po_matrix
+    FOR EACH ROW EXECUTE FUNCTION public.validate_clo_po_program();
+
 -- ============================================================
 -- HELPER: current user's role (bypasses RLS, avoids recursion)
 -- ============================================================
@@ -164,6 +213,7 @@ ALTER TABLE public.programs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.courses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.program_outcomes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.course_learning_outcomes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.clo_po_matrix ENABLE ROW LEVEL SECURITY;
 
 -- PROFILES
 CREATE POLICY "Users can view own profile" ON public.profiles FOR SELECT
@@ -254,6 +304,20 @@ CREATE POLICY "Managers and admins can update course learning outcomes" ON publi
     WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
 
 CREATE POLICY "Admins can delete course learning outcomes" ON public.course_learning_outcomes FOR DELETE
+    USING (public.current_user_role() = 'admin');
+
+-- CLO/PO MATRIX
+CREATE POLICY "Authenticated users can read clo_po_matrix" ON public.clo_po_matrix FOR SELECT
+    USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Managers and admins can create clo_po_matrix" ON public.clo_po_matrix FOR INSERT
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
+
+CREATE POLICY "Managers and admins can update clo_po_matrix" ON public.clo_po_matrix FOR UPDATE
+    USING (public.current_user_role() IN ('admin', 'manager'))
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
+
+CREATE POLICY "Admins can delete clo_po_matrix" ON public.clo_po_matrix FOR DELETE
     USING (public.current_user_role() = 'admin');
 
 -- AUDIT LOG
@@ -348,3 +412,24 @@ FROM (VALUES
     ('CS101', 'CLO2', 'Identify the main components of a computing system.')
 ) AS clo(course_code, code, description)
 JOIN public.courses c ON c.code = clo.course_code;
+
+-- CLO/PO matrix seed: sample strength (1-3) of each CLO's contribution to
+-- the program outcomes of the same program.
+
+INSERT INTO public.clo_po_matrix (clo_id, po_id, level)
+SELECT clo.id, po.id, m.level
+FROM (VALUES
+    ('BSIT', 'IT101', 'CLO1', 'PO1', 3),
+    ('BSIT', 'IT101', 'CLO2', 'PO3', 2),
+    ('BSIT', 'IT101', 'CLO3', 'PO1', 2),
+    ('BSIT', 'IT101', 'CLO4', 'PO4', 1),
+    ('BSIT', 'IT102', 'CLO1', 'PO1', 2),
+    ('BSIT', 'IT102', 'CLO2', 'PO3', 3),
+    ('BSIT', 'IT102', 'CLO3', 'PO3', 2),
+    ('BSCS', 'CS101', 'CLO1', 'PO1', 1),
+    ('BSCS', 'CS101', 'CLO2', 'PO2', 2)
+) AS m(program_code, course_code, clo_code, po_code, level)
+JOIN public.programs p ON p.code = m.program_code
+JOIN public.courses c ON c.program_id = p.id AND c.code = m.course_code
+JOIN public.course_learning_outcomes clo ON clo.course_id = c.id AND clo.code = m.clo_code
+JOIN public.program_outcomes po ON po.program_id = p.id AND po.code = m.po_code;

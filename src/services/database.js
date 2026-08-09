@@ -343,6 +343,43 @@ export async function deleteCourseLearningOutcome(id) {
   if (error) throw error
 }
 
+// CLO/PO MATRIX
+
+// List CLO/PO mappings with CLO and PO embedded. When a course is given,
+// only rows whose CLO belongs to that course are returned (nested filter).
+// RLS: any signed-in user can read.
+export async function fetchCloPoMatrix(courseId = null) {
+  let query = supabase
+    .from('clo_po_matrix')
+    .select('id, level, clo_id ( id, code, course_id ), po_id ( id, code, program_id )')
+  if (courseId) query = query.eq('clo_id.course_id', courseId)
+  const { data, error } = await query
+  if (error) throw error
+  return data
+}
+
+// Insert or update a single CLO/PO strength cell. RLS: admins/managers.
+// The validate_clo_po_program trigger rejects pairs from different programs.
+export async function upsertCloPoMapping(cloId, poId, level) {
+  const { data, error } = await supabase
+    .from('clo_po_matrix')
+    .upsert({ clo_id: cloId, po_id: poId, level }, { onConflict: 'clo_id,po_id' })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+// Remove a CLO/PO mapping (blank the cell). RLS: admins only.
+export async function deleteCloPoMapping(cloId, poId) {
+  const { error } = await supabase
+    .from('clo_po_matrix')
+    .delete()
+    .eq('clo_id', cloId)
+    .eq('po_id', poId)
+  if (error) throw error
+}
+
 // ---------- Audit log ----------
 
 // Latest 100 audit entries, newest first.
