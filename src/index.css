@@ -913,6 +913,72 @@ code {
   stroke: var(--border);
 }
 
+/* ---- Analytics ---- */
+
+.page-pad {
+  padding: 20px 0;
+}
+
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 20px;
+}
+
+.chart-svg {
+  width: 100%;
+  height: auto;
+  max-width: 760px;
+  display: block;
+  margin: 0 auto;
+}
+
+.donut-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.donut-svg {
+  display: block;
+}
+
+.chart-svg text {
+  font-family: inherit;
+}
+
+.chart-svg .tick text {
+  fill: #475569;
+}
+
+.chart-svg .domain,
+.chart-svg .tick line {
+  stroke: var(--border);
+}
+
+.chart-legend {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chart-legend i {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
 /* ---- Resources ---- */
 
 .create-resource {

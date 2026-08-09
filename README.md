@@ -342,6 +342,12 @@ All queries live in `src/services/database.js`. Signatures, purpose, and who can
 - Each cell holds a strength level (1 = low, 2 = medium, 3 = high, blank = not mapped). Clicking a cell cycles blank → 1 → 2 → 3 → blank and persists via `upsertCloPoMapping` / `deleteCloPoMapping`, writing an audit entry per change.
 - A D3.js heatmap (SVG) renders below the matrix with the same color scheme. The `clo_po_matrix` table's `validate_clo_po_program` trigger rejects mappings whose CLO course and PO belong to different programs.
 
+### `admin/Analytics.jsx`
+- CQI monitoring charts derived from the curriculum domain (no assessment data needed yet).
+- Stat cards: programs, courses, learning outcomes, CLO coverage (share of CLOs with ≥1 mapping), and mapping cells.
+- D3.js charts: per-PO CLO coverage and average strength (bar charts, focused on a selected program), program comparison (grouped bars: total CLOs vs mapped CLOs), and a mapping-level distribution donut (1/2/3).
+- Chart components live in `src/pages/admin/analytics/charts.jsx` (reusable `BarChart`, `GroupedBarChart`, `DonutChart`).
+
 ### `manager/Curriculum.jsx`
 - Props: `userEmail`. Same as admin but without the Delete button.
 
