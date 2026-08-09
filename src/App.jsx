@@ -19,6 +19,8 @@ import ManagerCurriculum from './pages/manager/Curriculum.jsx'
 import ManagerAuditLog from './pages/manager/AuditLog.jsx'
 import UserDashboard from './pages/user/Dashboard.jsx'
 import UserCurriculum from './pages/user/Curriculum.jsx'
+import AdminCloPoMapping from './pages/admin/CloPoMapping.jsx'
+import AdminAnalytics from './pages/admin/Analytics.jsx'
 import { supabase } from './utils/supabaseClient'
 import { ensureProfile } from './services/database'
 
@@ -28,20 +30,22 @@ const NAV = {
   admin: [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'users', label: 'Users & Accounts' },
-    { id: 'resources', label: 'Curriculum' },
+    { id: 'curriculum', label: 'Curriculum' },
+    { id: 'clo-po', label: 'CLO/PO Mapping' },
+    { id: 'analytics', label: 'Analytics' },
     { id: 'audit-log', label: 'Audit Log' },
     { id: 'profile', label: 'Profile' },
   ],
   manager: [
     { id: 'dashboard', label: 'Dashboard' },
-    { id: 'resources', label: 'Curriculum' },
+    { id: 'curriculum', label: 'Curriculum' },
     { id: 'users', label: 'Faculty' },
     { id: 'audit-log', label: 'Audit Log' },
     { id: 'profile', label: 'Profile' },
   ],
   user: [
     { id: 'dashboard', label: 'Dashboard' },
-    { id: 'resources', label: 'Curriculum' },
+    { id: 'curriculum', label: 'Curriculum' },
     { id: 'profile', label: 'Profile' },
   ],
 }
@@ -51,20 +55,22 @@ const PAGES = {
   admin: {
     dashboard: AdminDashboard,
     users: AdminUsers,
-    resources: AdminCurriculum,
+    curriculum: AdminCurriculum,
+    'clo-po': AdminCloPoMapping,
+    analytics: AdminAnalytics,
     'audit-log': AdminAuditLog,
     profile: Profile,
   },
   manager: {
     dashboard: ManagerDashboard,
-    resources: ManagerCurriculum,
+    curriculum: ManagerCurriculum,
     users: ManagerUsers,
     'audit-log': ManagerAuditLog,
     profile: Profile,
   },
   user: {
     dashboard: UserDashboard,
-    resources: UserCurriculum,
+    curriculum: UserCurriculum,
     profile: Profile,
   },
 }
@@ -136,7 +142,7 @@ function App() {
     const Page = PAGES[role]?.[page] ?? UserDashboard
 
     if (page === 'profile') return <Page profile={profile} onSaved={setProfile} />
-    if (page === 'resources' && role !== 'user') return <Page userEmail={profile?.email} />
+    if (page === 'curriculum' && role !== 'user') return <Page userEmail={profile?.email} />
     return <Page profile={profile} />
   }
 
