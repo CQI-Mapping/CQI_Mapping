@@ -7,18 +7,18 @@ import { supabase } from '../utils/supabaseClient'
 import { recordLoginEvent } from '../services/database'
 
 // Inline SVG curriculum map — a decorative background that evokes the
-// D3.js course/outcome mapping central to the thesis. Pure SVG + CSS,
-// no dependencies, scales with the panel via viewBox.
+// D3.js course learning outcome / program outcome mapping central to the
+// thesis. Pure SVG + CSS, no dependencies, scales with the panel via viewBox.
 function LoginMap() {
-  const X_CO = 85 // x of the course-node column
-  const X_PO = 400 // x of the outcome-node column
+  const X_CLO = 85 // x of the course learning outcome column
+  const X_PO = 400 // x of the program outcome column
 
-  // Left column: course nodes (CO). Right column: program outcome nodes (PO).
+  // Left column: course learning outcome nodes (CLO). Right column: program outcome nodes (PO).
   const courses = [
-    { id: 'CO1', y: 100 },
-    { id: 'CO2', y: 240 },
-    { id: 'CO3', y: 380 },
-    { id: 'CO4', y: 510 },
+    { id: 'CLO1', y: 100 },
+    { id: 'CLO2', y: 240 },
+    { id: 'CLO3', y: 380 },
+    { id: 'CLO4', y: 510 },
   ]
   const outcomes = [
     { id: 'PO1', y: 70 },
@@ -28,12 +28,12 @@ function LoginMap() {
     { id: 'PO5', y: 540 },
   ]
 
-  // CO -> PO connections, like checked cells in a mapping matrix.
+  // CLO -> PO connections, like checked cells in a mapping matrix.
   const edges = [
-    { co: 0, po: 0 }, { co: 0, po: 1 },
-    { co: 1, po: 1 }, { co: 1, po: 2 },
-    { co: 2, po: 2 }, { co: 2, po: 3 },
-    { co: 3, po: 3 }, { co: 3, po: 4 },
+    { clo: 0, po: 0 }, { clo: 0, po: 1 },
+    { clo: 1, po: 1 }, { clo: 1, po: 2 },
+    { clo: 2, po: 2 }, { clo: 2, po: 3 },
+    { clo: 3, po: 3 }, { clo: 3, po: 4 },
   ]
 
   // Positions for the faint graph-paper grid lines.
@@ -57,30 +57,30 @@ function LoginMap() {
       </g>
 
       {/* Mapping edges (curved lines with animated flow) */}
-      {edges.map(({ co, po }, i) => {
-        const mx = (X_CO + X_PO) / 2
-        const my = (courses[co].y + outcomes[po].y) / 2
+      {edges.map(({ clo, po }, i) => {
+        const mx = (X_CLO + X_PO) / 2
+        const my = (courses[clo].y + outcomes[po].y) / 2
         return (
           <path
-            key={`${co}-${po}`}
+            key={`${clo}-${po}`}
             className="login-map__edge"
             style={{ animationDelay: `${(i % 4) * 0.4}s` }}
-            d={`M ${X_CO} ${courses[co].y} Q ${mx} ${my} ${X_PO} ${outcomes[po].y}`}
+            d={`M ${X_CLO} ${courses[clo].y} Q ${mx} ${my} ${X_PO} ${outcomes[po].y}`}
           />
         )
       })}
 
-      {/* Course nodes + labels */}
+      {/* Course learning outcome nodes + labels */}
       {courses.map((c, i) => (
         <g key={c.id}>
           <circle
             className="login-map__node"
             style={{ animationDelay: `${i * 0.45}s` }}
-            cx={X_CO}
+            cx={X_CLO}
             cy={c.y}
             r="8"
           />
-          <text className="login-map__node-label" x={X_CO - 16} y={c.y + 4} textAnchor="end">
+          <text className="login-map__node-label" x={X_CLO - 16} y={c.y + 4} textAnchor="end">
             {c.id}
           </text>
         </g>
@@ -172,7 +172,7 @@ function Login() {
               <span className="login-feature-icon">&#127891;</span>
               <div className="login-feature-text">
                 <strong>Outcomes alignment</strong>
-                Monitor CQI indicators and course-to-outcome (CO/PO) attainment.
+                Monitor CQI indicators and course-to-outcome (CLO/PO) attainment.
               </div>
             </div>
             <div className="login-feature">
@@ -186,7 +186,7 @@ function Login() {
         </div>
 
         {/* Legend for the map behind */}
-        <div className="login-map-legend">CO = Course Outcome · PO = Program Outcome</div>
+        <div className="login-map-legend">CLO = Course Learning Outcome · PO = Program Outcome</div>
       </div>
 
       {/* Sign-in form panel */}

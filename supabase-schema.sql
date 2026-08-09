@@ -192,5 +192,5 @@ GRANT EXECUTE ON FUNCTION public.record_login_event(TEXT, BOOLEAN, TEXT) TO anon
 
 INSERT INTO public.resources (title, description, status) VALUES
     ('Curriculum mapping guide', 'How courses map to program outcomes in this CQI monitoring system.', 'active'),
-    ('Outcomes alignment matrix', 'CO/PO alignment reference for program outcomes across the curriculum.', 'active'),
+    ('Outcomes alignment matrix', 'CLO/PO alignment reference for program outcomes across the curriculum.', 'active'),
     ('Sample archived course data', 'An example of an archived curriculum record only admins can delete.', 'archived');

@@ -24,7 +24,7 @@ The system uses three application roles, each mapped to the people who actually 
 | Role | Actors | Typical responsibilities in the system |
 |---|---|---|
 | `admin` | System Administrator / ICT Officer | User & role management, system configuration, full oversight, audit log review |
-| `manager` | Program Head / CQI Lead / Curriculum Coordinator | Curriculum mapping, course-to-outcome (CO/PO) alignment, CQI monitoring, publishing curriculum data |
+| `manager` | Program Head / CQI Lead / Curriculum Coordinator | Curriculum mapping, course-to-outcome (CLO/PO) alignment, CQI monitoring, publishing curriculum data |
 | `user` | Faculty / Instructor / Department Staff | Viewing curriculum maps & outcomes data, submitting course-level performance inputs, updating own profile |
 
 ---

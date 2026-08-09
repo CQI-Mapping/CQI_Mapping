@@ -55,7 +55,7 @@ function Dashboard({ profile }) {
       <div className="panel">
         <h3>What can you do here?</h3>
         <ul className="role-list">
-          <li><strong>Curriculum</strong> — map courses to program outcomes, maintain CO/PO alignment, and publish curriculum data.</li>
+          <li><strong>Curriculum</strong> — map courses to program outcomes, maintain CLO/PO alignment, and publish curriculum data.</li>
           <li><strong>Faculty</strong> — browse all user profiles (read-only).</li>
           <li><strong>Audit Log</strong> — view the record of actions.</li>
         </ul>
