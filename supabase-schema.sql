@@ -25,6 +25,10 @@
 -- Cleanup
 DROP TABLE IF EXISTS public.audit_log CASCADE;
 DROP TABLE IF EXISTS public.resources CASCADE;
+DROP TABLE IF EXISTS public.course_learning_outcomes CASCADE;
+DROP TABLE IF EXISTS public.program_outcomes CASCADE;
+DROP TABLE IF EXISTS public.courses CASCADE;
+DROP TABLE IF EXISTS public.programs CASCADE;
 DROP TABLE IF EXISTS public.profiles CASCADE;
 DROP TYPE IF EXISTS public.user_role CASCADE;
 
@@ -59,6 +63,49 @@ CREATE TABLE public.audit_log (
     action TEXT NOT NULL,
     details JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- CQI curriculum domain: academic programs, their courses, program outcomes
+-- (PO), and course learning outcomes (CLO). These feed the CLO/PO mapping
+-- matrix and the CQI analytics dashboards in later phases.
+
+CREATE TABLE public.programs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE public.courses (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    program_id UUID NOT NULL REFERENCES public.programs(id) ON DELETE CASCADE,
+    code TEXT NOT NULL,
+    title TEXT NOT NULL,
+    units INTEGER NOT NULL DEFAULT 3 CHECK (units > 0),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (program_id, code)
+);
+
+CREATE TABLE public.program_outcomes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    program_id UUID NOT NULL REFERENCES public.programs(id) ON DELETE CASCADE,
+    code TEXT NOT NULL,
+    description TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (program_id, code)
+);
+
+CREATE TABLE public.course_learning_outcomes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    course_id UUID NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
+    code TEXT NOT NULL,
+    description TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (course_id, code)
 );
 
 -- ============================================================
@@ -113,6 +160,10 @@ CREATE TRIGGER on_auth_user_created
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.resources ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.programs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.courses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.program_outcomes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.course_learning_outcomes ENABLE ROW LEVEL SECURITY;
 
 -- PROFILES
 CREATE POLICY "Users can view own profile" ON public.profiles FOR SELECT
@@ -147,6 +198,62 @@ CREATE POLICY "Managers and admins can update resources" ON public.resources FOR
     WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
 
 CREATE POLICY "Admins can delete resources" ON public.resources FOR DELETE
+    USING (public.current_user_role() = 'admin');
+
+-- PROGRAMS
+CREATE POLICY "Authenticated users can read programs" ON public.programs FOR SELECT
+    USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Managers and admins can create programs" ON public.programs FOR INSERT
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
+
+CREATE POLICY "Managers and admins can update programs" ON public.programs FOR UPDATE
+    USING (public.current_user_role() IN ('admin', 'manager'))
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
+
+CREATE POLICY "Admins can delete programs" ON public.programs FOR DELETE
+    USING (public.current_user_role() = 'admin');
+
+-- COURSES
+CREATE POLICY "Authenticated users can read courses" ON public.courses FOR SELECT
+    USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Managers and admins can create courses" ON public.courses FOR INSERT
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
+
+CREATE POLICY "Managers and admins can update courses" ON public.courses FOR UPDATE
+    USING (public.current_user_role() IN ('admin', 'manager'))
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
+
+CREATE POLICY "Admins can delete courses" ON public.courses FOR DELETE
+    USING (public.current_user_role() = 'admin');
+
+-- PROGRAM OUTCOMES
+CREATE POLICY "Authenticated users can read program outcomes" ON public.program_outcomes FOR SELECT
+    USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Managers and admins can create program outcomes" ON public.program_outcomes FOR INSERT
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
+
+CREATE POLICY "Managers and admins can update program outcomes" ON public.program_outcomes FOR UPDATE
+    USING (public.current_user_role() IN ('admin', 'manager'))
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
+
+CREATE POLICY "Admins can delete program outcomes" ON public.program_outcomes FOR DELETE
+    USING (public.current_user_role() = 'admin');
+
+-- COURSE LEARNING OUTCOMES
+CREATE POLICY "Authenticated users can read course learning outcomes" ON public.course_learning_outcomes FOR SELECT
+    USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Managers and admins can create course learning outcomes" ON public.course_learning_outcomes FOR INSERT
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
+
+CREATE POLICY "Managers and admins can update course learning outcomes" ON public.course_learning_outcomes FOR UPDATE
+    USING (public.current_user_role() IN ('admin', 'manager'))
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
+
+CREATE POLICY "Admins can delete course learning outcomes" ON public.course_learning_outcomes FOR DELETE
     USING (public.current_user_role() = 'admin');
 
 -- AUDIT LOG
@@ -194,3 +301,50 @@ INSERT INTO public.resources (title, description, status) VALUES
     ('Curriculum mapping guide', 'How courses map to program outcomes in this CQI monitoring system.', 'active'),
     ('Outcomes alignment matrix', 'CLO/PO alignment reference for program outcomes across the curriculum.', 'active'),
     ('Sample archived course data', 'An example of an archived curriculum record only admins can delete.', 'archived');
+
+-- CQI curriculum seed: sample programs, courses, program outcomes (PO),
+-- and course learning outcomes (CLO) to demo the admin Curriculum tabs.
+
+INSERT INTO public.programs (code, name, description, status) VALUES
+    ('BSIT', 'Bachelor of Science in Information Technology', 'Information technology curriculum for program outcomes alignment.', 'active'),
+    ('BSCS', 'Bachelor of Science in Computer Science', 'Computer science curriculum for program outcomes alignment.', 'active');
+
+INSERT INTO public.courses (program_id, code, title, units)
+SELECT p.id, c.code, c.title, c.units
+FROM (VALUES
+    ('BSIT', 'IT101', 'Introduction to Computing', 3),
+    ('BSIT', 'IT102', 'Computer Programming 1', 3),
+    ('BSIT', 'IT210', 'Database Systems', 3),
+    ('BSCS', 'CS101', 'Fundamentals of Computing', 3),
+    ('BSCS', 'CS120', 'Object-Oriented Programming', 3)
+) AS c(program_code, code, title, units)
+JOIN public.programs p ON p.code = c.program_code;
+
+INSERT INTO public.program_outcomes (program_id, code, description)
+SELECT p.id, po.code, po.description
+FROM (VALUES
+    ('BSIT', 'PO1', 'Apply knowledge of computing, science, and mathematics appropriate to the discipline.'),
+    ('BSIT', 'PO2', 'Analyze complex problems and identify computing requirements.'),
+    ('BSIT', 'PO3', 'Design, implement, and evaluate computing-based solutions.'),
+    ('BSIT', 'PO4', 'Function effectively as a member or leader of a development team.'),
+    ('BSIT', 'PO5', 'Communicate effectively with a range of audiences.'),
+    ('BSCS', 'PO1', 'Analyze a complex computing problem and apply principles of computing.'),
+    ('BSCS', 'PO2', 'Design and implement algorithms and computing solutions.'),
+    ('BSCS', 'PO3', 'Apply computer science theory and software development fundamentals.')
+) AS po(program_code, code, description)
+JOIN public.programs p ON p.code = po.program_code;
+
+INSERT INTO public.course_learning_outcomes (course_id, code, description)
+SELECT c.id, clo.code, clo.description
+FROM (VALUES
+    ('IT101', 'CLO1', 'Explain the fundamental concepts of computing and information technology.'),
+    ('IT101', 'CLO2', 'Demonstrate basic skills in using computer hardware and software.'),
+    ('IT101', 'CLO3', 'Describe the components of a computer system.'),
+    ('IT101', 'CLO4', 'Identify ethical issues in the use of information technology.'),
+    ('IT102', 'CLO1', 'Design algorithms to solve simple programming problems.'),
+    ('IT102', 'CLO2', 'Implement programs using a high-level programming language.'),
+    ('IT102', 'CLO3', 'Test and debug simple programs.'),
+    ('CS101', 'CLO1', 'Describe the roles of computing in society.'),
+    ('CS101', 'CLO2', 'Identify the main components of a computing system.')
+) AS clo(course_code, code, description)
+JOIN public.courses c ON c.code = clo.course_code;

@@ -258,6 +258,12 @@ Three sample curriculum records are inserted on setup:
 - `Outcomes alignment matrix` (active)
 - `Sample archived course data` (archived — demonstrates admin-only delete)
 
+The CQI curriculum domain is seeded with:
+- Two programs: `BSIT` (Information Technology) and `BSCS` (Computer Science)
+- Five courses across the two programs (e.g. `IT101 Intro to IT`, `CS201 Data Structures`)
+- Eight program outcomes (PO1–PO8 per program, covering the program educational objectives)
+- Nine course learning outcomes (CLO1–CLO9) distributed across the courses
+
 ---
 
 ## 7. Service Layer Reference
@@ -276,6 +282,22 @@ All queries live in `src/services/database.js`. Signatures, purpose, and who can
 | `createResource` | `(title, description, userId)` | Insert a resource | admins/managers |
 | `updateResource` | `(id, updates)` | Edit title/description/status | admins/managers |
 | `deleteResource` | `(id)` | Permanently delete a resource | admins |
+| `fetchPrograms` | `()` | List all programs | all signed-in users |
+| `createProgram` | `(payload)` | Insert a program | admins/managers |
+| `updateProgram` | `(id, updates)` | Edit a program (code/name/description/status) | admins/managers |
+| `deleteProgram` | `(id)` | Permanently delete a program (cascades) | admins |
+| `fetchCourses` | `()` | List courses with embedded program | all signed-in users |
+| `createCourse` | `(payload)` | Insert a course | admins/managers |
+| `updateCourse` | `(id, updates)` | Edit a course | admins/managers |
+| `deleteCourse` | `(id)` | Permanently delete a course (cascades to CLOs) | admins |
+| `fetchProgramOutcomes` | `(programId = null)` | List program outcomes, optionally by program | all signed-in users |
+| `createProgramOutcome` | `(payload)` | Insert a program outcome | admins/managers |
+| `updateProgramOutcome` | `(id, updates)` | Edit a program outcome | admins/managers |
+| `deleteProgramOutcome` | `(id)` | Permanently delete a program outcome | admins |
+| `fetchCourseLearningOutcomes` | `(courseId = null)` | List course learning outcomes, optionally by course | all signed-in users |
+| `createCourseLearningOutcome` | `(payload)` | Insert a course learning outcome | admins/managers |
+| `updateCourseLearningOutcome` | `(id, updates)` | Edit a course learning outcome | admins/managers |
+| `deleteCourseLearningOutcome` | `(id)` | Permanently delete a course learning outcome | admins |
 | `fetchAuditLog` | `()` | Latest 100 audit entries | admins/managers |
 | `recordLoginEvent` | `(email, success, reason?)` | Record a sign-in attempt via the `record_login_event` RPC | any caller (RPC) |
 | `addAuditLog` | `(userEmail, action, details)` | Insert an audit entry | any signed-in user |
@@ -307,7 +329,9 @@ All queries live in `src/services/database.js`. Signatures, purpose, and who can
 - Read-only faculty directory showing role badges. Role changes are admin-only.
 
 ### `admin/Curriculum.jsx`
-- Props: `userEmail`. Full curriculum management: "New record" form, per-card Edit / Archive / Restore, plus Delete.
+- Props: `userEmail`. Sub-tabbed curriculum domain manager with four views: **Programs**, **Courses**, **Program Outcomes (PO)**, **Course Learning Outcomes (CLO)**. Every view supports create, inline edit, and delete, and writes an audit entry per mutation.
+- Courses are created under a program (with a program filter on the list). POs are managed per selected program; CLOs per selected program → course.
+- Views live in `src/pages/admin/curriculum/` and share state/CRUD logic via the `useEntityCrud` hook.
 
 ### `manager/Curriculum.jsx`
 - Props: `userEmail`. Same as admin but without the Delete button.
