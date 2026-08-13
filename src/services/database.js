@@ -61,6 +61,15 @@ export async function updateProfile(profileId, updates) {
   return data
 }
 
+// Bootstrap admin: promote the calling user to admin when the system has no
+// admin yet. Backed by a SECURITY DEFINER RPC with a zero-admin guard, so a
+// plain user cannot self-promote once an admin exists.
+export async function claimFirstAdmin() {
+  const { data, error } = await supabase.rpc('claim_first_admin')
+  if (error) throw error
+  return data === true
+}
+
 // List all profiles (admin: Users page, manager: Faculty directory).
 // RLS: managers and admins can read all profiles; a plain user cannot.
 export async function fetchAllProfiles() {

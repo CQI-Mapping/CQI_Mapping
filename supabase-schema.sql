@@ -1,26 +1,4 @@
--- ============================================================
--- ROLE-BASED STARTER — Supabase schema
--- Roles: admin / manager / user
---
--- SETUP (run this whole file in the Supabase SQL Editor):
---   1. Run this script to create tables, RLS, triggers, and seed data.
---   2. Create an auth user in Dashboard > Authentication > Users
---      (any email/password). The trigger auto-creates their profile
---      with role 'user'.
---   3. Promote yourself to admin by replacing your-email below:
---        UPDATE public.profiles SET role = 'admin'
---        WHERE email = 'your-email';
---   4. (Optional) For the admin "create user" feature, also set
---      VITE_SUPABASE_SERVICE_ROLE_KEY in .env — grab it from the
---      project Settings > API > service_role (kept secret).
---
--- ROLES & WHAT THEY CAN DO
---   admin   : manage users (roles), create users, manage resources,
---             view audit log, view all profiles
---   manager : manage resources (create/edit/archive), view all
---             profiles (directory), view audit log
---   user    : view resources, view/edit own profile
--- ============================================================
+
 
 -- Cleanup
 DROP TABLE IF EXISTS public.audit_log CASCADE;
@@ -356,6 +334,41 @@ $$;
 
 REVOKE ALL ON FUNCTION public.record_login_event(TEXT, BOOLEAN, TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.record_login_event(TEXT, BOOLEAN, TEXT) TO anon, authenticated;
+
+-- ============================================================
+-- FIRST ADMIN BOOTSTRAP
+-- Promotes the calling user to admin when the system has no
+-- admin yet. This self-heals the "locked out after schema
+-- re-run" case: the schema drops profiles (and their roles),
+-- so the first person to sign back in becomes admin again.
+-- SECURITY DEFINER + the zero-admin guard mean a normal user
+-- cannot self-promote once an admin exists.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION public.claim_first_admin()
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_uid uuid := auth.uid();
+BEGIN
+    IF v_uid IS NULL THEN
+        RETURN false;
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM public.profiles WHERE role = 'admin') THEN
+        RETURN false;
+    END IF;
+
+    UPDATE public.profiles SET role = 'admin' WHERE id = v_uid;
+    RETURN FOUND;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.claim_first_admin() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.claim_first_admin() TO authenticated;
 
 -- ============================================================
 -- SEED DATA

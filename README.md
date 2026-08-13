@@ -73,7 +73,9 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
 | Manager | `manager@cqi.test` | `Manager@123456` |
 | User | `user@cqi.test` | `User@123456` |
 
-> If a role ever falls back to `user` after a schema re-run, re-apply the roles:
+> If a role ever falls back to `user` after a schema re-run, just sign back in — the
+> app's `claim_first_admin` RPC promotes the first person to sign in when the system
+> has no admin, so you don't get locked out. (Manual alternative: re-apply the roles)
 > ```sql
 > UPDATE public.profiles SET role='admin'   WHERE email='admin@cqi.test';
 > UPDATE public.profiles SET role='manager' WHERE email='manager@cqi.test';
@@ -250,6 +252,7 @@ All three tables have RLS enabled. Policies use `public.current_user_role()` —
 - **`public.current_user_role()`** — returns the calling user's role. `SECURITY DEFINER`, so it works inside RLS policies without recursion.
 - **`public.handle_new_user()`** — `AFTER INSERT` trigger on `auth.users`. Creates a `profiles` row (role defaults to `user`) on signup. On conflict it does nothing.
 - **`public.record_login_event(email, success, reason)`** — `SECURITY DEFINER` function that writes an `auth.login` / `auth.login_failed` audit entry. It is callable by `anon` and `authenticated` so it works even for failed logins that have no session (RLS would otherwise block the insert).
+- **`public.claim_first_admin()`** — `SECURITY DEFINER` function that promotes the calling user to `admin` only when the system has zero admins. Called by the app on sign-in, so the first person to log in after a schema re-run automatically becomes admin again (no manual role UPDATE needed).
 
 ### 6.4 Seed Data
 
@@ -276,6 +279,7 @@ All queries live in `src/services/database.js`. Signatures, purpose, and who can
 | `getProfile` | `(userId)` | Fetch one profile | the owner; admins/managers |
 | `ensureProfile` | `(user)` | Fetch own profile; insert a fresh row (role `user`) if missing | the owner |
 | `updateProfile` | `(profileId, updates)` | Update own profile (e.g. full_name) | the owner; admins |
+| `claimFirstAdmin` | `()` | Promote self to admin when the system has no admin (bootstrap) | any signed-in user |
 | `fetchAllProfiles` | `()` | List all users | admins/managers |
 | `updateUserRole` | `(profileId, role)` | Change a user's role | admins |
 | `adminCreateUser` | `(email, password, fullName, role)` | Create an auth user via Supabase admin API | admins (needs service role key) |
