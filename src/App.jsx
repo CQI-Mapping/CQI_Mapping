@@ -22,7 +22,7 @@ import UserCurriculum from './pages/user/Curriculum.jsx'
 import AdminCloPoMapping from './pages/admin/CloPoMapping.jsx'
 import AdminAnalytics from './pages/admin/Analytics.jsx'
 import { supabase } from './utils/supabaseClient'
-import { ensureProfile, claimFirstAdmin } from './services/database'
+import { ensureProfile, syncDemoRole } from './services/database'
 
 // NAV map: which sidebar items each role can see.
 // 'id' must match the keys used in the PAGES map below.
@@ -102,9 +102,10 @@ function App() {
 
   // When the session changes, load the user's profile.
   // ensureProfile auto-creates the row if missing (e.g. after a schema re-run),
-  // so a profile-less account no longer breaks the dashboard. If the system has
-  // no admin at all, the first person to sign in is promoted to admin (claim_first_admin),
-  // which also heals the "roles wiped by schema re-run" case.
+  // so a profile-less account no longer breaks the dashboard. sync_demo_role
+  // then restores the expected role (demo accounts by email, or first-admin
+  // bootstrap when no admin exists), so admin/manager/user land on the right
+  // dashboard even after roles were wiped by a schema re-run.
   useEffect(() => {
     if (!session?.user) return
     let cancelled = false
@@ -112,8 +113,11 @@ function App() {
     ensureProfile(session.user)
       .then((p) => {
         if (cancelled) return null
-        return claimFirstAdmin()
-          .then((claimed) => (claimed ? ensureProfile(session.user) : p))
+        return syncDemoRole()
+          .then((role) => {
+            if (role && role !== p.role) return ensureProfile(session.user)
+            return p
+          })
           .catch(() => p) // RPC missing/not deployed yet → keep the loaded profile
       })
       .then((p) => {

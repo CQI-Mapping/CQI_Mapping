@@ -336,39 +336,67 @@ REVOKE ALL ON FUNCTION public.record_login_event(TEXT, BOOLEAN, TEXT) FROM PUBLI
 GRANT EXECUTE ON FUNCTION public.record_login_event(TEXT, BOOLEAN, TEXT) TO anon, authenticated;
 
 -- ============================================================
--- FIRST ADMIN BOOTSTRAP
--- Promotes the calling user to admin when the system has no
--- admin yet. This self-heals the "locked out after schema
--- re-run" case: the schema drops profiles (and their roles),
--- so the first person to sign back in becomes admin again.
--- SECURITY DEFINER + the zero-admin guard mean a normal user
--- cannot self-promote once an admin exists.
+-- ROLE RESTORE / FIRST ADMIN BOOTSTRAP
+-- Called by the app on every sign-in. Heals the "roles reset
+-- after schema re-run" case without re-running SQL:
+--   * demo accounts get their expected role (admin@cqi.test ->
+--     admin, manager@cqi.test -> manager, user@cqi.test -> user)
+--     when they fell back to the default 'user' role;
+--   * any other account is promoted to admin only when the
+--     system has no admin at all (fresh install / bootstrap).
+-- A deliberately-changed role is never overridden, and a second
+-- admin is never created. SECURITY DEFINER so it bypasses RLS.
 -- ============================================================
 
-CREATE OR REPLACE FUNCTION public.claim_first_admin()
-RETURNS BOOLEAN
+CREATE OR REPLACE FUNCTION public.sync_demo_role()
+RETURNS public.user_role
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
     v_uid uuid := auth.uid();
+    v_email text;
+    v_current public.user_role;
+    v_role public.user_role;
+    v_has_admin boolean;
 BEGIN
     IF v_uid IS NULL THEN
-        RETURN false;
+        RETURN NULL;
     END IF;
 
-    IF EXISTS (SELECT 1 FROM public.profiles WHERE role = 'admin') THEN
-        RETURN false;
+    SELECT email, role INTO v_email, v_current
+    FROM public.profiles WHERE id = v_uid;
+    IF v_email IS NULL THEN
+        RETURN NULL;
     END IF;
 
-    UPDATE public.profiles SET role = 'admin' WHERE id = v_uid;
-    RETURN FOUND;
+    -- Keep any role an admin deliberately assigned (never override).
+    IF v_current <> 'user' THEN
+        RETURN v_current;
+    END IF;
+
+    SELECT EXISTS (SELECT 1 FROM public.profiles WHERE role = 'admin') INTO v_has_admin;
+
+    v_role := CASE v_email
+        WHEN 'admin@cqi.test' THEN
+            CASE WHEN v_has_admin THEN 'user'::public.user_role ELSE 'admin'::public.user_role END
+        WHEN 'manager@cqi.test' THEN 'manager'::public.user_role
+        WHEN 'user@cqi.test' THEN 'user'::public.user_role
+        ELSE
+            CASE WHEN v_has_admin THEN 'user'::public.user_role ELSE 'admin'::public.user_role END
+    END;
+
+    IF v_role <> v_current THEN
+        UPDATE public.profiles SET role = v_role WHERE id = v_uid;
+    END IF;
+
+    RETURN v_role;
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.claim_first_admin() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.claim_first_admin() TO authenticated;
+REVOKE ALL ON FUNCTION public.sync_demo_role() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.sync_demo_role() TO authenticated;
 
 -- ============================================================
 -- SEED DATA
@@ -378,6 +406,27 @@ INSERT INTO public.resources (title, description, status) VALUES
     ('Curriculum mapping guide', 'How courses map to program outcomes in this CQI monitoring system.', 'active'),
     ('Outcomes alignment matrix', 'CLO/PO alignment reference for program outcomes across the curriculum.', 'active'),
     ('Sample archived course data', 'An example of an archived curriculum record only admins can delete.', 'archived');
+
+-- Recreate profiles for EXISTING auth users (the DROP above wiped them) and
+-- restore the demo roles, so admin/manager/user land on the right dashboard
+-- after a schema re-run. New signups are still handled by handle_new_user.
+-- ON CONFLICT DO NOTHING keeps any role an admin deliberately changed.
+INSERT INTO public.profiles (id, email, full_name, role)
+SELECT
+    u.id,
+    u.email,
+    COALESCE(
+        u.raw_user_meta_data->>'full_name',
+        u.raw_user_meta_data->>'name',
+        split_part(u.email, '@', 1)
+    ),
+    CASE u.email
+        WHEN 'admin@cqi.test'   THEN 'admin'::public.user_role
+        WHEN 'manager@cqi.test' THEN 'manager'::public.user_role
+        ELSE 'user'::public.user_role
+    END
+FROM auth.users u
+ON CONFLICT (id) DO NOTHING;
 
 -- CQI curriculum seed: sample programs, courses, program outcomes (PO),
 -- and course learning outcomes (CLO) to demo the admin Curriculum tabs.

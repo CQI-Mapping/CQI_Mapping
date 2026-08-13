@@ -73,9 +73,10 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
 | Manager | `manager@cqi.test` | `Manager@123456` |
 | User | `user@cqi.test` | `User@123456` |
 
-> If a role ever falls back to `user` after a schema re-run, just sign back in — the
-> app's `claim_first_admin` RPC promotes the first person to sign in when the system
-> has no admin, so you don't get locked out. (Manual alternative: re-apply the roles)
+> Roles survive schema re-runs automatically — no manual SQL needed:
+> 1. The schema's seed section recreates profiles for all existing auth users and assigns the demo roles by email.
+> 2. The app calls the `sync_demo_role` RPC on every sign-in, restoring each demo account's expected role (or promoting the first user to admin when no admin exists).
+> (Manual alternative: re-apply the roles)
 > ```sql
 > UPDATE public.profiles SET role='admin'   WHERE email='admin@cqi.test';
 > UPDATE public.profiles SET role='manager' WHERE email='manager@cqi.test';
@@ -252,9 +253,11 @@ All three tables have RLS enabled. Policies use `public.current_user_role()` —
 - **`public.current_user_role()`** — returns the calling user's role. `SECURITY DEFINER`, so it works inside RLS policies without recursion.
 - **`public.handle_new_user()`** — `AFTER INSERT` trigger on `auth.users`. Creates a `profiles` row (role defaults to `user`) on signup. On conflict it does nothing.
 - **`public.record_login_event(email, success, reason)`** — `SECURITY DEFINER` function that writes an `auth.login` / `auth.login_failed` audit entry. It is callable by `anon` and `authenticated` so it works even for failed logins that have no session (RLS would otherwise block the insert).
-- **`public.claim_first_admin()`** — `SECURITY DEFINER` function that promotes the calling user to `admin` only when the system has zero admins. Called by the app on sign-in, so the first person to log in after a schema re-run automatically becomes admin again (no manual role UPDATE needed).
+- **`public.sync_demo_role()`** — `SECURITY DEFINER` function called by the app on every sign-in. Restores each demo account's expected role when it fell back to `user` (`admin@cqi.test` → admin, `manager@cqi.test` → manager) and promotes the first user to `admin` when the system has no admin at all. Never overrides a deliberately-changed role and never creates a second admin.
 
 ### 6.4 Seed Data
+
+The seed section recreates `profiles` for every existing auth user, assigning the demo roles by email (`admin@cqi.test` → admin, `manager@cqi.test` → manager, all others → user). This is what makes roles survive a schema re-run.
 
 Three sample curriculum records are inserted on setup:
 - `Curriculum mapping guide` (active)
@@ -279,7 +282,7 @@ All queries live in `src/services/database.js`. Signatures, purpose, and who can
 | `getProfile` | `(userId)` | Fetch one profile | the owner; admins/managers |
 | `ensureProfile` | `(user)` | Fetch own profile; insert a fresh row (role `user`) if missing | the owner |
 | `updateProfile` | `(profileId, updates)` | Update own profile (e.g. full_name) | the owner; admins |
-| `claimFirstAdmin` | `()` | Promote self to admin when the system has no admin (bootstrap) | any signed-in user |
+| `syncDemoRole` | `()` | Restore the caller's expected role (demo accounts) or bootstrap the first admin | any signed-in user |
 | `fetchAllProfiles` | `()` | List all users | admins/managers |
 | `updateUserRole` | `(profileId, role)` | Change a user's role | admins |
 | `adminCreateUser` | `(email, password, fullName, role)` | Create an auth user via Supabase admin API | admins (needs service role key) |

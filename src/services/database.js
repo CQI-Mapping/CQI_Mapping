@@ -61,13 +61,15 @@ export async function updateProfile(profileId, updates) {
   return data
 }
 
-// Bootstrap admin: promote the calling user to admin when the system has no
-// admin yet. Backed by a SECURITY DEFINER RPC with a zero-admin guard, so a
-// plain user cannot self-promote once an admin exists.
-export async function claimFirstAdmin() {
-  const { data, error } = await supabase.rpc('claim_first_admin')
+// Restore the caller's expected role (demo accounts by email, or first-admin
+// bootstrap when the system has no admin). Called on every sign-in to heal
+// roles reset by a schema re-run. Returns the role as a string, or null.
+// Backed by a SECURITY DEFINER RPC so a plain user cannot self-promote once
+// an admin exists.
+export async function syncDemoRole() {
+  const { data, error } = await supabase.rpc('sync_demo_role')
   if (error) throw error
-  return data === true
+  return data
 }
 
 // List all profiles (admin: Users page, manager: Faculty directory).
