@@ -1,40 +1,78 @@
 // App shell: manages the session, loads the signed-in user's profile, and decides
 // which page to render based on their role. No router library — the active page is
 // just state, and the role-based NAV map below controls what's visible.
+//
+// Each role has its own pages in its own folder (src/pages/admin|manager|user),
+// mirroring the reference repo's per-role structure.
 
 import { useState, useEffect } from 'react'
 import Sidebar from './components/Sidebar.jsx'
 import Login from './pages/Login.jsx'
-import Dashboard from './pages/Dashboard.jsx'
-import Users from './pages/Users.jsx'
-import Resources from './pages/Resources.jsx'
-import AuditLog from './pages/AuditLog.jsx'
 import Profile from './pages/Profile.jsx'
+import AdminDashboard from './pages/admin/Dashboard.jsx'
+import AdminUsers from './pages/admin/Users.jsx'
+import AdminCurriculum from './pages/admin/Curriculum.jsx'
+import AdminAuditLog from './pages/admin/AuditLog.jsx'
+import ManagerDashboard from './pages/manager/Dashboard.jsx'
+import ManagerUsers from './pages/manager/Users.jsx'
+import ManagerCurriculum from './pages/manager/Curriculum.jsx'
+import ManagerAuditLog from './pages/manager/AuditLog.jsx'
+import UserDashboard from './pages/user/Dashboard.jsx'
+import UserCurriculum from './pages/user/Curriculum.jsx'
+import AdminCloPoMapping from './pages/admin/CloPoMapping.jsx'
+import AdminAnalytics from './pages/admin/Analytics.jsx'
 import { supabase } from './utils/supabaseClient'
-import { ensureProfile } from './services/database'
+import { ensureProfile, syncDemoRole } from './services/database'
 
 // NAV map: which sidebar items each role can see.
-// 'id' must match the keys used in renderPage() below.
+// 'id' must match the keys used in the PAGES map below.
 const NAV = {
   admin: [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'users', label: 'Users & Accounts' },
-    { id: 'resources', label: 'Curriculum' },
-    { id: 'audit-log', label: 'Audit Log' },
+    { id: 'curriculum', label: 'Curriculum' },
+    { id: 'clo-po', label: 'CLO/PO Mapping' },
+    { id: 'analytics', label: 'Analytics' },
+    { id: 'audit-log', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
   ],
   manager: [
     { id: 'dashboard', label: 'Dashboard' },
-    { id: 'resources', label: 'Curriculum' },
+    { id: 'curriculum', label: 'Curriculum' },
     { id: 'users', label: 'Faculty' },
-    { id: 'audit-log', label: 'Audit Log' },
+    { id: 'audit-log', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
   ],
   user: [
     { id: 'dashboard', label: 'Dashboard' },
-    { id: 'resources', label: 'Curriculum' },
+    { id: 'curriculum', label: 'Curriculum' },
     { id: 'profile', label: 'Profile' },
   ],
+}
+
+// PAGES map: page id -> component for each role. 'profile' is shared across roles.
+const PAGES = {
+  admin: {
+    dashboard: AdminDashboard,
+    users: AdminUsers,
+    curriculum: AdminCurriculum,
+    'clo-po': AdminCloPoMapping,
+    analytics: AdminAnalytics,
+    'audit-log': AdminAuditLog,
+    profile: Profile,
+  },
+  manager: {
+    dashboard: ManagerDashboard,
+    curriculum: ManagerCurriculum,
+    users: ManagerUsers,
+    'audit-log': ManagerAuditLog,
+    profile: Profile,
+  },
+  user: {
+    dashboard: UserDashboard,
+    curriculum: UserCurriculum,
+    profile: Profile,
+  },
 }
 
 function App() {
@@ -64,14 +102,26 @@ function App() {
 
   // When the session changes, load the user's profile.
   // ensureProfile auto-creates the row if missing (e.g. after a schema re-run),
-  // so a profile-less account no longer breaks the dashboard.
+  // so a profile-less account no longer breaks the dashboard. sync_demo_role
+  // then restores the expected role (demo accounts by email, or first-admin
+  // bootstrap when no admin exists), so admin/manager/user land on the right
+  // dashboard even after roles were wiped by a schema re-run.
   useEffect(() => {
     if (!session?.user) return
     let cancelled = false
 
     ensureProfile(session.user)
       .then((p) => {
-        if (!cancelled) setProfile(p)
+        if (cancelled) return null
+        return syncDemoRole()
+          .then((role) => {
+            if (role && role !== p.role) return ensureProfile(session.user)
+            return p
+          })
+          .catch(() => p) // RPC missing/not deployed yet → keep the loaded profile
+      })
+      .then((p) => {
+        if (!cancelled && p) setProfile(p)
       })
       .catch(() => {}) // keep the app usable even if the profile load fails
 
@@ -101,18 +151,12 @@ function App() {
   const page = navItems.some((n) => n.id === activePage) ? activePage : 'dashboard'
 
   const renderPage = () => {
-    switch (page) {
-      case 'users':
-        return <Users role={role} />
-      case 'resources':
-        return <Resources role={role} userEmail={profile?.email} />
-      case 'audit-log':
-        return <AuditLog />
-      case 'profile':
-        return <Profile profile={profile} onSaved={setProfile} />
-      default:
-        return <Dashboard profile={profile} role={role} />
-    }
+    const Page = PAGES[role]?.[page] ?? UserDashboard
+
+    if (page === 'profile') return <Page profile={profile} onSaved={setProfile} />
+    if (page === 'curriculum' && role !== 'user') return <Page userEmail={profile?.email} />
+    if (page === 'clo-po' && role !== 'user') return <Page userEmail={profile?.email} />
+    return <Page profile={profile} />
   }
 
   return (

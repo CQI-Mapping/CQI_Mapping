@@ -48,6 +48,31 @@ function AuditIcon(props) {
   )
 }
 
+function MatrixIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+      strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <path d="M3 9h18" />
+      <path d="M3 15h18" />
+      <path d="M9 3v18" />
+      <path d="M15 3v18" />
+    </svg>
+  )
+}
+
+function ChartIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+      strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M3 3v18h18" />
+      <rect x="7" y="12" width="3" height="6" rx="1" />
+      <rect x="12" y="7" width="3" height="11" rx="1" />
+      <rect x="17" y="10" width="3" height="8" rx="1" />
+    </svg>
+  )
+}
+
 function ProfileIcon(props) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
@@ -73,7 +98,9 @@ function LogoutIcon(props) {
 const ICONS = {
   dashboard: DashboardIcon,
   users: UsersIcon,
-  resources: ResourcesIcon,
+  curriculum: ResourcesIcon,
+  'clo-po': MatrixIcon,
+  analytics: ChartIcon,
   'audit-log': AuditIcon,
   profile: ProfileIcon,
 }

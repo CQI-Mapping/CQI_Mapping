@@ -24,7 +24,7 @@ The system uses three application roles, each mapped to the people who actually 
 | Role | Actors | Typical responsibilities in the system |
 |---|---|---|
 | `admin` | System Administrator / ICT Officer | User & role management, system configuration, full oversight, audit log review |
-| `manager` | Program Head / CQI Lead / Curriculum Coordinator | Curriculum mapping, course-to-outcome (CO/PO) alignment, CQI monitoring, publishing curriculum data |
+| `manager` | Program Head / CQI Lead / Curriculum Coordinator | Curriculum mapping, course-to-outcome (CLO/PO) alignment, CQI monitoring, publishing curriculum data |
 | `user` | Faculty / Instructor / Department Staff | Viewing curriculum maps & outcomes data, submitting course-level performance inputs, updating own profile |
 
 ---
@@ -73,7 +73,10 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
 | Manager | `manager@cqi.test` | `Manager@123456` |
 | User | `user@cqi.test` | `User@123456` |
 
-> If a role ever falls back to `user` after a schema re-run, re-apply the roles:
+> Roles survive schema re-runs automatically — no manual SQL needed:
+> 1. The schema's seed section recreates profiles for all existing auth users and assigns the demo roles by email.
+> 2. The app calls the `sync_demo_role` RPC on every sign-in, restoring each demo account's expected role (or promoting the first user to admin when no admin exists).
+> (Manual alternative: re-apply the roles)
 > ```sql
 > UPDATE public.profiles SET role='admin'   WHERE email='admin@cqi.test';
 > UPDATE public.profiles SET role='manager' WHERE email='manager@cqi.test';
@@ -101,11 +104,20 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
     │   └── Sidebar.jsx       # Nav shell (items change per role) + logout
     ├── pages/
     │   ├── Login.jsx         # Sign in (login only, no create-account tab)
-    │   ├── Dashboard.jsx     # Role-aware stat cards + "what you can do" list
-    │   ├── Users.jsx         # Admin: manage roles + create users; Manager: read-only directory
-    │   ├── Resources.jsx     # Resource CRUD, role-gated
-    │   ├── AuditLog.jsx      # Table of logged actions (admin/manager)
-    │   └── Profile.jsx       # View/edit own profile
+    │   ├── Profile.jsx       # View/edit own profile (shared by all roles)
+    │   ├── admin/            # Admin's own pages
+    │   │   ├── Dashboard.jsx # Admin overview: role/resources/user counts + capabilities
+    │   │   ├── Users.jsx     # Manage roles + create users (account management)
+    │   │   ├── Curriculum.jsx# Full CRUD incl. permanent delete
+    │   │   └── AuditLog.jsx  # Table of logged actions
+    │   ├── manager/          # Manager's own pages
+    │   │   ├── Dashboard.jsx # Manager overview + capabilities
+    │   │   ├── Users.jsx     # Read-only faculty directory
+    │   │   ├── Curriculum.jsx# Create/edit/archive (no delete)
+    │   │   └── AuditLog.jsx  # Table of logged actions
+    │   └── user/             # User's own pages
+    │       ├── Dashboard.jsx # User overview + capabilities
+    │       └── Curriculum.jsx# Read-only browse
     ├── services/
     │   └── database.js       # ALL Supabase queries used by the app
     ├── styles/
@@ -241,13 +253,23 @@ All three tables have RLS enabled. Policies use `public.current_user_role()` —
 - **`public.current_user_role()`** — returns the calling user's role. `SECURITY DEFINER`, so it works inside RLS policies without recursion.
 - **`public.handle_new_user()`** — `AFTER INSERT` trigger on `auth.users`. Creates a `profiles` row (role defaults to `user`) on signup. On conflict it does nothing.
 - **`public.record_login_event(email, success, reason)`** — `SECURITY DEFINER` function that writes an `auth.login` / `auth.login_failed` audit entry. It is callable by `anon` and `authenticated` so it works even for failed logins that have no session (RLS would otherwise block the insert).
+- **`public.sync_demo_role()`** — `SECURITY DEFINER` function called by the app on every sign-in. Restores each demo account's expected role when it fell back to `user` (`admin@cqi.test` → admin, `manager@cqi.test` → manager) and promotes the first user to `admin` when the system has no admin at all. Never overrides a deliberately-changed role and never creates a second admin.
 
 ### 6.4 Seed Data
+
+The seed section recreates `profiles` for every existing auth user, assigning the demo roles by email (`admin@cqi.test` → admin, `manager@cqi.test` → manager, all others → user). This is what makes roles survive a schema re-run.
 
 Three sample curriculum records are inserted on setup:
 - `Curriculum mapping guide` (active)
 - `Outcomes alignment matrix` (active)
 - `Sample archived course data` (archived — demonstrates admin-only delete)
+
+The CQI curriculum domain is seeded with:
+- Two programs: `BSIT` (Information Technology) and `BSCS` (Computer Science)
+- Five courses across the two programs (e.g. `IT101 Intro to IT`, `CS201 Data Structures`)
+- Eight program outcomes (PO1–PO8 per program, covering the program educational objectives)
+- Nine course learning outcomes (CLO1–CLO9) distributed across the courses
+- Sample `clo_po_matrix` rows with strength levels (1–3) mapping CLOs to POs of the same program
 
 ---
 
@@ -260,6 +282,7 @@ All queries live in `src/services/database.js`. Signatures, purpose, and who can
 | `getProfile` | `(userId)` | Fetch one profile | the owner; admins/managers |
 | `ensureProfile` | `(user)` | Fetch own profile; insert a fresh row (role `user`) if missing | the owner |
 | `updateProfile` | `(profileId, updates)` | Update own profile (e.g. full_name) | the owner; admins |
+| `syncDemoRole` | `()` | Restore the caller's expected role (demo accounts) or bootstrap the first admin | any signed-in user |
 | `fetchAllProfiles` | `()` | List all users | admins/managers |
 | `updateUserRole` | `(profileId, role)` | Change a user's role | admins |
 | `adminCreateUser` | `(email, password, fullName, role)` | Create an auth user via Supabase admin API | admins (needs service role key) |
@@ -267,6 +290,25 @@ All queries live in `src/services/database.js`. Signatures, purpose, and who can
 | `createResource` | `(title, description, userId)` | Insert a resource | admins/managers |
 | `updateResource` | `(id, updates)` | Edit title/description/status | admins/managers |
 | `deleteResource` | `(id)` | Permanently delete a resource | admins |
+| `fetchPrograms` | `()` | List all programs | all signed-in users |
+| `createProgram` | `(payload)` | Insert a program | admins/managers |
+| `updateProgram` | `(id, updates)` | Edit a program (code/name/description/status) | admins/managers |
+| `deleteProgram` | `(id)` | Permanently delete a program (cascades) | admins |
+| `fetchCourses` | `()` | List courses with embedded program | all signed-in users |
+| `createCourse` | `(payload)` | Insert a course | admins/managers |
+| `updateCourse` | `(id, updates)` | Edit a course | admins/managers |
+| `deleteCourse` | `(id)` | Permanently delete a course (cascades to CLOs) | admins |
+| `fetchProgramOutcomes` | `(programId = null)` | List program outcomes, optionally by program | all signed-in users |
+| `createProgramOutcome` | `(payload)` | Insert a program outcome | admins/managers |
+| `updateProgramOutcome` | `(id, updates)` | Edit a program outcome | admins/managers |
+| `deleteProgramOutcome` | `(id)` | Permanently delete a program outcome | admins |
+| `fetchCourseLearningOutcomes` | `(courseId = null)` | List course learning outcomes, optionally by course | all signed-in users |
+| `createCourseLearningOutcome` | `(payload)` | Insert a course learning outcome | admins/managers |
+| `updateCourseLearningOutcome` | `(id, updates)` | Edit a course learning outcome | admins/managers |
+| `deleteCourseLearningOutcome` | `(id)` | Permanently delete a course learning outcome | admins |
+| `fetchCloPoMatrix` | `(courseId = null)` | List CLO/PO matrix rows with CLO and PO embedded, optionally by course | all signed-in users |
+| `upsertCloPoMapping` | `(cloId, poId, level)` | Insert or update a CLO/PO strength cell (1–3) | admins/managers |
+| `deleteCloPoMapping` | `(cloId, poId)` | Remove a CLO/PO mapping (blank the cell) | admins |
 | `fetchAuditLog` | `()` | Latest 100 audit entries | admins/managers |
 | `recordLoginEvent` | `(email, success, reason?)` | Record a sign-in attempt via the `record_login_event` RPC | any caller (RPC) |
 | `addAuditLog` | `(userEmail, action, details)` | Insert an audit entry | any signed-in user |
@@ -284,29 +326,49 @@ All queries live in `src/services/database.js`. Signatures, purpose, and who can
 - Every attempt is written to `audit_log` via the `record_login_event` RPC (`auth.login` on success, `auth.login_failed` on failure).
 - Shows a hint with the SQL to promote an account to admin.
 
-### `Dashboard.jsx`
-- Reads `profile` and `role` props. Shows stat cards: your role, total resources, and (admin/manager only) total users. Counts use `head: true` queries.
-- Lists what the current role can do.
+### `admin/Dashboard.jsx`
+- Reads the `profile` prop. Shows stat cards: your role, total resources, and total users. Counts use `head: true` queries.
+- Lists what the admin role can do.
 
-### `Users.jsx`
-- Prop: `role`.
-- **Admin:** table of all users with an inline role `<select>` (calls `updateUserRole`, then writes an audit entry) plus a "Create user" form (calls `adminCreateUser`).
-- **Manager:** read-only faculty directory showing role badges.
-- **User:** page not in nav; direct navigation is redirected to Dashboard.
+### `manager/Dashboard.jsx` and `user/Dashboard.jsx`
+- Same overview pattern for the manager and user roles, with their own stat cards and capability lists.
 
-### `Resources.jsx`
-- Props: `role`, `userEmail`.
-- Everyone sees the curriculum list. Creator name comes from an embedded join — note that a `user` (or a creator other than yourself) may show as "Unknown" because RLS hides other users' profiles.
-- Admin/manager: "New record" form, per-card Edit / Archive / Restore. Admin additionally gets Delete.
+### `admin/Users.jsx`
+- Full account management: table of all users with an inline role `<select>` (calls `updateUserRole`, then writes an audit entry) plus a "Create user" form (calls `adminCreateUser`).
 
-### `AuditLog.jsx`
+### `manager/Users.jsx`
+- Read-only faculty directory showing role badges. Role changes are admin-only.
+
+### `admin/Curriculum.jsx`
+- Props: `userEmail`. Sub-tabbed curriculum domain manager with four views: **Programs**, **Courses**, **Program Outcomes (PO)**, **Course Learning Outcomes (CLO)**. Every view supports create, inline edit, and delete, and writes an audit entry per mutation.
+- Courses are created under a program (with a program filter on the list). POs are managed per selected program; CLOs per selected program → course.
+- Views live in `src/pages/admin/curriculum/` and share state/CRUD logic via the `useEntityCrud` hook.
+
+### `admin/CloPoMapping.jsx`
+- Props: `userEmail`. Interactive CLO/PO mapping matrix. Pick a program, then a course; rows are the course's CLOs, columns are the program's POs.
+- Each cell holds a strength level (1 = low, 2 = medium, 3 = high, blank = not mapped). Clicking a cell cycles blank → 1 → 2 → 3 → blank and persists via `upsertCloPoMapping` / `deleteCloPoMapping`, writing an audit entry per change.
+- A D3.js heatmap (SVG) renders below the matrix with the same color scheme. The `clo_po_matrix` table's `validate_clo_po_program` trigger rejects mappings whose CLO course and PO belong to different programs.
+
+### `admin/Analytics.jsx`
+- CQI monitoring charts derived from the curriculum domain (no assessment data needed yet).
+- Stat cards: programs, courses, learning outcomes, CLO coverage (share of CLOs with ≥1 mapping), and mapping cells.
+- D3.js charts: per-PO CLO coverage and average strength (bar charts, focused on a selected program), program comparison (grouped bars: total CLOs vs mapped CLOs), and a mapping-level distribution donut (1/2/3).
+- Chart components live in `src/pages/admin/analytics/charts.jsx` (reusable `BarChart`, `GroupedBarChart`, `DonutChart`).
+
+### `manager/Curriculum.jsx`
+- Props: `userEmail`. Same as admin but without the Delete button.
+
+### `user/Curriculum.jsx`
+- Read-only browse of published curriculum records.
+
+### `AuditLog.jsx` (admin and manager)
 - Fetches the latest 100 entries. Columns: when, user, action, details.
 
 ### `Profile.jsx`
-- Props: `profile`, `onSaved`. Edits `full_name`, writes an audit entry, and reports the updated profile back to `App.jsx` via `onSaved`.
+- Props: `profile`, `onSaved`. Edits `full_name`, writes an audit entry, and reports the updated profile back to `App.jsx` via `onSaved`. Shared by all roles.
 
 ### `App.jsx`
-- Holds `session`, `profile`, `activePage`. Defines the `NAV` map (role → nav items). On session change, loads the profile via `ensureProfile` (auto-creates the row if missing — e.g. after a schema re-run) and renders `Login` when signed out; otherwise renders the Sidebar + topbar + current page.
+- Holds `session`, `profile`, `activePage`. Defines the `NAV` map (role → nav items) and the `PAGES` map (role → page components, one per role folder; `Profile` is shared). On session change, loads the profile via `ensureProfile` (auto-creates the row if missing — e.g. after a schema re-run) and renders `Login` when signed out; otherwise renders the Sidebar + topbar + current page.
 - **Gating:** `page` is coerced to a role-valid page, so even a crafted `activePage` value can't show an unauthorized page.
 
 ### `Sidebar.jsx`
@@ -339,9 +401,9 @@ New role-restricted feature, end to end. Example: a `reports` table that admins 
 
 3. **Service functions** — add `fetchReports()` and `createReport()` to `src/services/database.js` following the existing pattern (try/catch, return `[]`/`null` on error).
 
-4. **Page** — create `src/pages/Reports.jsx` modeled on `Resources.jsx`.
+4. **Page** — create the page in the folder of the role(s) that should see it, e.g. `src/pages/manager/Reports.jsx` modeled on `src/pages/manager/Curriculum.jsx`.
 
-5. **Nav + gating** — add `{ id: 'reports', label: 'Reports' }` to the role entries you want in `NAV` inside `App.jsx`, and a case in `renderPage()`.
+5. **Nav + gating** — add `{ id: 'reports', label: 'Reports' }` to the role entries you want in `NAV` inside `App.jsx`, and add the matching entry to the `PAGES` map.
 
 6. **Style** — reuse classes from `src/index.css` or add new ones.
 

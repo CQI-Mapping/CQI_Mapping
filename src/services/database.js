@@ -61,6 +61,17 @@ export async function updateProfile(profileId, updates) {
   return data
 }
 
+// Restore the caller's expected role (demo accounts by email, or first-admin
+// bootstrap when the system has no admin). Called on every sign-in to heal
+// roles reset by a schema re-run. Returns the role as a string, or null.
+// Backed by a SECURITY DEFINER RPC so a plain user cannot self-promote once
+// an admin exists.
+export async function syncDemoRole() {
+  const { data, error } = await supabase.rpc('sync_demo_role')
+  if (error) throw error
+  return data
+}
+
 // List all profiles (admin: Users page, manager: Faculty directory).
 // RLS: managers and admins can read all profiles; a plain user cannot.
 export async function fetchAllProfiles() {
@@ -170,6 +181,213 @@ export async function updateResource(id, updates) {
 // RLS: admins only.
 export async function deleteResource(id) {
   const { error } = await supabase.from('resources').delete().eq('id', id)
+  if (error) throw error
+}
+
+// ---------- CQI curriculum domain (programs, courses, POs, CLOs) ----------
+
+// PROGRAMS
+
+// List all programs, alphabetically by name.
+// RLS: any signed-in user can read.
+export async function fetchPrograms() {
+  const { data, error } = await supabase
+    .from('programs')
+    .select('*')
+    .order('name', { ascending: true })
+  if (error) throw error
+  return data
+}
+
+// Insert a program. RLS: admins/managers can insert.
+export async function createProgram(payload) {
+  const { data, error } = await supabase
+    .from('programs')
+    .insert(payload)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+// Edit a program (code/name/description/status). RLS: admins/managers can update.
+export async function updateProgram(id, updates) {
+  const { data, error } = await supabase
+    .from('programs')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+// Permanently delete a program (cascades to courses/POs). RLS: admins only.
+export async function deleteProgram(id) {
+  const { error } = await supabase.from('programs').delete().eq('id', id)
+  if (error) throw error
+}
+
+// COURSES
+
+// List all courses with their program embedded, by course code.
+// RLS: any signed-in user can read.
+export async function fetchCourses() {
+  const { data, error } = await supabase
+    .from('courses')
+    .select('*, program_id ( id, code, name )')
+    .order('code', { ascending: true })
+  if (error) throw error
+  return data
+}
+
+// Insert a course. RLS: admins/managers can insert.
+export async function createCourse(payload) {
+  const { data, error } = await supabase
+    .from('courses')
+    .insert(payload)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+// Edit a course. RLS: admins/managers can update.
+export async function updateCourse(id, updates) {
+  const { data, error } = await supabase
+    .from('courses')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+// Permanently delete a course (cascades to its CLOs). RLS: admins only.
+export async function deleteCourse(id) {
+  const { error } = await supabase.from('courses').delete().eq('id', id)
+  if (error) throw error
+}
+
+// PROGRAM OUTCOMES (PO)
+
+// List program outcomes, optionally filtered by program, by outcome code.
+// RLS: any signed-in user can read.
+export async function fetchProgramOutcomes(programId = null) {
+  let query = supabase.from('program_outcomes').select('*')
+  if (programId) query = query.eq('program_id', programId)
+  query = query.order('code', { ascending: true })
+  const { data, error } = await query
+  if (error) throw error
+  return data
+}
+
+// Insert a program outcome. RLS: admins/managers can insert.
+export async function createProgramOutcome(payload) {
+  const { data, error } = await supabase
+    .from('program_outcomes')
+    .insert(payload)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+// Edit a program outcome. RLS: admins/managers can update.
+export async function updateProgramOutcome(id, updates) {
+  const { data, error } = await supabase
+    .from('program_outcomes')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+// Permanently delete a program outcome. RLS: admins only.
+export async function deleteProgramOutcome(id) {
+  const { error } = await supabase.from('program_outcomes').delete().eq('id', id)
+  if (error) throw error
+}
+
+// COURSE LEARNING OUTCOMES (CLO)
+
+// List course learning outcomes, optionally filtered by course, by outcome code.
+// RLS: any signed-in user can read.
+export async function fetchCourseLearningOutcomes(courseId = null) {
+  let query = supabase.from('course_learning_outcomes').select('*')
+  if (courseId) query = query.eq('course_id', courseId)
+  query = query.order('code', { ascending: true })
+  const { data, error } = await query
+  if (error) throw error
+  return data
+}
+
+// Insert a course learning outcome. RLS: admins/managers can insert.
+export async function createCourseLearningOutcome(payload) {
+  const { data, error } = await supabase
+    .from('course_learning_outcomes')
+    .insert(payload)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+// Edit a course learning outcome. RLS: admins/managers can update.
+export async function updateCourseLearningOutcome(id, updates) {
+  const { data, error } = await supabase
+    .from('course_learning_outcomes')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+// Permanently delete a course learning outcome. RLS: admins only.
+export async function deleteCourseLearningOutcome(id) {
+  const { error } = await supabase.from('course_learning_outcomes').delete().eq('id', id)
+  if (error) throw error
+}
+
+// CLO/PO MATRIX
+
+// List CLO/PO mappings with CLO and PO embedded. When a course is given,
+// only rows whose CLO belongs to that course are returned (nested filter).
+// RLS: any signed-in user can read.
+export async function fetchCloPoMatrix(courseId = null) {
+  let query = supabase
+    .from('clo_po_matrix')
+    .select('id, level, clo_id ( id, code, course_id ), po_id ( id, code, program_id )')
+  if (courseId) query = query.eq('clo_id.course_id', courseId)
+  const { data, error } = await query
+  if (error) throw error
+  return data
+}
+
+// Insert or update a single CLO/PO strength cell. RLS: admins/managers.
+// The validate_clo_po_program trigger rejects pairs from different programs.
+export async function upsertCloPoMapping(cloId, poId, level) {
+  const { data, error } = await supabase
+    .from('clo_po_matrix')
+    .upsert({ clo_id: cloId, po_id: poId, level }, { onConflict: 'clo_id,po_id' })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+// Remove a CLO/PO mapping (blank the cell). RLS: admins only.
+export async function deleteCloPoMapping(cloId, poId) {
+  const { error } = await supabase
+    .from('clo_po_matrix')
+    .delete()
+    .eq('clo_id', cloId)
+    .eq('po_id', poId)
   if (error) throw error
 }
 
