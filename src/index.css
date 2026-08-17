@@ -4,8 +4,8 @@
   --border: #e2e8f0;
   --text: #0f172a;
   --text-muted: #64748b;
-  --primary: #2563eb;
-  --primary-dark: #1d4ed8;
+  --primary: #16a34a;
+  --primary-dark: #15803d;
   --success: #16a34a;
   --danger: #dc2626;
   --radius: 10px;
@@ -318,7 +318,7 @@ code {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: var(--bg-app);
+  background: #dcfce7;
 }
 
 .login-card {
@@ -329,10 +329,11 @@ code {
   border-radius: 14px;
   padding: 32px;
   box-shadow: var(--shadow);
+  color: #14532d;
   /* Faint graph-paper grid, echoing the curriculum-map motif */
   background-image:
-    linear-gradient(rgba(37, 99, 235, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(37, 99, 235, 0.045) 1px, transparent 1px);
+    linear-gradient(rgba(22, 163, 74, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(22, 163, 74, 0.12) 1px, transparent 1px);
   background-size: 22px 22px;
 }
 

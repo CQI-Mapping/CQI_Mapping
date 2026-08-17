@@ -166,7 +166,7 @@ function Analytics() {
           {selected ? (
             <BarChart
               data={selected.poStats.map((s) => ({ label: s.po.code, value: s.count }))}
-              color="#2563eb"
+              color="#16a34a"
             />
           ) : (
             <p className="panel__hint">—</p>
@@ -197,13 +197,13 @@ function Analytics() {
               group: m.program.code,
               series: [
                 { key: 'Total CLOs', value: m.cloCount, color: '#cbd5e1' },
-                { key: 'Mapped CLOs', value: m.mappedCloCount, color: '#2563eb' },
+                { key: 'Mapped CLOs', value: m.mappedCloCount, color: '#16a34a' },
               ],
             }))}
           />
           <div className="chart-legend">
             <span><i style={{ background: '#cbd5e1' }} /> Total CLOs</span>
-            <span><i style={{ background: '#2563eb' }} /> Mapped CLOs</span>
+            <span><i style={{ background: '#16a34a' }} /> Mapped CLOs</span>
           </div>
         </div>
 

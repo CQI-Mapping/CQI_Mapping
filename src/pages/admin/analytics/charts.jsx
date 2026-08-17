@@ -7,7 +7,7 @@ import * as d3 from 'd3'
 // Strength levels share the CLO/PO mapping color scheme.
 export const LEVEL_COLORS = { 1: '#fde68a', 2: '#f59e0b', 3: '#ea580c' }
 
-export function BarChart({ data, color = '#2563eb', valueSuffix = '', height = 260, rotateLabels = null }) {
+export function BarChart({ data, color = '#16a34a', valueSuffix = '', height = 260, rotateLabels = null }) {
   const ref = useRef(null)
 
   useEffect(() => {
