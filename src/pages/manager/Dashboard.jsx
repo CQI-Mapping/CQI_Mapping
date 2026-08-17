@@ -57,7 +57,7 @@ function Dashboard({ profile }) {
         <ul className="role-list">
           <li><strong>Curriculum</strong> — map courses to program outcomes, maintain CLO/PO alignment, and publish curriculum data.</li>
           <li><strong>Faculty</strong> — browse all user profiles (read-only).</li>
-          <li><strong>Audit Log</strong> — view the record of actions.</li>
+          <li><strong>Activity Logs</strong> — view the record of actions.</li>
         </ul>
       </div>
     </div>

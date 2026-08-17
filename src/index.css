@@ -918,4 +918,84 @@ code {
   .resource-card {
     flex-direction: column;
   }
+
+  .activity-filters__row {
+    flex-direction: column;
+  }
+}
+
+/* ---- Activity Log filters & badges ---- */
+
+.activity-filters {
+  margin-bottom: 16px;
+  padding: 14px 16px;
+}
+
+.activity-filters__row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.activity-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+  min-width: 150px;
+}
+
+.activity-filter:last-of-type {
+  margin-right: auto;
+}
+
+.activity-filters__count {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.action-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.action-badge--auth {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.action-badge--resource {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.action-badge--program,
+.action-badge--course,
+.action-badge--program_outcome,
+.action-badge--course_learning_outcome {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+.action-badge--clo_po_mapping {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.action-badge--role,
+.action-badge--user {
+  background: #fce7f3;
+  color: #9d174d;
+}
+
+.action-badge--profile {
+  background: #f1f5f9;
+  color: #475569;
 }

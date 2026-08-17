@@ -33,14 +33,14 @@ const NAV = {
     { id: 'curriculum', label: 'Curriculum' },
     { id: 'clo-po', label: 'CLO/PO Mapping' },
     { id: 'analytics', label: 'Analytics' },
-    { id: 'audit-log', label: 'Audit Log' },
+    { id: 'audit-log', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
   ],
   manager: [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'curriculum', label: 'Curriculum' },
     { id: 'users', label: 'Faculty' },
-    { id: 'audit-log', label: 'Audit Log' },
+    { id: 'audit-log', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
   ],
   user: [

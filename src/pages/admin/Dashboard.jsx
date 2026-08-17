@@ -57,7 +57,7 @@ function Dashboard({ profile }) {
         <ul className="role-list">
           <li><strong>Users &amp; Accounts</strong> — manage accounts and roles, and create new users.</li>
           <li><strong>Curriculum</strong> — create, edit, archive, and delete curriculum records.</li>
-          <li><strong>Audit Log</strong> — see a record of every action taken in the system.</li>
+          <li><strong>Activity Logs</strong> — see a record of every action taken in the system.</li>
         </ul>
       </div>
     </div>
