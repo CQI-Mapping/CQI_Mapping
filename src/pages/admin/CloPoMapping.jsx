@@ -14,7 +14,7 @@ import {
   fetchCloPoMatrix,
   upsertCloPoMapping,
   deleteCloPoMapping,
-  addAuditLog,
+  addActivityLog,
 } from '../../services/database'
 
 // Color per strength level (matches the CSS classes).
@@ -176,14 +176,14 @@ function CloPoMapping({ userEmail }) {
     try {
       if (next === '') {
         await deleteCloPoMapping(clo.id, po.id)
-        await addAuditLog(userEmail, 'clo_po_mapping.cleared', {
+        await addActivityLog(userEmail, 'clo_po_mapping.cleared', {
           course: clo.course_id,
           clo: clo.code,
           po: po.code,
         })
       } else {
         await upsertCloPoMapping(clo.id, po.id, next)
-        await addAuditLog(userEmail, 'clo_po_mapping.set', {
+        await addActivityLog(userEmail, 'clo_po_mapping.set', {
           course: clo.course_id,
           clo: clo.code,
           po: po.code,

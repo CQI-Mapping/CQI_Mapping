@@ -391,13 +391,13 @@ export async function deleteCloPoMapping(cloId, poId) {
   if (error) throw error
 }
 
-// ---------- Audit log ----------
+// ---------- Activity logs ----------
 
 // Latest 100 audit entries, newest first.
 // RLS: admins/managers can read; a user cannot (the query returns empty for them).
-export async function fetchAuditLog() {
+export async function fetchActivityLogs() {
   const { data, error } = await supabase
-    .from('audit_log')
+    .from('activity_logs')
     .select('*')
     .order('created_at', { ascending: false })
     .limit(100)
@@ -421,9 +421,9 @@ export async function recordLoginEvent(email, success, reason = null) {
 // Insert a generic audit entry for an arbitrary action.
 // Called from pages after mutating actions (create/edit/archive/delete/role change).
 // RLS: any signed-in user can insert. Treated as an activity trail, not tamper-proof.
-export async function addAuditLog(userEmail, action, details = {}) {
+export async function addActivityLog(userEmail, action, details = {}) {
   const { error } = await supabase
-    .from('audit_log')
+    .from('activity_logs')
     .insert({ user_email: userEmail, action, details })
   if (error) console.warn('Audit log insert failed:', error.message)
 }

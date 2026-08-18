@@ -2,7 +2,7 @@
 // Saving writes an audit entry and reports the updated profile back to App.jsx.
 
 import { useState } from 'react'
-import { updateProfile, addAuditLog } from '../services/database'
+import { updateProfile, addActivityLog } from '../services/database'
 
 function Profile({ profile, onSaved }) {
   const [fullName, setFullName] = useState(profile?.full_name || '')
@@ -18,7 +18,7 @@ function Profile({ profile, onSaved }) {
     setSaving(true)
     try {
       const updated = await updateProfile(profile.id, { full_name: fullName.trim() })
-      await addAuditLog(profile.email, 'profile.updated', { full_name: fullName.trim() })
+      await addActivityLog(profile.email, 'profile.updated', { full_name: fullName.trim() })
       onSaved(updated)
       setMessage('Profile saved.')
     } catch (e) {

@@ -8,7 +8,7 @@ import {
   fetchAllProfiles,
   updateUserRole,
   adminCreateUser,
-  addAuditLog,
+  addActivityLog,
 } from '../../services/database'
 import { supabase } from '../../utils/supabaseClient'
 
@@ -54,7 +54,7 @@ function Users() {
     try {
       await updateUserRole(profileId, newRole)
       const email = await currentUserEmail()
-      await addAuditLog(email, 'role.updated', { profileId, newRole })
+      await addActivityLog(email, 'role.updated', { profileId, newRole })
       setMessage('Role updated.')
       load()
     } catch (e) {
@@ -77,7 +77,7 @@ function Users() {
         form.role
       )
       const email = await currentUserEmail()
-      await addAuditLog(email, 'user.created', {
+      await addActivityLog(email, 'user.created', {
         createdEmail: created.email,
         role: form.role,
       })

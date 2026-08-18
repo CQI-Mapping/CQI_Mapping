@@ -12,11 +12,11 @@ import Profile from './pages/Profile.jsx'
 import AdminDashboard from './pages/admin/Dashboard.jsx'
 import AdminUsers from './pages/admin/Users.jsx'
 import AdminCurriculum from './pages/admin/Curriculum.jsx'
-import AdminAuditLog from './pages/admin/AuditLog.jsx'
+import AdminActivityLogs from './pages/admin/ActivityLogs.jsx'
 import ManagerDashboard from './pages/manager/Dashboard.jsx'
 import ManagerUsers from './pages/manager/Users.jsx'
 import ManagerCurriculum from './pages/manager/Curriculum.jsx'
-import ManagerAuditLog from './pages/manager/AuditLog.jsx'
+import ManagerActivityLogs from './pages/manager/ActivityLogs.jsx'
 import UserDashboard from './pages/user/Dashboard.jsx'
 import UserCurriculum from './pages/user/Curriculum.jsx'
 import AdminCloPoMapping from './pages/admin/CloPoMapping.jsx'
@@ -33,14 +33,14 @@ const NAV = {
     { id: 'curriculum', label: 'Curriculum' },
     { id: 'clo-po', label: 'CLO/PO Mapping' },
     { id: 'analytics', label: 'Analytics' },
-    { id: 'audit-log', label: 'Activity Logs' },
+    { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
   ],
   manager: [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'curriculum', label: 'Curriculum' },
     { id: 'users', label: 'Faculty' },
-    { id: 'audit-log', label: 'Activity Logs' },
+    { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
   ],
   user: [
@@ -58,14 +58,14 @@ const PAGES = {
     curriculum: AdminCurriculum,
     'clo-po': AdminCloPoMapping,
     analytics: AdminAnalytics,
-    'audit-log': AdminAuditLog,
+    'activity-logs': AdminActivityLogs,
     profile: Profile,
   },
   manager: {
     dashboard: ManagerDashboard,
     curriculum: ManagerCurriculum,
     users: ManagerUsers,
-    'audit-log': ManagerAuditLog,
+    'activity-logs': ManagerActivityLogs,
     profile: Profile,
   },
   user: {

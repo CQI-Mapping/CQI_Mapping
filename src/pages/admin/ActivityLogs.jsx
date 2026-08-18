@@ -1,10 +1,10 @@
-// Audit Log — enhanced activity logs view shared by admin and manager.
-// Fetches the latest 100 audit entries on mount, then filters client-side
+// Activity Logs — enhanced activity logs view shared by admin and manager.
+// Fetches the latest 100 activity entries on mount, then filters client-side
 // by search text, action type, and date range. Shows human-readable action
 // labels and formatted details instead of raw JSON.
 
 import { useState, useEffect, useMemo } from 'react'
-import { fetchAuditLog } from '../../services/database'
+import { fetchActivityLogs } from '../../services/database'
 
 const ACTION_LABELS = {
   'auth.login': 'Signed in',
@@ -55,7 +55,7 @@ function uniqueActions(entries) {
   return [...set].sort()
 }
 
-function AuditLogView({ title = 'Activity Logs', description } = {}) {
+function ActivityLogsView({ title = 'Activity Logs', description } = {}) {
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -67,7 +67,7 @@ function AuditLogView({ title = 'Activity Logs', description } = {}) {
   const [dateTo, setDateTo] = useState('')
 
   useEffect(() => {
-    fetchAuditLog()
+    fetchActivityLogs()
       .then(setEntries)
       .catch((e) => setError('Unable to load activity logs: ' + e.message))
       .finally(() => setLoading(false))
@@ -123,7 +123,7 @@ function AuditLogView({ title = 'Activity Logs', description } = {}) {
   if (loading) return <p>Loading activity logs...</p>
 
   return (
-    <div className="audit-log">
+    <div className="activity-logs">
       <div className="page-heading">
         <h2>{title}</h2>
         <p>{description || `Record of actions taken in the system (latest ${entries.length}).`}</p>
@@ -229,4 +229,4 @@ function AuditLogView({ title = 'Activity Logs', description } = {}) {
   )
 }
 
-export default AuditLogView
+export default ActivityLogsView

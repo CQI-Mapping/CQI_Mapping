@@ -101,7 +101,7 @@ const ICONS = {
   curriculum: ResourcesIcon,
   'clo-po': MatrixIcon,
   analytics: ChartIcon,
-  'audit-log': AuditIcon,
+  'activity-logs': AuditIcon,
   profile: ProfileIcon,
 }
 

@@ -1,7 +1,7 @@
 
 
 -- Cleanup
-DROP TABLE IF EXISTS public.audit_log CASCADE;
+DROP TABLE IF EXISTS public.activity_logs CASCADE;
 DROP TABLE IF EXISTS public.resources CASCADE;
 DROP TABLE IF EXISTS public.clo_po_matrix CASCADE;
 DROP TABLE IF EXISTS public.course_learning_outcomes CASCADE;
@@ -36,7 +36,7 @@ CREATE TABLE public.resources (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE public.audit_log (
+CREATE TABLE public.activity_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_email TEXT,
     action TEXT NOT NULL,
@@ -186,7 +186,7 @@ CREATE TRIGGER on_auth_user_created
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.resources ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.activity_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.programs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.courses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.program_outcomes ENABLE ROW LEVEL SECURITY;
@@ -298,11 +298,11 @@ CREATE POLICY "Managers and admins can update clo_po_matrix" ON public.clo_po_ma
 CREATE POLICY "Admins can delete clo_po_matrix" ON public.clo_po_matrix FOR DELETE
     USING (public.current_user_role() = 'admin');
 
--- AUDIT LOG
-CREATE POLICY "Authenticated users can insert audit logs" ON public.audit_log FOR INSERT
+-- ACTIVITY LOGS
+CREATE POLICY "Authenticated users can insert activity logs" ON public.activity_logs FOR INSERT
     WITH CHECK (auth.role() = 'authenticated');
 
-CREATE POLICY "Admins and managers can view audit logs" ON public.audit_log FOR SELECT
+CREATE POLICY "Admins and managers can view activity logs" ON public.activity_logs FOR SELECT
     USING (public.current_user_role() IN ('admin', 'manager'));
 
 -- ============================================================
@@ -323,7 +323,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-    INSERT INTO public.audit_log (user_email, action, details)
+    INSERT INTO public.activity_logs (user_email, action, details)
     VALUES (
         p_email,
         CASE WHEN p_success THEN 'auth.login' ELSE 'auth.login_failed' END,

@@ -109,12 +109,12 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
     │   │   ├── Dashboard.jsx # Admin overview: role/resources/user counts + capabilities
     │   │   ├── Users.jsx     # Manage roles + create users (account management)
     │   │   ├── Curriculum.jsx# Full CRUD incl. permanent delete
-    │   │   └── AuditLog.jsx  # Table of logged actions
+    │   │   └── ActivityLogs.jsx  # Table of logged actions
     │   ├── manager/          # Manager's own pages
     │   │   ├── Dashboard.jsx # Manager overview + capabilities
     │   │   ├── Users.jsx     # Read-only faculty directory
     │   │   ├── Curriculum.jsx# Create/edit/archive (no delete)
-    │   │   └── AuditLog.jsx  # Table of logged actions
+    │   │   └── ActivityLogs.jsx  # Table of logged actions
     │   └── user/             # User's own pages
     │       ├── Dashboard.jsx # User overview + capabilities
     │       └── Curriculum.jsx# Read-only browse
@@ -143,7 +143,7 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
 
 This creates:
 - `user_role` enum (`admin`, `manager`, `user`)
-- `profiles`, `resources`, `audit_log` tables
+- `profiles`, `resources`, `activity_logs` tables
 - All Row Level Security policies
 - The `handle_new_user` trigger (auto-creates a profile on signup)
 - The `current_user_role()` helper function
@@ -208,7 +208,7 @@ Open the printed local URL (usually `http://localhost:5173`) and sign in.
 | `created_at` | TIMESTAMPTZ | |
 | `updated_at` | TIMESTAMPTZ | |
 
-**`audit_log`** — record of user actions.
+**`activity_logs`** — record of user actions.
 
 | Column | Type | Notes |
 |---|---|---|
@@ -241,7 +241,7 @@ All three tables have RLS enabled. Policies use `public.current_user_role()` —
 | Managers and admins can update resources | UPDATE | role `admin`/`manager` |
 | Admins can delete resources | DELETE | role `admin` |
 
-**`audit_log`**
+**`activity_logs`**
 
 | Policy | Operation | Allowed for |
 |---|---|---|
@@ -309,11 +309,11 @@ All queries live in `src/services/database.js`. Signatures, purpose, and who can
 | `fetchCloPoMatrix` | `(courseId = null)` | List CLO/PO matrix rows with CLO and PO embedded, optionally by course | all signed-in users |
 | `upsertCloPoMapping` | `(cloId, poId, level)` | Insert or update a CLO/PO strength cell (1–3) | admins/managers |
 | `deleteCloPoMapping` | `(cloId, poId)` | Remove a CLO/PO mapping (blank the cell) | admins |
-| `fetchAuditLog` | `()` | Latest 100 audit entries | admins/managers |
+| `fetchActivityLogs` | `()` | Latest 100 audit entries | admins/managers |
 | `recordLoginEvent` | `(email, success, reason?)` | Record a sign-in attempt via the `record_login_event` RPC | any caller (RPC) |
-| `addAuditLog` | `(userEmail, action, details)` | Insert an audit entry | any signed-in user |
+| `addActivityLog` | `(userEmail, action, details)` | Insert an audit entry | any signed-in user |
 
-> Note: `addAuditLog` is called from the client. A determined user could write to the audit log directly, so treat it as an activity log, not a tamper-proof security record. Login attempts use `record_login_event` — a `SECURITY DEFINER` function — precisely so failed logins (which have no session) can be recorded. For tamper-proof auditing of every action, move all inserts server-side.
+> Note: `addActivityLog` is called from the client. A determined user could write to the audit log directly, so treat it as an activity log, not a tamper-proof security record. Login attempts use `record_login_event` — a `SECURITY DEFINER` function — precisely so failed logins (which have no session) can be recorded. For tamper-proof auditing of every action, move all inserts server-side.
 
 ---
 
@@ -323,7 +323,7 @@ All queries live in `src/services/database.js`. Signatures, purpose, and who can
 - Sign in with email/password (`supabase.auth.signInWithPassword`).
 - Empty-field validation: submitting with a blank email or password shows "Email and password are required." without hitting the API.
 - Failed sign-ins show a generic "Invalid email or password." (never leaks Supabase's raw error, e.g. rate limits or account state).
-- Every attempt is written to `audit_log` via the `record_login_event` RPC (`auth.login` on success, `auth.login_failed` on failure).
+- Every attempt is written to `activity_logs` via the `record_login_event` RPC (`auth.login` on success, `auth.login_failed` on failure).
 - Shows a hint with the SQL to promote an account to admin.
 
 ### `admin/Dashboard.jsx`
@@ -361,7 +361,7 @@ All queries live in `src/services/database.js`. Signatures, purpose, and who can
 ### `user/Curriculum.jsx`
 - Read-only browse of published curriculum records.
 
-### `AuditLog.jsx` (admin and manager)
+### `ActivityLogs.jsx` (admin and manager)
 - Fetches the latest 100 entries. Columns: when, user, action, details.
 
 ### `Profile.jsx`
@@ -428,7 +428,7 @@ New role-restricted feature, end to end. Example: a `reports` table that admins 
 | Problem | Cause / Fix |
 |---|---|
 | `npm install` fails with `ERESOLVE` (peer vite@... from @vitejs/plugin-react) | `@vitejs/plugin-react@4` only supports Vite 4–7, but the project uses Vite 8. Fix: upgrade the plugin — change `"@vitejs/plugin-react": "^6.0.5"` in `package.json` — then `npm install` again. |
-| Re-running `supabase-schema.sql` seems to "reset" everything | The file starts with `DROP TABLE ... profiles` — it wipes profiles, resources, audit_log, **and all roles** each run. Don't re-run it casually; if you do, re-apply the role UPDATEs from section 3.1 (or the app self-heals missing profiles as role `user`). |
+| Re-running `supabase-schema.sql` seems to "reset" everything | The file starts with `DROP TABLE ... profiles` — it wipes profiles, resources, activity_logs, **and all roles** each run. Don't re-run it casually; if you do, re-apply the role UPDATEs from section 3.1 (or the app self-heals missing profiles as role `user`). |
 | Logged in but shown as `user` (no admin powers) | The profile's `role` column is `user` in the DB. Promote it (section 3.1 SQL) — the role lives in `profiles`, not in the email. |
 | Logged in but stuck on Login or empty dashboard | Profile missing. `ensureProfile` now auto-creates a profile row on sign-in, so this self-heals; if it persists, check the profile INSERT policy exists. |
 | `42501` / "permission denied for table" | RLS blocking. Check the role of the signed-in user (`SELECT role FROM profiles WHERE id = auth.uid()`) and confirm the matching policy exists. |

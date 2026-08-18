@@ -7,7 +7,7 @@ import {
   fetchResources,
   createResource,
   updateResource,
-  addAuditLog,
+  addActivityLog,
 } from '../../services/database'
 import { supabase } from '../../utils/supabaseClient'
 
@@ -56,7 +56,7 @@ function Curriculum({ userEmail }) {
     try {
       const userId = await currentUserId()
       await createResource(title.trim(), description.trim(), userId)
-      await addAuditLog(userEmail, 'resource.created', { title })
+      await addActivityLog(userEmail, 'resource.created', { title })
       setTitle('')
       setDescription('')
       setMessage('Resource created.')
@@ -88,7 +88,7 @@ function Curriculum({ userEmail }) {
     setBusy(true)
     try {
       await updateResource(id, { title: editTitle.trim(), description: editDescription.trim() })
-      await addAuditLog(userEmail, 'resource.updated', { id, title: editTitle })
+      await addActivityLog(userEmail, 'resource.updated', { id, title: editTitle })
       setMessage('Resource updated.')
       cancelEdit()
       load()
@@ -106,7 +106,7 @@ function Curriculum({ userEmail }) {
     const next = item.status === 'active' ? 'archived' : 'active'
     try {
       await updateResource(item.id, { status: next })
-      await addAuditLog(userEmail, 'resource.archived', { id: item.id, status: next })
+      await addActivityLog(userEmail, 'resource.archived', { id: item.id, status: next })
       setMessage(`Resource ${next}.`)
       load()
     } catch (e) {

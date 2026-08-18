@@ -3,7 +3,7 @@
 // handling (and audit logging) to this hook.
 
 import { useState, useCallback } from 'react'
-import { addAuditLog } from '../../../services/database'
+import { addActivityLog } from '../../../services/database'
 
 export function useEntityCrud({ loadFn, createFn, updateFn, deleteFn, userEmail, scope }) {
   const [items, setItems] = useState([])
@@ -31,7 +31,7 @@ export function useEntityCrud({ loadFn, createFn, updateFn, deleteFn, userEmail,
     setBusy(true)
     try {
       await createFn(payload)
-      if (action) await addAuditLog(userEmail, action, details)
+      if (action) await addActivityLog(userEmail, action, details)
       setMessage(`${scope} created.`)
       load()
       return true
@@ -49,7 +49,7 @@ export function useEntityCrud({ loadFn, createFn, updateFn, deleteFn, userEmail,
     setBusy(true)
     try {
       await updateFn(id, payload)
-      if (action) await addAuditLog(userEmail, action, details)
+      if (action) await addActivityLog(userEmail, action, details)
       setMessage(`${scope} updated.`)
       load()
       return true
@@ -67,7 +67,7 @@ export function useEntityCrud({ loadFn, createFn, updateFn, deleteFn, userEmail,
     setMessage('')
     try {
       await deleteFn(id)
-      if (action) await addAuditLog(userEmail, action, details)
+      if (action) await addActivityLog(userEmail, action, details)
       setMessage(`${scope} deleted.`)
       load()
       return true
