@@ -6,27 +6,28 @@
 // mirroring the reference repo's per-role structure.
 
 import { useState, useEffect } from 'react'
-import Sidebar from './components/Sidebar.jsx'
-import Login from './pages/Login.jsx'
-import Profile from './pages/Profile.jsx'
-import AdminDashboard from './pages/admin/Dashboard.jsx'
-import AdminUsers from './pages/admin/Users.jsx'
-import AdminCurriculum from './pages/admin/Curriculum.jsx'
-import AdminActivityLogs from './pages/admin/ActivityLogs.jsx'
-import ManagerDashboard from './pages/manager/Dashboard.jsx'
-import ManagerUsers from './pages/manager/Users.jsx'
-import ManagerCurriculum from './pages/manager/Curriculum.jsx'
-import ManagerActivityLogs from './pages/manager/ActivityLogs.jsx'
-import UserDashboard from './pages/user/Dashboard.jsx'
-import UserCurriculum from './pages/user/Curriculum.jsx'
-import AdminCloPoMapping from './pages/admin/CloPoMapping.jsx'
-import AdminAnalytics from './pages/admin/Analytics.jsx'
+import Sidebar from './components/Sidebar'
+import Login from './pages/Login'
+import Profile from './pages/Profile'
+import AdminDashboard from './pages/admin/Dashboard'
+import AdminUsers from './pages/admin/Users'
+import AdminCurriculum from './pages/admin/Curriculum'
+import AdminActivityLogs from './pages/admin/ActivityLogs'
+import ManagerDashboard from './pages/manager/Dashboard'
+import ManagerUsers from './pages/manager/Users'
+import ManagerCurriculum from './pages/manager/Curriculum'
+import ManagerActivityLogs from './pages/admin/ActivityLogs'
+import UserDashboard from './pages/user/Dashboard'
+import UserCurriculum from './pages/user/Curriculum'
+import AdminCloPoMapping from './pages/admin/CloPoMapping'
+import AdminAnalytics from './pages/admin/Analytics'
 import { supabase } from './utils/supabaseClient'
 import { ensureProfile, syncDemoRole } from './services/database'
+import type { Profile as ProfileType, UserRole, NavItem } from './services/database'
+import type { Session } from '@supabase/supabase-js'
 
 // NAV map: which sidebar items each role can see.
-// 'id' must match the keys used in the PAGES map below.
-const NAV = {
+const NAV: Record<UserRole, NavItem[]> = {
   admin: [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'users', label: 'Users & Accounts' },
@@ -50,8 +51,9 @@ const NAV = {
   ],
 }
 
-// PAGES map: page id -> component for each role. 'profile' is shared across roles.
-const PAGES = {
+// PAGES map: page id -> component for each role.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
   admin: {
     dashboard: AdminDashboard,
     users: AdminUsers,
@@ -76,20 +78,20 @@ const PAGES = {
 }
 
 function App() {
-  const [session, setSession] = useState(null) // the Supabase auth session
-  const [profile, setProfile] = useState(null) // the signed-in user's profile row (has role)
-  const [loading, setLoading] = useState(true) // true while restoring the session on page load
+  const [session, setSession] = useState<Session | null>(null)
+  const [profile, setProfile] = useState<ProfileType | null>(null)
+  const [loading, setLoading] = useState(true)
   const [activePage, setActivePage] = useState('dashboard')
 
   // On first render: restore an existing session from localStorage and subscribe to
   // auth changes (sign-in / sign-out) so the UI updates automatically.
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase!.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
-      setLoading(false)
+      if (!session) setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase!.auth.onAuthStateChange((_event, session) => {
       setSession(session)
       if (!session) {
         setProfile(null) // signed out — clear the profile too
@@ -122,14 +124,15 @@ function App() {
       })
       .then((p) => {
         if (!cancelled && p) setProfile(p)
+        setLoading(false)
       })
-      .catch(() => {}) // keep the app usable even if the profile load fails
+      .catch(() => setLoading(false))
 
     return () => { cancelled = true }
   }, [session])
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
+    await supabase!.auth.signOut()
   }
 
   // First paint: wait until the stored session has been restored.
@@ -143,12 +146,11 @@ function App() {
   }
 
   // Role from the profile; unknown/missing roles fall back to 'user' (least privilege).
-  const role = profile?.role ?? 'user'
+  const role: UserRole = (profile?.role ?? 'user') as UserRole
   const navItems = NAV[role] ?? NAV.user
 
-  // Gating: coerce the requested page to one this role can access, so a crafted
-  // activePage value can never render an unauthorized page.
-  const page = navItems.some((n) => n.id === activePage) ? activePage : 'dashboard'
+  // Gating: coerce the requested page to one this role can access
+  const page = navItems.some((n: NavItem) => n.id === activePage) ? activePage : 'dashboard'
 
   const renderPage = () => {
     const Page = PAGES[role]?.[page] ?? UserDashboard

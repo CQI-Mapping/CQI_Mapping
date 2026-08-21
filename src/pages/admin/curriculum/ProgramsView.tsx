@@ -8,11 +8,16 @@ import {
   updateProgram,
   deleteProgram,
 } from '../../../services/database'
+import type { Program } from '../../../services/database'
 
 const EMPTY_FORM = { code: '', name: '', description: '' }
 
-function ProgramsView({ userEmail }) {
-  const crud = useEntityCrud({
+interface ProgramsViewProps {
+  userEmail: string
+}
+
+function ProgramsView({ userEmail }: ProgramsViewProps) {
+  const crud = useEntityCrud<Program>({
     loadFn: fetchPrograms,
     createFn: createProgram,
     updateFn: updateProgram,
@@ -23,12 +28,12 @@ function ProgramsView({ userEmail }) {
   const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete } = crud
 
   const [form, setForm] = useState(EMPTY_FORM)
-  const [editingId, setEditingId] = useState(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState(EMPTY_FORM)
 
   useEffect(() => { crud.load() }, [crud.load])
 
-  const onSubmit = async (e) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const ok = await handleCreate(
       { code: form.code.trim(), name: form.name.trim(), description: form.description.trim() },
@@ -38,7 +43,7 @@ function ProgramsView({ userEmail }) {
     if (ok) setForm(EMPTY_FORM)
   }
 
-  const startEdit = (item) => {
+  const startEdit = (item: Program) => {
     setEditingId(item.id)
     setEditForm({ code: item.code, name: item.name, description: item.description || '' })
   }
@@ -106,7 +111,7 @@ function ProgramsView({ userEmail }) {
             </thead>
             <tbody>
               {items.length === 0 && (
-                <tr><td colSpan="5">No programs yet.</td></tr>
+                <tr><td colSpan={5}>No programs yet.</td></tr>
               )}
               {items.map((item) => (
                 <tr key={item.id}>

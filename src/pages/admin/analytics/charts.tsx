@@ -5,10 +5,23 @@ import { useEffect, useRef } from 'react'
 import * as d3 from 'd3'
 
 // Strength levels share the CLO/PO mapping color scheme.
-export const LEVEL_COLORS = { 1: '#fde68a', 2: '#f59e0b', 3: '#ea580c' }
+export const LEVEL_COLORS: Record<number, string> = { 1: '#fde68a', 2: '#f59e0b', 3: '#ea580c' }
 
-export function BarChart({ data, color = '#16a34a', valueSuffix = '', height = 260, rotateLabels = null }) {
-  const ref = useRef(null)
+interface BarChartDataItem {
+  label: string
+  value: number
+}
+
+interface BarChartProps {
+  data: BarChartDataItem[]
+  color?: string
+  valueSuffix?: string
+  height?: number
+  rotateLabels?: boolean | null
+}
+
+export function BarChart({ data, color = '#16a34a', valueSuffix = '', height = 260, rotateLabels = null }: BarChartProps) {
+  const ref = useRef<SVGSVGElement>(null)
 
   useEffect(() => {
     const svg = d3.select(ref.current)
@@ -55,7 +68,7 @@ export function BarChart({ data, color = '#16a34a', valueSuffix = '', height = 2
       .data(data)
       .join('rect')
       .attr('class', 'bar')
-      .attr('x', (d) => x(d.label))
+      .attr('x', (d) => x(d.label)!)
       .attr('width', x.bandwidth())
       .attr('y', (d) => y(d.value))
       .attr('height', (d) => y(0) - y(d.value))
@@ -67,7 +80,7 @@ export function BarChart({ data, color = '#16a34a', valueSuffix = '', height = 2
       .data(data)
       .join('text')
       .attr('class', 'val')
-      .attr('x', (d) => x(d.label) + x.bandwidth() / 2)
+      .attr('x', (d) => x(d.label)! + x.bandwidth() / 2)
       .attr('y', (d) => y(d.value) - 5)
       .attr('text-anchor', 'middle')
       .attr('font-size', 11)
@@ -79,9 +92,25 @@ export function BarChart({ data, color = '#16a34a', valueSuffix = '', height = 2
   return <svg ref={ref} className="chart-svg" />
 }
 
+interface GroupedSeriesItem {
+  key: string
+  value: number
+  color: string
+}
+
+interface GroupedBarDataItem {
+  group: string
+  series: GroupedSeriesItem[]
+}
+
+interface GroupedBarChartProps {
+  data: GroupedBarDataItem[]
+  height?: number
+}
+
 // Two-series grouped bars, e.g. "CLOs in program" vs "CLOs with a mapping".
-export function GroupedBarChart({ data, height = 260 }) {
-  const ref = useRef(null)
+export function GroupedBarChart({ data, height = 260 }: GroupedBarChartProps) {
+  const ref = useRef<SVGSVGElement>(null)
 
   useEffect(() => {
     const svg = d3.select(ref.current)
@@ -135,12 +164,12 @@ export function GroupedBarChart({ data, height = 260 }) {
       .data((d) => d.series)
       .join('rect')
       .attr('class', 'bar')
-      .attr('x', (d) => x1(d.key))
+      .attr('x', (d) => x1(d.key)!)
       .attr('width', x1.bandwidth())
       .attr('y', (d) => y(d.value))
       .attr('height', (d) => y(0) - y(d.value))
       .attr('rx', 3)
-      .attr('fill', (d, i) => colors[i])
+      .attr('fill', (_d, i) => colors[i])
 
     svg
       .append('g')
@@ -148,7 +177,7 @@ export function GroupedBarChart({ data, height = 260 }) {
       .data(data.flatMap((d) => d.series.map((s) => ({ d, s }))))
       .join('text')
       .attr('class', 'val')
-      .attr('x', (o) => x0(o.d.group) + x1(o.s.key) + x1.bandwidth() / 2)
+      .attr('x', (o) => x0(o.d.group)! + x1(o.s.key)! + x1.bandwidth() / 2)
       .attr('y', (o) => y(o.s.value) - 4)
       .attr('text-anchor', 'middle')
       .attr('font-size', 10)
@@ -160,8 +189,20 @@ export function GroupedBarChart({ data, height = 260 }) {
   return <svg ref={ref} className="chart-svg" />
 }
 
-export function DonutChart({ data, size = 220, thickness = 40 }) {
-  const ref = useRef(null)
+interface DonutChartDataItem {
+  label: string
+  value: number
+  color: string
+}
+
+interface DonutChartProps {
+  data: DonutChartDataItem[]
+  size?: number
+  thickness?: number
+}
+
+export function DonutChart({ data, size = 220, thickness = 40 }: DonutChartProps) {
+  const ref = useRef<SVGSVGElement>(null)
 
   useEffect(() => {
     const svg = d3.select(ref.current)
@@ -170,8 +211,8 @@ export function DonutChart({ data, size = 220, thickness = 40 }) {
     if (!total) return
 
     const radius = size / 2
-    const arc = d3.arc().innerRadius(radius - thickness).outerRadius(radius)
-    const pie = d3.pie().sort(null).value((d) => d.value)
+    const arc = d3.arc<d3.PieArcDatum<DonutChartDataItem>>().innerRadius(radius - thickness).outerRadius(radius)
+    const pie = d3.pie<DonutChartDataItem>().sort(null).value((d) => d.value)
 
     const g = svg
       .selectAll('g.slice')

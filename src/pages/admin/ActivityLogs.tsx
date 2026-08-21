@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { fetchActivityLogs } from '../../services/database'
+import type { ActivityLogEntry } from '../../services/database'
 
 const ACTION_LABELS = {
   'auth.login': 'Signed in',
@@ -32,31 +33,36 @@ const ACTION_LABELS = {
   'profile.updated': 'Updated profile',
 }
 
-function labelAction(raw) {
-  return ACTION_LABELS[raw] || raw.replace(/_/g, ' ')
+function labelAction(raw: string): string {
+  return ACTION_LABELS[raw as keyof typeof ACTION_LABELS] || raw.replace(/_/g, ' ')
 }
 
-function formatDetails(action, details) {
+function formatDetails(action: string, details: Record<string, unknown> | null): string {
   if (!details || typeof details !== 'object') return '—'
-  const p = []
+  const p: string[] = []
   if (details.title) p.push(`"${details.title}"`)
-  if (details.code) p.push(details.code)
+  if (details.code) p.push(String(details.code))
   if (details.newRole) p.push(`Role → ${details.newRole}`)
   if (details.clo && details.po) p.push(`${details.clo} → ${details.po}`)
   if (details.level) p.push(`Level ${details.level}`)
-  if (details.createdEmail) p.push(details.createdEmail)
+  if (details.createdEmail) p.push(String(details.createdEmail))
   if (details.profileId && details.newRole) p.push(`Profile → ${details.newRole}`)
   if (details.reason) p.push(`Reason: ${details.reason}`)
   return p.length ? p.join(' · ') : JSON.stringify(details)
 }
 
-function uniqueActions(entries) {
+function uniqueActions(entries: ActivityLogEntry[]): string[] {
   const set = new Set(entries.map((e) => e.action))
   return [...set].sort()
 }
 
-function ActivityLogsView({ title = 'Activity Logs', description } = {}) {
-  const [entries, setEntries] = useState([])
+interface ActivityLogsViewProps {
+  title?: string
+  description?: string
+}
+
+function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogsViewProps = {}) {
+  const [entries, setEntries] = useState<ActivityLogEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -205,7 +211,7 @@ function ActivityLogsView({ title = 'Activity Logs', description } = {}) {
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan="4">
+                <td colSpan={4}>
                   {entries.length === 0 ? 'No activity recorded yet.' : 'No entries match the current filters.'}
                 </td>
               </tr>

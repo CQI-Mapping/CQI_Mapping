@@ -8,7 +8,7 @@ This README is a full development reference: how to set the project up, how the 
 
 ## 1. Overview
 
-- **Frontend:** React 18 + Vite 8, no router library — `src/App.jsx` holds the active page in state and renders it based on the signed-in user's role.
+- **Frontend:** React 18 + Vite 8, TypeScript — `src/App.tsx` holds the active page in state and renders it based on the signed-in user's role.
 - **Backend:** Supabase (hosted Postgres + Auth). All data goes through the service functions in `src/services/database.js`.
 - **Roles:**
   - `admin` — System Administrator / ICT Officer. Full control: manage accounts and roles, create users, manage and delete curriculum records, view the audit log.
@@ -90,40 +90,51 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
 ```
 .
 ├── .env                      # Local secrets (gitignored) — fill with your keys
-├── .env.example              # Template showing which keys are needed
 ├── .gitignore
 ├── index.html                # Vite entry HTML
 ├── package.json              # Dependencies + scripts
+├── tsconfig.json             # TypeScript configuration
 ├── vite.config.js            # Vite config (React plugin)
 ├── supabase-schema.sql       # FULL database schema — run in Supabase SQL Editor
 └── src/
-    ├── main.jsx              # React entry point
-    ├── App.jsx               # Session handling, role-based nav + page gating
+    ├── main.tsx              # React entry point
+    ├── App.tsx               # Session handling, role-based nav + page gating
     ├── index.css             # Theme variables + all component styles
+    ├── vite-env.d.ts         # Vite environment variable types
     ├── components/
-    │   └── Sidebar.jsx       # Nav shell (items change per role) + logout
+    │   └── Sidebar.tsx       # Nav shell (items change per role) + logout
     ├── pages/
-    │   ├── Login.jsx         # Sign in (login only, no create-account tab)
-    │   ├── Profile.jsx       # View/edit own profile (shared by all roles)
-    │   ├── admin/            # Admin's own pages
-    │   │   ├── Dashboard.jsx # Admin overview: role/resources/user counts + capabilities
-    │   │   ├── Users.jsx     # Manage roles + create users (account management)
-    │   │   ├── Curriculum.jsx# Full CRUD incl. permanent delete
-    │   │   └── ActivityLogs.jsx  # Table of logged actions
-    │   ├── manager/          # Manager's own pages
-    │   │   ├── Dashboard.jsx # Manager overview + capabilities
-    │   │   ├── Users.jsx     # Read-only faculty directory
-    │   │   ├── Curriculum.jsx# Create/edit/archive (no delete)
-    │   │   └── ActivityLogs.jsx  # Table of logged actions
-    │   └── user/             # User's own pages
-    │       ├── Dashboard.jsx # User overview + capabilities
-    │       └── Curriculum.jsx# Read-only browse
+    │   ├── Login.tsx         # Sign in (login only, no create-account tab)
+    │   ├── Profile.tsx       # View/edit own profile (shared by all roles)
+    │   ├── admin/
+    │   │   ├── Dashboard.tsx # Admin overview: role/resources/user counts
+    │   │   ├── Users.tsx     # Manage roles + create users
+    │   │   ├── Curriculum.tsx# Full CRUD incl. permanent delete
+    │   │   ├── ActivityLogs.tsx  # Filterable activity log table
+    │   │   ├── Analytics.tsx # CLO/PO coverage charts
+    │   │   ├── CloPoMapping.tsx  # Interactive heatmap editor
+    │   │   ├── analytics/
+    │   │   │   └── charts.tsx    # D3 chart components (bar, grouped bar, donut)
+    │   │   └── curriculum/
+    │   │       ├── ProgramsView.tsx
+    │   │       ├── CoursesView.tsx
+    │   │       ├── PoView.tsx
+    │   │       ├── CloView.tsx
+    │   │       └── useEntityCrud.ts  # Shared CRUD hook
+    │   ├── manager/
+    │   │   ├── Dashboard.tsx # Manager overview + capabilities
+    │   │   ├── Users.tsx     # Read-only faculty directory
+    │   │   ├── Curriculum.tsx# Create/edit/archive (no delete)
+    │   │   └── ActivityLogs.tsx  # Filterable activity log table
+    │   └── user/
+    │       ├── Dashboard.tsx # User overview + capabilities
+    │       └── Curriculum.tsx# Read-only browse
     ├── services/
-    │   └── database.js       # ALL Supabase queries used by the app
+    │   └── database.ts       # ALL Supabase queries used by the app
     ├── styles/
     │   └── Sidebar.css       # Sidebar-specific styles
     └── utils/
-        └── supabaseClient.js # Creates the Supabase client from env vars
+        └── supabaseClient.ts # Creates the Supabase client from env vars
 ```
 
 ---
@@ -319,59 +330,59 @@ All queries live in `src/services/database.js`. Signatures, purpose, and who can
 
 ## 8. Page-by-Page Guide
 
-### `Login.jsx`
+### `Login.tsx`
 - Sign in with email/password (`supabase.auth.signInWithPassword`).
 - Empty-field validation: submitting with a blank email or password shows "Email and password are required." without hitting the API.
 - Failed sign-ins show a generic "Invalid email or password." (never leaks Supabase's raw error, e.g. rate limits or account state).
 - Every attempt is written to `activity_logs` via the `record_login_event` RPC (`auth.login` on success, `auth.login_failed` on failure).
 - Shows a hint with the SQL to promote an account to admin.
 
-### `admin/Dashboard.jsx`
+### `admin/Dashboard.tsx`
 - Reads the `profile` prop. Shows stat cards: your role, total resources, and total users. Counts use `head: true` queries.
 - Lists what the admin role can do.
 
-### `manager/Dashboard.jsx` and `user/Dashboard.jsx`
+### `manager/Dashboard.tsx` and `user/Dashboard.tsx`
 - Same overview pattern for the manager and user roles, with their own stat cards and capability lists.
 
-### `admin/Users.jsx`
+### `admin/Users.tsx`
 - Full account management: table of all users with an inline role `<select>` (calls `updateUserRole`, then writes an audit entry) plus a "Create user" form (calls `adminCreateUser`).
 
-### `manager/Users.jsx`
+### `manager/Users.tsx`
 - Read-only faculty directory showing role badges. Role changes are admin-only.
 
-### `admin/Curriculum.jsx`
+### `admin/Curriculum.tsx`
 - Props: `userEmail`. Sub-tabbed curriculum domain manager with four views: **Programs**, **Courses**, **Program Outcomes (PO)**, **Course Learning Outcomes (CLO)**. Every view supports create, inline edit, and delete, and writes an audit entry per mutation.
 - Courses are created under a program (with a program filter on the list). POs are managed per selected program; CLOs per selected program → course.
 - Views live in `src/pages/admin/curriculum/` and share state/CRUD logic via the `useEntityCrud` hook.
 
-### `admin/CloPoMapping.jsx`
+### `admin/CloPoMapping.tsx`
 - Props: `userEmail`. Interactive CLO/PO mapping matrix. Pick a program, then a course; rows are the course's CLOs, columns are the program's POs.
 - Each cell holds a strength level (1 = low, 2 = medium, 3 = high, blank = not mapped). Clicking a cell cycles blank → 1 → 2 → 3 → blank and persists via `upsertCloPoMapping` / `deleteCloPoMapping`, writing an audit entry per change.
 - A D3.js heatmap (SVG) renders below the matrix with the same color scheme. The `clo_po_matrix` table's `validate_clo_po_program` trigger rejects mappings whose CLO course and PO belong to different programs.
 
-### `admin/Analytics.jsx`
+### `admin/Analytics.tsx`
 - CQI monitoring charts derived from the curriculum domain (no assessment data needed yet).
 - Stat cards: programs, courses, learning outcomes, CLO coverage (share of CLOs with ≥1 mapping), and mapping cells.
 - D3.js charts: per-PO CLO coverage and average strength (bar charts, focused on a selected program), program comparison (grouped bars: total CLOs vs mapped CLOs), and a mapping-level distribution donut (1/2/3).
-- Chart components live in `src/pages/admin/analytics/charts.jsx` (reusable `BarChart`, `GroupedBarChart`, `DonutChart`).
+- Chart components live in `src/pages/admin/analytics/charts.tsx` (reusable `BarChart`, `GroupedBarChart`, `DonutChart`).
 
-### `manager/Curriculum.jsx`
+### `manager/Curriculum.tsx`
 - Props: `userEmail`. Same as admin but without the Delete button.
 
-### `user/Curriculum.jsx`
+### `user/Curriculum.tsx`
 - Read-only browse of published curriculum records.
 
-### `ActivityLogs.jsx` (admin and manager)
+### `ActivityLogs.tsx` (admin and manager)
 - Fetches the latest 100 entries. Columns: when, user, action, details.
 
-### `Profile.jsx`
-- Props: `profile`, `onSaved`. Edits `full_name`, writes an audit entry, and reports the updated profile back to `App.jsx` via `onSaved`. Shared by all roles.
+### `Profile.tsx`
+- Props: `profile`, `onSaved`. Edits `full_name`, writes an audit entry, and reports the updated profile back to `App.tsx` via `onSaved`. Shared by all roles.
 
-### `App.jsx`
+### `App.tsx`
 - Holds `session`, `profile`, `activePage`. Defines the `NAV` map (role → nav items) and the `PAGES` map (role → page components, one per role folder; `Profile` is shared). On session change, loads the profile via `ensureProfile` (auto-creates the row if missing — e.g. after a schema re-run) and renders `Login` when signed out; otherwise renders the Sidebar + topbar + current page.
 - **Gating:** `page` is coerced to a role-valid page, so even a crafted `activePage` value can't show an unauthorized page.
 
-### `Sidebar.jsx`
+### `Sidebar.tsx`
 - Renders `navItems` (passed from App, role-specific), the current role, and a logout button.
 
 ---
@@ -401,9 +412,9 @@ New role-restricted feature, end to end. Example: a `reports` table that admins 
 
 3. **Service functions** — add `fetchReports()` and `createReport()` to `src/services/database.js` following the existing pattern (try/catch, return `[]`/`null` on error).
 
-4. **Page** — create the page in the folder of the role(s) that should see it, e.g. `src/pages/manager/Reports.jsx` modeled on `src/pages/manager/Curriculum.jsx`.
+4. **Page** — create the page in the folder of the role(s) that should see it, e.g. `src/pages/manager/Reports.tsx` modeled on `src/pages/manager/Curriculum.tsx`.
 
-5. **Nav + gating** — add `{ id: 'reports', label: 'Reports' }` to the role entries you want in `NAV` inside `App.jsx`, and add the matching entry to the `PAGES` map.
+5. **Nav + gating** — add `{ id: 'reports', label: 'Reports' }` to the role entries you want in `NAV` inside `App.tsx`, and add the matching entry to the `PAGES` map.
 
 6. **Style** — reuse classes from `src/index.css` or add new ones.
 

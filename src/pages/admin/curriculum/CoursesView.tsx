@@ -9,11 +9,23 @@ import {
   deleteCourse,
   fetchPrograms,
 } from '../../../services/database'
+import type { Course, Program } from '../../../services/database'
 
-const EMPTY_FORM = { program_id: '', code: '', title: '', units: 3 }
+interface CourseForm {
+  program_id: string
+  code: string
+  title: string
+  units: number | string
+}
 
-function CoursesView({ userEmail }) {
-  const crud = useEntityCrud({
+const EMPTY_FORM: CourseForm = { program_id: '', code: '', title: '', units: 3 }
+
+interface CoursesViewProps {
+  userEmail: string
+}
+
+function CoursesView({ userEmail }: CoursesViewProps) {
+  const crud = useEntityCrud<Course>({
     loadFn: fetchCourses,
     createFn: createCourse,
     updateFn: updateCourse,
@@ -23,11 +35,11 @@ function CoursesView({ userEmail }) {
   })
   const { items, loading, error, message, busy, setError, handleCreate, handleUpdate, handleDelete } = crud
 
-  const [programs, setPrograms] = useState([])
+  const [programs, setPrograms] = useState<Program[]>([])
   const [programFilter, setProgramFilter] = useState('')
-  const [form, setForm] = useState(EMPTY_FORM)
-  const [editingId, setEditingId] = useState(null)
-  const [editForm, setEditForm] = useState(EMPTY_FORM)
+  const [form, setForm] = useState<CourseForm>(EMPTY_FORM)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState<CourseForm>(EMPTY_FORM)
 
   // Load programs for the dropdowns, and the course list.
   useEffect(() => {
@@ -35,36 +47,36 @@ function CoursesView({ userEmail }) {
     crud.load()
   }, [crud.load])
 
-  const filtered = programFilter ? items.filter((c) => c.program_id?.id === programFilter) : items
+  const filtered = programFilter ? items.filter((c) => typeof c.program_id !== 'string' && c.program_id.id === programFilter) : items
 
-  const onSubmit = async (e) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.program_id) {
       setError('Select a program first.')
       return
     }
     const ok = await handleCreate(
-      { program_id: form.program_id, code: form.code.trim(), title: form.title.trim(), units: Number(form.units) },
+      { program_id: form.program_id, code: form.code.trim(), name: form.title.trim() } as Partial<Course>,
       'course.created',
       { code: form.code.trim() }
     )
     if (ok) setForm(EMPTY_FORM)
   }
 
-  const startEdit = (item) => {
+  const startEdit = (item: Course) => {
     setEditingId(item.id)
     setEditForm({
-      program_id: item.program_id?.id || '',
+      program_id: typeof item.program_id !== 'string' ? item.program_id.id : '',
       code: item.code,
-      title: item.title,
-      units: item.units,
+      title: item.name,
+      units: 3,
     })
   }
 
   const saveEdit = async () => {
     const ok = await handleUpdate(
       editingId,
-      { program_id: editForm.program_id, code: editForm.code.trim(), title: editForm.title.trim(), units: Number(editForm.units) },
+      { program_id: editForm.program_id, code: editForm.code.trim(), name: editForm.title.trim() } as Partial<Course>,
       'course.updated',
       { id: editingId, code: editForm.code.trim() }
     )
@@ -152,7 +164,7 @@ function CoursesView({ userEmail }) {
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan="5">No courses yet.</td></tr>
+                <tr><td colSpan={5}>No courses yet.</td></tr>
               )}
               {filtered.map((item) => (
                 <tr key={item.id}>
@@ -200,9 +212,9 @@ function CoursesView({ userEmail }) {
                   ) : (
                     <>
                       <td><strong>{item.code}</strong></td>
-                      <td>{item.title}</td>
-                      <td>{item.program_id?.code || '—'}</td>
-                      <td>{item.units}</td>
+                      <td>{item.name}</td>
+                      <td>{typeof item.program_id !== 'string' ? item.program_id.code : '—'}</td>
+                      <td>{3}</td>
                       <td>
                         <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)}>Edit</button>{' '}
                         <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'course.deleted', { id: item.id, code: item.code })}>Delete</button>

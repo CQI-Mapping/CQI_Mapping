@@ -1,28 +1,34 @@
 // Profile page: lets a user view their own email/role and edit their full name.
-// Saving writes an audit entry and reports the updated profile back to App.jsx.
+// Saving writes an audit entry and reports the updated profile back to App.tsx.
 
 import { useState } from 'react'
 import { updateProfile, addActivityLog } from '../services/database'
+import type { Profile as ProfileType } from '../services/database'
 
-function Profile({ profile, onSaved }) {
+interface ProfileProps {
+  profile: ProfileType | null
+  onSaved: (profile: ProfileType) => void
+}
+
+function Profile({ profile, onSaved }: ProfileProps) {
   const [fullName, setFullName] = useState(profile?.full_name || '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
-  // Save the edited name, log it, and push the updated profile up to App.jsx.
-  const handleSubmit = async (e) => {
+  // Save the edited name, log it, and push the updated profile up to App.tsx.
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setMessage('')
     setSaving(true)
     try {
-      const updated = await updateProfile(profile.id, { full_name: fullName.trim() })
-      await addActivityLog(profile.email, 'profile.updated', { full_name: fullName.trim() })
+      const updated = await updateProfile(profile!.id, { full_name: fullName.trim() })
+      await addActivityLog(profile!.email, 'profile.updated', { full_name: fullName.trim() })
       onSaved(updated)
       setMessage('Profile saved.')
-    } catch (e) {
-      setError('Failed to save profile: ' + e.message)
+    } catch (err) {
+      setError('Failed to save profile: ' + (err instanceof Error ? err.message : String(err)))
     } finally {
       setSaving(false)
     }
@@ -47,7 +53,7 @@ function Profile({ profile, onSaved }) {
         </div>
         <div className="profile-card__row">
           <span className="profile-card__label">Member since</span>
-          <span>{new Date(profile?.created_at).toLocaleDateString()}</span>
+          <span>{profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : '—'}</span>
         </div>
 
         {/* The only editable field: full name */}

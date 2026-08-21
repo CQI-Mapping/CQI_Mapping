@@ -16,13 +16,25 @@ import {
   deleteCloPoMapping,
   addActivityLog,
 } from '../../services/database'
+import type { Program, Course, ProgramOutcome, CourseLearningOutcome, CloPoMappingEntry } from '../../services/database'
 
 // Color per strength level (matches the CSS classes).
-const LEVEL_COLORS = { 1: '#fde68a', 2: '#f59e0b', 3: '#ea580c' }
-const NEXT_LEVEL = { '': 1, 1: 2, 2: 3, 3: '' }
+const LEVEL_COLORS: Record<number, string> = { 1: '#fde68a', 2: '#f59e0b', 3: '#ea580c' }
+const NEXT_LEVEL: Record<string | number, string | number> = { '': 1, 1: 2, 2: 3, 3: '' }
 
-function CloPoHeatmap({ clos, pos, levels }) {
-  const ref = useRef(null)
+interface HeatmapProps {
+  clos: CourseLearningOutcome[]
+  pos: ProgramOutcome[]
+  levels: Record<string, number>
+}
+
+interface CellDatum {
+  c: CourseLearningOutcome
+  p: ProgramOutcome
+}
+
+function CloPoHeatmap({ clos, pos, levels }: HeatmapProps) {
+  const ref = useRef<SVGSVGElement>(null)
 
   useEffect(() => {
     const svg = d3.select(ref.current)
@@ -48,7 +60,7 @@ function CloPoHeatmap({ clos, pos, levels }) {
       .range([margin.top, height - margin.bottom])
       .padding(0.08)
 
-    const cells = clos.flatMap((c) => pos.map((p) => ({ c, p })))
+    const cells: CellDatum[] = clos.flatMap((c) => pos.map((p) => ({ c, p })))
 
     svg
       .append('g')
@@ -66,8 +78,8 @@ function CloPoHeatmap({ clos, pos, levels }) {
       .selectAll('rect')
       .data(cells)
       .join('rect')
-      .attr('x', (d) => x(d.p.code))
-      .attr('y', (d) => y(d.c.code))
+      .attr('x', (d) => x(d.p.code)!)
+      .attr('y', (d) => y(d.c.code)!)
       .attr('width', x.bandwidth())
       .attr('height', y.bandwidth())
       .attr('rx', 3)
@@ -82,8 +94,8 @@ function CloPoHeatmap({ clos, pos, levels }) {
       .data(cells)
       .join('text')
       .attr('class', 'cell-label')
-      .attr('x', (d) => x(d.p.code) + x.bandwidth() / 2)
-      .attr('y', (d) => y(d.c.code) + y.bandwidth() / 2)
+      .attr('x', (d) => x(d.p.code)! + x.bandwidth() / 2)
+      .attr('y', (d) => y(d.c.code)! + y.bandwidth() / 2)
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'central')
       .attr('font-size', 13)
@@ -104,15 +116,19 @@ function CloPoHeatmap({ clos, pos, levels }) {
   return <svg ref={ref} className="heatmap-svg" />
 }
 
-function CloPoMapping({ userEmail }) {
-  const [programs, setPrograms] = useState([])
-  const [courses, setCourses] = useState([])
+interface CloPoMappingProps {
+  userEmail: string
+}
+
+function CloPoMapping({ userEmail }: CloPoMappingProps) {
+  const [programs, setPrograms] = useState<Program[]>([])
+  const [courses, setCourses] = useState<Course[]>([])
   const [programId, setProgramId] = useState('')
   const [courseId, setCourseId] = useState('')
 
-  const [pos, setPos] = useState([])
-  const [clos, setClos] = useState([])
-  const [matrix, setMatrix] = useState([])
+  const [pos, setPos] = useState<ProgramOutcome[]>([])
+  const [clos, setClos] = useState<CourseLearningOutcome[]>([])
+  const [matrix, setMatrix] = useState<CloPoMappingEntry[]>([])
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -127,7 +143,7 @@ function CloPoMapping({ userEmail }) {
   }, [])
 
   // Programs → courses filter for the second dropdown.
-  const programCourses = programId ? courses.filter((c) => c.program_id?.id === programId) : []
+  const programCourses = programId ? courses.filter((c) => typeof c.program_id !== 'string' && c.program_id.id === programId) : []
 
   // Load POs for the program and (once a course is chosen) its CLOs + matrix.
   useEffect(() => {
@@ -136,7 +152,7 @@ function CloPoMapping({ userEmail }) {
     if (!programId) return
     fetchProgramOutcomes(programId)
       .then(setPos)
-      .catch((e) => setError('Unable to load program outcomes: ' + e.message))
+      .catch((e) => setError('Unable to load program outcomes: ' + (e instanceof Error ? e.message : String(e))))
   }, [programId])
 
   useEffect(() => {
@@ -150,13 +166,13 @@ function CloPoMapping({ userEmail }) {
         setClos(closRes)
         setMatrix(matrixRes)
       })
-      .catch((e) => setError('Unable to load course mapping: ' + e.message))
+      .catch((e) => setError('Unable to load course mapping: ' + (e instanceof Error ? e.message : String(e))))
       .finally(() => setLoading(false))
   }, [courseId])
 
   // Map keyed by "cloId:poId" for quick cell lookup.
   const levels = useMemo(() => {
-    const map = {}
+    const map: Record<string, number> = {}
     matrix.forEach((m) => {
       const cloId = m.clo_id?.id
       const poId = m.po_id?.id
@@ -166,7 +182,7 @@ function CloPoMapping({ userEmail }) {
   }, [matrix])
 
   // Click a cell: blank → 1 → 2 → 3 → blank, persisting each change.
-  const cycleCell = async (clo, po) => {
+  const cycleCell = async (clo: CourseLearningOutcome, po: ProgramOutcome) => {
     if (savingKey || loading) return
     const key = `${clo.id}:${po.id}`
     const next = NEXT_LEVEL[levels[key] || '']
@@ -182,7 +198,7 @@ function CloPoMapping({ userEmail }) {
           po: po.code,
         })
       } else {
-        await upsertCloPoMapping(clo.id, po.id, next)
+        await upsertCloPoMapping(clo.id, po.id, next as number)
         await addActivityLog(userEmail, 'clo_po_mapping.set', {
           course: clo.course_id,
           clo: clo.code,
@@ -193,7 +209,7 @@ function CloPoMapping({ userEmail }) {
       const fresh = await fetchCloPoMatrix(courseId)
       setMatrix(fresh)
     } catch (e) {
-      setError('Failed to update mapping: ' + e.message)
+      setError('Failed to update mapping: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
       setSavingKey('')
     }
@@ -231,7 +247,7 @@ function CloPoMapping({ userEmail }) {
           >
             <option value="">Select a course</option>
             {programCourses.map((c) => (
-              <option key={c.id} value={c.id}>{c.code} — {c.title}</option>
+              <option key={c.id} value={c.id}>{c.code} — {c.name}</option>
             ))}
           </select>
         </label>
@@ -267,7 +283,7 @@ function CloPoMapping({ userEmail }) {
                   <tr>
                     <th className="matrix-corner">CLO \ PO</th>
                     {pos.map((p) => (
-                      <th key={p.id} className="matrix-po-head" title={p.description}>{p.code}</th>
+                      <th key={p.id} className="matrix-po-head" title={p.description ?? undefined}>{p.code}</th>
                     ))}
                   </tr>
                 </thead>

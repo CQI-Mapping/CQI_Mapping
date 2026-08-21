@@ -3,11 +3,11 @@
 // Vercel), we render a readable setup screen instead of silently going white.
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import App from './App.jsx'
+import App from './App'
 import { supabaseConfigured } from './utils/supabaseClient'
 import './index.css'
 
-const root = ReactDOM.createRoot(document.getElementById('root'))
+const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement)
 
 if (!supabaseConfigured) {
   root.render(

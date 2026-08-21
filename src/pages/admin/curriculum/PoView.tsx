@@ -10,11 +10,16 @@ import {
   deleteProgramOutcome,
   fetchPrograms,
 } from '../../../services/database'
+import type { ProgramOutcome, Program } from '../../../services/database'
 
 const EMPTY_FORM = { code: '', description: '' }
 
-function PoView({ userEmail }) {
-  const [programs, setPrograms] = useState([])
+interface PoViewProps {
+  userEmail: string
+}
+
+function PoView({ userEmail }: PoViewProps) {
+  const [programs, setPrograms] = useState<Program[]>([])
   const [programId, setProgramId] = useState('')
 
   const loadFn = useCallback(
@@ -22,7 +27,7 @@ function PoView({ userEmail }) {
     [programId]
   )
 
-  const crud = useEntityCrud({
+  const crud = useEntityCrud<ProgramOutcome>({
     loadFn,
     createFn: createProgramOutcome,
     updateFn: updateProgramOutcome,
@@ -33,7 +38,7 @@ function PoView({ userEmail }) {
   const { items, loading, error, message, busy, load, handleCreate, handleUpdate, handleDelete } = crud
 
   const [form, setForm] = useState(EMPTY_FORM)
-  const [editingId, setEditingId] = useState(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState(EMPTY_FORM)
 
   useEffect(() => {
@@ -43,7 +48,7 @@ function PoView({ userEmail }) {
   // Reload whenever the selected program changes (and on mount).
   useEffect(() => { load() }, [load])
 
-  const onSubmit = async (e) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!programId) {
       crud.setError('Select a program first.')
@@ -57,9 +62,9 @@ function PoView({ userEmail }) {
     if (ok) setForm(EMPTY_FORM)
   }
 
-  const startEdit = (item) => {
+  const startEdit = (item: ProgramOutcome) => {
     setEditingId(item.id)
-    setEditForm({ code: item.code, description: item.description })
+    setEditForm({ code: item.code, description: item.description || '' })
   }
 
   const saveEdit = async () => {
@@ -136,7 +141,7 @@ function PoView({ userEmail }) {
             </thead>
             <tbody>
               {items.length === 0 && (
-                <tr><td colSpan="3">No program outcomes yet for this program.</td></tr>
+                <tr><td colSpan={3}>No program outcomes yet for this program.</td></tr>
               )}
               {items.map((item) => (
                 <tr key={item.id}>

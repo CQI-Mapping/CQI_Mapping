@@ -15,7 +15,11 @@ const SUB_TABS = [
   { id: 'clos', label: 'Course Learning Outcomes' },
 ]
 
-function Curriculum({ userEmail }) {
+interface CurriculumProps {
+  userEmail: string
+}
+
+function Curriculum({ userEmail }: CurriculumProps) {
   const [tab, setTab] = useState('programs')
 
   return (

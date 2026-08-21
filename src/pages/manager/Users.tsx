@@ -3,9 +3,10 @@
 
 import { useState, useEffect } from 'react'
 import { fetchAllProfiles } from '../../services/database'
+import type { Profile } from '../../services/database'
 
 function Users() {
-  const [users, setUsers] = useState([])
+  const [users, setUsers] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -17,7 +18,7 @@ function Users() {
       const data = await fetchAllProfiles()
       setUsers(data)
     } catch (e) {
-      setError('Unable to load users: ' + e.message)
+      setError('Unable to load users: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
       setLoading(false)
     }

@@ -11,18 +11,26 @@ import {
   addActivityLog,
 } from '../../services/database'
 import { supabase } from '../../utils/supabaseClient'
+import type { Profile, UserRole } from '../../services/database'
 
 // The selectable roles (must match the user_role enum in the DB).
-const ROLES = ['admin', 'manager', 'user']
+const ROLES: UserRole[] = ['admin', 'manager', 'user']
+
+interface CreateForm {
+  email: string
+  password: string
+  fullName: string
+  role: UserRole
+}
 
 function Users() {
-  const [users, setUsers] = useState([])
+  const [users, setUsers] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
   // Create-user form state.
-  const [form, setForm] = useState({ email: '', password: '', fullName: '', role: 'user' })
+  const [form, setForm] = useState<CreateForm>({ email: '', password: '', fullName: '', role: 'user' })
   const [creating, setCreating] = useState(false)
 
   // Fetch the full user list.
@@ -33,7 +41,7 @@ function Users() {
       const data = await fetchAllProfiles()
       setUsers(data)
     } catch (e) {
-      setError('Unable to load users: ' + e.message)
+      setError('Unable to load users: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
       setLoading(false)
     }
@@ -43,28 +51,28 @@ function Users() {
 
   // Read the current user's email for the audit log entry.
   const currentUserEmail = async () => {
-    const { data } = await supabase.auth.getUser()
+    const { data } = await supabase!.auth.getUser()
     return data?.user?.email ?? ''
   }
 
   // Change a user's role, then write an audit entry.
-  const handleRoleChange = async (profileId, newRole) => {
+  const handleRoleChange = async (profileId: string, newRole: string) => {
     setError('')
     setMessage('')
     try {
-      await updateUserRole(profileId, newRole)
+      await updateUserRole(profileId, newRole as UserRole)
       const email = await currentUserEmail()
       await addActivityLog(email, 'role.updated', { profileId, newRole })
       setMessage('Role updated.')
       load()
     } catch (e) {
-      setError('Failed to update role: ' + e.message)
+      setError('Failed to update role: ' + (e instanceof Error ? e.message : String(e)))
     }
   }
 
   // Create a new auth user (email_confirm true = can sign in immediately),
   // then log it. Requires VITE_SUPABASE_SERVICE_ROLE_KEY in .env.
-  const handleCreate = async (e) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setMessage('')
@@ -85,7 +93,7 @@ function Users() {
       setForm({ email: '', password: '', fullName: '', role: 'user' })
       load()
     } catch (e) {
-      setError(e.message)
+      setError(e instanceof Error ? e.message : String(e))
     } finally {
       setCreating(false)
     }
@@ -134,7 +142,7 @@ function Users() {
           <select
             className="input"
             value={form.role}
-            onChange={(e) => setForm({ ...form, role: e.target.value })}
+            onChange={(e) => setForm({ ...form, role: e.target.value as UserRole })}
           >
             {ROLES.map((r) => (
               <option key={r} value={r}>{r}</option>

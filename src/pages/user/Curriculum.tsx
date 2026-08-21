@@ -3,9 +3,10 @@
 
 import { useState, useEffect } from 'react'
 import { fetchResources } from '../../services/database'
+import type { Resource } from '../../services/database'
 
 function Curriculum() {
-  const [items, setItems] = useState([])
+  const [items, setItems] = useState<Resource[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -13,7 +14,7 @@ function Curriculum() {
   useEffect(() => {
     fetchResources()
       .then(setItems)
-      .catch((e) => setError('Unable to load resources: ' + e.message))
+      .catch((e: unknown) => setError('Unable to load resources: ' + (e instanceof Error ? e.message : String(e))))
       .finally(() => setLoading(false))
   }, [])
 
@@ -38,7 +39,7 @@ function Curriculum() {
                 {item.description && <p>{item.description}</p>}
                 <div className="resource-card__meta">
                   <span className={`status-badge status-badge--${item.status}`}>{item.status}</span>
-                  <span>by {item.created_by?.full_name || 'Unknown'}</span>
+                  <span>by {(typeof item.created_by === 'object' && item.created_by?.full_name) || 'Unknown'}</span>
                   <span>{new Date(item.created_at).toLocaleString()}</span>
                 </div>
               </div>

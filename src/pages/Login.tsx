@@ -12,7 +12,7 @@ function Login() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false) // true while the sign-in request is in flight
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
 
@@ -25,7 +25,7 @@ function Login() {
 
     setBusy(true)
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase!.auth.signInWithPassword({
       email: trimmedEmail,
       password,
     })
@@ -39,7 +39,7 @@ function Login() {
       return
     }
 
-    // Success: App.jsx picks up the new session and swaps in the dashboard.
+    // Success: App.tsx picks up the new session and swaps in the dashboard.
     // Fire-and-forget audit write — it must never block the login.
     recordLoginEvent(trimmedEmail, true)
   }

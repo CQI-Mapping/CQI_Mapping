@@ -3,14 +3,19 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '../../utils/supabaseClient'
+import type { Profile } from '../../services/database'
 
-function Dashboard({ profile }) {
-  const [resourceCount, setResourceCount] = useState(null)
+interface DashboardProps {
+  profile: Profile | null
+}
+
+function Dashboard({ profile }: DashboardProps) {
+  const [resourceCount, setResourceCount] = useState<number | null>(null)
 
   // Load the curriculum record count once per mount.
   useEffect(() => {
-    const count = async (table) => {
-      const { count } = await supabase
+    const count = async (table: string) => {
+      const { count } = await supabase!
         .from(table)
         .select('id', { count: 'exact', head: true })
       return count ?? 0

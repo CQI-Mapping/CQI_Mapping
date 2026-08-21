@@ -11,12 +11,17 @@ import {
   fetchPrograms,
   fetchCourses,
 } from '../../../services/database'
+import type { CourseLearningOutcome, Program, Course } from '../../../services/database'
 
 const EMPTY_FORM = { code: '', description: '' }
 
-function CloView({ userEmail }) {
-  const [programs, setPrograms] = useState([])
-  const [courses, setCourses] = useState([])
+interface CloViewProps {
+  userEmail: string
+}
+
+function CloView({ userEmail }: CloViewProps) {
+  const [programs, setPrograms] = useState<Program[]>([])
+  const [courses, setCourses] = useState<Course[]>([])
   const [programId, setProgramId] = useState('')
   const [courseId, setCourseId] = useState('')
 
@@ -25,7 +30,7 @@ function CloView({ userEmail }) {
     [courseId]
   )
 
-  const crud = useEntityCrud({
+  const crud = useEntityCrud<CourseLearningOutcome>({
     loadFn,
     createFn: createCourseLearningOutcome,
     updateFn: updateCourseLearningOutcome,
@@ -36,7 +41,7 @@ function CloView({ userEmail }) {
   const { items, loading, error, message, busy, load, handleCreate, handleUpdate, handleDelete } = crud
 
   const [form, setForm] = useState(EMPTY_FORM)
-  const [editingId, setEditingId] = useState(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState(EMPTY_FORM)
 
   // Load all programs (for the first dropdown) and all courses once.
@@ -52,10 +57,10 @@ function CloView({ userEmail }) {
 
   // Courses belonging to the selected program, for the second dropdown.
   const programCourses = programId
-    ? courses.filter((c) => c.program_id?.id === programId)
+    ? courses.filter((c) => typeof c.program_id !== 'string' && c.program_id.id === programId)
     : []
 
-  const onSubmit = async (e) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!courseId) {
       crud.setError('Select a course first.')
@@ -69,9 +74,9 @@ function CloView({ userEmail }) {
     if (ok) setForm(EMPTY_FORM)
   }
 
-  const startEdit = (item) => {
+  const startEdit = (item: CourseLearningOutcome) => {
     setEditingId(item.id)
-    setEditForm({ code: item.code, description: item.description })
+    setEditForm({ code: item.code, description: item.description || '' })
   }
 
   const saveEdit = async () => {
@@ -111,7 +116,7 @@ function CloView({ userEmail }) {
           >
             <option value="">Select a course</option>
             {programCourses.map((c) => (
-              <option key={c.id} value={c.id}>{c.code} — {c.title}</option>
+              <option key={c.id} value={c.id}>{c.code} — {c.name}</option>
             ))}
           </select>
         </label>
@@ -163,7 +168,7 @@ function CloView({ userEmail }) {
             </thead>
             <tbody>
               {items.length === 0 && (
-                <tr><td colSpan="3">No course learning outcomes yet for this course.</td></tr>
+                <tr><td colSpan={3}>No course learning outcomes yet for this course.</td></tr>
               )}
               {items.map((item) => (
                 <tr key={item.id}>

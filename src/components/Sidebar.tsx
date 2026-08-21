@@ -1,10 +1,19 @@
 // Sidebar: the left navigation shell. It receives navItems (already filtered by
-// role in App.jsx) and renders them as buttons, plus the current role and logout.
+// role in App.tsx) and renders them as buttons, plus the current role and logout.
 
 import '../styles/Sidebar.css'
+import type { NavItem, UserRole } from '../services/database'
+
+interface SidebarProps {
+  navItems: NavItem[]
+  activePage: string
+  onNavigate: (page: string) => void
+  onLogout: () => void
+  role: UserRole
+}
 
 // Small inline SVG icon components (stroke-based, currentColor = the CSS color).
-function DashboardIcon(props) {
+function DashboardIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
       strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -16,7 +25,7 @@ function DashboardIcon(props) {
   )
 }
 
-function UsersIcon(props) {
+function UsersIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
       strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -28,7 +37,7 @@ function UsersIcon(props) {
   )
 }
 
-function ResourcesIcon(props) {
+function ResourcesIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
       strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -38,7 +47,7 @@ function ResourcesIcon(props) {
   )
 }
 
-function AuditIcon(props) {
+function AuditIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
       strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -48,7 +57,7 @@ function AuditIcon(props) {
   )
 }
 
-function MatrixIcon(props) {
+function MatrixIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
       strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -61,7 +70,7 @@ function MatrixIcon(props) {
   )
 }
 
-function ChartIcon(props) {
+function ChartIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
       strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -73,7 +82,7 @@ function ChartIcon(props) {
   )
 }
 
-function ProfileIcon(props) {
+function ProfileIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
       strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -83,7 +92,7 @@ function ProfileIcon(props) {
   )
 }
 
-function LogoutIcon(props) {
+function LogoutIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
       strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -95,7 +104,7 @@ function LogoutIcon(props) {
 }
 
 // Map of nav item id -> icon component (fallback: DashboardIcon).
-const ICONS = {
+const ICONS: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>>> = {
   dashboard: DashboardIcon,
   users: UsersIcon,
   curriculum: ResourcesIcon,
@@ -105,7 +114,7 @@ const ICONS = {
   profile: ProfileIcon,
 }
 
-function Sidebar({ navItems, activePage, onNavigate, onLogout, role }) {
+function Sidebar({ navItems, activePage, onNavigate, onLogout, role }: SidebarProps) {
   return (
     <aside className="sidebar">
       {/* Brand block */}
@@ -117,7 +126,7 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role }) {
         </div>
       </div>
 
-      {/* Role-filtered navigation (navItems comes from App.jsx) */}
+      {/* Role-filtered navigation (navItems comes from App.tsx) */}
       <nav className="sidebar__nav" aria-label="Main navigation">
         {navItems.map(({ id, label }) => {
           const Icon = ICONS[id] ?? DashboardIcon

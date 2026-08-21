@@ -5,8 +5,24 @@
 import { useState, useCallback } from 'react'
 import { addActivityLog } from '../../../services/database'
 
-export function useEntityCrud({ loadFn, createFn, updateFn, deleteFn, userEmail, scope }) {
-  const [items, setItems] = useState([])
+interface UseEntityCrudParams<T> {
+  loadFn: () => Promise<T[]>
+  createFn: (payload: Partial<T>) => Promise<T>
+  updateFn: (id: string, payload: Partial<T>) => Promise<T>
+  deleteFn: (id: string) => Promise<void>
+  userEmail: string
+  scope: string
+}
+
+export function useEntityCrud<T extends { id: string }>({
+  loadFn,
+  createFn,
+  updateFn,
+  deleteFn,
+  userEmail,
+  scope,
+}: UseEntityCrudParams<T>) {
+  const [items, setItems] = useState<T[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -19,13 +35,13 @@ export function useEntityCrud({ loadFn, createFn, updateFn, deleteFn, userEmail,
     try {
       setItems(await loadFn())
     } catch (e) {
-      setError('Unable to load: ' + e.message)
+      setError('Unable to load: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
       setLoading(false)
     }
   }, [loadFn])
 
-  const handleCreate = async (payload, action, details) => {
+  const handleCreate = async (payload: Partial<T>, action?: string, details?: Record<string, unknown>) => {
     setError('')
     setMessage('')
     setBusy(true)
@@ -36,32 +52,32 @@ export function useEntityCrud({ loadFn, createFn, updateFn, deleteFn, userEmail,
       load()
       return true
     } catch (e) {
-      setError(`Failed to create ${scope.toLowerCase()}: ` + e.message)
+      setError(`Failed to create ${scope.toLowerCase()}: ` + (e instanceof Error ? e.message : String(e)))
       return false
     } finally {
       setBusy(false)
     }
   }
 
-  const handleUpdate = async (id, payload, action, details) => {
+  const handleUpdate = async (id: string | null, payload: Partial<T>, action?: string, details?: Record<string, unknown>) => {
     setError('')
     setMessage('')
     setBusy(true)
     try {
-      await updateFn(id, payload)
+      if (id) await updateFn(id, payload)
       if (action) await addActivityLog(userEmail, action, details)
       setMessage(`${scope} updated.`)
       load()
       return true
     } catch (e) {
-      setError(`Failed to update ${scope.toLowerCase()}: ` + e.message)
+      setError(`Failed to update ${scope.toLowerCase()}: ` + (e instanceof Error ? e.message : String(e)))
       return false
     } finally {
       setBusy(false)
     }
   }
 
-  const handleDelete = async (id, action, details) => {
+  const handleDelete = async (id: string, action?: string, details?: Record<string, unknown>) => {
     if (!window.confirm(`Delete this ${scope.toLowerCase()} permanently?`)) return false
     setError('')
     setMessage('')
@@ -72,7 +88,7 @@ export function useEntityCrud({ loadFn, createFn, updateFn, deleteFn, userEmail,
       load()
       return true
     } catch (e) {
-      setError(`Failed to delete ${scope.toLowerCase()}: ` + e.message)
+      setError(`Failed to delete ${scope.toLowerCase()}: ` + (e instanceof Error ? e.message : String(e)))
       return false
     }
   }

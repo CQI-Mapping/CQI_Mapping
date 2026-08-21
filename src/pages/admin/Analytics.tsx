@@ -10,18 +10,35 @@ import {
   fetchCourseLearningOutcomes,
   fetchCloPoMatrix,
 } from '../../services/database'
+import type { Program, Course, ProgramOutcome, CourseLearningOutcome, CloPoMappingEntry } from '../../services/database'
 import { BarChart, GroupedBarChart, DonutChart, LEVEL_COLORS } from './analytics/charts'
 
-function round1(n) {
+function round1(n: number) {
   return Math.round(n * 10) / 10
 }
 
+interface PoStat {
+  po: ProgramOutcome
+  count: number
+  avg: number
+}
+
+interface ProgramMetric {
+  program: Program
+  courseCount: number
+  cloCount: number
+  poCount: number
+  mappedCloCount: number
+  cells: number
+  poStats: PoStat[]
+}
+
 function Analytics() {
-  const [programs, setPrograms] = useState([])
-  const [courses, setCourses] = useState([])
-  const [clos, setClos] = useState([])
-  const [pos, setPos] = useState([])
-  const [matrix, setMatrix] = useState([])
+  const [programs, setPrograms] = useState<Program[]>([])
+  const [courses, setCourses] = useState<Course[]>([])
+  const [clos, setClos] = useState<CourseLearningOutcome[]>([])
+  const [pos, setPos] = useState<ProgramOutcome[]>([])
+  const [matrix, setMatrix] = useState<CloPoMappingEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [programId, setProgramId] = useState('')
@@ -41,15 +58,15 @@ function Analytics() {
         setClos(clo)
         setMatrix(mx)
       })
-      .catch((e) => setError('Unable to load analytics data: ' + e.message))
+      .catch((e) => setError('Unable to load analytics data: ' + (e instanceof Error ? e.message : String(e))))
       .finally(() => setLoading(false))
   }, [])
 
   // Per-program derived metrics.
-  const programMetrics = useMemo(
+  const programMetrics = useMemo<ProgramMetric[]>(
     () =>
       programs.map((program) => {
-        const programCourses = courses.filter((c) => c.program_id?.id === program.id)
+        const programCourses = courses.filter((c) => typeof c.program_id !== 'string' && c.program_id.id === program.id)
         const courseIds = new Set(programCourses.map((c) => c.id))
         const programClos = clos.filter((clo) => courseIds.has(clo.course_id))
         const programPos = pos.filter((p) => p.program_id === program.id)
@@ -78,7 +95,7 @@ function Analytics() {
   )
 
   const levelCounts = useMemo(() => {
-    const counts = { 1: 0, 2: 0, 3: 0 }
+    const counts: Record<number, number> = { 1: 0, 2: 0, 3: 0 }
     matrix.forEach((m) => {
       if (counts[m.level] !== undefined) counts[m.level] += 1
     })

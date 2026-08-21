@@ -2,28 +2,94 @@
 // Every function returns data or throws an error the page can display.
 // Row Level Security (RLS) on the DB is the real gate — these calls just go through it.
 
-import { supabase } from '../utils/supabaseClient'
+import { supabase as _supabase } from '../utils/supabaseClient'
+import type { User } from '@supabase/supabase-js'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 
-// ---------- Profiles ----------
+// Assert supabase client is configured (throws at runtime if not).
+const supabase = _supabase!
 
-// Fetch one profile by auth user id (used after sign-in).
-// RLS: the owner can read their own row; admins/managers can read any.
-export async function getProfile(userId) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .maybeSingle()
-  if (error) throw error
-  return data
+// ---------- Types ----------
+
+export type UserRole = 'admin' | 'manager' | 'user'
+
+export interface Profile {
+  id: string
+  email: string
+  full_name: string | null
+  role: UserRole
+  created_at: string
+  updated_at: string
 }
 
-// Fetch a user's profile, creating it if missing (self-heal).
-// If the row is gone (e.g. after a schema re-run), the new row starts with role 'user'.
-// The INSERT policy only allows a user to create their OWN row, so this can't self-promote.
-export async function ensureProfile(user) {
+export interface ActivityLogEntry {
+  id: string
+  user_email: string | null
+  action: string
+  details: Record<string, unknown> | null
+  created_at: string
+}
+
+export interface Program {
+  id: string
+  code: string
+  name: string
+  description: string | null
+  status: string
+  created_at: string
+}
+
+export interface Course {
+  id: string
+  code: string
+  name: string
+  description: string | null
+  program_id: string | { id: string; code: string; name: string }
+  status: string
+  created_at: string
+}
+
+export interface ProgramOutcome {
+  id: string
+  code: string
+  description: string | null
+  program_id: string
+  created_at: string
+}
+
+export interface CourseLearningOutcome {
+  id: string
+  code: string
+  description: string | null
+  course_id: string
+  created_at: string
+}
+
+export interface CloPoMappingEntry {
+  id: string
+  level: number
+  clo_id: { id: string; code: string; course_id: string }
+  po_id: { id: string; code: string; program_id: string }
+}
+
+export interface Resource {
+  id: string
+  title: string
+  description: string | null
+  status: string
+  created_by: string | { full_name: string | null }
+  created_at: string
+}
+
+export interface NavItem {
+  id: string
+  label: string
+}
+
+// ---------- Profiles ----------
+
+export async function ensureProfile(user: User): Promise<Profile> {
   const { data: existing, error: getError } = await supabase
     .from('profiles')
     .select('*')
@@ -48,9 +114,7 @@ export async function ensureProfile(user) {
   return data
 }
 
-// Update a user's own profile (e.g. full_name).
-// RLS: the owner (or an admin) may update a row.
-export async function updateProfile(profileId, updates) {
+export async function updateProfile(profileId: string, updates: Partial<Pick<Profile, 'full_name'>>): Promise<Profile> {
   const { data, error } = await supabase
     .from('profiles')
     .update(updates)
@@ -61,20 +125,13 @@ export async function updateProfile(profileId, updates) {
   return data
 }
 
-// Restore the caller's expected role (demo accounts by email, or first-admin
-// bootstrap when the system has no admin). Called on every sign-in to heal
-// roles reset by a schema re-run. Returns the role as a string, or null.
-// Backed by a SECURITY DEFINER RPC so a plain user cannot self-promote once
-// an admin exists.
-export async function syncDemoRole() {
+export async function syncDemoRole(): Promise<UserRole | null> {
   const { data, error } = await supabase.rpc('sync_demo_role')
   if (error) throw error
   return data
 }
 
-// List all profiles (admin: Users page, manager: Faculty directory).
-// RLS: managers and admins can read all profiles; a plain user cannot.
-export async function fetchAllProfiles() {
+export async function fetchAllProfiles(): Promise<Profile[]> {
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
@@ -83,9 +140,7 @@ export async function fetchAllProfiles() {
   return data
 }
 
-// Change a user's role (admin only).
-// RLS: the "Admins can update any profile" policy blocks everyone else.
-export async function updateUserRole(profileId, role) {
+export async function updateUserRole(profileId: string, role: UserRole): Promise<Profile> {
   const { data, error } = await supabase
     .from('profiles')
     .update({ role })
@@ -96,10 +151,17 @@ export async function updateUserRole(profileId, role) {
   return data
 }
 
-// Create an auth user via the Supabase Admin API (admin "Create user" feature).
-// Requires VITE_SUPABASE_SERVICE_ROLE_KEY — the service key bypasses RLS, so it must
-// stay in .env and never be sent to the browser in production.
-export async function adminCreateUser(email, password, fullName, role) {
+interface AdminCreateUserResult {
+  id: string
+  email: string
+}
+
+export async function adminCreateUser(
+  email: string,
+  password: string,
+  fullName: string,
+  role: UserRole
+): Promise<AdminCreateUserResult> {
   const serviceKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
   if (!serviceKey) {
     throw new Error('Set VITE_SUPABASE_SERVICE_ROLE_KEY in .env to create users.')
@@ -115,7 +177,7 @@ export async function adminCreateUser(email, password, fullName, role) {
     body: JSON.stringify({
       email,
       password,
-      email_confirm: true, // dev convenience: new users can sign in immediately
+      email_confirm: true,
       user_metadata: { full_name: fullName },
     }),
   })
@@ -125,9 +187,8 @@ export async function adminCreateUser(email, password, fullName, role) {
     throw new Error(err?.msg || 'Failed to create user.')
   }
 
-  const created = await res.json()
+  const created: AdminCreateUserResult = await res.json()
 
-  // The signup trigger creates the profile with role 'user' — bump it if a higher role was chosen.
   if (role && role !== 'user') {
     const { error } = await supabase
       .from('profiles')
@@ -141,9 +202,7 @@ export async function adminCreateUser(email, password, fullName, role) {
 
 // ---------- Resources (curriculum records) ----------
 
-// List curriculum records, newest first, with the creator's name embedded via a join.
-// RLS: any signed-in user can read.
-export async function fetchResources() {
+export async function fetchResources(): Promise<Resource[]> {
   const { data, error } = await supabase
     .from('resources')
     .select('*, created_by ( full_name )')
@@ -152,9 +211,11 @@ export async function fetchResources() {
   return data
 }
 
-// Insert a curriculum record.
-// RLS: only admins/managers can insert, and only with created_by = the caller's id.
-export async function createResource(title, description, userId) {
+export async function createResource(
+  title: string,
+  description: string | null,
+  userId: string
+): Promise<Resource> {
   const { data, error } = await supabase
     .from('resources')
     .insert({ title, description, created_by: userId })
@@ -164,9 +225,10 @@ export async function createResource(title, description, userId) {
   return data
 }
 
-// Edit a curriculum record (title/description/status).
-// RLS: admins/managers can update; a user cannot.
-export async function updateResource(id, updates) {
+export async function updateResource(
+  id: string,
+  updates: Partial<Pick<Resource, 'title' | 'description' | 'status'>>
+): Promise<Resource> {
   const { data, error } = await supabase
     .from('resources')
     .update(updates)
@@ -177,20 +239,11 @@ export async function updateResource(id, updates) {
   return data
 }
 
-// Permanently delete a curriculum record.
-// RLS: admins only.
-export async function deleteResource(id) {
-  const { error } = await supabase.from('resources').delete().eq('id', id)
-  if (error) throw error
-}
-
-// ---------- CQI curriculum domain (programs, courses, POs, CLOs) ----------
+// ---------- CQI curriculum domain ----------
 
 // PROGRAMS
 
-// List all programs, alphabetically by name.
-// RLS: any signed-in user can read.
-export async function fetchPrograms() {
+export async function fetchPrograms(): Promise<Program[]> {
   const { data, error } = await supabase
     .from('programs')
     .select('*')
@@ -199,8 +252,7 @@ export async function fetchPrograms() {
   return data
 }
 
-// Insert a program. RLS: admins/managers can insert.
-export async function createProgram(payload) {
+export async function createProgram(payload: Partial<Program>): Promise<Program> {
   const { data, error } = await supabase
     .from('programs')
     .insert(payload)
@@ -210,8 +262,7 @@ export async function createProgram(payload) {
   return data
 }
 
-// Edit a program (code/name/description/status). RLS: admins/managers can update.
-export async function updateProgram(id, updates) {
+export async function updateProgram(id: string, updates: Partial<Program>): Promise<Program> {
   const { data, error } = await supabase
     .from('programs')
     .update(updates)
@@ -222,17 +273,14 @@ export async function updateProgram(id, updates) {
   return data
 }
 
-// Permanently delete a program (cascades to courses/POs). RLS: admins only.
-export async function deleteProgram(id) {
+export async function deleteProgram(id: string): Promise<void> {
   const { error } = await supabase.from('programs').delete().eq('id', id)
   if (error) throw error
 }
 
 // COURSES
 
-// List all courses with their program embedded, by course code.
-// RLS: any signed-in user can read.
-export async function fetchCourses() {
+export async function fetchCourses(): Promise<Course[]> {
   const { data, error } = await supabase
     .from('courses')
     .select('*, program_id ( id, code, name )')
@@ -241,8 +289,7 @@ export async function fetchCourses() {
   return data
 }
 
-// Insert a course. RLS: admins/managers can insert.
-export async function createCourse(payload) {
+export async function createCourse(payload: Partial<Course>): Promise<Course> {
   const { data, error } = await supabase
     .from('courses')
     .insert(payload)
@@ -252,8 +299,7 @@ export async function createCourse(payload) {
   return data
 }
 
-// Edit a course. RLS: admins/managers can update.
-export async function updateCourse(id, updates) {
+export async function updateCourse(id: string, updates: Partial<Course>): Promise<Course> {
   const { data, error } = await supabase
     .from('courses')
     .update(updates)
@@ -264,17 +310,14 @@ export async function updateCourse(id, updates) {
   return data
 }
 
-// Permanently delete a course (cascades to its CLOs). RLS: admins only.
-export async function deleteCourse(id) {
+export async function deleteCourse(id: string): Promise<void> {
   const { error } = await supabase.from('courses').delete().eq('id', id)
   if (error) throw error
 }
 
 // PROGRAM OUTCOMES (PO)
 
-// List program outcomes, optionally filtered by program, by outcome code.
-// RLS: any signed-in user can read.
-export async function fetchProgramOutcomes(programId = null) {
+export async function fetchProgramOutcomes(programId: string | null = null): Promise<ProgramOutcome[]> {
   let query = supabase.from('program_outcomes').select('*')
   if (programId) query = query.eq('program_id', programId)
   query = query.order('code', { ascending: true })
@@ -283,8 +326,7 @@ export async function fetchProgramOutcomes(programId = null) {
   return data
 }
 
-// Insert a program outcome. RLS: admins/managers can insert.
-export async function createProgramOutcome(payload) {
+export async function createProgramOutcome(payload: Partial<ProgramOutcome>): Promise<ProgramOutcome> {
   const { data, error } = await supabase
     .from('program_outcomes')
     .insert(payload)
@@ -294,8 +336,7 @@ export async function createProgramOutcome(payload) {
   return data
 }
 
-// Edit a program outcome. RLS: admins/managers can update.
-export async function updateProgramOutcome(id, updates) {
+export async function updateProgramOutcome(id: string, updates: Partial<ProgramOutcome>): Promise<ProgramOutcome> {
   const { data, error } = await supabase
     .from('program_outcomes')
     .update(updates)
@@ -306,17 +347,14 @@ export async function updateProgramOutcome(id, updates) {
   return data
 }
 
-// Permanently delete a program outcome. RLS: admins only.
-export async function deleteProgramOutcome(id) {
+export async function deleteProgramOutcome(id: string): Promise<void> {
   const { error } = await supabase.from('program_outcomes').delete().eq('id', id)
   if (error) throw error
 }
 
 // COURSE LEARNING OUTCOMES (CLO)
 
-// List course learning outcomes, optionally filtered by course, by outcome code.
-// RLS: any signed-in user can read.
-export async function fetchCourseLearningOutcomes(courseId = null) {
+export async function fetchCourseLearningOutcomes(courseId: string | null = null): Promise<CourseLearningOutcome[]> {
   let query = supabase.from('course_learning_outcomes').select('*')
   if (courseId) query = query.eq('course_id', courseId)
   query = query.order('code', { ascending: true })
@@ -325,8 +363,7 @@ export async function fetchCourseLearningOutcomes(courseId = null) {
   return data
 }
 
-// Insert a course learning outcome. RLS: admins/managers can insert.
-export async function createCourseLearningOutcome(payload) {
+export async function createCourseLearningOutcome(payload: Partial<CourseLearningOutcome>): Promise<CourseLearningOutcome> {
   const { data, error } = await supabase
     .from('course_learning_outcomes')
     .insert(payload)
@@ -336,8 +373,7 @@ export async function createCourseLearningOutcome(payload) {
   return data
 }
 
-// Edit a course learning outcome. RLS: admins/managers can update.
-export async function updateCourseLearningOutcome(id, updates) {
+export async function updateCourseLearningOutcome(id: string, updates: Partial<CourseLearningOutcome>): Promise<CourseLearningOutcome> {
   const { data, error } = await supabase
     .from('course_learning_outcomes')
     .update(updates)
@@ -348,30 +384,24 @@ export async function updateCourseLearningOutcome(id, updates) {
   return data
 }
 
-// Permanently delete a course learning outcome. RLS: admins only.
-export async function deleteCourseLearningOutcome(id) {
+export async function deleteCourseLearningOutcome(id: string): Promise<void> {
   const { error } = await supabase.from('course_learning_outcomes').delete().eq('id', id)
   if (error) throw error
 }
 
 // CLO/PO MATRIX
 
-// List CLO/PO mappings with CLO and PO embedded. When a course is given,
-// only rows whose CLO belongs to that course are returned (nested filter).
-// RLS: any signed-in user can read.
-export async function fetchCloPoMatrix(courseId = null) {
+export async function fetchCloPoMatrix(courseId: string | null = null): Promise<CloPoMappingEntry[]> {
   let query = supabase
     .from('clo_po_matrix')
     .select('id, level, clo_id ( id, code, course_id ), po_id ( id, code, program_id )')
   if (courseId) query = query.eq('clo_id.course_id', courseId)
   const { data, error } = await query
   if (error) throw error
-  return data
+  return data as unknown as CloPoMappingEntry[]
 }
 
-// Insert or update a single CLO/PO strength cell. RLS: admins/managers.
-// The validate_clo_po_program trigger rejects pairs from different programs.
-export async function upsertCloPoMapping(cloId, poId, level) {
+export async function upsertCloPoMapping(cloId: string, poId: string, level: number): Promise<CloPoMappingEntry> {
   const { data, error } = await supabase
     .from('clo_po_matrix')
     .upsert({ clo_id: cloId, po_id: poId, level }, { onConflict: 'clo_id,po_id' })
@@ -381,8 +411,7 @@ export async function upsertCloPoMapping(cloId, poId, level) {
   return data
 }
 
-// Remove a CLO/PO mapping (blank the cell). RLS: admins only.
-export async function deleteCloPoMapping(cloId, poId) {
+export async function deleteCloPoMapping(cloId: string, poId: string): Promise<void> {
   const { error } = await supabase
     .from('clo_po_matrix')
     .delete()
@@ -393,9 +422,7 @@ export async function deleteCloPoMapping(cloId, poId) {
 
 // ---------- Activity logs ----------
 
-// Latest 100 audit entries, newest first.
-// RLS: admins/managers can read; a user cannot (the query returns empty for them).
-export async function fetchActivityLogs() {
+export async function fetchActivityLogs(): Promise<ActivityLogEntry[]> {
   const { data, error } = await supabase
     .from('activity_logs')
     .select('*')
@@ -405,11 +432,11 @@ export async function fetchActivityLogs() {
   return data
 }
 
-// Record a sign-in attempt (success or failure) via the record_login_event RPC.
-// The function is SECURITY DEFINER so it can insert even when there is no session
-// (a failed login has no signed-in user, so RLS would otherwise block the insert).
-// Failures are only logged, never thrown — a broken log must not block login.
-export async function recordLoginEvent(email, success, reason = null) {
+export async function recordLoginEvent(
+  email: string,
+  success: boolean,
+  reason: string | null = null
+): Promise<void> {
   const { error } = await supabase.rpc('record_login_event', {
     p_email: email,
     p_success: success,
@@ -418,10 +445,11 @@ export async function recordLoginEvent(email, success, reason = null) {
   if (error) console.warn('Login event not recorded:', error.message)
 }
 
-// Insert a generic audit entry for an arbitrary action.
-// Called from pages after mutating actions (create/edit/archive/delete/role change).
-// RLS: any signed-in user can insert. Treated as an activity trail, not tamper-proof.
-export async function addActivityLog(userEmail, action, details = {}) {
+export async function addActivityLog(
+  userEmail: string,
+  action: string,
+  details: Record<string, unknown> = {}
+): Promise<void> {
   const { error } = await supabase
     .from('activity_logs')
     .insert({ user_email: userEmail, action, details })
