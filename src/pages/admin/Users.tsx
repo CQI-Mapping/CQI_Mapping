@@ -117,7 +117,7 @@ function Users({ userEmail }: UsersProps) {
             <input
               className="input"
               type="text"
-              placeholder="Full name (optional)"
+              placeholder="Full name"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
             />
