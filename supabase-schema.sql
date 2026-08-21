@@ -3,20 +3,32 @@
 -- CQI Monitoring System — Database Schema
 -- =============================================================================
 -- Tables:
---   profiles                 — user accounts (linked to auth.users)
---   programs / courses       — academic programs and their courses
---   program_outcomes         — program outcomes tied to programs
---   course_learning_outcomes — CLOs tied to courses
---   activity_logs            — system-wide action history
+--   profiles                      — user accounts (linked to auth.users)
+--   resources                     — curriculum records (managed by manager/admin)
+--   activity_logs                 — system-wide action history
+--   programs / courses            — academic programs and their courses
+--   program_outcomes              — program outcomes tied to programs
+--   course_learning_outcomes      — CLOs tied to courses
+--   strategic_goals               — institutional strategic goals (admin)
+--   admin_program_outcomes        — standalone admin-managed PO list
+--   program_educational_objectives— PEOs (admin)
+--   admin_course_learning_outcomes— standalone admin-managed CLO list
+--   ched_memorandum_orders        — CHED memo orders (admin)
 -- =============================================================================
 
 
 -- Cleanup
 DROP TABLE IF EXISTS public.activity_logs CASCADE;
+DROP TABLE IF EXISTS public.resources CASCADE;
 DROP TABLE IF EXISTS public.course_learning_outcomes CASCADE;
 DROP TABLE IF EXISTS public.program_outcomes CASCADE;
 DROP TABLE IF EXISTS public.courses CASCADE;
 DROP TABLE IF EXISTS public.programs CASCADE;
+DROP TABLE IF EXISTS public.strategic_goals CASCADE;
+DROP TABLE IF EXISTS public.admin_program_outcomes CASCADE;
+DROP TABLE IF EXISTS public.program_educational_objectives CASCADE;
+DROP TABLE IF EXISTS public.admin_course_learning_outcomes CASCADE;
+DROP TABLE IF EXISTS public.ched_memorandum_orders CASCADE;
 DROP TABLE IF EXISTS public.profiles CASCADE;
 DROP TYPE IF EXISTS public.user_role CASCADE;
 
@@ -81,6 +93,61 @@ CREATE TABLE public.activity_logs (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE public.resources (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title TEXT NOT NULL,
+    description TEXT,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
+    created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE public.strategic_goals (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code TEXT UNIQUE NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE public.admin_program_outcomes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code TEXT UNIQUE NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE public.program_educational_objectives (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code TEXT UNIQUE NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE public.admin_course_learning_outcomes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code TEXT UNIQUE NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE public.ched_memorandum_orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code TEXT UNIQUE NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- ============================================================
 -- HELPER: current user's role (bypasses RLS, avoids recursion)
 -- ============================================================
@@ -131,11 +198,17 @@ CREATE TRIGGER on_auth_user_created
 -- ============================================================
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.resources ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.programs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.courses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.program_outcomes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.course_learning_outcomes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.activity_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.strategic_goals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_program_outcomes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.program_educational_objectives ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_course_learning_outcomes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ched_memorandum_orders ENABLE ROW LEVEL SECURITY;
 
 -- PROFILES
 CREATE POLICY "Users can view own profile" ON public.profiles FOR SELECT
@@ -154,6 +227,23 @@ CREATE POLICY "Managers and admins can view all profiles" ON public.profiles FOR
 CREATE POLICY "Admins can update any profile" ON public.profiles FOR UPDATE
     USING (public.current_user_role() = 'admin')
     WITH CHECK (public.current_user_role() = 'admin');
+
+-- RESOURCES
+CREATE POLICY "Authenticated users can read resources" ON public.resources FOR SELECT
+    USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Managers and admins can create resources" ON public.resources FOR INSERT
+    WITH CHECK (
+        public.current_user_role() IN ('admin', 'manager')
+        AND created_by = auth.uid()
+    );
+
+CREATE POLICY "Managers and admins can update resources" ON public.resources FOR UPDATE
+    USING (public.current_user_role() IN ('admin', 'manager'))
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
+
+CREATE POLICY "Admins can delete resources" ON public.resources FOR DELETE
+    USING (public.current_user_role() = 'admin');
 
 -- PROGRAMS
 CREATE POLICY "Authenticated users can read programs" ON public.programs FOR SELECT
@@ -217,6 +307,46 @@ CREATE POLICY "Authenticated users can insert activity logs" ON public.activity_
 
 CREATE POLICY "Admins and managers can view activity logs" ON public.activity_logs FOR SELECT
     USING (public.current_user_role() IN ('admin', 'manager'));
+
+-- STRATEGIC GOALS
+CREATE POLICY "Authenticated users can read strategic_goals" ON public.strategic_goals FOR SELECT
+    USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Admins can manage strategic_goals" ON public.strategic_goals FOR ALL
+    USING (public.current_user_role() = 'admin')
+    WITH CHECK (public.current_user_role() = 'admin');
+
+-- ADMIN PROGRAM OUTCOMES
+CREATE POLICY "Authenticated users can read admin_program_outcomes" ON public.admin_program_outcomes FOR SELECT
+    USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Admins can manage admin_program_outcomes" ON public.admin_program_outcomes FOR ALL
+    USING (public.current_user_role() = 'admin')
+    WITH CHECK (public.current_user_role() = 'admin');
+
+-- PROGRAM EDUCATIONAL OBJECTIVES
+CREATE POLICY "Authenticated users can read program_educational_objectives" ON public.program_educational_objectives FOR SELECT
+    USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Admins can manage program_educational_objectives" ON public.program_educational_objectives FOR ALL
+    USING (public.current_user_role() = 'admin')
+    WITH CHECK (public.current_user_role() = 'admin');
+
+-- ADMIN COURSE LEARNING OUTCOMES
+CREATE POLICY "Authenticated users can read admin_course_learning_outcomes" ON public.admin_course_learning_outcomes FOR SELECT
+    USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Admins can manage admin_course_learning_outcomes" ON public.admin_course_learning_outcomes FOR ALL
+    USING (public.current_user_role() = 'admin')
+    WITH CHECK (public.current_user_role() = 'admin');
+
+-- CHED MEMORANDUM ORDERS
+CREATE POLICY "Authenticated users can read ched_memorandum_orders" ON public.ched_memorandum_orders FOR SELECT
+    USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Admins can manage ched_memorandum_orders" ON public.ched_memorandum_orders FOR ALL
+    USING (public.current_user_role() = 'admin')
+    WITH CHECK (public.current_user_role() = 'admin');
 
 -- ============================================================
 -- LOGIN AUDIT
