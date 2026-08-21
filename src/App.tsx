@@ -132,7 +132,7 @@ function App() {
             if (role && role !== p.role) return ensureProfile(session.user)
             return p
           })
-          .catch(() => p) // RPC missing/not deployed yet → keep the loaded profile
+          .catch((err) => { console.error('syncDemoRole failed:', err); return p })
       })
       .then((p) => {
         if (!cancelled && p) setProfile(p)
