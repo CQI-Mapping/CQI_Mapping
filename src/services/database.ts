@@ -13,7 +13,7 @@
 //   CMOs           — CRUD for admin-managed CHED Memorandum Orders
 //   Activity Logs  — fetchActivityLogs, addActivityLog (details column removed)
 
-import { supabase as _supabase } from '../utils/supabaseClient'
+import { supabase as _supabase, supabaseAdmin } from '../utils/supabaseClient'
 import type { User } from '@supabase/supabase-js'
 
 // Assert supabase client is configured (throws at runtime if not).
@@ -104,6 +104,49 @@ export async function fetchAllProfiles(): Promise<Profile[]> {
     .order('full_name', { ascending: true })
   if (error) throw error
   return data
+}
+
+export async function updateUserRole(profileId: string, role: UserRole): Promise<Profile> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ role })
+    .eq('id', profileId)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export interface AdminCreateUserResult {
+  id: string
+  email: string
+}
+
+export async function adminCreateUser(
+  email: string,
+  password: string,
+  fullName: string,
+  role: UserRole
+): Promise<AdminCreateUserResult> {
+  if (!supabaseAdmin) {
+    throw new Error('Set VITE_SUPABASE_SERVICE_ROLE_KEY in .env to create users')
+  }
+
+  const { data, error } = await supabaseAdmin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { full_name: fullName },
+  })
+  if (error) throw error
+
+  const { error: profileError } = await supabaseAdmin
+    .from('profiles')
+    .update({ role, full_name: fullName })
+    .eq('id', data.user.id)
+  if (profileError) throw profileError
+
+  return { id: data.user.id, email: data.user.email! }
 }
 
 // ---------- Resources (curriculum records) ----------

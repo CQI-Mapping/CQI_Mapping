@@ -6,13 +6,11 @@
 // mirroring the reference repo's per-role structure.
 //
 // Admin role pages (sidebar order):
-//   Dashboard, Program Educational Objectives, Program Outcomes,
+//   Dashboard, Users & Accounts, Program Educational Objectives, Program Outcomes,
 //   Course Learning Outcomes, Strategic Goals, CHED Memorandum Orders,
 //   Activity Logs, Profile
 //
-// Note: Users & Accounts, Curriculum, CLO/PO Mapping, and Analytics were
-// removed from the admin role in this version. The manager role retains
-// its own Curriculum, Faculty, and Activity Logs pages.
+// The manager role retains its own Curriculum, Faculty (with add), and Activity Logs pages.
 
 import { useState, useEffect } from 'react'
 import Sidebar from './components/Sidebar'
@@ -31,6 +29,7 @@ import AdminStrategicGoals from './pages/admin/StrategicGoals'
 import AdminPEOs from './pages/admin/ProgramEducationalObjectives'
 import AdminProgramOutcomes from './pages/admin/ProgramOutcomes'
 import AdminCourseLearningOutcomes from './pages/admin/CourseLearningOutcomes'
+import AdminUsers from './pages/admin/Users'
 import { supabase } from './utils/supabaseClient'
 import { ensureProfile, syncDemoRole } from './services/database'
 import type { Profile as ProfileType, UserRole, NavItem } from './services/database'
@@ -40,6 +39,7 @@ import type { Session } from '@supabase/supabase-js'
 const NAV: Record<UserRole, NavItem[]> = {
   admin: [
     { id: 'dashboard', label: 'Dashboard' },
+    { id: 'users', label: 'Users & Accounts' },
     { id: 'peos', label: 'Program Educational Objectives' },
     { id: 'program-outcomes', label: 'Program Outcomes' },
     { id: 'clo', label: 'Course Learning Outcomes' },
@@ -67,6 +67,7 @@ const NAV: Record<UserRole, NavItem[]> = {
 const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
   admin: {
     dashboard: AdminDashboard,
+    users: AdminUsers,
     peos: AdminPEOs,
     'program-outcomes': AdminProgramOutcomes,
     clo: AdminCourseLearningOutcomes,
@@ -169,6 +170,7 @@ function App() {
     const Page = PAGES[role]?.[page] ?? UserDashboard
 
     if (page === 'profile') return <Page profile={profile} onSaved={setProfile} />
+    if (page === 'users') return <Page userEmail={profile?.email} />
     if (page === 'curriculum' && role !== 'user') return <Page userEmail={profile?.email} />
     if (page === 'clo-po' && role !== 'user') return <Page userEmail={profile?.email} />
     return <Page profile={profile} />

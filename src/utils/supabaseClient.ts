@@ -5,6 +5,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
 
 // True only when both keys were inlined at build time. On Vercel this is false
 // if the env vars are missing from the project settings — main.tsx then shows a
@@ -15,3 +16,9 @@ export const supabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey)
 export const supabase: SupabaseClient | null = supabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null
+
+// Admin client with service role key — bypasses RLS. Only used for user management.
+export const supabaseAdmin: SupabaseClient | null =
+  supabaseUrl && supabaseServiceKey
+    ? createClient(supabaseUrl, supabaseServiceKey)
+    : null

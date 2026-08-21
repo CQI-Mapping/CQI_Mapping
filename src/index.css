@@ -520,6 +520,19 @@ code {
   border-bottom: none;
 }
 
+/* ---- Users ---- */
+
+.create-user {
+  margin-bottom: 20px;
+}
+
+.create-user__row {
+  display: grid;
+  grid-template-columns: 2fr 2fr 2fr 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
 /* ---- Resources ---- */
 
 .create-resource {
@@ -615,6 +628,7 @@ code {
 /* ---- Responsive ---- */
 
 @media (max-width: 1024px) {
+  .create-user__row,
   .create-resource__row {
     grid-template-columns: 1fr;
   }
