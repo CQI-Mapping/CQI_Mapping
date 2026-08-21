@@ -1,7 +1,7 @@
 // Activity Logs — enhanced activity logs view shared by admin and manager.
 // Fetches the latest 100 activity entries on mount, then filters client-side
 // by search text, action type, and date range. Shows human-readable action
-// labels and formatted details instead of raw JSON.
+// labels. The `details` column was removed; only user_email and action are shown.
 
 import { useState, useEffect, useMemo } from 'react'
 import { fetchActivityLogs } from '../../services/database'
@@ -35,20 +35,6 @@ const ACTION_LABELS = {
 
 function labelAction(raw: string): string {
   return ACTION_LABELS[raw as keyof typeof ACTION_LABELS] || raw.replace(/_/g, ' ')
-}
-
-function formatDetails(action: string, details: Record<string, unknown> | null): string {
-  if (!details || typeof details !== 'object') return '—'
-  const p: string[] = []
-  if (details.title) p.push(`"${details.title}"`)
-  if (details.code) p.push(String(details.code))
-  if (details.newRole) p.push(`Role → ${details.newRole}`)
-  if (details.clo && details.po) p.push(`${details.clo} → ${details.po}`)
-  if (details.level) p.push(`Level ${details.level}`)
-  if (details.createdEmail) p.push(String(details.createdEmail))
-  if (details.profileId && details.newRole) p.push(`Profile → ${details.newRole}`)
-  if (details.reason) p.push(`Reason: ${details.reason}`)
-  return p.length ? p.join(' · ') : JSON.stringify(details)
 }
 
 function uniqueActions(entries: ActivityLogEntry[]): string[] {
@@ -89,7 +75,6 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
           e.user_email,
           e.action,
           labelAction(e.action),
-          JSON.stringify(e.details),
         ]
           .join(' ')
           .toLowerCase()
@@ -205,13 +190,12 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
               <th>When</th>
               <th>User</th>
               <th>Action</th>
-              <th>Details</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={4}>
+                <td colSpan={3}>
                   {entries.length === 0 ? 'No activity recorded yet.' : 'No entries match the current filters.'}
                 </td>
               </tr>
@@ -225,7 +209,6 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
                     {labelAction(entry.action)}
                   </span>
                 </td>
-                <td className="table__details">{formatDetails(entry.action, entry.details)}</td>
               </tr>
             ))}
           </tbody>

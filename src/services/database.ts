@@ -1,6 +1,17 @@
 // Service layer: ALL Supabase queries live here so pages never talk to the DB directly.
 // Every function returns data or throws an error the page can display.
 // Row Level Security (RLS) on the DB is the real gate — these calls just go through it.
+//
+// Section guide:
+//   Types          — UserRole, Profile, ActivityLogEntry, Program, Course, etc.
+//   Profiles       — ensureProfile, updateProfile, syncDemoRole, fetchAllProfiles, etc.
+//   Resources      — legacy curriculum records (used by manager role)
+//   Strategic Goals — CRUD for admin-managed strategic goals
+//   PEOs           — CRUD for admin-managed Program Educational Objectives
+//   POs (standalone) — CRUD for admin-managed Program Outcomes list
+//   CLOs (standalone) — CRUD for admin-managed Course Learning Outcomes list
+//   CMOs           — CRUD for admin-managed CHED Memorandum Orders
+//   Activity Logs  — fetchActivityLogs, addActivityLog (details column removed)
 
 import { supabase as _supabase } from '../utils/supabaseClient'
 import type { User } from '@supabase/supabase-js'
@@ -27,7 +38,6 @@ export interface ActivityLogEntry {
   id: string
   user_email: string | null
   action: string
-  details: Record<string, unknown> | null
   created_at: string
 }
 
@@ -85,6 +95,15 @@ export interface Resource {
 export interface NavItem {
   id: string
   label: string
+}
+
+export interface ChedMemoOrder {
+  id: string
+  code: string
+  title: string
+  description: string | null
+  created_at: string
+  updated_at: string
 }
 
 // ---------- Profiles ----------
@@ -420,7 +439,228 @@ export async function deleteCloPoMapping(cloId: string, poId: string): Promise<v
   if (error) throw error
 }
 
-// ---------- Activity logs ----------
+export interface StrategicGoal {
+  id: string
+  code: string
+  title: string
+  description: string | null
+  created_at: string
+  updated_at: string
+}
+
+// ---------- Strategic Goals ----------
+
+export async function fetchStrategicGoals(): Promise<StrategicGoal[]> {
+  const { data, error } = await supabase
+    .from('strategic_goals')
+    .select('*')
+    .order('code', { ascending: true })
+  if (error) throw error
+  return data
+}
+
+export async function createStrategicGoal(payload: Partial<StrategicGoal>): Promise<StrategicGoal> {
+  const { data, error } = await supabase
+    .from('strategic_goals')
+    .insert(payload)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function updateStrategicGoal(id: string, updates: Partial<StrategicGoal>): Promise<StrategicGoal> {
+  const { data, error } = await supabase
+    .from('strategic_goals')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteStrategicGoal(id: string): Promise<void> {
+  const { error } = await supabase.from('strategic_goals').delete().eq('id', id)
+  if (error) throw error
+}
+
+export interface ProgramEducationalObjective {
+  id: string
+  code: string
+  title: string
+  description: string | null
+  created_at: string
+  updated_at: string
+}
+
+// ---------- Program Educational Objectives ----------
+
+export async function fetchProgramEducationalObjectives(): Promise<ProgramEducationalObjective[]> {
+  const { data, error } = await supabase
+    .from('program_educational_objectives')
+    .select('*')
+    .order('code', { ascending: true })
+  if (error) throw error
+  return data
+}
+
+export async function createProgramEducationalObjective(payload: Partial<ProgramEducationalObjective>): Promise<ProgramEducationalObjective> {
+  const { data, error } = await supabase
+    .from('program_educational_objectives')
+    .insert(payload)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function updateProgramEducationalObjective(id: string, updates: Partial<ProgramEducationalObjective>): Promise<ProgramEducationalObjective> {
+  const { data, error } = await supabase
+    .from('program_educational_objectives')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteProgramEducationalObjective(id: string): Promise<void> {
+  const { error } = await supabase.from('program_educational_objectives').delete().eq('id', id)
+  if (error) throw error
+}
+
+export interface ProgramOutcomeStandalone {
+  id: string
+  code: string
+  title: string
+  description: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CourseLearningOutcomeStandalone {
+  id: string
+  code: string
+  title: string
+  description: string | null
+  created_at: string
+  updated_at: string
+}
+
+// ---------- Program Outcomes (standalone) ----------
+
+export async function fetchProgramOutcomesStandalone(): Promise<ProgramOutcomeStandalone[]> {
+  const { data, error } = await supabase
+    .from('admin_program_outcomes')
+    .select('*')
+    .order('code', { ascending: true })
+  if (error) throw error
+  return data
+}
+
+export async function createProgramOutcomeStandalone(payload: Partial<ProgramOutcomeStandalone>): Promise<ProgramOutcomeStandalone> {
+  const { data, error } = await supabase
+    .from('admin_program_outcomes')
+    .insert(payload)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function updateProgramOutcomeStandalone(id: string, updates: Partial<ProgramOutcomeStandalone>): Promise<ProgramOutcomeStandalone> {
+  const { data, error } = await supabase
+    .from('admin_program_outcomes')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteProgramOutcomeStandalone(id: string): Promise<void> {
+  const { error } = await supabase.from('admin_program_outcomes').delete().eq('id', id)
+  if (error) throw error
+}
+
+// ---------- Course Learning Outcomes (standalone) ----------
+
+export async function fetchCourseLearningOutcomesStandalone(): Promise<CourseLearningOutcomeStandalone[]> {
+  const { data, error } = await supabase
+    .from('admin_course_learning_outcomes')
+    .select('*')
+    .order('code', { ascending: true })
+  if (error) throw error
+  return data
+}
+
+export async function createCourseLearningOutcomeStandalone(payload: Partial<CourseLearningOutcomeStandalone>): Promise<CourseLearningOutcomeStandalone> {
+  const { data, error } = await supabase
+    .from('admin_course_learning_outcomes')
+    .insert(payload)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function updateCourseLearningOutcomeStandalone(id: string, updates: Partial<CourseLearningOutcomeStandalone>): Promise<CourseLearningOutcomeStandalone> {
+  const { data, error } = await supabase
+    .from('admin_course_learning_outcomes')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteCourseLearningOutcomeStandalone(id: string): Promise<void> {
+  const { error } = await supabase.from('admin_course_learning_outcomes').delete().eq('id', id)
+  if (error) throw error
+}
+
+// ---------- CHED Memorandum Orders ----------
+
+export async function fetchChedMemoOrders(): Promise<ChedMemoOrder[]> {
+  const { data, error } = await supabase
+    .from('ched_memorandum_orders')
+    .select('*')
+    .order('code', { ascending: true })
+  if (error) throw error
+  return data
+}
+
+export async function createChedMemoOrder(payload: Partial<ChedMemoOrder>): Promise<ChedMemoOrder> {
+  const { data, error } = await supabase
+    .from('ched_memorandum_orders')
+    .insert(payload)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function updateChedMemoOrder(id: string, updates: Partial<ChedMemoOrder>): Promise<ChedMemoOrder> {
+  const { data, error } = await supabase
+    .from('ched_memorandum_orders')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteChedMemoOrder(id: string): Promise<void> {
+  const { error } = await supabase.from('ched_memorandum_orders').delete().eq('id', id)
+  if (error) throw error
+}
+
+// ---------- Activity logs (details column removed) ----------
 
 export async function fetchActivityLogs(): Promise<ActivityLogEntry[]> {
   const { data, error } = await supabase
@@ -447,11 +687,10 @@ export async function recordLoginEvent(
 
 export async function addActivityLog(
   userEmail: string,
-  action: string,
-  details: Record<string, unknown> = {}
+  action: string
 ): Promise<void> {
   const { error } = await supabase
     .from('activity_logs')
-    .insert({ user_email: userEmail, action, details })
+    .insert({ user_email: userEmail, action })
   if (error) console.warn('Audit log insert failed:', error.message)
 }

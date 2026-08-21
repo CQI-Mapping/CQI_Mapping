@@ -1,29 +1,31 @@
-// Admin Curriculum — Programs sub-view: CRUD for academic programs.
+// Admin Strategic Goals: CRUD for institutional strategic goal records.
+// Provides add, edit, and delete functionality for strategic goals
+// managed by the admin role. Uses the useEntityCrud hook for shared state.
 
 import { useState, useEffect } from 'react'
-import { useEntityCrud } from './useEntityCrud.js'
+import { useEntityCrud } from './curriculum/useEntityCrud.js'
 import {
-  fetchPrograms,
-  createProgram,
-  updateProgram,
-  deleteProgram,
-} from '../../../services/database'
-import type { Program } from '../../../services/database'
+  fetchStrategicGoals,
+  createStrategicGoal,
+  updateStrategicGoal,
+  deleteStrategicGoal,
+} from '../../services/database'
+import type { StrategicGoal } from '../../services/database'
 
-const EMPTY_FORM = { code: '', name: '', description: '' }
+const EMPTY_FORM = { code: '', title: '', description: '' }
 
-interface ProgramsViewProps {
+interface StrategicGoalsProps {
   userEmail: string
 }
 
-function ProgramsView({ userEmail }: ProgramsViewProps) {
-  const crud = useEntityCrud<Program>({
-    loadFn: fetchPrograms,
-    createFn: createProgram,
-    updateFn: updateProgram,
-    deleteFn: deleteProgram,
+function StrategicGoals({ userEmail }: StrategicGoalsProps) {
+  const crud = useEntityCrud<StrategicGoal>({
+    loadFn: fetchStrategicGoals,
+    createFn: createStrategicGoal,
+    updateFn: updateStrategicGoal,
+    deleteFn: deleteStrategicGoal,
     userEmail,
-    scope: 'Program',
+    scope: 'Strategic Goal',
   })
   const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete } = crud
 
@@ -36,24 +38,22 @@ function ProgramsView({ userEmail }: ProgramsViewProps) {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const ok = await handleCreate(
-      { code: form.code.trim(), name: form.name.trim(), description: form.description.trim() },
-      'program.created',
-      { code: form.code.trim() }
+      { code: form.code.trim(), title: form.title.trim(), description: form.description.trim() || null },
+      'strategic_goal.created'
     )
     if (ok) setForm(EMPTY_FORM)
   }
 
-  const startEdit = (item: Program) => {
+  const startEdit = (item: StrategicGoal) => {
     setEditingId(item.id)
-    setEditForm({ code: item.code, name: item.name, description: item.description || '' })
+    setEditForm({ code: item.code, title: item.title, description: item.description || '' })
   }
 
   const saveEdit = async () => {
     const ok = await handleUpdate(
       editingId,
-      { code: editForm.code.trim(), name: editForm.name.trim(), description: editForm.description.trim() },
-      'program.updated',
-      { id: editingId, code: editForm.code.trim() }
+      { code: editForm.code.trim(), title: editForm.title.trim(), description: editForm.description.trim() || null },
+      'strategic_goal.updated'
     )
     if (ok) setEditingId(null)
   }
@@ -64,12 +64,12 @@ function ProgramsView({ userEmail }: ProgramsViewProps) {
       {message && <p className="msg msg--success">{message}</p>}
 
       <form className="panel create-resource" onSubmit={onSubmit}>
-        <h3>New program</h3>
+        <h3>New Strategic Goal</h3>
         <div className="create-resource__row">
           <input
             className="input input--sm"
             type="text"
-            placeholder="Code (e.g. BSIT)"
+            placeholder="Code (e.g. SG-1)"
             value={form.code}
             onChange={(e) => setForm({ ...form, code: e.target.value })}
             required
@@ -77,9 +77,9 @@ function ProgramsView({ userEmail }: ProgramsViewProps) {
           <input
             className="input input--sm"
             type="text"
-            placeholder="Program name"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            placeholder="Title"
+            value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.target.value })}
             required
           />
           <input
@@ -96,22 +96,21 @@ function ProgramsView({ userEmail }: ProgramsViewProps) {
       </form>
 
       {loading ? (
-        <p>Loading programs...</p>
+        <p>Loading strategic goals...</p>
       ) : (
         <div className="panel table-wrap">
           <table className="table">
             <thead>
               <tr>
                 <th>Code</th>
-                <th>Name</th>
+                <th>Title</th>
                 <th>Description</th>
-                <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {items.length === 0 && (
-                <tr><td colSpan={5}>No programs yet.</td></tr>
+                <tr><td colSpan={4}>No strategic goals yet.</td></tr>
               )}
               {items.map((item) => (
                 <tr key={item.id}>
@@ -127,8 +126,8 @@ function ProgramsView({ userEmail }: ProgramsViewProps) {
                       <td>
                         <input
                           className="input input--sm"
-                          value={editForm.name}
-                          onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                          value={editForm.title}
+                          onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
                         />
                       </td>
                       <td>
@@ -138,7 +137,6 @@ function ProgramsView({ userEmail }: ProgramsViewProps) {
                           onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                         />
                       </td>
-                      <td><span className={`status-badge status-badge--${item.status}`}>{item.status}</span></td>
                       <td>
                         <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>Save</button>{' '}
                         <button className="btn btn--ghost btn--sm" onClick={() => setEditingId(null)}>Cancel</button>
@@ -147,12 +145,11 @@ function ProgramsView({ userEmail }: ProgramsViewProps) {
                   ) : (
                     <>
                       <td><strong>{item.code}</strong></td>
-                      <td>{item.name}</td>
+                      <td>{item.title}</td>
                       <td>{item.description || '—'}</td>
-                      <td><span className={`status-badge status-badge--${item.status}`}>{item.status}</span></td>
                       <td>
                         <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)}>Edit</button>{' '}
-                        <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'program.deleted', { id: item.id, code: item.code })}>Delete</button>
+                        <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'strategic_goal.deleted')}>Delete</button>
                       </td>
                     </>
                   )}
@@ -166,4 +163,4 @@ function ProgramsView({ userEmail }: ProgramsViewProps) {
   )
 }
 
-export default ProgramsView
+export default StrategicGoals

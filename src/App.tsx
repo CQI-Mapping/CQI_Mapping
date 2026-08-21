@@ -4,14 +4,21 @@
 //
 // Each role has its own pages in its own folder (src/pages/admin|manager|user),
 // mirroring the reference repo's per-role structure.
+//
+// Admin role pages (sidebar order):
+//   Dashboard, Program Educational Objectives, Program Outcomes,
+//   Course Learning Outcomes, Strategic Goals, CHED Memorandum Orders,
+//   Activity Logs, Profile
+//
+// Note: Users & Accounts, Curriculum, CLO/PO Mapping, and Analytics were
+// removed from the admin role in this version. The manager role retains
+// its own Curriculum, Faculty, and Activity Logs pages.
 
 import { useState, useEffect } from 'react'
 import Sidebar from './components/Sidebar'
 import Login from './pages/Login'
 import Profile from './pages/Profile'
 import AdminDashboard from './pages/admin/Dashboard'
-import AdminUsers from './pages/admin/Users'
-import AdminCurriculum from './pages/admin/Curriculum'
 import AdminActivityLogs from './pages/admin/ActivityLogs'
 import ManagerDashboard from './pages/manager/Dashboard'
 import ManagerUsers from './pages/manager/Users'
@@ -19,8 +26,11 @@ import ManagerCurriculum from './pages/manager/Curriculum'
 import ManagerActivityLogs from './pages/admin/ActivityLogs'
 import UserDashboard from './pages/user/Dashboard'
 import UserCurriculum from './pages/user/Curriculum'
-import AdminCloPoMapping from './pages/admin/CloPoMapping'
-import AdminAnalytics from './pages/admin/Analytics'
+import AdminChedMemoOrders from './pages/admin/ChedMemoOrders'
+import AdminStrategicGoals from './pages/admin/StrategicGoals'
+import AdminPEOs from './pages/admin/ProgramEducationalObjectives'
+import AdminProgramOutcomes from './pages/admin/ProgramOutcomes'
+import AdminCourseLearningOutcomes from './pages/admin/CourseLearningOutcomes'
 import { supabase } from './utils/supabaseClient'
 import { ensureProfile, syncDemoRole } from './services/database'
 import type { Profile as ProfileType, UserRole, NavItem } from './services/database'
@@ -30,10 +40,11 @@ import type { Session } from '@supabase/supabase-js'
 const NAV: Record<UserRole, NavItem[]> = {
   admin: [
     { id: 'dashboard', label: 'Dashboard' },
-    { id: 'users', label: 'Users & Accounts' },
-    { id: 'curriculum', label: 'Curriculum' },
-    { id: 'clo-po', label: 'CLO/PO Mapping' },
-    { id: 'analytics', label: 'Analytics' },
+    { id: 'peos', label: 'Program Educational Objectives' },
+    { id: 'program-outcomes', label: 'Program Outcomes' },
+    { id: 'clo', label: 'Course Learning Outcomes' },
+    { id: 'strategic-goals', label: 'Strategic Goals' },
+    { id: 'ched-memo', label: 'CHED Memorandum Orders' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
   ],
@@ -56,10 +67,11 @@ const NAV: Record<UserRole, NavItem[]> = {
 const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
   admin: {
     dashboard: AdminDashboard,
-    users: AdminUsers,
-    curriculum: AdminCurriculum,
-    'clo-po': AdminCloPoMapping,
-    analytics: AdminAnalytics,
+    peos: AdminPEOs,
+    'program-outcomes': AdminProgramOutcomes,
+    clo: AdminCourseLearningOutcomes,
+    'strategic-goals': AdminStrategicGoals,
+    'ched-memo': AdminChedMemoOrders,
     'activity-logs': AdminActivityLogs,
     profile: Profile,
   },

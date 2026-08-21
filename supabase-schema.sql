@@ -1,8 +1,38 @@
 
 
+-- =============================================================================
+-- CQI Monitoring System — Full Database Schema
+-- =============================================================================
+-- This file defines all tables, triggers, RLS policies, and seed data for the
+-- CQI (Continuous Quality Improvement) Mapping application.
+--
+-- Tables:
+--   profiles                      — user accounts (linked to auth.users)
+--   resources                     — curriculum records (legacy, used by manager)
+--   activity_logs                 — system-wide action history (details column removed)
+--   programs / courses            — academic programs and their courses
+--   program_outcomes              — program outcomes tied to programs (used by CLO/PO mapping)
+--   course_learning_outcomes      — CLOs tied to courses (used by CLO/PO mapping)
+--   clo_po_matrix                 — CLO-to-PO alignment strength matrix
+--   admin_program_outcomes        — standalone admin-managed program outcomes list
+--   admin_course_learning_outcomes— standalone admin-managed CLOs list
+--   program_educational_objectives— PEOs managed by admin
+--   strategic_goals               — institutional strategic goals managed by admin
+--   ched_memorandum_orders        — CHED Memorandum Orders managed by admin
+--
+-- Activity Logs: The `details` JSONB column was removed in this version.
+-- All `addActivityLog` calls now only record user_email and action.
+-- =============================================================================
+
+
 -- Cleanup
 DROP TABLE IF EXISTS public.activity_logs CASCADE;
 DROP TABLE IF EXISTS public.resources CASCADE;
+DROP TABLE IF EXISTS public.admin_course_learning_outcomes CASCADE;
+DROP TABLE IF EXISTS public.admin_program_outcomes CASCADE;
+DROP TABLE IF EXISTS public.program_educational_objectives CASCADE;
+DROP TABLE IF EXISTS public.strategic_goals CASCADE;
+DROP TABLE IF EXISTS public.ched_memorandum_orders CASCADE;
 DROP TABLE IF EXISTS public.clo_po_matrix CASCADE;
 DROP TABLE IF EXISTS public.course_learning_outcomes CASCADE;
 DROP TABLE IF EXISTS public.program_outcomes CASCADE;
@@ -40,7 +70,6 @@ CREATE TABLE public.activity_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_email TEXT,
     action TEXT NOT NULL,
-    details JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -85,6 +114,56 @@ CREATE TABLE public.course_learning_outcomes (
     description TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (course_id, code)
+);
+
+-- STRATEGIC GOALS
+CREATE TABLE public.strategic_goals (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code TEXT UNIQUE NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- PROGRAM OUTCOMES (standalone admin list)
+CREATE TABLE public.admin_program_outcomes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code TEXT UNIQUE NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- PROGRAM EDUCATIONAL OBJECTIVES
+CREATE TABLE public.program_educational_objectives (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code TEXT UNIQUE NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- COURSE LEARNING OUTCOMES (standalone admin list)
+CREATE TABLE public.admin_course_learning_outcomes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code TEXT UNIQUE NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- CHED MEMORANDUM ORDERS
+CREATE TABLE public.ched_memorandum_orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code TEXT UNIQUE NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- CLO/PO matrix: strength (1-3) of each course learning outcome's
@@ -191,6 +270,11 @@ ALTER TABLE public.programs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.courses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.program_outcomes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.course_learning_outcomes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_course_learning_outcomes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_program_outcomes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.program_educational_objectives ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.strategic_goals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ched_memorandum_orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.clo_po_matrix ENABLE ROW LEVEL SECURITY;
 
 -- PROFILES
@@ -284,6 +368,46 @@ CREATE POLICY "Managers and admins can update course learning outcomes" ON publi
 CREATE POLICY "Admins can delete course learning outcomes" ON public.course_learning_outcomes FOR DELETE
     USING (public.current_user_role() = 'admin');
 
+-- STRATEGIC GOALS
+CREATE POLICY "Authenticated users can read strategic_goals" ON public.strategic_goals FOR SELECT
+    USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Admins can manage strategic_goals" ON public.strategic_goals FOR ALL
+    USING (public.current_user_role() = 'admin')
+    WITH CHECK (public.current_user_role() = 'admin');
+
+-- PROGRAM OUTCOMES (standalone admin list)
+CREATE POLICY "Authenticated users can read admin_program_outcomes" ON public.admin_program_outcomes FOR SELECT
+    USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Admins can manage admin_program_outcomes" ON public.admin_program_outcomes FOR ALL
+    USING (public.current_user_role() = 'admin')
+    WITH CHECK (public.current_user_role() = 'admin');
+
+-- PROGRAM EDUCATIONAL OBJECTIVES
+CREATE POLICY "Authenticated users can read program_educational_objectives" ON public.program_educational_objectives FOR SELECT
+    USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Admins can manage program_educational_objectives" ON public.program_educational_objectives FOR ALL
+    USING (public.current_user_role() = 'admin')
+    WITH CHECK (public.current_user_role() = 'admin');
+
+-- COURSE LEARNING OUTCOMES (standalone admin list)
+CREATE POLICY "Authenticated users can read admin_course_learning_outcomes" ON public.admin_course_learning_outcomes FOR SELECT
+    USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Admins can manage admin_course_learning_outcomes" ON public.admin_course_learning_outcomes FOR ALL
+    USING (public.current_user_role() = 'admin')
+    WITH CHECK (public.current_user_role() = 'admin');
+
+-- CHED MEMORANDUM ORDERS
+CREATE POLICY "Authenticated users can read ched_memorandum_orders" ON public.ched_memorandum_orders FOR SELECT
+    USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Admins can manage ched_memorandum_orders" ON public.ched_memorandum_orders FOR ALL
+    USING (public.current_user_role() = 'admin')
+    WITH CHECK (public.current_user_role() = 'admin');
+
 -- CLO/PO MATRIX
 CREATE POLICY "Authenticated users can read clo_po_matrix" ON public.clo_po_matrix FOR SELECT
     USING (auth.role() = 'authenticated');
@@ -323,11 +447,10 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-    INSERT INTO public.activity_logs (user_email, action, details)
+    INSERT INTO public.activity_logs (user_email, action)
     VALUES (
         p_email,
-        CASE WHEN p_success THEN 'auth.login' ELSE 'auth.login_failed' END,
-        jsonb_build_object('reason', p_reason)
+        CASE WHEN p_success THEN 'auth.login' ELSE 'auth.login_failed' END
     );
 END;
 $$;
