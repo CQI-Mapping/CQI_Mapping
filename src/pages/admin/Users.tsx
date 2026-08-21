@@ -1,45 +1,28 @@
-// Admin Users page: full account management.
-//  - Table of all users with an inline role dropdown.
-//  - "Create user" form (needs the service role key).
-// Every change writes an audit entry.
-
 import { useState, useEffect } from 'react'
-import {
-  fetchAllProfiles,
-  updateUserRole,
-  adminCreateUser,
-  addActivityLog,
-} from '../../services/database'
-import { supabase } from '../../utils/supabaseClient'
+import { fetchAllProfiles, updateUserRole, adminCreateUser, adminDeleteUser, addActivityLog } from '../../services/database'
 import type { Profile, UserRole } from '../../services/database'
 
-// The selectable roles (must match the user_role enum in the DB).
-const ROLES: UserRole[] = ['admin', 'manager', 'user']
-
-interface CreateForm {
-  email: string
-  password: string
-  fullName: string
-  role: UserRole
+interface UsersProps {
+  userEmail: string
 }
 
-function Users() {
+function Users({ userEmail }: UsersProps) {
   const [users, setUsers] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [message, setMessage] = useState('')
+  const [success, setSuccess] = useState('')
 
-  // Create-user form state.
-  const [form, setForm] = useState<CreateForm>({ email: '', password: '', fullName: '', role: 'user' })
+  const [newEmail, setNewEmail] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [newName, setNewName] = useState('')
+  const [newRole, setNewRole] = useState<UserRole>('user')
   const [creating, setCreating] = useState(false)
 
-  // Fetch the full user list.
   const load = async () => {
     setLoading(true)
     setError('')
     try {
-      const data = await fetchAllProfiles()
-      setUsers(data)
+      setUsers(await fetchAllProfiles())
     } catch (e) {
       setError('Unable to load users: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
@@ -49,53 +32,55 @@ function Users() {
 
   useEffect(() => { load() }, [])
 
-  // Read the current user's email for the audit log entry.
-  const currentUserEmail = async () => {
-    const { data } = await supabase!.auth.getUser()
-    return data?.user?.email ?? ''
-  }
-
-  // Change a user's role, then write an audit entry.
-  const handleRoleChange = async (profileId: string, newRole: string) => {
+  const handleRoleChange = async (profileId: string, newRole: UserRole) => {
     setError('')
-    setMessage('')
+    setSuccess('')
     try {
-      await updateUserRole(profileId, newRole as UserRole)
-      const email = await currentUserEmail()
-      await addActivityLog(email, 'role.updated', { profileId, newRole })
-      setMessage('Role updated.')
-      load()
+      const updated = await updateUserRole(profileId, newRole)
+      setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)))
+      setSuccess(`Role updated to ${newRole}.`)
+      addActivityLog(userEmail, 'role.updated')
     } catch (e) {
       setError('Failed to update role: ' + (e instanceof Error ? e.message : String(e)))
     }
   }
 
-  // Create a new auth user (email_confirm true = can sign in immediately),
-  // then log it. Requires VITE_SUPABASE_SERVICE_ROLE_KEY in .env.
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    setMessage('')
+    setSuccess('')
+    if (!newEmail.trim() || !newPassword.trim()) {
+      setError('Email and password are required.')
+      return
+    }
     setCreating(true)
     try {
-      const created = await adminCreateUser(
-        form.email.trim(),
-        form.password,
-        form.fullName.trim(),
-        form.role
-      )
-      const email = await currentUserEmail()
-      await addActivityLog(email, 'user.created', {
-        createdEmail: created.email,
-        role: form.role,
-      })
-      setMessage(`User ${created.email} created.`)
-      setForm({ email: '', password: '', fullName: '', role: 'user' })
+      await adminCreateUser(newEmail.trim(), newPassword, newName.trim(), newRole)
+      setSuccess(`User ${newEmail} created.`)
+      addActivityLog(userEmail, 'user.created')
+      setNewEmail('')
+      setNewPassword('')
+      setNewName('')
+      setNewRole('user')
       load()
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError('Failed to create user: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
       setCreating(false)
+    }
+  }
+
+  const handleDelete = async (userId: string, email: string) => {
+    if (!window.confirm(`Delete user ${email}? This cannot be undone.`)) return
+    setError('')
+    setSuccess('')
+    try {
+      await adminDeleteUser(userId)
+      setUsers((prev) => prev.filter((u) => u.id !== userId))
+      setSuccess(`User ${email} deleted.`)
+      addActivityLog(userEmail, 'user.deleted')
+    } catch (e) {
+      setError('Failed to delete user: ' + (e instanceof Error ? e.message : String(e)))
     }
   }
 
@@ -103,93 +88,105 @@ function Users() {
     <div className="users">
       <div className="page-heading">
         <h2>Users &amp; Accounts</h2>
-        <p>Manage accounts and roles.</p>
+        <p>Manage user accounts, roles, and create new users.</p>
       </div>
 
       {error && <p className="msg msg--error">{error}</p>}
-      {message && <p className="msg msg--success">{message}</p>}
+      {success && <p className="msg msg--success">{success}</p>}
 
-      <form className="panel create-user" onSubmit={handleCreate}>
-        <h3>Create user</h3>
-        <p className="panel__hint">
-          Requires VITE_SUPABASE_SERVICE_ROLE_KEY in .env. New users can sign in immediately.
-        </p>
-        <div className="create-user__row">
-          <input
-            className="input"
-            type="email"
-            placeholder="Email"
-            value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
-            required
-          />
-          <input
-            className="input"
-            type="password"
-            placeholder="Password"
-            value={form.password}
-            onChange={(e) => setForm({ ...form, password: e.target.value })}
-            required
-            minLength={6}
-          />
-          <input
-            className="input"
-            type="text"
-            placeholder="Full name"
-            value={form.fullName}
-            onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-          />
-          <select
-            className="input"
-            value={form.role}
-            onChange={(e) => setForm({ ...form, role: e.target.value as UserRole })}
-          >
-            {ROLES.map((r) => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </select>
-          <button className="btn btn--primary" type="submit" disabled={creating}>
-            {creating ? 'Creating...' : 'Create'}
-          </button>
-        </div>
-      </form>
+      <div className="panel create-user">
+        <h3>Create New User</h3>
+        <form onSubmit={handleCreate}>
+          <div className="create-user__row">
+            <input
+              className="input"
+              type="email"
+              placeholder="Email"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              required
+            />
+            <input
+              className="input"
+              type="password"
+              placeholder="Password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              required
+            />
+            <input
+              className="input"
+              type="text"
+              placeholder="Full name"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+            />
+            <select
+              className="input"
+              value={newRole}
+              onChange={(e) => setNewRole(e.target.value as UserRole)}
+            >
+              <option value="user">User</option>
+              <option value="manager">Manager</option>
+              <option value="admin">Admin</option>
+            </select>
+            <button className="btn btn--primary" type="submit" disabled={creating}>
+              {creating ? 'Creating...' : 'Create'}
+            </button>
+          </div>
+        </form>
+      </div>
 
-      {loading ? (
-        <p>Loading users...</p>
-      ) : (
-        <div className="panel table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Joined</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => (
-                <tr key={u.id}>
-                  <td>{u.full_name || '—'}</td>
-                  <td>{u.email}</td>
-                  <td>
-                    <select
-                      className="input input--sm"
-                      value={u.role}
-                      onChange={(e) => handleRoleChange(u.id, e.target.value)}
-                    >
-                      {ROLES.map((r) => (
-                        <option key={r} value={r}>{r}</option>
-                      ))}
-                    </select>
-                  </td>
-                  <td>{new Date(u.created_at).toLocaleDateString()}</td>
+      <div className="panel" style={{ marginTop: 16 }}>
+        <h3>All Users</h3>
+        {loading ? (
+          <p>Loading users...</p>
+        ) : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Joined</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {users.map((u) => (
+                  <tr key={u.id}>
+                    <td>{u.full_name || '—'}</td>
+                    <td>{u.email}</td>
+                    <td>
+                      <select
+                        className="input input--sm"
+                        value={u.role}
+                        onChange={(e) => handleRoleChange(u.id, e.target.value as UserRole)}
+                      >
+                        <option value="user">User</option>
+                        <option value="manager">Manager</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    </td>
+                    <td>{new Date(u.created_at).toLocaleDateString()}</td>
+                    <td>
+                      {u.email !== userEmail && (
+                        <button
+                          className="btn btn--danger btn--sm"
+                          onClick={() => handleDelete(u.id, u.email)}
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

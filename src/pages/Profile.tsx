@@ -1,5 +1,6 @@
 // Profile page: lets a user view their own email/role and edit their full name.
-// Saving writes an audit entry and reports the updated profile back to App.tsx.
+// Saving writes an activity log entry (action only, no details) and reports
+// the updated profile back to App.tsx.
 
 import { useState } from 'react'
 import { updateProfile, addActivityLog } from '../services/database'
@@ -24,7 +25,7 @@ function Profile({ profile, onSaved }: ProfileProps) {
     setSaving(true)
     try {
       const updated = await updateProfile(profile!.id, { full_name: fullName.trim() })
-      await addActivityLog(profile!.email, 'profile.updated', { full_name: fullName.trim() })
+      await addActivityLog(profile!.email, 'profile.updated')
       onSaved(updated)
       setMessage('Profile saved.')
     } catch (err) {

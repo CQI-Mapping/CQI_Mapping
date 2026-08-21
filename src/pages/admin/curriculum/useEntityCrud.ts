@@ -1,6 +1,7 @@
-// Shared CRUD state + handlers for the admin Curriculum sub-views.
-// Each view provides its own form JSX but delegates load/create/update/delete
-// handling (and audit logging) to this hook.
+// Shared CRUD state + handlers for admin pages (Curriculum sub-views, PEOs, POs,
+// CLOs, Strategic Goals, CHED Memorandum Orders). Each view provides its own form
+// JSX but delegates load/create/update/delete handling to this hook.
+// Note: the `details` parameter was removed from activity log calls in this version.
 
 import { useState, useCallback } from 'react'
 import { addActivityLog } from '../../../services/database'
@@ -41,13 +42,13 @@ export function useEntityCrud<T extends { id: string }>({
     }
   }, [loadFn])
 
-  const handleCreate = async (payload: Partial<T>, action?: string, details?: Record<string, unknown>) => {
+  const handleCreate = async (payload: Partial<T>, action?: string) => {
     setError('')
     setMessage('')
     setBusy(true)
     try {
       await createFn(payload)
-      if (action) await addActivityLog(userEmail, action, details)
+      if (action) await addActivityLog(userEmail, action)
       setMessage(`${scope} created.`)
       load()
       return true
@@ -59,13 +60,13 @@ export function useEntityCrud<T extends { id: string }>({
     }
   }
 
-  const handleUpdate = async (id: string | null, payload: Partial<T>, action?: string, details?: Record<string, unknown>) => {
+  const handleUpdate = async (id: string | null, payload: Partial<T>, action?: string) => {
     setError('')
     setMessage('')
     setBusy(true)
     try {
       if (id) await updateFn(id, payload)
-      if (action) await addActivityLog(userEmail, action, details)
+      if (action) await addActivityLog(userEmail, action)
       setMessage(`${scope} updated.`)
       load()
       return true
@@ -77,13 +78,13 @@ export function useEntityCrud<T extends { id: string }>({
     }
   }
 
-  const handleDelete = async (id: string, action?: string, details?: Record<string, unknown>) => {
+  const handleDelete = async (id: string, action?: string) => {
     if (!window.confirm(`Delete this ${scope.toLowerCase()} permanently?`)) return false
     setError('')
     setMessage('')
     try {
       await deleteFn(id)
-      if (action) await addActivityLog(userEmail, action, details)
+      if (action) await addActivityLog(userEmail, action)
       setMessage(`${scope} deleted.`)
       load()
       return true

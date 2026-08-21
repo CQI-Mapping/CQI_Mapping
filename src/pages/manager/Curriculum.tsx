@@ -1,6 +1,6 @@
 // Manager Curriculum page: management of curriculum records.
 // Manager can create, edit, and archive/restore records, but cannot delete them.
-// Every mutation writes an audit entry.
+// Every mutation writes an activity log entry (action only, no details).
 
 import { useState, useEffect } from 'react'
 import {
@@ -62,7 +62,7 @@ function Curriculum({ userEmail }: CurriculumProps) {
       const userId = await currentUserId()
       if (!userId) throw new Error('Not authenticated')
       await createResource(title.trim(), description.trim() || null, userId)
-      await addActivityLog(userEmail, 'resource.created', { title })
+      await addActivityLog(userEmail, 'resource.created')
       setTitle('')
       setDescription('')
       setMessage('Resource created.')
@@ -94,7 +94,7 @@ function Curriculum({ userEmail }: CurriculumProps) {
     setBusy(true)
     try {
       await updateResource(id, { title: editTitle.trim(), description: editDescription.trim() || null })
-      await addActivityLog(userEmail, 'resource.updated', { id, title: editTitle })
+      await addActivityLog(userEmail, 'resource.updated')
       setMessage('Resource updated.')
       cancelEdit()
       load()
@@ -112,7 +112,7 @@ function Curriculum({ userEmail }: CurriculumProps) {
     const next = item.status === 'active' ? 'archived' : 'active'
     try {
       await updateResource(item.id, { status: next })
-      await addActivityLog(userEmail, 'resource.archived', { id: item.id, status: next })
+      await addActivityLog(userEmail, 'resource.archived')
       setMessage(`Resource ${next}.`)
       load()
     } catch (e) {

@@ -4,14 +4,19 @@
 //
 // Each role has its own pages in its own folder (src/pages/admin|manager|user),
 // mirroring the reference repo's per-role structure.
+//
+// Admin role pages (sidebar order):
+//   Dashboard, Users & Accounts, Program Educational Objectives, Program Outcomes,
+//   Course Learning Outcomes, Strategic Goals, CHED Memorandum Orders,
+//   Activity Logs, Profile
+//
+// The manager role retains its own Curriculum, Faculty (with add), and Activity Logs pages.
 
 import { useState, useEffect } from 'react'
 import Sidebar from './components/Sidebar'
 import Login from './pages/Login'
 import Profile from './pages/Profile'
 import AdminDashboard from './pages/admin/Dashboard'
-import AdminUsers from './pages/admin/Users'
-import AdminCurriculum from './pages/admin/Curriculum'
 import AdminActivityLogs from './pages/admin/ActivityLogs'
 import ManagerDashboard from './pages/manager/Dashboard'
 import ManagerUsers from './pages/manager/Users'
@@ -19,8 +24,12 @@ import ManagerCurriculum from './pages/manager/Curriculum'
 import ManagerActivityLogs from './pages/admin/ActivityLogs'
 import UserDashboard from './pages/user/Dashboard'
 import UserCurriculum from './pages/user/Curriculum'
-import AdminCloPoMapping from './pages/admin/CloPoMapping'
-import AdminAnalytics from './pages/admin/Analytics'
+import AdminChedMemoOrders from './pages/admin/ChedMemoOrders'
+import AdminStrategicGoals from './pages/admin/StrategicGoals'
+import AdminPEOs from './pages/admin/ProgramEducationalObjectives'
+import AdminProgramOutcomes from './pages/admin/ProgramOutcomes'
+import AdminCourseLearningOutcomes from './pages/admin/CourseLearningOutcomes'
+import AdminUsers from './pages/admin/Users'
 import { supabase } from './utils/supabaseClient'
 import { ensureProfile, syncDemoRole } from './services/database'
 import type { Profile as ProfileType, UserRole, NavItem } from './services/database'
@@ -31,9 +40,11 @@ const NAV: Record<UserRole, NavItem[]> = {
   admin: [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'users', label: 'Users & Accounts' },
-    { id: 'curriculum', label: 'Curriculum' },
-    { id: 'clo-po', label: 'CLO/PO Mapping' },
-    { id: 'analytics', label: 'Analytics' },
+    { id: 'peos', label: 'Program Educational Objectives' },
+    { id: 'program-outcomes', label: 'Program Outcomes' },
+    { id: 'clo', label: 'Course Learning Outcomes' },
+    { id: 'strategic-goals', label: 'Strategic Goals' },
+    { id: 'ched-memo', label: 'CHED Memorandum Orders' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
   ],
@@ -57,9 +68,11 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
   admin: {
     dashboard: AdminDashboard,
     users: AdminUsers,
-    curriculum: AdminCurriculum,
-    'clo-po': AdminCloPoMapping,
-    analytics: AdminAnalytics,
+    peos: AdminPEOs,
+    'program-outcomes': AdminProgramOutcomes,
+    clo: AdminCourseLearningOutcomes,
+    'strategic-goals': AdminStrategicGoals,
+    'ched-memo': AdminChedMemoOrders,
     'activity-logs': AdminActivityLogs,
     profile: Profile,
   },
@@ -110,6 +123,7 @@ function App() {
   // dashboard even after roles were wiped by a schema re-run.
   useEffect(() => {
     if (!session?.user) return
+    setLoading(true)
     let cancelled = false
 
     ensureProfile(session.user)
@@ -120,7 +134,7 @@ function App() {
             if (role && role !== p.role) return ensureProfile(session.user)
             return p
           })
-          .catch(() => p) // RPC missing/not deployed yet → keep the loaded profile
+          .catch((err) => { console.error('syncDemoRole failed:', err); return p })
       })
       .then((p) => {
         if (!cancelled && p) setProfile(p)
@@ -156,6 +170,7 @@ function App() {
     const Page = PAGES[role]?.[page] ?? UserDashboard
 
     if (page === 'profile') return <Page profile={profile} onSaved={setProfile} />
+    if (page === 'users') return <Page userEmail={profile?.email} />
     if (page === 'curriculum' && role !== 'user') return <Page userEmail={profile?.email} />
     if (page === 'clo-po' && role !== 'user') return <Page userEmail={profile?.email} />
     return <Page profile={profile} />
