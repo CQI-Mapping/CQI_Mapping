@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { fetchAllProfiles, adminCreateUser, addActivityLog } from '../../services/database'
+import { fetchAllProfiles, adminCreateUser, adminDeleteUser, addActivityLog } from '../../services/database'
 import type { Profile } from '../../services/database'
 
 interface UsersProps {
@@ -52,6 +52,20 @@ function Users({ userEmail }: UsersProps) {
       setError('Failed to create user: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
       setCreating(false)
+    }
+  }
+
+  const handleDelete = async (userId: string, email: string) => {
+    if (!window.confirm(`Remove faculty member ${email}? This cannot be undone.`)) return
+    setError('')
+    setSuccess('')
+    try {
+      await adminDeleteUser(userId)
+      setUsers((prev) => prev.filter((u) => u.id !== userId))
+      setSuccess(`Faculty member ${email} removed.`)
+      addActivityLog(userEmail, 'user.deleted')
+    } catch (e) {
+      setError('Failed to remove user: ' + (e instanceof Error ? e.message : String(e)))
     }
   }
 
@@ -111,6 +125,7 @@ function Users({ userEmail }: UsersProps) {
                 <th>Email</th>
                 <th>Role</th>
                 <th>Joined</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -122,6 +137,16 @@ function Users({ userEmail }: UsersProps) {
                     <span className={`role-badge role-badge--${u.role}`}>{u.role}</span>
                   </td>
                   <td>{new Date(u.created_at).toLocaleDateString()}</td>
+                  <td>
+                    {u.role === 'user' && u.email !== userEmail && (
+                      <button
+                        className="btn btn--danger btn--sm"
+                        onClick={() => handleDelete(u.id, u.email)}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
