@@ -188,11 +188,41 @@ npm run dev
 | `action` | TEXT | e.g. `auth.login`, `program.created` |
 | `created_at` | TIMESTAMPTZ | |
 
+**`resources`** — curriculum records managed by managers/admins.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID (PK) | |
+| `title` | TEXT | |
+| `description` | TEXT | |
+| `status` | TEXT | `'active'` or `'archived'` |
+| `created_by` | UUID (FK) | references `profiles(id)`, set null on delete |
+
+**`strategic_goals`** — institutional strategic goals (admin-managed).
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID (PK) | |
+| `code` | TEXT (unique) | e.g. `SG1` |
+| `title` | TEXT | |
+| `description` | TEXT | |
+
+**`admin_program_outcomes`** — standalone reference list of program outcomes (admin-managed).
+
+**`program_educational_objectives`** — PEOs (admin-managed).
+
+**`admin_course_learning_outcomes`** — standalone reference list of course learning outcomes (admin-managed).
+
+**`ched_memorandum_orders`** — CHED Memorandum Orders (admin-managed).
+
+The last four tables share the same structure: `id` UUID PK, `code` TEXT unique, `title` TEXT, `description` TEXT, `created_at`, `updated_at`.
+
 ### Functions & Triggers
 
 - **`current_user_role()`** — returns the caller's role. `SECURITY DEFINER`, used inside RLS policies.
 - **`handle_new_user()`** — `AFTER INSERT` trigger on `auth.users`. Creates a `profiles` row on signup.
 - **`record_login_event(email, success, reason)`** — records sign-in attempts. `SECURITY DEFINER`, callable by `anon` and `authenticated` so failed logins (no session) can be recorded.
+- **`sync_demo_role()`** — called on every sign-in. Restores demo account roles and auto-promotes the first user to admin when no admin exists. `SECURITY DEFINER`, callable by `authenticated`.
 
 ---
 

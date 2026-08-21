@@ -375,6 +375,62 @@ REVOKE ALL ON FUNCTION public.record_login_event(TEXT, BOOLEAN, TEXT) FROM PUBLI
 GRANT EXECUTE ON FUNCTION public.record_login_event(TEXT, BOOLEAN, TEXT) TO anon, authenticated;
 
 -- ============================================================
+-- ROLE RESTORE / FIRST ADMIN BOOTSTRAP
+-- Called by the app on every sign-in. Restores demo account roles
+-- and promotes the first user to admin when no admin exists.
+-- SECURITY DEFINER so it bypasses RLS.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION public.sync_demo_role()
+RETURNS public.user_role
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_uid uuid := auth.uid();
+    v_email text;
+    v_current public.user_role;
+    v_role public.user_role;
+    v_has_admin boolean;
+BEGIN
+    IF v_uid IS NULL THEN
+        RETURN NULL;
+    END IF;
+
+    SELECT email, role INTO v_email, v_current
+    FROM public.profiles WHERE id = v_uid;
+    IF v_email IS NULL THEN
+        RETURN NULL;
+    END IF;
+
+    IF v_current <> 'user' THEN
+        RETURN v_current;
+    END IF;
+
+    SELECT EXISTS (SELECT 1 FROM public.profiles WHERE role = 'admin') INTO v_has_admin;
+
+    v_role := CASE v_email
+        WHEN 'admin@cqi.test' THEN
+            CASE WHEN v_has_admin THEN 'user'::public.user_role ELSE 'admin'::public.user_role END
+        WHEN 'manager@cqi.test' THEN 'manager'::public.user_role
+        WHEN 'user@cqi.test' THEN 'user'::public.user_role
+        ELSE
+            CASE WHEN v_has_admin THEN 'user'::public.user_role ELSE 'admin'::public.user_role END
+    END;
+
+    IF v_role <> v_current THEN
+        UPDATE public.profiles SET role = v_role WHERE id = v_uid;
+    END IF;
+
+    RETURN v_role;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.sync_demo_role() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.sync_demo_role() TO authenticated;
+
+-- ============================================================
 -- SEED DATA — restore profiles for existing auth users
 -- ============================================================
 
