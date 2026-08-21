@@ -149,6 +149,14 @@ export async function adminCreateUser(
   return { id: data.user.id, email: data.user.email! }
 }
 
+export async function adminDeleteUser(userId: string): Promise<void> {
+  if (!supabaseAdmin) {
+    throw new Error('Set VITE_SUPABASE_SERVICE_ROLE_KEY in .env to delete users')
+  }
+  const { error } = await supabaseAdmin.auth.admin.deleteUser(userId)
+  if (error) throw error
+}
+
 // ---------- Resources (curriculum records) ----------
 
 export async function fetchResources(): Promise<Resource[]> {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { fetchAllProfiles, updateUserRole, adminCreateUser, addActivityLog } from '../../services/database'
+import { fetchAllProfiles, updateUserRole, adminCreateUser, adminDeleteUser, addActivityLog } from '../../services/database'
 import type { Profile, UserRole } from '../../services/database'
 
 interface UsersProps {
@@ -70,6 +70,20 @@ function Users({ userEmail }: UsersProps) {
     }
   }
 
+  const handleDelete = async (userId: string, email: string) => {
+    if (!window.confirm(`Delete user ${email}? This cannot be undone.`)) return
+    setError('')
+    setSuccess('')
+    try {
+      await adminDeleteUser(userId)
+      setUsers((prev) => prev.filter((u) => u.id !== userId))
+      setSuccess(`User ${email} deleted.`)
+      addActivityLog(userEmail, 'user.deleted')
+    } catch (e) {
+      setError('Failed to delete user: ' + (e instanceof Error ? e.message : String(e)))
+    }
+  }
+
   return (
     <div className="users">
       <div className="page-heading">
@@ -136,6 +150,7 @@ function Users({ userEmail }: UsersProps) {
                   <th>Email</th>
                   <th>Role</th>
                   <th>Joined</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -155,6 +170,16 @@ function Users({ userEmail }: UsersProps) {
                       </select>
                     </td>
                     <td>{new Date(u.created_at).toLocaleDateString()}</td>
+                    <td>
+                      {u.email !== userEmail && (
+                        <button
+                          className="btn btn--danger btn--sm"
+                          onClick={() => handleDelete(u.id, u.email)}
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
