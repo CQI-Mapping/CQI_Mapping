@@ -122,6 +122,7 @@ function App() {
   // dashboard even after roles were wiped by a schema re-run.
   useEffect(() => {
     if (!session?.user) return
+    setLoading(true)
     let cancelled = false
 
     ensureProfile(session.user)
