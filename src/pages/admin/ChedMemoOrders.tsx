@@ -15,19 +15,20 @@ import type { ChedMemoOrder } from '../../services/database'
 const EMPTY_FORM = { code: '', title: '', description: '' }
 
 interface ChedMemoOrdersProps {
-  userEmail: string
+  // Archive/Restore and Delete render only when allowed (admin role).
+  allowDelete?: boolean
+  allowArchive?: boolean
 }
 
-function ChedMemoOrders({ userEmail }: ChedMemoOrdersProps) {
+function ChedMemoOrders({ allowDelete = true, allowArchive = true }: ChedMemoOrdersProps) {
   const crud = useEntityCrud<ChedMemoOrder>({
     loadFn: fetchChedMemoOrders,
     createFn: createChedMemoOrder,
     updateFn: updateChedMemoOrder,
     deleteFn: deleteChedMemoOrder,
-    userEmail,
     scope: 'CHED Memorandum Order',
   })
-  const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete } = crud
+  const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete, handleToggleStatus } = crud
 
   const [form, setForm] = useState(EMPTY_FORM)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -105,12 +106,13 @@ function ChedMemoOrders({ userEmail }: ChedMemoOrdersProps) {
                 <th>Code</th>
                 <th>Title</th>
                 <th>Description</th>
+                <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {items.length === 0 && (
-                <tr><td colSpan={4}>No CHED Memorandum Orders yet.</td></tr>
+                <tr><td colSpan={5}>No CHED Memorandum Orders yet.</td></tr>
               )}
               {items.map((item) => (
                 <tr key={item.id}>
@@ -137,6 +139,7 @@ function ChedMemoOrders({ userEmail }: ChedMemoOrdersProps) {
                           onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                         />
                       </td>
+                      <td><span className={`status-badge status-badge--${item.status}`}>{item.status}</span></td>
                       <td>
                         <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>Save</button>{' '}
                         <button className="btn btn--ghost btn--sm" onClick={() => setEditingId(null)}>Cancel</button>
@@ -147,9 +150,17 @@ function ChedMemoOrders({ userEmail }: ChedMemoOrdersProps) {
                       <td><strong>{item.code}</strong></td>
                       <td>{item.title}</td>
                       <td>{item.description || '—'}</td>
+                      <td><span className={`status-badge status-badge--${item.status}`}>{item.status}</span></td>
                       <td>
                         <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)}>Edit</button>{' '}
-                        <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'ched_memo_order.deleted')}>Delete</button>
+                        {allowArchive && (
+                          <button className="btn btn--ghost btn--sm" onClick={() => handleToggleStatus(item, 'ched_memo_order.archived')}>
+                            {item.status === 'active' ? 'Archive' : 'Restore'}
+                          </button>
+                        )}{' '}
+                        {allowDelete && (
+                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'ched_memo_order.deleted')}>Delete</button>
+                        )}
                       </td>
                     </>
                   )}

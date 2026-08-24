@@ -1,6 +1,6 @@
 // Admin Strategic Goals: CRUD for institutional strategic goal records.
-// Provides add, edit, and delete functionality for strategic goals
-// managed by the admin role. Uses the useEntityCrud hook for shared state.
+// Provides add, edit, archive/restore, and delete functionality for strategic
+// goals managed by the admin role. Uses the useEntityCrud hook for shared state.
 
 import { useState, useEffect } from 'react'
 import { useEntityCrud } from './curriculum/useEntityCrud.js'
@@ -15,19 +15,20 @@ import type { StrategicGoal } from '../../services/database'
 const EMPTY_FORM = { code: '', title: '', description: '' }
 
 interface StrategicGoalsProps {
-  userEmail: string
+  // Archive/Restore and Delete render only when allowed (admin role).
+  allowDelete?: boolean
+  allowArchive?: boolean
 }
 
-function StrategicGoals({ userEmail }: StrategicGoalsProps) {
+function StrategicGoals({ allowDelete = true, allowArchive = true }: StrategicGoalsProps) {
   const crud = useEntityCrud<StrategicGoal>({
     loadFn: fetchStrategicGoals,
     createFn: createStrategicGoal,
     updateFn: updateStrategicGoal,
     deleteFn: deleteStrategicGoal,
-    userEmail,
     scope: 'Strategic Goal',
   })
-  const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete } = crud
+  const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete, handleToggleStatus } = crud
 
   const [form, setForm] = useState(EMPTY_FORM)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -105,12 +106,13 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
                 <th>Code</th>
                 <th>Title</th>
                 <th>Description</th>
+                <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {items.length === 0 && (
-                <tr><td colSpan={4}>No strategic goals yet.</td></tr>
+                <tr><td colSpan={5}>No strategic goals yet.</td></tr>
               )}
               {items.map((item) => (
                 <tr key={item.id}>
@@ -137,6 +139,7 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
                           onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                         />
                       </td>
+                      <td><span className={`status-badge status-badge--${item.status}`}>{item.status}</span></td>
                       <td>
                         <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>Save</button>{' '}
                         <button className="btn btn--ghost btn--sm" onClick={() => setEditingId(null)}>Cancel</button>
@@ -147,9 +150,17 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
                       <td><strong>{item.code}</strong></td>
                       <td>{item.title}</td>
                       <td>{item.description || '—'}</td>
+                      <td><span className={`status-badge status-badge--${item.status}`}>{item.status}</span></td>
                       <td>
                         <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)}>Edit</button>{' '}
-                        <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'strategic_goal.deleted')}>Delete</button>
+                        {allowArchive && (
+                          <button className="btn btn--ghost btn--sm" onClick={() => handleToggleStatus(item, 'strategic_goal.archived')}>
+                            {item.status === 'active' ? 'Archive' : 'Restore'}
+                          </button>
+                        )}{' '}
+                        {allowDelete && (
+                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'strategic_goal.deleted')}>Delete</button>
+                        )}
                       </td>
                     </>
                   )}

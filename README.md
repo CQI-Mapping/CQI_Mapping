@@ -10,8 +10,8 @@ A role-based web application for curriculum mapping and outcomes alignment. Buil
 - **Backend:** Supabase (hosted Postgres + Auth). All data goes through service functions in `src/services/database.ts`.
 - **Roles:**
   - `admin` — System Administrator / ICT Officer. Full control: manage accounts and roles, manage curriculum entities, view the audit log.
-  - `manager` — Program Head / CQI Lead. Manages curriculum entities (create/edit), browses the faculty directory (read-only), views the audit log.
-  - `user` — Faculty / Instructor. Browses curriculum data and edits their own profile.
+  - `manager` — Program Head / CQI Lead. Manages curriculum records and program outcomes (create/edit), browses the faculty directory (read-only), views the audit log.
+  - `user` — Faculty / Instructor. Browses curriculum data, maintains course learning outcomes (create/edit), and edits their own profile.
 
 The UI hides pages you can't use, but the *real* enforcement is **Row Level Security (RLS)** in the database.
 
@@ -37,7 +37,10 @@ The UI hides pages you can't use, but the *real* enforcement is **Row Level Secu
 | Sign in | yes | yes | yes |
 | View own dashboard | yes | yes | yes |
 | Manage programs / courses / POs / CLOs | full CRUD | create/edit | read-only |
-| Manage strategic goals, PEOs, CHED memos, standalone POs/CLOs | yes | — | — |
+| Manage strategic goals, PEOs, CHED memos, standalone POs | yes | — | — |
+| Create/edit standalone course learning outcomes | yes | yes | yes |
+| Delete standalone POs / CLOs | yes | — | — |
+| Archive/restore standalone lists (POs, CLOs, PEOs, goals, memos) | yes | — | — |
 | View faculty directory | yes | yes | — |
 | Change user roles | yes | — | — |
 | View audit log | yes | yes | — |
@@ -95,11 +98,14 @@ Roles survive schema re-runs — the seed section restores profiles for existing
     │       ├── Dashboard.tsx
     │       └── Curriculum.tsx
     ├── services/
-    │   └── database.ts       # All Supabase queries
+    │   └── database.ts       # All Supabase queries + Edge Function calls
     ├── styles/
     │   └── Sidebar.css
     └── utils/
         └── supabaseClient.ts # Creates the Supabase client from env vars
+└── supabase/
+    └── functions/
+        └── admin-users/      # Edge Function: admin-only user create/delete
 ```
 
 ---
@@ -129,10 +135,24 @@ Copy `.env.example` to `.env` and fill in your Supabase keys:
 ```
 VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-VITE_SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 ```
 
-### 5. Run
+> **Note:** There is deliberately **no service-role key** here. Anything prefixed
+> `VITE_` is bundled into the JavaScript shipped to browsers, so the service-role
+> key must never be used in frontend code.
+
+### 5. Deploy the `admin-users` Edge Function
+Creating and deleting auth users requires admin API access, which is done
+server-side by an Edge Function (the service-role key lives only there, as a
+hosted secret):
+
+```bash
+npx supabase login
+npx supabase link --project-ref <your-project-ref>
+npx supabase functions deploy admin-users
+```
+
+### 6. Run
 ```bash
 npm install
 npm run dev
@@ -206,6 +226,7 @@ npm run dev
 | `code` | TEXT (unique) | e.g. `SG1` |
 | `title` | TEXT | |
 | `description` | TEXT | |
+| `status` | TEXT | `'active'` or `'archived'`; only admins may change it |
 
 **`admin_program_outcomes`** — standalone reference list of program outcomes (admin-managed).
 
@@ -215,14 +236,16 @@ npm run dev
 
 **`ched_memorandum_orders`** — CHED Memorandum Orders (admin-managed).
 
-The last four tables share the same structure: `id` UUID PK, `code` TEXT unique, `title` TEXT, `description` TEXT, `created_at`, `updated_at`.
+The last four tables share the same structure: `id` UUID PK, `code` TEXT unique, `title` TEXT, `description` TEXT, `status` TEXT (`'active'`/`'archived'`, admin-only changes), `created_at`, `updated_at`.
 
 ### Functions & Triggers
 
 - **`current_user_role()`** — returns the caller's role. `SECURITY DEFINER`, used inside RLS policies.
 - **`handle_new_user()`** — `AFTER INSERT` trigger on `auth.users`. Creates a `profiles` row on signup.
 - **`record_login_event(email, success, reason)`** — records sign-in attempts. `SECURITY DEFINER`, callable by `anon` and `authenticated` so failed logins (no session) can be recorded.
+- **`log_activity(action)`** — writes an audit entry stamped with the caller's real email from their JWT. `SECURITY DEFINER`, callable by `authenticated`. Clients can only supply the action — the actor is resolved server-side.
 - **`sync_demo_role()`** — called on every sign-in. Restores demo account roles and auto-promotes the first user to admin when no admin exists. `SECURITY DEFINER`, callable by `authenticated`.
+- **`enforce_status_admin_only()`** — trigger on the five standalone lists. RLS is row-level only, so this rejects `status` changes from non-admins at the database level even if they hold UPDATE rights on the row.
 
 ---
 
@@ -244,7 +267,8 @@ All queries live in `src/services/database.ts`:
 | `fetchChedMemoOrders` / CRUD | Manage CHED memos (admin) |
 | `fetchActivityLogs` | Latest 100 audit entries (admin/manager) |
 | `recordLoginEvent` | Record sign-in via RPC |
-| `addActivityLog` | Insert an audit entry (client-side) |
+| `addActivityLog(action)` | Write an audit entry via the server-stamped `log_activity` RPC |
+| `adminCreateUser` / `adminDeleteUser` | Create/delete auth users via the `admin-users` Edge Function |
 
 ---
 
@@ -263,6 +287,6 @@ All queries live in `src/services/database.ts`:
 
 - **RLS is the real gate.** Hiding buttons/nav is UX only. Every policy is enforced by Postgres.
 - **`current_user_role()`** is `SECURITY DEFINER` — bypasses RLS to read roles. Keep `search_path` pinned to `public`.
-- **Service role key** bypasses RLS entirely. Never commit it.
+- **No service-role key in the frontend.** `VITE_*` env vars are inlined into the browser bundle, so the service-role key lives only inside the `admin-users` Edge Function as a hosted secret. That function verifies the caller's JWT resolves to an `admin` profile before acting.
+- **Audit log is server-stamped.** Direct inserts into `activity_logs` are blocked by RLS (no INSERT policy); entries are written only through `log_activity()` / `record_login_event()`, which resolve the actor from the JWT — clients cannot forge someone else's email.
 - **`.env` is gitignored** — commit `.env.example`, not `.env`.
-- **Audit log** is client-inserted; treat it as an activity trail, not tamper-proof.
