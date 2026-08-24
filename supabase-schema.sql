@@ -108,6 +108,7 @@ CREATE TABLE public.strategic_goals (
     code TEXT UNIQUE NOT NULL,
     title TEXT NOT NULL,
     description TEXT,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -117,6 +118,7 @@ CREATE TABLE public.admin_program_outcomes (
     code TEXT UNIQUE NOT NULL,
     title TEXT NOT NULL,
     description TEXT,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -126,6 +128,7 @@ CREATE TABLE public.program_educational_objectives (
     code TEXT UNIQUE NOT NULL,
     title TEXT NOT NULL,
     description TEXT,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -135,6 +138,7 @@ CREATE TABLE public.admin_course_learning_outcomes (
     code TEXT UNIQUE NOT NULL,
     title TEXT NOT NULL,
     description TEXT,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -144,6 +148,7 @@ CREATE TABLE public.ched_memorandum_orders (
     code TEXT UNIQUE NOT NULL,
     title TEXT NOT NULL,
     description TEXT,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -302,9 +307,9 @@ CREATE POLICY "Admins can delete course learning outcomes" ON public.course_lear
     USING (public.current_user_role() = 'admin');
 
 -- ACTIVITY LOGS
-CREATE POLICY "Authenticated users can insert activity logs" ON public.activity_logs FOR INSERT
-    WITH CHECK (auth.role() = 'authenticated');
-
+-- No INSERT policy: rows are written server-side only, via the SECURITY DEFINER
+-- functions log_activity(p_action) and record_login_event(...), so users cannot
+-- forge log entries with someone else's email.
 CREATE POLICY "Admins and managers can view activity logs" ON public.activity_logs FOR SELECT
     USING (public.current_user_role() IN ('admin', 'manager'));
 
@@ -324,6 +329,14 @@ CREATE POLICY "Admins can manage admin_program_outcomes" ON public.admin_program
     USING (public.current_user_role() = 'admin')
     WITH CHECK (public.current_user_role() = 'admin');
 
+-- Managers may create and edit program outcomes but not delete them.
+CREATE POLICY "Managers and admins can create admin_program_outcomes" ON public.admin_program_outcomes FOR INSERT
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
+
+CREATE POLICY "Managers and admins can update admin_program_outcomes" ON public.admin_program_outcomes FOR UPDATE
+    USING (public.current_user_role() IN ('admin', 'manager'))
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
+
 -- PROGRAM EDUCATIONAL OBJECTIVES
 CREATE POLICY "Authenticated users can read program_educational_objectives" ON public.program_educational_objectives FOR SELECT
     USING (auth.role() = 'authenticated');
@@ -339,6 +352,14 @@ CREATE POLICY "Authenticated users can read admin_course_learning_outcomes" ON p
 CREATE POLICY "Admins can manage admin_course_learning_outcomes" ON public.admin_course_learning_outcomes FOR ALL
     USING (public.current_user_role() = 'admin')
     WITH CHECK (public.current_user_role() = 'admin');
+
+-- All roles may create and edit course learning outcomes; only admins delete them.
+CREATE POLICY "Authenticated users can create admin_course_learning_outcomes" ON public.admin_course_learning_outcomes FOR INSERT
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager', 'user'));
+
+CREATE POLICY "Authenticated users can update admin_course_learning_outcomes" ON public.admin_course_learning_outcomes FOR UPDATE
+    USING (public.current_user_role() IN ('admin', 'manager', 'user'))
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager', 'user'));
 
 -- CHED MEMORANDUM ORDERS
 CREATE POLICY "Authenticated users can read ched_memorandum_orders" ON public.ched_memorandum_orders FOR SELECT
@@ -373,6 +394,35 @@ $$;
 
 REVOKE ALL ON FUNCTION public.record_login_event(TEXT, BOOLEAN, TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.record_login_event(TEXT, BOOLEAN, TEXT) TO anon, authenticated;
+
+-- ============================================================
+-- ACTIVITY LOG WRITER
+-- SECURITY DEFINER: stamps the caller's real email from their JWT,
+-- so the client never supplies (or spoofs) user_email.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION public.log_activity(p_action TEXT)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_email TEXT;
+BEGIN
+    IF p_action IS NULL OR btrim(p_action) = '' THEN
+        RAISE EXCEPTION 'action is required';
+    END IF;
+
+    SELECT email INTO v_email FROM public.profiles WHERE id = auth.uid();
+
+    INSERT INTO public.activity_logs (user_email, action)
+    VALUES (v_email, btrim(p_action));
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.log_activity(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.log_activity(TEXT) TO authenticated;
 
 -- ============================================================
 -- ROLE RESTORE / FIRST ADMIN BOOTSTRAP
@@ -429,6 +479,52 @@ $$;
 
 REVOKE ALL ON FUNCTION public.sync_demo_role() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.sync_demo_role() TO authenticated;
+
+-- ============================================================
+-- ARCHIVE GUARD
+-- RLS is row-level only, so a manager/user with UPDATE rights on a
+-- table could still flip the status column via the API even though
+-- the UI hides Archive buttons. This trigger makes status changes
+-- admin-only at the database level.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION public.enforce_status_admin_only()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF NEW.status IS DISTINCT FROM OLD.status
+       AND public.current_user_role() <> 'admin' THEN
+        RAISE EXCEPTION 'Only admins can archive or restore records';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS guard_strategic_goals_status ON public.strategic_goals;
+CREATE TRIGGER guard_strategic_goals_status
+    BEFORE UPDATE ON public.strategic_goals
+    FOR EACH ROW EXECUTE FUNCTION public.enforce_status_admin_only();
+
+DROP TRIGGER IF EXISTS guard_admin_program_outcomes_status ON public.admin_program_outcomes;
+CREATE TRIGGER guard_admin_program_outcomes_status
+    BEFORE UPDATE ON public.admin_program_outcomes
+    FOR EACH ROW EXECUTE FUNCTION public.enforce_status_admin_only();
+
+DROP TRIGGER IF EXISTS guard_peo_status ON public.program_educational_objectives;
+CREATE TRIGGER guard_peo_status
+    BEFORE UPDATE ON public.program_educational_objectives
+    FOR EACH ROW EXECUTE FUNCTION public.enforce_status_admin_only();
+
+DROP TRIGGER IF EXISTS guard_admin_clo_status ON public.admin_course_learning_outcomes;
+CREATE TRIGGER guard_admin_clo_status
+    BEFORE UPDATE ON public.admin_course_learning_outcomes
+    FOR EACH ROW EXECUTE FUNCTION public.enforce_status_admin_only();
+
+DROP TRIGGER IF EXISTS guard_ched_memo_status ON public.ched_memorandum_orders;
+CREATE TRIGGER guard_ched_memo_status
+    BEFORE UPDATE ON public.ched_memorandum_orders
+    FOR EACH ROW EXECUTE FUNCTION public.enforce_status_admin_only();
 
 -- ============================================================
 -- SEED DATA — restore profiles for existing auth users

@@ -39,7 +39,7 @@ function Users({ userEmail }: UsersProps) {
       const updated = await updateUserRole(profileId, newRole)
       setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)))
       setSuccess(`Role updated to ${newRole}.`)
-      addActivityLog(userEmail, 'role.updated')
+      addActivityLog('role.updated')
     } catch (e) {
       setError('Failed to update role: ' + (e instanceof Error ? e.message : String(e)))
     }
@@ -57,7 +57,7 @@ function Users({ userEmail }: UsersProps) {
     try {
       await adminCreateUser(newEmail.trim(), newPassword, newName.trim(), newRole)
       setSuccess(`User ${newEmail} created.`)
-      addActivityLog(userEmail, 'user.created')
+      addActivityLog('user.created')
       setNewEmail('')
       setNewPassword('')
       setNewName('')
@@ -78,7 +78,7 @@ function Users({ userEmail }: UsersProps) {
       await adminDeleteUser(userId)
       setUsers((prev) => prev.filter((u) => u.id !== userId))
       setSuccess(`User ${email} deleted.`)
-      addActivityLog(userEmail, 'user.deleted')
+      addActivityLog('user.deleted')
     } catch (e) {
       setError('Failed to delete user: ' + (e instanceof Error ? e.message : String(e)))
     }

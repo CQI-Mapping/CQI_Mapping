@@ -12,11 +12,7 @@ import {
 import { supabase } from '../../utils/supabaseClient'
 import type { Resource } from '../../services/database'
 
-interface CurriculumProps {
-  userEmail: string
-}
-
-function Curriculum({ userEmail }: CurriculumProps) {
+function Curriculum() {
   const [items, setItems] = useState<Resource[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -62,7 +58,7 @@ function Curriculum({ userEmail }: CurriculumProps) {
       const userId = await currentUserId()
       if (!userId) throw new Error('Not authenticated')
       await createResource(title.trim(), description.trim() || null, userId)
-      await addActivityLog(userEmail, 'resource.created')
+      await addActivityLog('resource.created')
       setTitle('')
       setDescription('')
       setMessage('Resource created.')
@@ -94,7 +90,7 @@ function Curriculum({ userEmail }: CurriculumProps) {
     setBusy(true)
     try {
       await updateResource(id, { title: editTitle.trim(), description: editDescription.trim() || null })
-      await addActivityLog(userEmail, 'resource.updated')
+      await addActivityLog('resource.updated')
       setMessage('Resource updated.')
       cancelEdit()
       load()
@@ -112,7 +108,7 @@ function Curriculum({ userEmail }: CurriculumProps) {
     const next = item.status === 'active' ? 'archived' : 'active'
     try {
       await updateResource(item.id, { status: next })
-      await addActivityLog(userEmail, 'resource.archived')
+      await addActivityLog('resource.archived')
       setMessage(`Resource ${next}.`)
       load()
     } catch (e) {

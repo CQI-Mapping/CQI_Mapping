@@ -10,7 +10,9 @@
 //   Course Learning Outcomes, Strategic Goals, CHED Memorandum Orders,
 //   Activity Logs, Profile
 //
-// The manager role retains its own Curriculum, Faculty (with add), and Activity Logs pages.
+// The manager role retains its own Curriculum, Program Outcomes (create/edit,
+// no delete), Faculty (with add), and Activity Logs pages.
+// The user role gains a Course Learning Outcomes page (create/edit, no delete).
 
 import { useState, useEffect } from 'react'
 import Sidebar from './components/Sidebar'
@@ -51,6 +53,7 @@ const NAV: Record<UserRole, NavItem[]> = {
   manager: [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'curriculum', label: 'Curriculum' },
+    { id: 'program-outcomes', label: 'Program Outcomes' },
     { id: 'users', label: 'Faculty' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
@@ -58,6 +61,7 @@ const NAV: Record<UserRole, NavItem[]> = {
   user: [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'curriculum', label: 'Curriculum' },
+    { id: 'clo', label: 'Course Learning Outcomes' },
     { id: 'profile', label: 'Profile' },
   ],
 }
@@ -79,6 +83,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
   manager: {
     dashboard: ManagerDashboard,
     curriculum: ManagerCurriculum,
+    'program-outcomes': AdminProgramOutcomes,
     users: ManagerUsers,
     'activity-logs': ManagerActivityLogs,
     profile: Profile,
@@ -86,6 +91,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
   user: {
     dashboard: UserDashboard,
     curriculum: UserCurriculum,
+    clo: AdminCourseLearningOutcomes,
     profile: Profile,
   },
 }
@@ -173,6 +179,10 @@ function App() {
     if (page === 'users') return <Page userEmail={profile?.email} />
     if (page === 'curriculum' && role !== 'user') return <Page userEmail={profile?.email} />
     if (page === 'clo-po' && role !== 'user') return <Page userEmail={profile?.email} />
+    // Managers share the admin Program Outcomes page, minus Delete/Archive.
+    if (page === 'program-outcomes' && role !== 'admin') return <Page allowDelete={false} allowArchive={false} />
+    // Users share the admin Course Learning Outcomes page, minus Delete/Archive.
+    if (page === 'clo' && role !== 'admin') return <Page allowDelete={false} allowArchive={false} />
     return <Page profile={profile} />
   }
 

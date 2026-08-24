@@ -43,7 +43,7 @@ function Users({ userEmail }: UsersProps) {
     try {
       await adminCreateUser(newEmail.trim(), newPassword, newName.trim(), 'user')
       setSuccess(`Faculty member ${newEmail} created.`)
-      addActivityLog(userEmail, 'user.created')
+      addActivityLog('user.created')
       setNewEmail('')
       setNewPassword('')
       setNewName('')
@@ -63,7 +63,7 @@ function Users({ userEmail }: UsersProps) {
       await adminDeleteUser(userId)
       setUsers((prev) => prev.filter((u) => u.id !== userId))
       setSuccess(`Faculty member ${email} removed.`)
-      addActivityLog(userEmail, 'user.deleted')
+      addActivityLog('user.deleted')
     } catch (e) {
       setError('Failed to remove user: ' + (e instanceof Error ? e.message : String(e)))
     }

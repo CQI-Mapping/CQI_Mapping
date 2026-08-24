@@ -16,19 +16,23 @@ import type { CourseLearningOutcomeStandalone } from '../../services/database'
 const EMPTY_FORM = { code: '', title: '', description: '' }
 
 interface CourseLearningOutcomesProps {
-  userEmail: string
+  // False renders the page without the Delete button (non-admin roles);
+  // RLS enforces the same rule server-side.
+  allowDelete?: boolean
+  // False hides Archive/Restore (non-admin roles); the DB guard trigger
+  // rejects status changes from non-admins regardless.
+  allowArchive?: boolean
 }
 
-function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
+function CourseLearningOutcomes({ allowDelete = true, allowArchive = true }: CourseLearningOutcomesProps) {
   const crud = useEntityCrud<CourseLearningOutcomeStandalone>({
     loadFn: fetchCourseLearningOutcomesStandalone,
     createFn: createCourseLearningOutcomeStandalone,
     updateFn: updateCourseLearningOutcomeStandalone,
     deleteFn: deleteCourseLearningOutcomeStandalone,
-    userEmail,
     scope: 'Course Learning Outcome',
   })
-  const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete } = crud
+  const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete, handleToggleStatus } = crud
 
   const [form, setForm] = useState(EMPTY_FORM)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -106,12 +110,13 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
                 <th>Code</th>
                 <th>Title</th>
                 <th>Description</th>
+                <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {items.length === 0 && (
-                <tr><td colSpan={4}>No course learning outcomes yet.</td></tr>
+                <tr><td colSpan={5}>No course learning outcomes yet.</td></tr>
               )}
               {items.map((item) => (
                 <tr key={item.id}>
@@ -148,9 +153,20 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
                       <td><strong>{item.code}</strong></td>
                       <td>{item.title}</td>
                       <td>{item.description || '—'}</td>
+                      <td><span className={`status-badge status-badge--${item.status}`}>{item.status}</span></td>
                       <td>
                         <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)}>Edit</button>{' '}
-                        <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'clo.deleted')}>Delete</button>
+                        {allowArchive && (
+                          <button
+                            className="btn btn--ghost btn--sm"
+                            onClick={() => handleToggleStatus(item, item.status === 'active' ? 'clo.archived' : 'clo.restored')}
+                          >
+                            {item.status === 'active' ? 'Archive' : 'Restore'}
+                          </button>
+                        )}{' '}
+                        {allowDelete && (
+                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'clo.deleted')}>Delete</button>
+                        )}
                       </td>
                     </>
                   )}

@@ -15,19 +15,20 @@ import type { ProgramEducationalObjective } from '../../services/database'
 const EMPTY_FORM = { code: '', title: '', description: '' }
 
 interface ProgramEducationalObjectivesProps {
-  userEmail: string
+  // Archive/Restore and Delete render only when allowed (admin role).
+  allowDelete?: boolean
+  allowArchive?: boolean
 }
 
-function ProgramEducationalObjectives({ userEmail }: ProgramEducationalObjectivesProps) {
+function ProgramEducationalObjectives({ allowDelete = true, allowArchive = true }: ProgramEducationalObjectivesProps) {
   const crud = useEntityCrud<ProgramEducationalObjective>({
     loadFn: fetchProgramEducationalObjectives,
     createFn: createProgramEducationalObjective,
     updateFn: updateProgramEducationalObjective,
     deleteFn: deleteProgramEducationalObjective,
-    userEmail,
     scope: 'Program Educational Objective',
   })
-  const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete } = crud
+  const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete, handleToggleStatus } = crud
 
   const [form, setForm] = useState(EMPTY_FORM)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -105,12 +106,13 @@ function ProgramEducationalObjectives({ userEmail }: ProgramEducationalObjective
                 <th>Code</th>
                 <th>Title</th>
                 <th>Description</th>
+                <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {items.length === 0 && (
-                <tr><td colSpan={4}>No program educational objectives yet.</td></tr>
+                <tr><td colSpan={5}>No program educational objectives yet.</td></tr>
               )}
               {items.map((item) => (
                 <tr key={item.id}>
@@ -137,6 +139,7 @@ function ProgramEducationalObjectives({ userEmail }: ProgramEducationalObjective
                           onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                         />
                       </td>
+                      <td><span className={`status-badge status-badge--${item.status}`}>{item.status}</span></td>
                       <td>
                         <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>Save</button>{' '}
                         <button className="btn btn--ghost btn--sm" onClick={() => setEditingId(null)}>Cancel</button>
@@ -147,9 +150,17 @@ function ProgramEducationalObjectives({ userEmail }: ProgramEducationalObjective
                       <td><strong>{item.code}</strong></td>
                       <td>{item.title}</td>
                       <td>{item.description || '—'}</td>
+                      <td><span className={`status-badge status-badge--${item.status}`}>{item.status}</span></td>
                       <td>
                         <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)}>Edit</button>{' '}
-                        <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'peo.deleted')}>Delete</button>
+                        {allowArchive && (
+                          <button className="btn btn--ghost btn--sm" onClick={() => handleToggleStatus(item, 'peo.archived')}>
+                            {item.status === 'active' ? 'Archive' : 'Restore'}
+                          </button>
+                        )}{' '}
+                        {allowDelete && (
+                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'peo.deleted')}>Delete</button>
+                        )}
                       </td>
                     </>
                   )}

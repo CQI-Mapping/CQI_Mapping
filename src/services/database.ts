@@ -11,9 +11,9 @@
 //   POs (standalone) — CRUD for admin-managed Program Outcomes list
 //   CLOs (standalone) — CRUD for admin-managed Course Learning Outcomes list
 //   CMOs           — CRUD for admin-managed CHED Memorandum Orders
-//   Activity Logs  — fetchActivityLogs, addActivityLog (details column removed)
+//   Activity Logs  — fetchActivityLogs, addActivityLog (server-stamped via RPC)
 
-import { supabase as _supabase, supabaseAdmin } from '../utils/supabaseClient'
+import { supabase as _supabase } from '../utils/supabaseClient'
 import type { User } from '@supabase/supabase-js'
 
 // Assert supabase client is configured (throws at runtime if not).
@@ -117,9 +117,39 @@ export async function updateUserRole(profileId: string, role: UserRole): Promise
   return data
 }
 
+// Privileged account operations run through the admin-users Edge Function.
+// The service-role key stays on the server; the function verifies the caller
+// is an admin from their JWT before acting.
+
 export interface AdminCreateUserResult {
   id: string
   email: string
+}
+
+interface AdminUsersFunctionError {
+  error?: string
+}
+
+async function invokeAdminUsers(body: Record<string, unknown>): Promise<unknown> {
+  const { data, error } = await supabase.functions.invoke('admin-users', { body })
+  if (error) {
+    // FunctionsHttpError: the function responded with a non-2xx status and a
+    // JSON body like { error: "message" } — surface its message when possible.
+    let message = error.message
+    try {
+      const payload = (await (error as { context?: Response }).context?.json()) as
+        | AdminUsersFunctionError
+        | undefined
+      if (payload?.error) message = payload.error
+    } catch {
+      /* keep the generic message */
+    }
+    throw new Error(message)
+  }
+  if (data && typeof data === 'object' && 'error' in data) {
+    throw new Error(String((data as AdminUsersFunctionError).error))
+  }
+  return data
 }
 
 export async function adminCreateUser(
@@ -128,33 +158,18 @@ export async function adminCreateUser(
   fullName: string,
   role: UserRole
 ): Promise<AdminCreateUserResult> {
-  if (!supabaseAdmin) {
-    throw new Error('Set VITE_SUPABASE_SERVICE_ROLE_KEY in .env to create users')
-  }
-
-  const { data, error } = await supabaseAdmin.auth.admin.createUser({
+  const data = (await invokeAdminUsers({
+    action: 'create',
     email,
     password,
-    email_confirm: true,
-    user_metadata: { full_name: fullName },
-  })
-  if (error) throw error
-
-  const { error: profileError } = await supabaseAdmin
-    .from('profiles')
-    .update({ role, full_name: fullName })
-    .eq('id', data.user.id)
-  if (profileError) throw profileError
-
-  return { id: data.user.id, email: data.user.email! }
+    fullName,
+    role,
+  })) as AdminCreateUserResult
+  return data
 }
 
 export async function adminDeleteUser(userId: string): Promise<void> {
-  if (!supabaseAdmin) {
-    throw new Error('Set VITE_SUPABASE_SERVICE_ROLE_KEY in .env to delete users')
-  }
-  const { error } = await supabaseAdmin.auth.admin.deleteUser(userId)
-  if (error) throw error
+  await invokeAdminUsers({ action: 'delete', userId })
 }
 
 // ---------- Resources (curriculum records) ----------
@@ -203,6 +218,7 @@ export interface StrategicGoal {
   code: string
   title: string
   description: string | null
+  status: string
   created_at: string
   updated_at: string
 }
@@ -249,6 +265,7 @@ export interface ProgramEducationalObjective {
   code: string
   title: string
   description: string | null
+  status: string
   created_at: string
   updated_at: string
 }
@@ -295,6 +312,7 @@ export interface ProgramOutcomeStandalone {
   code: string
   title: string
   description: string | null
+  status: string
   created_at: string
   updated_at: string
 }
@@ -341,6 +359,7 @@ export interface CourseLearningOutcomeStandalone {
   code: string
   title: string
   description: string | null
+  status: string
   created_at: string
   updated_at: string
 }
@@ -387,6 +406,7 @@ export interface ChedMemoOrder {
   code: string
   title: string
   description: string | null
+  status: string
   created_at: string
   updated_at: string
 }
@@ -426,7 +446,7 @@ export async function deleteChedMemoOrder(id: string): Promise<void> {
   if (error) throw error
 }
 
-// ---------- Activity logs (details column removed) ----------
+// ---------- Activity logs (server-stamped via log_activity RPC) ----------
 
 export async function fetchActivityLogs(): Promise<ActivityLogEntry[]> {
   const { data, error } = await supabase
@@ -451,12 +471,10 @@ export async function recordLoginEvent(
   if (error) console.warn('Login event not recorded:', error.message)
 }
 
-export async function addActivityLog(
-  userEmail: string,
-  action: string
-): Promise<void> {
-  const { error } = await supabase
-    .from('activity_logs')
-    .insert({ user_email: userEmail, action })
+// Audit entries are written by the SECURITY DEFINER log_activity() function,
+// which stamps the caller's real email from their JWT. The client supplies
+// only the action — never the actor — so entries can't be forged.
+export async function addActivityLog(action: string): Promise<void> {
+  const { error } = await supabase.rpc('log_activity', { p_action: action })
   if (error) console.warn('Audit log insert failed:', error.message)
 }
