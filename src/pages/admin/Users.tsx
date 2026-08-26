@@ -112,7 +112,7 @@ function Users() {
                 onChange={(e) => setFullName(e.target.value)}
               />
             </label>
-            <button className="btn btn--primary" type="submit" disabled={busy}>
+            <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
               {busy ? 'Creating...' : 'Create Manager'}
             </button>
           </div>

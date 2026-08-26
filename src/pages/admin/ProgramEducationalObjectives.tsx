@@ -2,7 +2,7 @@
 // Provides add, edit, and delete functionality for Program Educational
 // Objectives managed by the admin role. Uses the useEntityCrud hook for shared state.
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useEntityCrud } from './curriculum/useEntityCrud.js'
 import {
   fetchProgramEducationalObjectives,
@@ -178,7 +178,7 @@ function ProgramEducationalObjectives({ userEmail }: ProgramEducationalObjective
                 <tr><td colSpan={4}>No program educational objectives yet.</td></tr>
               )}
               {visibleItems.map((item) => (
-                <tr key={item.id}>
+                <tr key={item.id} className={!isActive(item) ? 'sd-archived' : ''}>
                   {editingId === item.id ? (
                     <>
                       <td>

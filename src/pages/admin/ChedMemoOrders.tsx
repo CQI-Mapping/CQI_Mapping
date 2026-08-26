@@ -2,7 +2,7 @@
 // Provides add, edit, and archive functionality for CHED Memorandum Orders
 // managed by the admin role. Uses the useEntityCrud hook for shared state.
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useEntityCrud } from './curriculum/useEntityCrud.js'
 import {
   fetchChedMemoOrders,

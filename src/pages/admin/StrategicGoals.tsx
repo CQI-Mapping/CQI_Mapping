@@ -2,7 +2,7 @@
 // Provides add, edit, and delete functionality for strategic goals
 // managed by the admin role. Uses the useEntityCrud hook for shared state.
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useEntityCrud } from './curriculum/useEntityCrud.js'
 import {
   fetchStrategicGoals,
@@ -108,7 +108,7 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
 
       <form className="panel create-resource" onSubmit={onSubmit}>
         <h3>New Strategic Goal</h3>
-        <div className="create-resource__row create-resource__row--2col">
+        <div className="create-resource__row">
           <label className="field">
             <span>Goal</span>
             <input
@@ -173,7 +173,7 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
                 <tr><td colSpan={3}>No strategic goals yet.</td></tr>
               )}
               {visibleItems.map((item) => (
-                <tr key={item.id}>
+                <tr key={item.id} className={!isActive(item) ? 'sd-archived' : ''}>
                   {editingId === item.id ? (
                     <>
                       <td>

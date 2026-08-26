@@ -3,7 +3,7 @@
 // Uses the admin_course_learning_outcomes table for admin-managed standalone CLO list.
 // Uses the useEntityCrud hook for shared state.
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useEntityCrud } from './curriculum/useEntityCrud.js'
 import {
   fetchCourseLearningOutcomesStandalone,
@@ -185,7 +185,7 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
                 <tr><td colSpan={4}>No course learning outcomes yet.</td></tr>
               )}
               {visibleItems.map((item) => (
-                <tr key={item.id}>
+                <tr key={item.id} className={!isActive(item) ? 'sd-archived' : ''}>
                   {editingId === item.id ? (
                     <>
                       <td>

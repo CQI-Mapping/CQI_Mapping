@@ -1,6 +1,7 @@
 /* Page background contrast */
 :root {
   --bg-app: #f8fafc;
+  --bg-panel: #ffffff;
   --border: #000;
   --text: #0f172a;
   --text-muted: #64748b;
@@ -1022,6 +1023,26 @@ code {
 .action-badge--course_learning_outcome {
   background: #ede9fe;
   color: #5b21b6;
+}
+
+.action-badge--ched_memo_order {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.action-badge--strategic_goal {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.action-badge--peo {
+  background: #fce7f3;
+  color: #9d174d;
+}
+
+.action-badge--clo {
+  background: #d1fae5;
+  color: #065f46;
 }
 
 .action-badge--clo_po_mapping {
