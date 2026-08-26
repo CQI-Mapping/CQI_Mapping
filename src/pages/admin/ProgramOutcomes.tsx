@@ -226,6 +226,14 @@ function ProgramOutcomes({ userEmail }: ProgramOutcomesProps) {
                         >
                           {isActive(item) ? 'Archive' : 'Restore'}
                         </button>
+                        {!isActive(item) && (
+                          <button
+                            className="btn btn--danger btn--sm"
+                            onClick={() => handleDelete(item.id, 'program_outcome.deleted')}
+                          >
+                            Delete
+                          </button>
+                        )}
                       </td>
                     </>
                   )}

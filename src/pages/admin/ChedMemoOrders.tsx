@@ -227,6 +227,15 @@ function ChedMemoOrders({ userEmail }: ChedMemoOrdersProps) {
                         >
                           {isActive(item) ? 'Archive' : 'Restore'}
                         </button>
+                        {!isActive(item) && (
+                          <button
+                            className="btn btn--danger btn--sm"
+                            onClick={() => handleDelete(item.id, 'ched_memo_order.deleted')}
+                            disabled={busy || !!editingId}
+                          >
+                            Delete
+                          </button>
+                        )}
                         {!isActive(item) && <span className="sd-archived-badge">archived</span>}
                       </td>
                     </>

@@ -212,6 +212,14 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
                         >
                           {isActive(item) ? 'Archive' : 'Restore'}
                         </button>
+                        {!isActive(item) && (
+                          <button
+                            className="btn btn--danger btn--sm"
+                            onClick={() => handleDelete(item.id, 'strategic_goal.deleted')}
+                          >
+                            Delete
+                          </button>
+                        )}
                       </td>
                     </>
                   )}

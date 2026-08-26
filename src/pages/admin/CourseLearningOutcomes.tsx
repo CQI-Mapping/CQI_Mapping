@@ -232,6 +232,14 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
                         >
                           {isActive(item) ? 'Archive' : 'Restore'}
                         </button>
+                        {!isActive(item) && (
+                          <button
+                            className="btn btn--danger btn--sm"
+                            onClick={() => handleDelete(item.id, 'clo.deleted')}
+                          >
+                            Delete
+                          </button>
+                        )}
                       </td>
                     </>
                   )}
