@@ -46,7 +46,7 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'peos', label: 'Program Educational Objectives' },
     { id: 'program-outcomes', label: 'Program Outcomes' },
     { id: 'clo', label: 'Course Learning Outcomes' },
-    { id: 'curriculum-map', label: 'Curriculum Map' },
+    { id: 'curriculum-map', label: 'View' },
     { id: 'users', label: 'Users & Accounts' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
