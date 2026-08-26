@@ -8,6 +8,8 @@
   flex-direction: column;
   background: #0f2540;
   color: #cbd5e1;
+  transition: width 0.2s ease;
+  overflow: hidden;
 }
 
 .sidebar__brand {
@@ -45,6 +47,78 @@
 .sidebar__brand-sub {
   font-size: 12px;
   color: #8aa0bd;
+}
+
+.sidebar__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 12px;
+  border: none;
+  background: transparent;
+  color: #cbd5e1;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sidebar__toggle:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+.sidebar__toggle-icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* Collapsed state */
+.sidebar--collapsed {
+  width: 64px;
+}
+
+.sidebar--collapsed .sidebar__brand-text,
+.sidebar--collapsed .sidebar__nav-item span,
+.sidebar--collapsed .sidebar__role,
+.sidebar--collapsed .sidebar__footer > span {
+  display: none;
+}
+
+.sidebar--collapsed .sidebar__brand {
+  justify-content: center;
+  padding: 20px 8px;
+}
+
+.sidebar--collapsed .sidebar__brand-mark {
+  margin: 0;
+}
+
+.sidebar--collapsed .sidebar__nav {
+  padding: 12px 8px;
+  align-items: center;
+}
+
+.sidebar--collapsed .sidebar__nav-item {
+  justify-content: center;
+  padding: 10px;
+}
+
+.sidebar--collapsed .sidebar__nav-item span {
+  display: none;
+}
+
+.sidebar--collapsed .sidebar__footer {
+  align-items: center;
+  padding: 12px 8px;
+}
+
+.sidebar--collapsed .sidebar__logout {
+  justify-content: center;
+  padding: 10px;
+}
+
+.sidebar--collapsed .sidebar__logout span {
+  display: none;
 }
 
 .sidebar__nav {
@@ -127,6 +201,41 @@
 
 @media (max-width: 1024px) {
   .sidebar {
-    width: 220px;
+    width: 64px;
+  }
+
+  .sidebar .sidebar__brand-text,
+  .sidebar .sidebar__nav-item span,
+  .sidebar .sidebar__role {
+    display: none;
+  }
+
+  .sidebar .sidebar__brand {
+    justify-content: center;
+    padding: 20px 8px;
+  }
+
+  .sidebar .sidebar__nav {
+    padding: 12px 8px;
+    align-items: center;
+  }
+
+  .sidebar .sidebar__nav-item {
+    justify-content: center;
+    padding: 10px;
+  }
+
+  .sidebar .sidebar__footer {
+    align-items: center;
+    padding: 12px 8px;
+  }
+
+  .sidebar .sidebar__logout {
+    justify-content: center;
+    padding: 10px;
+  }
+
+  .sidebar .sidebar__logout span {
+    display: none;
   }
 }

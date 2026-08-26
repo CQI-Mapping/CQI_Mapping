@@ -87,6 +87,7 @@ code {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  transition: margin-left 0.2s ease;
 }
 
 .topbar {

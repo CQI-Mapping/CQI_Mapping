@@ -63,6 +63,7 @@ function CurriculumMap({ userEmail }: CurriculumMapProps) {
   const [showArchived, setShowArchived] = useState(false)
   const [edit, setEdit] = useState<EditState | null>(null)
   const [busy, setBusy] = useState(false)
+  const [collegeDefinedExpanded, setCollegeDefinedExpanded] = useState(true)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -322,10 +323,6 @@ function CurriculumMap({ userEmail }: CurriculumMapProps) {
                   <div className="sd-po-single-section__sub">
                     The NBSC graduates have the ability to:
                   </div>
-                </td>
-              </tr>
-              <tr>
-                <td className="sd-po-single-item">
                   {visiblePos.filter((p) => { const n = poNumber(p.code); return n >= 1 && n <= 5 }).map((p, i, arr) => {
                     const editingThis = edit && edit.kind === 'po' && edit.id === p.id
                     const isLast = i === arr.length - 1
@@ -361,10 +358,6 @@ function CurriculumMap({ userEmail }: CurriculumMapProps) {
                   <div className="sd-po-single-section__head">
                     BACHELOR OF SCIENCE IN COMPUTER SCIENCE PROGRAM OUTCOMES
                   </div>
-                </td>
-              </tr>
-              <tr>
-                <td className="sd-po-single-item">
                   {visiblePos.filter((p) => { const n = poNumber(p.code); return n >= 6 && n <= 9 }).map((p, i, arr) => {
                     const editingThis = edit && edit.kind === 'po' && edit.id === p.id
                     const isLast = i === arr.length - 1
@@ -400,10 +393,6 @@ function CurriculumMap({ userEmail }: CurriculumMapProps) {
                   <div className="sd-po-single-section__head">
                     SPECIFIC TO A SUB-DISCIPLINE AND A MAJOR <em>(CMO 25 s. 2015)</em>
                   </div>
-                </td>
-              </tr>
-              <tr>
-                <td className="sd-po-single-item">
                   {visiblePos.filter((p) => { const n = poNumber(p.code); return n >= 10 && n <= 22 }).map((p, i, arr) => {
                     const editingThis = edit && edit.kind === 'po' && edit.id === p.id
                     const isLast = i === arr.length - 1
@@ -439,10 +428,6 @@ function CurriculumMap({ userEmail }: CurriculumMapProps) {
                   <div className="sd-po-single-section__head">
                     COMMON TO HORIZONTAL TYPES <em>(CMO 46 s. 2012)</em>
                   </div>
-                </td>
-              </tr>
-              <tr>
-                <td className="sd-po-single-item">
                   {visiblePos.filter((p) => { const n = poNumber(p.code); return n >= 23 && n <= 25 }).map((p, i, arr) => {
                     const editingThis = edit && edit.kind === 'po' && edit.id === p.id
                     const isLast = i === arr.length - 1
@@ -478,10 +463,6 @@ function CurriculumMap({ userEmail }: CurriculumMapProps) {
                   <div className="sd-po-single-section__head">
                     COLLEGE DEFINED PROGRAM OUTCOME
                   </div>
-                </td>
-              </tr>
-              <tr>
-                <td className="sd-po-single-item">
                   {visiblePos.filter((p) => { const n = poNumber(p.code); return n >= 26 && n <= 27 }).map((p, i, arr) => {
                     const editingThis = edit && edit.kind === 'po' && edit.id === p.id
                     const isLast = i === arr.length - 1

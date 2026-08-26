@@ -99,6 +99,7 @@ function App() {
   const [profile, setProfile] = useState<ProfileType | null>(null)
   const [loading, setLoading] = useState(true)
   const [activePage, setActivePage] = useState('dashboard')
+  const [sidebarOpen, setSidebarOpen] = useState(true)
 
   // On first render: restore an existing session from localStorage and subscribe to
   // auth changes (sign-in / sign-out) so the UI updates automatically.
@@ -186,6 +187,8 @@ function App() {
         onNavigate={setActivePage}
         onLogout={handleLogout}
         role={role}
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen((v) => !v)}
       />
 
       <div className="main-content">
