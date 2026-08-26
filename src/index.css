@@ -1321,6 +1321,7 @@ textarea.input {
   font-weight: 700;
   color: #1f3864;
   width: 13%;
+  vertical-align: middle;
 }
 
 .sd-table--map .sd-map-outcomes {
