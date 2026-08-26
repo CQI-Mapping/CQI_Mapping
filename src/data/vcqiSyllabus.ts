@@ -99,13 +99,13 @@ export const SEED_PROGRAM_OUTCOMES: SeedPo[] = [
 export const SEED_CLOS: SeedClo[] = [
   {
     code: 'CLO-1',
-    title: 'Compare and contrast procedural/functional approach to object-oriented programming approach',
+    title: 'PO1, PO3, & PO10',
     description:
       'Compare and contrast procedural/functional approach to object-oriented programming approach.',
   },
   {
     code: 'CLO-2',
-    title: 'Design, implement, test and debug programs using OOP concepts like abstraction, encapsulation, inheritance and polymorphism',
+    title: 'PO1, PO5, PO6, PO7, PO8, & PO12',
     description:
       'Design, implement, test and debug programs using OOP concepts like abstraction, encapsulation, inheritance and polymorphism.',
   },

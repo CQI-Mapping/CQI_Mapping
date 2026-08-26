@@ -201,15 +201,15 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
                           ref={autoResize}
                         />
                       </td>
-                      <td></td>
                       <td>
                         <input
                           className="input input--sm"
                           value={editForm.programOutcomes}
                           onChange={(e) => setEditForm({ ...editForm, programOutcomes: e.target.value })}
-                          placeholder="e.g. PLO 1, PLO 3"
+                          placeholder="e.g. PO1, PO3"
                         />
                       </td>
+                      <td></td>
                       <td></td>
                     </>
                   ) : (
