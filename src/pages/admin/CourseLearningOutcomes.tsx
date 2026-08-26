@@ -117,7 +117,7 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
         <h3>New Course Learning Outcome</h3>
         <div className="create-resource__row">
           <label className="field">
-            <span>Code</span>
+            <span>CLO Number</span>
             <input
               className="input input--sm"
               type="text"
@@ -127,21 +127,29 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
               required
             />
           </label>
+          <label className="field">
+            <span>Description</span>
+            <textarea
+              className="input input--sm"
+              rows={2}
+              placeholder="e.g. Compare and contrast..."
+              value={form.description}
+              onChange={(e) => {
+                setForm({ ...form, description: e.target.value })
+                autoResize(e.target)
+              }}
+              ref={autoResize}
+            />
+          </label>
+          <label className="field">
+            <span>Program Outcomes</span>
+            <input
+              className="input input--sm"
+              type="text"
+              placeholder="e.g. PLO 1, PLO 3, & PLO 10"
+            />
+          </label>
         </div>
-        <label className="field">
-          <span>Description</span>
-          <textarea
-            className="input input--sm"
-            rows={2}
-            placeholder="Optional description"
-            value={form.description}
-            onChange={(e) => {
-              setForm({ ...form, description: e.target.value })
-              autoResize(e.target)
-            }}
-            ref={autoResize}
-          />
-        </label>
         <div className="create-resource__submit">
           <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
             {busy ? 'Saving...' : 'Add'}
