@@ -332,7 +332,7 @@ function CurriculumMap({ userEmail }: CurriculumMapProps) {
                     const semicolon = isLast ? '.' : ';'
                     return (
                       <span key={p.id} className={isActive(p) ? '' : 'sd-archived'}>
-                        <strong>{poNumber(p.code)}.</strong> {p.title.replace(/\.$/, '')}{semicolon}{' '}
+                        {poNumber(p.code)}. {p.title.replace(/\.$/, '')}{semicolon}{' '}
                         {editMode && (
                           <span className="sd-po-single-item__actions">
                             {rowActions('po', p.id)}
@@ -371,7 +371,7 @@ function CurriculumMap({ userEmail }: CurriculumMapProps) {
                     const semicolon = isLast ? '.' : ';'
                     return (
                       <span key={p.id} className={isActive(p) ? '' : 'sd-archived'}>
-                        <strong>{poNumber(p.code)}.</strong> {p.title.replace(/\.$/, '')}{semicolon}{' '}
+                        {poNumber(p.code)}. {p.title.replace(/\.$/, '')}{semicolon}{' '}
                         {editMode && (
                           <span className="sd-po-single-item__actions">
                             {rowActions('po', p.id)}
@@ -410,7 +410,7 @@ function CurriculumMap({ userEmail }: CurriculumMapProps) {
                     const semicolon = isLast ? '.' : ';'
                     return (
                       <span key={p.id} className={isActive(p) ? '' : 'sd-archived'}>
-                        <strong>{poNumber(p.code)}.</strong> {p.title.replace(/\.$/, '')}{semicolon}{' '}
+                        {poNumber(p.code)}. {p.title.replace(/\.$/, '')}{semicolon}{' '}
                         {editMode && (
                           <span className="sd-po-single-item__actions">
                             {rowActions('po', p.id)}
@@ -449,7 +449,7 @@ function CurriculumMap({ userEmail }: CurriculumMapProps) {
                     const semicolon = isLast ? '.' : ';'
                     return (
                       <span key={p.id} className={isActive(p) ? '' : 'sd-archived'}>
-                        <strong>{poNumber(p.code)}.</strong> {p.title.replace(/\.$/, '')}{semicolon}{' '}
+                        {poNumber(p.code)}. {p.title.replace(/\.$/, '')}{semicolon}{' '}
                         {editMode && (
                           <span className="sd-po-single-item__actions">
                             {rowActions('po', p.id)}
@@ -488,7 +488,7 @@ function CurriculumMap({ userEmail }: CurriculumMapProps) {
                     const semicolon = isLast ? '.' : ';'
                     return (
                       <span key={p.id} className={isActive(p) ? '' : 'sd-archived'}>
-                        <strong>{poNumber(p.code)}.</strong> {p.title.replace(/\.$/, '')}{semicolon}{' '}
+                        {poNumber(p.code)}. {p.title.replace(/\.$/, '')}{semicolon}{' '}
                         {editMode && (
                           <span className="sd-po-single-item__actions">
                             {rowActions('po', p.id)}
