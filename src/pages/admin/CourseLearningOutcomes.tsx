@@ -40,8 +40,6 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
   const [seeded, setSeeded] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
   const [mapping, setMapping] = useState<MappingRow[]>(CLO_PLO_MAPPING)
-  const [editingMappingIdx, setEditingMappingIdx] = useState<number | null>(null)
-  const [mappingForm, setMappingForm] = useState<MappingRow>({ code: '', text: '', plos: '' })
 
   const autoResize = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return
@@ -102,22 +100,8 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
     if (ok) setEditingId(null)
   }
 
-  const startEditMapping = (idx: number) => {
-    setEditingMappingIdx(idx)
-    setMappingForm({ ...mapping[idx] })
-  }
-
-  const saveMapping = () => {
-    const updated = [...mapping]
-    updated[editingMappingIdx!] = mappingForm
-    setMapping(updated)
-    setEditingMappingIdx(null)
-  }
-
   const addMappingRow = () => {
     setMapping([...mapping, { code: `CLO${mapping.length + 1}`, text: '', plos: '' }])
-    setEditingMappingIdx(mapping.length)
-    setMappingForm({ code: `CLO${mapping.length + 1}`, text: '', plos: '' })
   }
 
   const removeMappingRow = (idx: number) => {
@@ -168,7 +152,8 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
         <table className="table">
           <thead>
             <tr>
-              <th>Course Learning Outcomes</th>
+              <th>CLO Number</th>
+              <th>Description</th>
               <th>Program Outcomes</th>
               <th>Actions</th>
             </tr>
@@ -176,54 +161,51 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
           <tbody>
             {mapping.map((c, idx) => (
               <tr key={idx}>
-                {editingMappingIdx === idx ? (
-                  <>
-                    <td>
-                      <input
-                        className="input input--sm"
-                        value={mappingForm.code}
-                        onChange={(e) => setMappingForm({ ...mappingForm, code: e.target.value })}
-                        style={{ width: 80, marginBottom: 4 }}
-                      />
-                      <textarea
-                        className="input input--sm"
-                        rows={2}
-                        value={mappingForm.text}
-                        onChange={(e) => {
-                          setMappingForm({ ...mappingForm, text: e.target.value })
-                          autoResize(e.target)
-                        }}
-                        ref={autoResize}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        className="input input--sm"
-                        value={mappingForm.plos}
-                        onChange={(e) => setMappingForm({ ...mappingForm, plos: e.target.value })}
-                      />
-                    </td>
-                    <td>
-                      <button type="button" className="btn btn--primary btn--sm" onClick={saveMapping}>Save</button>{' '}
-                      <button type="button" className="btn btn--ghost btn--sm" onClick={() => setEditingMappingIdx(null)}>Cancel</button>
-                    </td>
-                  </>
-                ) : (
-                  <>
-                    <td>{c.code}: {c.text}</td>
-                    <td>{c.plos}</td>
-                    <td>
-                      <button type="button" className="btn btn--ghost btn--sm" onClick={() => startEditMapping(idx)}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                        Edit
-                      </button>{' '}
-                      <button type="button" className="btn btn--danger btn--sm" onClick={() => removeMappingRow(idx)}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                        Delete
-                      </button>
-                    </td>
-                  </>
-                )}
+                <td>
+                  <input
+                    className="input input--sm"
+                    value={c.code}
+                    onChange={(e) => {
+                      const updated = [...mapping]
+                      updated[idx] = { ...updated[idx], code: e.target.value }
+                      setMapping(updated)
+                    }}
+                    placeholder="e.g. CLO1"
+                  />
+                </td>
+                <td>
+                  <textarea
+                    className="input input--sm"
+                    rows={2}
+                    value={c.text}
+                    onChange={(e) => {
+                      const updated = [...mapping]
+                      updated[idx] = { ...updated[idx], text: e.target.value }
+                      setMapping(updated)
+                      autoResize(e.target)
+                    }}
+                    ref={autoResize}
+                    placeholder="e.g. Compare and contrast..."
+                  />
+                </td>
+                <td>
+                  <input
+                    className="input input--sm"
+                    value={c.plos}
+                    onChange={(e) => {
+                      const updated = [...mapping]
+                      updated[idx] = { ...updated[idx], plos: e.target.value }
+                      setMapping(updated)
+                    }}
+                    placeholder="e.g. PLO 1, PLO 3"
+                  />
+                </td>
+                <td>
+                  <button type="button" className="btn btn--danger btn--sm" onClick={() => removeMappingRow(idx)}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                    Delete
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
