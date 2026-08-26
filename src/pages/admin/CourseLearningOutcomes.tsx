@@ -15,7 +15,7 @@ import {
 import type { CourseLearningOutcomeStandalone } from '../../services/database'
 import { SEED_CLOS } from '../../data/vcqiSyllabus.js'
 
-const EMPTY_FORM = { code: '', title: '', description: '' }
+const EMPTY_FORM = { code: '', description: '', programOutcomes: '' }
 
 interface CourseLearningOutcomesProps {
   userEmail: string
@@ -77,7 +77,7 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const ok = await handleCreate(
-      { code: form.code.trim(), title: form.code.trim(), description: form.description.trim() || null },
+      { code: form.code.trim(), title: form.programOutcomes.trim(), description: form.description.trim() || null },
       'clo.created'
     )
     if (ok) setForm(EMPTY_FORM)
@@ -85,13 +85,13 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
 
   const startEdit = (item: CourseLearningOutcomeStandalone) => {
     setEditingId(item.id)
-    setEditForm({ code: item.code, title: item.title, description: item.description || '' })
+    setEditForm({ code: item.code, title: item.title, description: item.description || '', programOutcomes: item.title || '' })
   }
 
   const saveEdit = async () => {
     const ok = await handleUpdate(
       editingId,
-      { code: editForm.code.trim(), title: editForm.title.trim(), description: editForm.description.trim() || null },
+      { code: editForm.code.trim(), title: editForm.programOutcomes.trim(), description: editForm.description.trim() || null },
       'clo.updated'
     )
     if (ok) setEditingId(null)
@@ -135,6 +135,8 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
             className="input input--sm"
             type="text"
             placeholder="e.g. PLO 1, PLO 3, & PLO 10"
+            value={form.programOutcomes}
+            onChange={(e) => setForm({ ...form, programOutcomes: e.target.value })}
           />
         </label>
         <div className="create-resource__submit">
@@ -200,6 +202,14 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
                         />
                       </td>
                       <td></td>
+                      <td>
+                        <input
+                          className="input input--sm"
+                          value={editForm.programOutcomes}
+                          onChange={(e) => setEditForm({ ...editForm, programOutcomes: e.target.value })}
+                          placeholder="e.g. PLO 1, PLO 3"
+                        />
+                      </td>
                       <td></td>
                     </>
                   ) : (
