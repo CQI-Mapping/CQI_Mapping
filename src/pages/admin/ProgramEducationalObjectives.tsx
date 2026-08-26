@@ -103,20 +103,20 @@ function ProgramEducationalObjectives({ userEmail }: ProgramEducationalObjective
               required
             />
           </label>
-          <label className="field">
-            <span>Description</span>
-            <textarea
-              className="input input--sm"
-              rows={2}
-              placeholder="Optional description"
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-            />
-          </label>
-          <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
-            {busy ? 'Saving...' : 'Add'}
-          </button>
         </div>
+        <label className="field">
+          <span>Description</span>
+          <textarea
+            className="input input--sm"
+            rows={2}
+            placeholder="Optional description"
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+          />
+        </label>
+        <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
+          {busy ? 'Saving...' : 'Add'}
+        </button>
       </form>
 
       {loading ? (
