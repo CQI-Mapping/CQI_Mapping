@@ -31,7 +31,7 @@ import AdminStrategicGoals from './pages/admin/StrategicGoals'
 import AdminPEOs from './pages/admin/ProgramEducationalObjectives'
 import AdminProgramOutcomes from './pages/admin/ProgramOutcomes'
 import AdminCourseLearningOutcomes from './pages/admin/CourseLearningOutcomes'
-import AdminCurriculumMap from './pages/admin/CurriculumMap'
+import AdminView from './pages/admin/View'
 import AdminUsers from './pages/admin/Users'
 import { supabase } from './utils/supabaseClient'
 import { ensureProfile, syncDemoRole } from './services/database'
@@ -73,7 +73,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     peos: AdminPEOs,
     'program-outcomes': AdminProgramOutcomes,
     clo: AdminCourseLearningOutcomes,
-    'curriculum-map': AdminCurriculumMap,
+    'curriculum-map': AdminView,
     'strategic-goals': AdminStrategicGoals,
     'ched-memo': AdminChedMemoOrders,
     users: AdminUsers,

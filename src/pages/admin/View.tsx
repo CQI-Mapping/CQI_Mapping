@@ -34,7 +34,7 @@ import {
   COURSE_DETAILS,
 } from '../../data/vcqiSyllabus.js'
 
-interface CurriculumMapProps {
+interface ViewProps {
   userEmail: string
 }
 
@@ -51,7 +51,7 @@ const poNumber = (code: string) => parseInt(code.replace(/[^0-9]/g, ''), 10)
 
 const isActive = (item: { status?: string }) => !item.status || item.status === 'active'
 
-function CurriculumMap({ userEmail }: CurriculumMapProps) {
+function View({ userEmail }: ViewProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -581,4 +581,4 @@ function CurriculumMap({ userEmail }: CurriculumMapProps) {
   )
 }
 
-export default CurriculumMap
+export default View
