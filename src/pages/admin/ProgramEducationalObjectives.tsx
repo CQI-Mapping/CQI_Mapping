@@ -2,7 +2,7 @@
 // Provides add, edit, and delete functionality for Program Educational
 // Objectives managed by the admin role. Uses the useEntityCrud hook for shared state.
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useEntityCrud } from './curriculum/useEntityCrud.js'
 import {
   fetchProgramEducationalObjectives,
@@ -34,6 +34,12 @@ function ProgramEducationalObjectives({ userEmail }: ProgramEducationalObjective
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState(EMPTY_FORM)
   const [seeded, setSeeded] = useState(false)
+
+  const autoResize = useCallback((el: HTMLTextAreaElement | null) => {
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [])
 
   useEffect(() => { crud.load() }, [crud.load])
 
@@ -111,7 +117,11 @@ function ProgramEducationalObjectives({ userEmail }: ProgramEducationalObjective
             rows={2}
             placeholder="Optional description"
             value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            onChange={(e) => {
+              setForm({ ...form, description: e.target.value })
+              autoResize(e.target)
+            }}
+            ref={autoResize}
           />
         </label>
         <div className="create-resource__submit">
@@ -161,7 +171,11 @@ function ProgramEducationalObjectives({ userEmail }: ProgramEducationalObjective
                           className="input input--sm"
                           rows={2}
                           value={editForm.description}
-                          onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                          onChange={(e) => {
+                            setEditForm({ ...editForm, description: e.target.value })
+                            autoResize(e.target)
+                          }}
+                          ref={autoResize}
                         />
                       </td>
                       <td>
