@@ -1028,3 +1028,425 @@ code {
   background: #f1f5f9;
   color: #475569;
 }
+
+/* ---------- Curriculum Map (syllabus-document report) ---------- */
+
+.syllabus-doc__toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.syllabus-doc__meta {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.syllabus-doc__page {
+  background: #fff;
+  color: #111;
+  padding: 28px 32px;
+  border: 1px solid #cbd5e1;
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.syllabus-doc__page h1,
+.syllabus-doc__page h2,
+.syllabus-doc__page h3 {
+  font-family: inherit;
+}
+
+/* Letterhead */
+.sd-letterhead {
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+.sd-letterhead__img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+.sd-letterhead__text {
+  display: none;
+}
+
+.sd-letterhead__school {
+  font-weight: 700;
+  font-size: 1.2em;
+}
+
+.sd-letterhead__motto {
+  font-style: italic;
+  color: #b8860b;
+}
+
+/* Title block */
+.sd-titleblock {
+  text-align: center;
+  font-weight: 700;
+  margin: 8px 0 14px;
+  line-height: 1.5;
+}
+
+.sd-titleblock__title,
+.sd-titleblock__course {
+  font-style: italic;
+}
+
+/* Generic document table */
+.sd-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 14px;
+}
+
+.sd-table th,
+.sd-table td {
+  border: 1px solid #000;
+  padding: 8px 10px;
+  vertical-align: top;
+  text-align: left;
+}
+
+.sd-table .sd-col-head {
+  text-align: center;
+  font-weight: 700;
+  color: #1f3864;
+  width: 25%;
+}
+
+/* Column widths measured from the source PDF (page 1):
+   Vision 19.5% | Mission 16% | Strategic Goals 21% | PEOs 43.5% */
+.sd-table--vmgp th:nth-child(1),
+.sd-table--vmgp td:nth-child(1) { width: 19.5%; }
+
+.sd-table--vmgp th:nth-child(2),
+.sd-table--vmgp td:nth-child(2) { width: 16%; }
+
+.sd-table--vmgp th:nth-child(3),
+.sd-table--vmgp td:nth-child(3) { width: 21%; }
+
+.sd-table--vmgp th:nth-child(4),
+.sd-table--vmgp td:nth-child(4) { width: 43.5%; }
+
+.sd-cell--justify {
+  text-align: justify;
+}
+
+.sd-peo {
+  margin-bottom: 8px;
+}
+
+.sd-peo__desc {
+  font-style: italic;
+}
+
+/* Section bands */
+.sd-band {
+  font-weight: 700;
+  color: #1f3864;
+  border-top: 2px solid #1f3864;
+  border-bottom: 1px solid #1f3864;
+  padding: 5px 8px;
+  margin: 14px 0 8px;
+}
+
+.sd-band--center {
+  text-align: center;
+}
+
+/* Program outcome table with section heading bands — matches PDF pages 1-2:
+   sans-serif, unshaded bold left-aligned headings, tight numbered rows */
+.sd-table--po,
+.sd-table--map,
+.sd-table--clo {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 13.5px;
+}
+
+/* Single-column Program Outcomes table — official document format */
+.sd-table--po-single {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 14px;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 13.5px;
+  border: 1px solid #000;
+}
+
+.sd-table--po-single th,
+.sd-table--po-single td {
+  border: 1px solid #000;
+  padding: 8px 10px;
+  vertical-align: top;
+}
+
+.sd-po-single-title {
+  text-align: center;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 10px;
+  background: #fff;
+  color: #000;
+}
+
+.sd-po-single-section {
+  background: #fff;
+  padding: 8px 10px;
+}
+
+.sd-po-single-section__head {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.sd-po-single-section__sub {
+  font-style: italic;
+  font-weight: 400;
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+.sd-po-single-item {
+  padding: 4px 10px;
+}
+
+.sd-po-single-item__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.sd-po-single-item__num {
+  font-weight: 700;
+  min-width: 28px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.sd-po-single-item__text {
+  flex: 1;
+  line-height: 1.4;
+}
+
+.sd-po-single-item__input {
+  flex: 1;
+}
+
+.sd-po-single-item__actions {
+  margin-left: auto;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.sd-table--po .sd-po-section-row td {
+  font-weight: 700;
+  padding: 8px 10px 4px;
+}
+
+.sd-table--po td {
+  padding: 2px 10px;
+}
+
+.sd-po-section__head {
+  font-weight: 700;
+}
+
+.sd-po-section__sub {
+  font-style: italic;
+  font-weight: 400;
+}
+
+.sd-po-num {
+  width: 44px;
+  text-align: right;
+  white-space: nowrap;
+  padding-right: 6px !important;
+}
+
+/* Curriculum mapping tables */
+.sd-table--map .sd-map-title {
+  text-align: center;
+  font-weight: 700;
+  color: #1f3864;
+}
+
+/* Column widths measured from the source PDF (page 4):
+   Outcome 74% | PEO 13% | Strategic Goals 13% */
+.sd-table--map .sd-map-col {
+  text-align: center;
+  font-weight: 700;
+  color: #1f3864;
+  width: 13%;
+}
+
+.sd-table--map .sd-map-outcomes {
+  width: 74%;
+}
+
+.sd-map-cell {
+  vertical-align: top;
+}
+
+.sd-table ol {
+  margin: 0 0 0 1.4em;
+  padding: 0;
+}
+
+.sd-table ol li {
+  margin-bottom: 3px;
+}
+
+/* Course learning outcomes table — widths from PDF page 5: 74% / 26%.
+   Header row: centered black title, left-aligned black column label */
+.sd-table--clo td:nth-child(1) { width: 74%; }
+
+.sd-table--clo td:nth-child(2) { width: 26%; }
+
+.sd-table--clo th:nth-child(1) {
+  text-align: center;
+  color: #111;
+}
+
+.sd-table--clo th:nth-child(2) {
+  text-align: left;
+  color: #111;
+}
+
+/* Course details */
+.sd-details__list {
+  margin: 6px 0 6px 1.4em;
+  padding: 0;
+}
+
+.sd-details__section {
+  margin: 10px 0 4px;
+}
+
+.sd-details__clos {
+  margin: 4px 0 4px 2em;
+  padding: 0;
+}
+
+/* Inline editing + archive controls */
+.sd-toolbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sd-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.sd-check input:disabled {
+  opacity: 0.4;
+}
+
+.sd-edit-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.sd-edit-row__text {
+  flex: 1;
+}
+
+.sd-edit-fields {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sd-actions {
+  display: inline-flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.sd-archived {
+  opacity: 0.55;
+}
+
+.sd-archived-badge {
+  font-size: 11px;
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 4px;
+  padding: 2px 6px;
+  white-space: nowrap;
+  align-self: center;
+}
+
+.sd-po-actions {
+  white-space: nowrap;
+}
+
+.sd-po-actions .btn {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+@media print {
+  .sd-actions,
+  .sd-toolbar-controls,
+  .sd-archived-badge,
+  .sd-po-actions {
+    display: none !important;
+  }
+}
+
+@media print {
+  .sidebar,
+  .topbar,
+  .no-print {
+    display: none !important;
+  }
+
+  .app-layout {
+    display: block;
+  }
+
+  .main-content,
+  .content-area,
+  .page-container {
+    margin: 0;
+    padding: 0;
+    max-width: none;
+    overflow: visible;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  .syllabus-doc__page {
+    border: none;
+    padding: 0;
+  }
+
+  .panel {
+    box-shadow: none;
+    border: 1px solid #cbd5e1;
+    break-inside: avoid;
+  }
+
+  .sd-table,
+  .sd-po-sections {
+    break-inside: avoid;
+  }
+}

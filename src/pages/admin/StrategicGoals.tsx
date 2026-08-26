@@ -14,6 +14,15 @@ import type { StrategicGoal } from '../../services/database'
 
 const EMPTY_FORM = { code: '', title: '', description: '' }
 
+// Default strategic goals from the VCQI syllabus document.
+const DEFAULTS = [
+  { code: 'SG-1', title: 'Excellence in Teaching and Learning', description: null },
+  { code: 'SG-2', title: 'Outstanding Human Resource Development', description: null },
+  { code: 'SG-3', title: 'High Impact Research', description: null },
+  { code: 'SG-4', title: 'Exemplary Service to the Profession and Community Engagement', description: null },
+  { code: 'SG-5', title: '21st Century Infrastructure and Operational Sustainability', description: null },
+]
+
 interface StrategicGoalsProps {
   userEmail: string
 }
@@ -36,20 +45,17 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
 
   useEffect(() => { crud.load() }, [crud.load])
 
-  // Seed default strategic goals when the table is empty (first load only).
+  // Fill in any VCQI syllabus strategic goals missing from the table
+  // (idempotent by code). Runs once after the first load completes.
   useEffect(() => {
-    if (loading || seeded || items.length > 0) return
+    if (loading || seeded) return
     setSeeded(true)
-    const defaults = [
-      { code: 'SG-1', title: 'Excellence in Teaching and Learning', description: null },
-      { code: 'SG-2', title: 'Outstanding Human Resource Development', description: null },
-      { code: 'SG-3', title: 'High Impact Research', description: null },
-      { code: 'SG-4', title: 'Exemplary Service to the Profession and Community Engagement', description: null },
-      { code: 'SG-5', title: '21st Century Infrastructure and Operational Sustainability', description: null },
-    ]
-    defaults.reduce((prev, goal) => prev.then(() => createStrategicGoal(goal)), Promise.resolve())
+    const existing = new Set(items.map((i) => i.code))
+    const missing = DEFAULTS.filter((g) => !existing.has(g.code))
+    if (missing.length === 0) return
+    missing.reduce<Promise<unknown>>((prev, goal) => prev.then(() => createStrategicGoal(goal)), Promise.resolve())
       .then(() => crud.load())
-  }, [loading, seeded, items.length])
+  }, [loading, seeded])
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -106,9 +112,9 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
           </label>
           <label className="field">
             <span>Description</span>
-            <input
+            <textarea
               className="input input--sm"
-              type="text"
+              rows={2}
               placeholder="Optional description"
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
@@ -156,8 +162,9 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
                         />
                       </td>
                       <td>
-                        <input
+                        <textarea
                           className="input input--sm"
+                          rows={2}
                           value={editForm.description}
                           onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                         />

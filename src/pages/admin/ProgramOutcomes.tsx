@@ -12,6 +12,7 @@ import {
   deleteProgramOutcomeStandalone,
 } from '../../services/database'
 import type { ProgramOutcomeStandalone } from '../../services/database'
+import { SEED_PROGRAM_OUTCOMES } from '../../data/vcqiSyllabus.js'
 
 const EMPTY_FORM = { code: '', title: '', description: '' }
 
@@ -33,8 +34,22 @@ function ProgramOutcomes({ userEmail }: ProgramOutcomesProps) {
   const [form, setForm] = useState(EMPTY_FORM)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState(EMPTY_FORM)
+  const [seeded, setSeeded] = useState(false)
 
   useEffect(() => { crud.load() }, [crud.load])
+
+  // Fill in any VCQI syllabus Program Outcomes missing from the table
+  // (idempotent by code). Runs once after the first load completes; items is
+  // read but intentionally omitted from deps so the effect does not re-run.
+  useEffect(() => {
+    if (loading || seeded) return
+    setSeeded(true)
+    const existing = new Set(items.map((i) => i.code))
+    const missing = SEED_PROGRAM_OUTCOMES.filter((p) => !existing.has(p.code))
+    if (missing.length === 0) return
+    missing.reduce<Promise<unknown>>((prev, po) => prev.then(() => createProgramOutcomeStandalone(po)), Promise.resolve())
+      .then(() => crud.load())
+  }, [loading, seeded])
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -91,9 +106,9 @@ function ProgramOutcomes({ userEmail }: ProgramOutcomesProps) {
           </label>
           <label className="field">
             <span>Description</span>
-            <input
+            <textarea
               className="input input--sm"
-              type="text"
+              rows={2}
               placeholder="Optional description"
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
@@ -141,8 +156,9 @@ function ProgramOutcomes({ userEmail }: ProgramOutcomesProps) {
                         />
                       </td>
                       <td>
-                        <input
+                        <textarea
                           className="input input--sm"
+                          rows={2}
                           value={editForm.description}
                           onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                         />

@@ -122,6 +122,7 @@ CREATE TABLE public.strategic_goals (
     code TEXT UNIQUE NOT NULL,
     title TEXT NOT NULL,
     description TEXT,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -132,6 +133,7 @@ CREATE TABLE public.admin_program_outcomes (
     code TEXT UNIQUE NOT NULL,
     title TEXT NOT NULL,
     description TEXT,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -142,6 +144,7 @@ CREATE TABLE public.program_educational_objectives (
     code TEXT UNIQUE NOT NULL,
     title TEXT NOT NULL,
     description TEXT,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

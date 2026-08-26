@@ -43,7 +43,7 @@ function Users() {
     setBusy(true)
     try {
       await adminCreateUser(email.trim(), password, fullName.trim(), 'manager')
-      await addActivityLog('user.created')
+      await addActivityLog(email.trim(), 'user.created')
       setSuccess(`Manager ${email} created.`)
       setEmail('')
       setPassword('')
