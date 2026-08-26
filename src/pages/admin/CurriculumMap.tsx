@@ -63,7 +63,6 @@ function CurriculumMap({ userEmail }: CurriculumMapProps) {
   const [showArchived, setShowArchived] = useState(false)
   const [edit, setEdit] = useState<EditState | null>(null)
   const [busy, setBusy] = useState(false)
-  const [collegeDefinedExpanded, setCollegeDefinedExpanded] = useState(true)
 
   const load = useCallback(async () => {
     setLoading(true)

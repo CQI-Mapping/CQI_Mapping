@@ -1190,7 +1190,7 @@ code {
 }
 
 .sd-po-single-title {
-  text-align: center;
+  text-align: center !important;
   font-weight: 700;
   font-size: 14px;
   padding: 8px 10px;
