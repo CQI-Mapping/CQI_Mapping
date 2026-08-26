@@ -114,9 +114,11 @@ function ProgramEducationalObjectives({ userEmail }: ProgramEducationalObjective
             onChange={(e) => setForm({ ...form, description: e.target.value })}
           />
         </label>
-        <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
-          {busy ? 'Saving...' : 'Add'}
-        </button>
+        <div className="create-resource__submit">
+          <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
+            {busy ? 'Saving...' : 'Add'}
+          </button>
+        </div>
       </form>
 
       {loading ? (
