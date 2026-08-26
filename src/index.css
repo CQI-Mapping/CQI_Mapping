@@ -1108,9 +1108,7 @@ code {
 }
 
 .sd-letterhead__text {
-  display: block;
-  text-align: center;
-  margin-top: 8px;
+  display: none;
 }
 
 .sd-letterhead__school {
@@ -1499,8 +1497,8 @@ textarea.input {
     background: #fff;
   }
 
-  .syllabus-doc__page {
-    padding-top: 180px;
+  @page {
+    margin-top: 200px;
   }
 
   .panel {
