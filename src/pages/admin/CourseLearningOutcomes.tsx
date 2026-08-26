@@ -81,7 +81,7 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const ok = await handleCreate(
-      { code: form.code.trim(), title: form.title.trim(), description: form.description.trim() || null },
+      { code: form.code.trim(), title: form.code.trim(), description: form.description.trim() || null },
       'clo.created'
     )
     if (ok) setForm(EMPTY_FORM)
@@ -117,17 +117,6 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
               placeholder="e.g. CLO-1"
               value={form.code}
               onChange={(e) => setForm({ ...form, code: e.target.value })}
-              required
-            />
-          </label>
-          <label className="field">
-            <span>Title</span>
-            <input
-              className="input input--sm"
-              type="text"
-              placeholder="Enter title"
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
               required
             />
           </label>
@@ -175,7 +164,6 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
             <thead>
               <tr>
                 <th>Code</th>
-                <th>Title</th>
                 <th>Description</th>
                 <th>Status</th>
                 <th>Actions</th>
@@ -183,7 +171,7 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
             </thead>
             <tbody>
               {visibleItems.length === 0 && (
-                <tr><td colSpan={5}>No course learning outcomes yet.</td></tr>
+                <tr><td colSpan={4}>No course learning outcomes yet.</td></tr>
               )}
               {visibleItems.map((item) => (
                 <tr key={item.id} className={!isActive(item) ? 'sd-archived' : ''}>
@@ -194,13 +182,6 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
                           className="input input--sm"
                           value={editForm.code}
                           onChange={(e) => setEditForm({ ...editForm, code: e.target.value })}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          className="input input--sm"
-                          value={editForm.title}
-                          onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
                         />
                       </td>
                       <td>
@@ -221,7 +202,6 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
                   ) : (
                     <>
                       <td><strong>{item.code}</strong></td>
-                      <td>{item.title}</td>
                       <td>{item.description || '—'}</td>
                       <td>
                         <span className={`sd-status-badge ${isActive(item) ? 'sd-status-badge--active' : 'sd-status-badge--archived'}`}>
