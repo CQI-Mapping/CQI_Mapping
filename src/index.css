@@ -1108,7 +1108,9 @@ code {
 }
 
 .sd-letterhead__text {
-  display: none;
+  display: block;
+  text-align: center;
+  margin-top: 8px;
 }
 
 .sd-letterhead__school {
