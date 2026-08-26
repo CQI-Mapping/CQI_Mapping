@@ -355,7 +355,7 @@ function View({ userEmail }: ViewProps) {
               <tr>
                 <td className="sd-po-single-section">
                   <div className="sd-po-single-section__head">
-                    BACHELOR OF SCIENCE IN COMPUTER SCIENCE PROGRAM OUTCOMES
+                    BACHELOR OF SCIENCE IN COMPUTER SCIENCE
                   </div>
                   {visiblePos.filter((p) => { const n = poNumber(p.code); return n >= 6 && n <= 9 }).map((p, i, arr) => {
                     const editingThis = edit && edit.kind === 'po' && edit.id === p.id

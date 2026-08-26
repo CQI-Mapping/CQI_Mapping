@@ -1488,6 +1488,19 @@ textarea.input {
     padding: 0;
   }
 
+  .sd-letterhead {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 100;
+    background: #fff;
+  }
+
+  .syllabus-doc__page {
+    padding-top: 100px;
+  }
+
   .panel {
     box-shadow: none;
     border: 1px solid #cbd5e1;
