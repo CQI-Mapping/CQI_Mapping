@@ -150,15 +150,19 @@ function ChedMemoOrders({ userEmail }: ChedMemoOrdersProps) {
         <p>Loading CHED Memorandum Orders...</p>
       ) : (
         <div className="panel table-wrap">
-          <div className="sd-toolbar-controls">
-            <label className="sd-check">
-              <input
-                type="checkbox"
-                checked={showArchived}
-                onChange={(e) => setShowArchived(e.target.checked)}
-              />
-              Show archived
-            </label>
+          <div className="sd-tabs">
+            <button
+              className={`sd-tab ${!showArchived ? 'sd-tab--active' : ''}`}
+              onClick={() => setShowArchived(false)}
+            >
+              Active
+            </button>
+            <button
+              className={`sd-tab ${showArchived ? 'sd-tab--active' : ''}`}
+              onClick={() => setShowArchived(true)}
+            >
+              Archive
+            </button>
           </div>
           <table className="table">
             <thead>
