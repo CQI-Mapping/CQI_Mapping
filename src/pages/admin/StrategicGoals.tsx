@@ -194,7 +194,10 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
                         />
                       </td>
                       <td></td>
-                      <td></td>
+                      <td>
+                        <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>Save</button>{' '}
+                        <button className="btn btn--ghost btn--sm" onClick={() => setEditingId(null)}>Cancel</button>
+                      </td>
                     </>
                   ) : (
                     <>
