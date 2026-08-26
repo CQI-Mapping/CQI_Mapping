@@ -344,17 +344,18 @@ code {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  margin-bottom: 24px;
+  margin-top: 20px;
+  margin-bottom: 20px;
 }
 
 .login-brand-mark {
-  width: 44px;
-  height: 44px;
+  width: 100px;
+  height: 132px;
   border-radius: 12px;
   background: var(--primary);
   color: #fff;
   font-weight: 700;
-  font-size: 17px;
+  font-size: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
