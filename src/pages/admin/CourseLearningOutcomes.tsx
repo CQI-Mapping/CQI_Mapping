@@ -17,6 +17,8 @@ import { SEED_CLOS, CLO_PLO_MAPPING } from '../../data/vcqiSyllabus.js'
 
 const EMPTY_FORM = { code: '', title: '', description: '' }
 
+type MappingRow = { code: string; text: string; plos: string }
+
 interface CourseLearningOutcomesProps {
   userEmail: string
 }
@@ -37,6 +39,9 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
   const [editForm, setEditForm] = useState(EMPTY_FORM)
   const [seeded, setSeeded] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
+  const [mapping, setMapping] = useState<MappingRow[]>(CLO_PLO_MAPPING)
+  const [editingMappingIdx, setEditingMappingIdx] = useState<number | null>(null)
+  const [mappingForm, setMappingForm] = useState<MappingRow>({ code: '', text: '', plos: '' })
 
   const autoResize = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return
@@ -60,10 +65,6 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
 
   useEffect(() => { crud.load() }, [crud.load])
 
-  // Fill in any VCQI syllabus CLOs missing from the table (idempotent by
-  // code), and ensure the IT21 course (with its curriculum-tied CLOs) exists
-  // under BSIT. Runs once after the first load completes; items is read but
-  // intentionally omitted from deps so the effect does not re-run.
   useEffect(() => {
     if (loading || seeded) return
     setSeeded(true)
@@ -99,6 +100,28 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
       'clo.updated'
     )
     if (ok) setEditingId(null)
+  }
+
+  const startEditMapping = (idx: number) => {
+    setEditingMappingIdx(idx)
+    setMappingForm({ ...mapping[idx] })
+  }
+
+  const saveMapping = () => {
+    const updated = [...mapping]
+    updated[editingMappingIdx!] = mappingForm
+    setMapping(updated)
+    setEditingMappingIdx(null)
+  }
+
+  const addMappingRow = () => {
+    setMapping([...mapping, { code: `CLO${mapping.length + 1}`, text: '', plos: '' }])
+    setEditingMappingIdx(mapping.length)
+    setMappingForm({ code: `CLO${mapping.length + 1}`, text: '', plos: '' })
+  }
+
+  const removeMappingRow = (idx: number) => {
+    setMapping(mapping.filter((_, i) => i !== idx))
   }
 
   return (
@@ -140,27 +163,77 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
             {busy ? 'Saving...' : 'Add'}
           </button>
         </div>
-      </form>
 
-      <div className="panel">
-        <h3>Curriculum Mapping</h3>
+        <h3 style={{ marginTop: 24 }}>Curriculum Mapping</h3>
         <table className="table">
           <thead>
             <tr>
               <th>Course Learning Outcomes</th>
               <th>Program Outcomes</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {CLO_PLO_MAPPING.map((c) => (
-              <tr key={c.code}>
-                <td>{c.code}: {c.text}</td>
-                <td>{c.plos}</td>
+            {mapping.map((c, idx) => (
+              <tr key={idx}>
+                {editingMappingIdx === idx ? (
+                  <>
+                    <td>
+                      <input
+                        className="input input--sm"
+                        value={mappingForm.code}
+                        onChange={(e) => setMappingForm({ ...mappingForm, code: e.target.value })}
+                        style={{ width: 80, marginBottom: 4 }}
+                      />
+                      <textarea
+                        className="input input--sm"
+                        rows={2}
+                        value={mappingForm.text}
+                        onChange={(e) => {
+                          setMappingForm({ ...mappingForm, text: e.target.value })
+                          autoResize(e.target)
+                        }}
+                        ref={autoResize}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        className="input input--sm"
+                        value={mappingForm.plos}
+                        onChange={(e) => setMappingForm({ ...mappingForm, plos: e.target.value })}
+                      />
+                    </td>
+                    <td>
+                      <button type="button" className="btn btn--primary btn--sm" onClick={saveMapping}>Save</button>{' '}
+                      <button type="button" className="btn btn--ghost btn--sm" onClick={() => setEditingMappingIdx(null)}>Cancel</button>
+                    </td>
+                  </>
+                ) : (
+                  <>
+                    <td>{c.code}: {c.text}</td>
+                    <td>{c.plos}</td>
+                    <td>
+                      <button type="button" className="btn btn--ghost btn--sm" onClick={() => startEditMapping(idx)}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                        Edit
+                      </button>{' '}
+                      <button type="button" className="btn btn--danger btn--sm" onClick={() => removeMappingRow(idx)}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                        Delete
+                      </button>
+                    </td>
+                  </>
+                )}
               </tr>
             ))}
           </tbody>
         </table>
-      </div>
+        <div style={{ marginTop: 8 }}>
+          <button type="button" className="btn btn--ghost btn--sm" onClick={addMappingRow}>
+            + Add Row
+          </button>
+        </div>
+      </form>
 
       {loading ? (
         <p>Loading course learning outcomes...</p>
