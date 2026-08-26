@@ -843,9 +843,19 @@ code {
 
 .create-resource__row {
   display: grid;
-  grid-template-columns: 1fr 1fr auto;
+  grid-template-columns: 2fr 2fr 2fr 1fr auto;
   gap: 10px;
   align-items: center;
+}
+
+.create-resource__submit {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.create-resource__row--2col {
+  grid-template-columns: 1fr 1fr;
 }
 
 .resource-list {

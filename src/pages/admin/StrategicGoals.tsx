@@ -87,39 +87,30 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
 
       <form className="panel create-resource" onSubmit={onSubmit}>
         <h3>New Strategic Goal</h3>
-        <div className="create-resource__row">
+        <div className="create-resource__row create-resource__row--2col">
           <label className="field">
-            <span>Code</span>
+            <span>Goal</span>
             <input
               className="input input--sm"
               type="text"
-              placeholder="e.g. SG-1"
+              placeholder="e.g. Goal 1"
               value={form.code}
               onChange={(e) => setForm({ ...form, code: e.target.value })}
               required
             />
           </label>
-          <label className="field">
-            <span>Title</span>
-            <input
-              className="input input--sm"
-              type="text"
-              placeholder="Enter title"
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
-              required
-            />
-          </label>
-          <label className="field">
-            <span>Description</span>
-            <textarea
-              className="input input--sm"
-              rows={2}
-              placeholder="Optional description"
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-            />
-          </label>
+        </div>
+        <label className="field">
+          <span>Description</span>
+          <input
+            className="input input--sm"
+            type="text"
+            placeholder="Optional description"
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+          />
+        </label>
+        <div className="create-resource__submit">
           <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
             {busy ? 'Saving...' : 'Add'}
           </button>
@@ -133,16 +124,15 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
           <table className="table">
             <thead>
               <tr>
-                <th>Code</th>
-                <th>Title</th>
+                <th>Goal</th>
                 <th>Description</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {items.length === 0 && (
-                <tr><td colSpan={4}>No strategic goals yet.</td></tr>
-              )}
+                {items.length === 0 && (
+                  <tr><td colSpan={3}>No strategic goals yet.</td></tr>
+                )}
               {items.map((item) => (
                 <tr key={item.id}>
                   {editingId === item.id ? (
@@ -157,14 +147,6 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
                       <td>
                         <input
                           className="input input--sm"
-                          value={editForm.title}
-                          onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                        />
-                      </td>
-                      <td>
-                        <textarea
-                          className="input input--sm"
-                          rows={2}
                           value={editForm.description}
                           onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                         />
@@ -177,7 +159,6 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
                   ) : (
                     <>
                       <td><strong>{item.code}</strong></td>
-                      <td>{item.title}</td>
                       <td>{item.description || '—'}</td>
                       <td>
                         <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)}>Edit</button>{' '}

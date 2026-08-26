@@ -1,5 +1,5 @@
 // Admin CHED Memorandum Orders: CRUD for CMO records.
-// Provides add, edit, and delete functionality for CHED Memorandum Orders
+// Provides add, edit, and archive functionality for CHED Memorandum Orders
 // managed by the admin role. Uses the useEntityCrud hook for shared state.
 
 import { useState, useEffect } from 'react'
@@ -34,6 +34,7 @@ function ChedMemoOrders({ userEmail }: ChedMemoOrdersProps) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState(EMPTY_FORM)
   const [seeded, setSeeded] = useState(false)
+  const [showArchived, setShowArchived] = useState(false)
 
   useEffect(() => { crud.load() }, [crud.load])
 
@@ -73,6 +74,20 @@ function ChedMemoOrders({ userEmail }: ChedMemoOrdersProps) {
     if (ok) setEditingId(null)
   }
 
+  const isActive = (item: ChedMemoOrder) => !item.status || item.status === 'active'
+
+  const handleArchive = async (id: string) => {
+    const item = items.find((i) => i.id === id)
+    if (!item) return
+    const nextStatus = isActive(item) ? 'archived' : 'active'
+    const ok = await handleUpdate(id, { status: nextStatus }, 'ched_memo_order.updated')
+    if (ok) {
+      setMessage(`CHED Memorandum Order ${nextStatus === 'archived' ? 'archived' : 'restored'}.`)
+    }
+  }
+
+  const visibleItems = items.filter((i) => showArchived ? true : isActive(i))
+
   return (
     <div className="curriculum-view">
       {error && <p className="msg msg--error">{error}</p>}
@@ -103,16 +118,18 @@ function ChedMemoOrders({ userEmail }: ChedMemoOrdersProps) {
               required
             />
           </label>
-          <label className="field">
-            <span>Description</span>
-            <textarea
-              className="input input--sm"
-              rows={2}
-              placeholder="Optional description"
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-            />
-          </label>
+        </div>
+        <label className="field">
+          <span>Description</span>
+          <input
+            className="input input--sm"
+            type="text"
+            placeholder="Optional description"
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+          />
+        </label>
+        <div className="create-resource__submit">
           <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
             {busy ? 'Saving...' : 'Add'}
           </button>
@@ -123,6 +140,16 @@ function ChedMemoOrders({ userEmail }: ChedMemoOrdersProps) {
         <p>Loading CHED Memorandum Orders...</p>
       ) : (
         <div className="panel table-wrap">
+          <div className="sd-toolbar-controls">
+            <label className="sd-check">
+              <input
+                type="checkbox"
+                checked={showArchived}
+                onChange={(e) => setShowArchived(e.target.checked)}
+              />
+              Show archived
+            </label>
+          </div>
           <table className="table">
             <thead>
               <tr>
@@ -133,11 +160,11 @@ function ChedMemoOrders({ userEmail }: ChedMemoOrdersProps) {
               </tr>
             </thead>
             <tbody>
-              {items.length === 0 && (
+              {visibleItems.length === 0 && (
                 <tr><td colSpan={4}>No CHED Memorandum Orders yet.</td></tr>
               )}
-              {items.map((item) => (
-                <tr key={item.id}>
+              {visibleItems.map((item) => (
+                <tr key={item.id} className={!isActive(item) ? 'sd-archived' : ''}>
                   {editingId === item.id ? (
                     <>
                       <td>
@@ -155,9 +182,8 @@ function ChedMemoOrders({ userEmail }: ChedMemoOrdersProps) {
                         />
                       </td>
                       <td>
-                        <textarea
+                        <input
                           className="input input--sm"
-                          rows={2}
                           value={editForm.description}
                           onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                         />
@@ -173,8 +199,15 @@ function ChedMemoOrders({ userEmail }: ChedMemoOrdersProps) {
                       <td>{item.title}</td>
                       <td>{item.description || '—'}</td>
                       <td>
-                        <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)}>Edit</button>{' '}
-                        <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'ched_memo_order.deleted')}>Delete</button>
+                        <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} disabled={busy || !!editingId}>Edit</button>{' '}
+                        <button
+                          className={`btn btn--sm ${isActive(item) ? 'btn--danger' : 'btn--ghost'}`}
+                          onClick={() => handleArchive(item.id)}
+                          disabled={busy || !!editingId}
+                        >
+                          {isActive(item) ? 'Archive' : 'Restore'}
+                        </button>
+                        {!isActive(item) && <span className="sd-archived-badge">archived</span>}
                       </td>
                     </>
                   )}
