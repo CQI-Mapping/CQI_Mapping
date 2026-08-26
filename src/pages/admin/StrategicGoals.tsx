@@ -102,12 +102,12 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
         </div>
         <label className="field">
           <span>Description</span>
-          <input
+          <textarea
             className="input input--sm"
-            type="text"
             placeholder="Optional description"
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
+            rows={3}
           />
         </label>
         <div className="create-resource__submit">
@@ -145,10 +145,11 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
                         />
                       </td>
                       <td>
-                        <input
+                        <textarea
                           className="input input--sm"
                           value={editForm.description}
                           onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                          rows={3}
                         />
                       </td>
                       <td>
