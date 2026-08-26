@@ -1,8 +1,9 @@
 // Admin Users page: create new manager accounts.
 // Minimal page with a form to add a manager by email, password, and full name.
 
-import { useState } from 'react'
-import { adminCreateUser, addActivityLog } from '../../services/database'
+import { useState, useEffect } from 'react'
+import { adminCreateUser, addActivityLog, fetchAllProfiles } from '../../services/database'
+import type { Profile } from '../../services/database'
 
 function Users() {
   const [email, setEmail] = useState('')
@@ -12,6 +13,22 @@ function Users() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+
+  const [users, setUsers] = useState<Profile[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const loadUsers = async () => {
+    setLoading(true)
+    try {
+      setUsers(await fetchAllProfiles())
+    } catch (e) {
+      setError('Unable to load users: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { loadUsers() }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -31,6 +48,7 @@ function Users() {
       setEmail('')
       setPassword('')
       setFullName('')
+      loadUsers()
     } catch (e) {
       setError('Failed to create manager: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
@@ -99,6 +117,36 @@ function Users() {
             </button>
           </div>
         </form>
+      </div>
+
+      <div className="panel table-wrap" style={{ marginTop: 16 }}>
+        <h3>All Users</h3>
+        {loading ? (
+          <p>Loading users...</p>
+        ) : (
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Joined</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u) => (
+                <tr key={u.id}>
+                  <td>{u.full_name || '—'}</td>
+                  <td>{u.email}</td>
+                  <td>
+                    <span className={`role-badge role-badge--${u.role}`}>{u.role}</span>
+                  </td>
+                  <td>{new Date(u.created_at).toLocaleDateString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   )
