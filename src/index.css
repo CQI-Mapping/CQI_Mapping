@@ -1254,6 +1254,13 @@ code {
   line-height: 1.5;
 }
 
+/* Auto-expanding textarea */
+textarea.input {
+  resize: none;
+  overflow: hidden;
+  min-height: 60px;
+}
+
 .sd-table--po .sd-po-section-row td {
   font-weight: 700;
   padding: 8px 10px 4px;

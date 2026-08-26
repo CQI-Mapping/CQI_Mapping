@@ -2,7 +2,7 @@
 // Provides add, edit, and delete functionality for strategic goals
 // managed by the admin role. Uses the useEntityCrud hook for shared state.
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useEntityCrud } from './curriculum/useEntityCrud.js'
 import {
   fetchStrategicGoals,
@@ -42,6 +42,12 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState(EMPTY_FORM)
   const [seeded, setSeeded] = useState(false)
+
+  const autoResize = useCallback((el: HTMLTextAreaElement | null) => {
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [])
 
   useEffect(() => { crud.load() }, [crud.load])
 
@@ -106,7 +112,11 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
             className="input input--sm"
             placeholder="Optional description"
             value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            onChange={(e) => {
+              setForm({ ...form, description: e.target.value })
+              autoResize(e.target)
+            }}
+            ref={autoResize}
             rows={3}
           />
         </label>
@@ -148,7 +158,11 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
                         <textarea
                           className="input input--sm"
                           value={editForm.description}
-                          onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                          onChange={(e) => {
+                            setEditForm({ ...editForm, description: e.target.value })
+                            autoResize(e.target)
+                          }}
+                          ref={autoResize}
                           rows={3}
                         />
                       </td>
