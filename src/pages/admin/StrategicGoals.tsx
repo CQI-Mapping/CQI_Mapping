@@ -122,7 +122,7 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
         </label>
         <div className="create-resource__submit">
           <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
-            {busy ? 'Saving...' : 'Add'}
+            {busy ? 'Saving...' : 'Archive'}
           </button>
         </div>
       </form>
