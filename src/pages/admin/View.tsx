@@ -516,7 +516,7 @@ function View({ userEmail }: ViewProps) {
               ))}
             </tbody>
           </table>
-          <table className="sd-table sd-table--map">
+          <table className="sd-table sd-table--map" style={{ marginTop: 16 }}>
             <thead>
               <tr>
                 <th className="sd-map-outcomes">
