@@ -42,12 +42,27 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState(EMPTY_FORM)
   const [seeded, setSeeded] = useState(false)
+  const [showArchived, setShowArchived] = useState(false)
 
   const autoResize = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return
     el.style.height = 'auto'
     el.style.height = `${el.scrollHeight}px`
   }, [])
+
+  const isActive = (item: StrategicGoal) => item.status === 'active'
+  const visibleItems = items.filter((i) => showArchived ? !isActive(i) : isActive(i))
+  const archivedCount = items.filter((i) => !isActive(i)).length
+
+  const handleArchive = async (id: string) => {
+    const item = items.find((i) => i.id === id)
+    if (!item) return
+    const nextStatus = isActive(item) ? 'archived' : 'active'
+    const ok = await handleUpdate(id, { status: nextStatus }, 'strategic_goal.updated')
+    if (ok) {
+      setMessage(`Strategic Goal ${nextStatus === 'archived' ? 'archived' : 'restored'}.`)
+    }
+  }
 
   useEffect(() => { crud.load() }, [crud.load])
 
@@ -131,6 +146,20 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
         <p>Loading strategic goals...</p>
       ) : (
         <div className="panel table-wrap">
+          <div className="sd-tabs">
+            <button
+              className={`sd-tab ${!showArchived ? 'sd-tab--active' : ''}`}
+              onClick={() => setShowArchived(false)}
+            >
+              Active
+            </button>
+            <button
+              className={`sd-tab ${showArchived ? 'sd-tab--active' : ''}`}
+              onClick={() => setShowArchived(true)}
+            >
+              Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
+            </button>
+          </div>
           <table className="table">
             <thead>
               <tr>
@@ -140,10 +169,10 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
               </tr>
             </thead>
             <tbody>
-                {items.length === 0 && (
-                  <tr><td colSpan={3}>No strategic goals yet.</td></tr>
-                )}
-              {items.map((item) => (
+              {visibleItems.length === 0 && (
+                <tr><td colSpan={3}>No strategic goals yet.</td></tr>
+              )}
+              {visibleItems.map((item) => (
                 <tr key={item.id}>
                   {editingId === item.id ? (
                     <>
@@ -177,7 +206,12 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
                       <td>{item.description || '—'}</td>
                       <td>
                         <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)}>Edit</button>{' '}
-                        <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'strategic_goal.deleted')}>Archive</button>
+                        <button
+                          className={`btn btn--sm ${isActive(item) ? 'btn--danger' : 'btn--ghost'}`}
+                          onClick={() => handleArchive(item.id)}
+                        >
+                          {isActive(item) ? 'Archive' : 'Restore'}
+                        </button>
                       </td>
                     </>
                   )}
