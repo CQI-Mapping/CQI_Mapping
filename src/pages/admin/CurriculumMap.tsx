@@ -200,7 +200,7 @@ function CurriculumMap({ userEmail }: CurriculumMapProps) {
           <span className="sd-edit-row__text">{display}</span>
         )}
         {editMode && rowActions(kind, item.id)}
-        {editMode && isActive(item) === false && <span className="sd-archived-badge">archived</span>}
+
       </div>
     )
   }
@@ -332,7 +332,7 @@ function CurriculumMap({ userEmail }: CurriculumMapProps) {
                         {editMode && (
                           <span className="sd-po-single-item__actions">
                             {rowActions('po', p.id)}
-                            {!isActive(p) && <span className="sd-archived-badge">archived</span>}
+
                           </span>
                         )}
                         {editingThis && (
@@ -367,7 +367,7 @@ function CurriculumMap({ userEmail }: CurriculumMapProps) {
                         {editMode && (
                           <span className="sd-po-single-item__actions">
                             {rowActions('po', p.id)}
-                            {!isActive(p) && <span className="sd-archived-badge">archived</span>}
+
                           </span>
                         )}
                         {editingThis && (
@@ -402,7 +402,7 @@ function CurriculumMap({ userEmail }: CurriculumMapProps) {
                         {editMode && (
                           <span className="sd-po-single-item__actions">
                             {rowActions('po', p.id)}
-                            {!isActive(p) && <span className="sd-archived-badge">archived</span>}
+
                           </span>
                         )}
                         {editingThis && (
@@ -437,7 +437,7 @@ function CurriculumMap({ userEmail }: CurriculumMapProps) {
                         {editMode && (
                           <span className="sd-po-single-item__actions">
                             {rowActions('po', p.id)}
-                            {!isActive(p) && <span className="sd-archived-badge">archived</span>}
+
                           </span>
                         )}
                         {editingThis && (
@@ -472,7 +472,7 @@ function CurriculumMap({ userEmail }: CurriculumMapProps) {
                         {editMode && (
                           <span className="sd-po-single-item__actions">
                             {rowActions('po', p.id)}
-                            {!isActive(p) && <span className="sd-archived-badge">archived</span>}
+
                           </span>
                         )}
                         {editingThis && (

@@ -248,7 +248,7 @@ function ChedMemoOrders({ userEmail }: ChedMemoOrdersProps) {
                             Delete
                           </button>
                         )}
-                        {!isActive(item) && <span className="sd-archived-badge">archived</span>}
+
                       </td>
                     </>
                   )}
