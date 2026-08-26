@@ -9,7 +9,7 @@
 // (vision/mission wording, curriculum mapping columns, course details) is
 // transcribed in src/data/vcqiSyllabus.ts and stays read-only.
 
-import { useState, useEffect, useCallback, Fragment } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   fetchStrategicGoals,
   fetchProgramEducationalObjectives,
@@ -305,7 +305,7 @@ function CurriculumMap({ userEmail }: CurriculumMapProps) {
             </tbody>
           </table>
 
-          {/* Program Outcomes — single-column table matching official document format */}
+          {/* Program Outcomes — single continuous table, academic document format */}
           <table className="sd-table sd-table--po-single">
             <thead>
               <tr>
@@ -313,54 +313,203 @@ function CurriculumMap({ userEmail }: CurriculumMapProps) {
               </tr>
             </thead>
             <tbody>
-              {PO_SECTION_HEADINGS.map((section) => {
-                const items = visiblePos.filter((p) => {
-                  const n = poNumber(p.code)
-                  return n >= section.from && n <= section.to
-                })
-                if (items.length === 0) return null
-                return (
-                  <Fragment key={section.heading}>
-                    <tr>
-                      <td className="sd-po-single-section">
-                        <div className="sd-po-single-section__head">
-                          {section.heading}
-                          {section.note && <em> {section.note}</em>}
-                        </div>
-                        {section.sub && <div className="sd-po-single-section__sub">{section.sub}</div>}
-                      </td>
-                    </tr>
-                    {items.map((p) => {
-                      const editingThis = edit && edit.kind === 'po' && edit.id === p.id
-                      return (
-                        <tr key={p.id} className={isActive(p) ? '' : 'sd-archived'}>
-                          <td className="sd-po-single-item">
-                            <div className="sd-po-single-item__row">
-                              <span className="sd-po-single-item__num">{p.code.replace('PO-', '')}.</span>
-                              {editingThis ? (
-                                <input
-                                  className="input input--sm sd-po-single-item__input"
-                                  value={edit.title}
-                                  onChange={(e) => setEdit({ ...edit, title: e.target.value })}
-                                  disabled={busy}
-                                />
-                              ) : (
-                                <span className="sd-po-single-item__text">{p.title}</span>
-                              )}
-                              {editMode && (
-                                <span className="sd-po-single-item__actions">
-                                  {rowActions('po', p.id)}
-                                  {!isActive(p) && <span className="sd-archived-badge">archived</span>}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </Fragment>
-                )
-              })}
+              {/* Section 1: Common to all programs */}
+              <tr>
+                <td className="sd-po-single-section">
+                  <div className="sd-po-single-section__head">
+                    COMMON TO ALL PROGRAMS IN ALL TYPES OF SCHOOLS
+                  </div>
+                  <div className="sd-po-single-section__sub">
+                    The NBSC graduates have the ability to:
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td className="sd-po-single-item">
+                  {visiblePos.filter((p) => { const n = poNumber(p.code); return n >= 1 && n <= 5 }).map((p, i, arr) => {
+                    const editingThis = edit && edit.kind === 'po' && edit.id === p.id
+                    const isLast = i === arr.length - 1
+                    const semicolon = isLast ? '.' : ';'
+                    return (
+                      <span key={p.id} className={isActive(p) ? '' : 'sd-archived'}>
+                        {p.title.replace(/\.$/, '')}{semicolon}{' '}
+                        {editMode && (
+                          <span className="sd-po-single-item__actions">
+                            {rowActions('po', p.id)}
+                            {!isActive(p) && <span className="sd-archived-badge">archived</span>}
+                          </span>
+                        )}
+                        {editingThis && (
+                          <span className="sd-po-single-edit">
+                            <input
+                              className="input input--sm"
+                              value={edit.title}
+                              onChange={(e) => setEdit({ ...edit, title: e.target.value })}
+                              disabled={busy}
+                            />
+                          </span>
+                        )}
+                      </span>
+                    )
+                  })}
+                </td>
+              </tr>
+
+              {/* Section 2: BS in Computer Science POs */}
+              <tr>
+                <td className="sd-po-single-section">
+                  <div className="sd-po-single-section__head">
+                    BACHELOR OF SCIENCE IN COMPUTER SCIENCE PROGRAM OUTCOMES
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td className="sd-po-single-item">
+                  {visiblePos.filter((p) => { const n = poNumber(p.code); return n >= 6 && n <= 9 }).map((p, i, arr) => {
+                    const editingThis = edit && edit.kind === 'po' && edit.id === p.id
+                    const isLast = i === arr.length - 1
+                    const semicolon = isLast ? '.' : ';'
+                    return (
+                      <span key={p.id} className={isActive(p) ? '' : 'sd-archived'}>
+                        {p.title.replace(/\.$/, '')}{semicolon}{' '}
+                        {editMode && (
+                          <span className="sd-po-single-item__actions">
+                            {rowActions('po', p.id)}
+                            {!isActive(p) && <span className="sd-archived-badge">archived</span>}
+                          </span>
+                        )}
+                        {editingThis && (
+                          <span className="sd-po-single-edit">
+                            <input
+                              className="input input--sm"
+                              value={edit.title}
+                              onChange={(e) => setEdit({ ...edit, title: e.target.value })}
+                              disabled={busy}
+                            />
+                          </span>
+                        )}
+                      </span>
+                    )
+                  })}
+                </td>
+              </tr>
+
+              {/* Section 3: Specific to sub-discipline */}
+              <tr>
+                <td className="sd-po-single-section">
+                  <div className="sd-po-single-section__head">
+                    SPECIFIC TO A SUB-DISCIPLINE AND A MAJOR <em>(CMO 25 s. 2015)</em>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td className="sd-po-single-item">
+                  {visiblePos.filter((p) => { const n = poNumber(p.code); return n >= 10 && n <= 22 }).map((p, i, arr) => {
+                    const editingThis = edit && edit.kind === 'po' && edit.id === p.id
+                    const isLast = i === arr.length - 1
+                    const semicolon = isLast ? '.' : ';'
+                    return (
+                      <span key={p.id} className={isActive(p) ? '' : 'sd-archived'}>
+                        {p.title.replace(/\.$/, '')}{semicolon}{' '}
+                        {editMode && (
+                          <span className="sd-po-single-item__actions">
+                            {rowActions('po', p.id)}
+                            {!isActive(p) && <span className="sd-archived-badge">archived</span>}
+                          </span>
+                        )}
+                        {editingThis && (
+                          <span className="sd-po-single-edit">
+                            <input
+                              className="input input--sm"
+                              value={edit.title}
+                              onChange={(e) => setEdit({ ...edit, title: e.target.value })}
+                              disabled={busy}
+                            />
+                          </span>
+                        )}
+                      </span>
+                    )
+                  })}
+                </td>
+              </tr>
+
+              {/* Section 4: Common to horizontal types */}
+              <tr>
+                <td className="sd-po-single-section">
+                  <div className="sd-po-single-section__head">
+                    COMMON TO HORIZONTAL TYPES <em>(CMO 46 s. 2012)</em>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td className="sd-po-single-item">
+                  {visiblePos.filter((p) => { const n = poNumber(p.code); return n >= 23 && n <= 25 }).map((p, i, arr) => {
+                    const editingThis = edit && edit.kind === 'po' && edit.id === p.id
+                    const isLast = i === arr.length - 1
+                    const semicolon = isLast ? '.' : ';'
+                    return (
+                      <span key={p.id} className={isActive(p) ? '' : 'sd-archived'}>
+                        {p.title.replace(/\.$/, '')}{semicolon}{' '}
+                        {editMode && (
+                          <span className="sd-po-single-item__actions">
+                            {rowActions('po', p.id)}
+                            {!isActive(p) && <span className="sd-archived-badge">archived</span>}
+                          </span>
+                        )}
+                        {editingThis && (
+                          <span className="sd-po-single-edit">
+                            <input
+                              className="input input--sm"
+                              value={edit.title}
+                              onChange={(e) => setEdit({ ...edit, title: e.target.value })}
+                              disabled={busy}
+                            />
+                          </span>
+                        )}
+                      </span>
+                    )
+                  })}
+                </td>
+              </tr>
+
+              {/* Section 5: College defined */}
+              <tr>
+                <td className="sd-po-single-section">
+                  <div className="sd-po-single-section__head">
+                    COLLEGE DEFINED PROGRAM OUTCOME
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td className="sd-po-single-item">
+                  {visiblePos.filter((p) => { const n = poNumber(p.code); return n >= 26 && n <= 27 }).map((p, i, arr) => {
+                    const editingThis = edit && edit.kind === 'po' && edit.id === p.id
+                    const isLast = i === arr.length - 1
+                    const semicolon = isLast ? '.' : ';'
+                    return (
+                      <span key={p.id} className={isActive(p) ? '' : 'sd-archived'}>
+                        {p.title.replace(/\.$/, '')}{semicolon}{' '}
+                        {editMode && (
+                          <span className="sd-po-single-item__actions">
+                            {rowActions('po', p.id)}
+                            {!isActive(p) && <span className="sd-archived-badge">archived</span>}
+                          </span>
+                        )}
+                        {editingThis && (
+                          <span className="sd-po-single-edit">
+                            <input
+                              className="input input--sm"
+                              value={edit.title}
+                              onChange={(e) => setEdit({ ...edit, title: e.target.value })}
+                              disabled={busy}
+                            />
+                          </span>
+                        )}
+                      </span>
+                    )
+                  })}
+                </td>
+              </tr>
             </tbody>
           </table>
 
