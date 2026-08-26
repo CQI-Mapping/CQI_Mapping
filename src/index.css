@@ -1236,26 +1236,11 @@ code {
   margin-top: 4px;
 }
 
-/* Numbered outcome layout — number on its own line, text below */
+/* Numbered outcome layout */
 .sd-po-single-outcome {
   padding: 2px 0;
-}
-
-.sd-po-single-outcome__num {
-  font-weight: 700;
-  font-size: 13px;
-  line-height: 1.4;
-}
-
-.sd-po-single-outcome__text {
   font-size: 13px;
   line-height: 1.5;
-  text-align: justify;
-}
-
-.sd-po-single-outcome__text .sd-po-single-item__actions {
-  font-size: 11px;
-  white-space: nowrap;
 }
 
 .sd-table--po .sd-po-section-row td {
