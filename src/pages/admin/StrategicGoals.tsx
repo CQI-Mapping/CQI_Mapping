@@ -32,8 +32,24 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
   const [form, setForm] = useState(EMPTY_FORM)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState(EMPTY_FORM)
+  const [seeded, setSeeded] = useState(false)
 
   useEffect(() => { crud.load() }, [crud.load])
+
+  // Seed default strategic goals when the table is empty (first load only).
+  useEffect(() => {
+    if (loading || seeded || items.length > 0) return
+    setSeeded(true)
+    const defaults = [
+      { code: 'SG-1', title: 'Excellence in Teaching and Learning', description: null },
+      { code: 'SG-2', title: 'Outstanding Human Resource Development', description: null },
+      { code: 'SG-3', title: 'High Impact Research', description: null },
+      { code: 'SG-4', title: 'Exemplary Service to the Profession and Community Engagement', description: null },
+      { code: 'SG-5', title: '21st Century Infrastructure and Operational Sustainability', description: null },
+    ]
+    defaults.reduce((prev, goal) => prev.then(() => createStrategicGoal(goal)), Promise.resolve())
+      .then(() => crud.load())
+  }, [loading, seeded, items.length])
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
