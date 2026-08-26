@@ -122,7 +122,7 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
         </label>
         <div className="create-resource__submit">
           <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
-            {busy ? 'Saving...' : 'Archive'}
+            {busy ? 'Saving...' : 'Add'}
           </button>
         </div>
       </form>
@@ -177,7 +177,7 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
                       <td>{item.description || '—'}</td>
                       <td>
                         <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)}>Edit</button>{' '}
-                        <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'strategic_goal.deleted')}>Delete</button>
+                        <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'strategic_goal.deleted')}>Archive</button>
                       </td>
                     </>
                   )}
