@@ -1326,10 +1326,11 @@ textarea.input {
 .sd-table--map .sd-map-outcomes {
   width: 74%;
   text-align: center;
+  vertical-align: middle;
 }
 
 .sd-map-cell {
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 .sd-table ol {
