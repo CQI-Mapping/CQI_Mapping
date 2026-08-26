@@ -1346,15 +1346,16 @@ textarea.input {
 /* Course learning outcomes table — first column aligned to STRATEGIC GOALS left border (87%) */
 .sd-table--clo td:nth-child(1) { width: 87%; }
 
-.sd-table--clo td:nth-child(2) { width: 13%; }
+.sd-table--clo td:nth-child(2) { width: 13%; text-align: center; }
 
 .sd-table--clo th:nth-child(1) {
   text-align: center;
   color: #111;
+  vertical-align: middle;
 }
 
 .sd-table--clo th:nth-child(2) {
-  text-align: left;
+  text-align: center;
   color: #111;
 }
 
