@@ -496,7 +496,7 @@ function View({ userEmail }: ViewProps) {
           {/* Curriculum Mapping — one row per outcome, PEO/Goal cells aligned.
               Static transcription from the source syllabus (not editable). */}
           <div className="sd-band sd-band--center">CURRICULUM MAPPING</div>
-          <table className="sd-table sd-table--map">
+          <table className="sd-table sd-table--map" style={{ marginBottom: 0 }}>
             <thead>
               <tr>
                 <th className="sd-map-outcomes">
@@ -516,7 +516,7 @@ function View({ userEmail }: ViewProps) {
               ))}
             </tbody>
           </table>
-          <table className="sd-table sd-table--map" style={{ marginTop: 16 }}>
+          <table className="sd-table sd-table--map" style={{ marginTop: 0 }}>
             <thead>
               <tr>
                 <th className="sd-map-outcomes">
