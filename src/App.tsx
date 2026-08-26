@@ -39,12 +39,11 @@ import type { Session } from '@supabase/supabase-js'
 // NAV map: which sidebar items each role can see.
 const NAV: Record<UserRole, NavItem[]> = {
   admin: [
-    { id: 'dashboard', label: 'Dashboard' },
+    { id: 'ched-memo', label: 'CHED Memorandum Orders' },
+    { id: 'strategic-goals', label: 'Strategic Goals' },
     { id: 'peos', label: 'Program Educational Objectives' },
     { id: 'program-outcomes', label: 'Program Outcomes' },
     { id: 'clo', label: 'Course Learning Outcomes' },
-    { id: 'strategic-goals', label: 'Strategic Goals' },
-    { id: 'ched-memo', label: 'CHED Memorandum Orders' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
   ],
@@ -169,7 +168,6 @@ function App() {
 
     if (page === 'profile') return <Page profile={profile} onSaved={setProfile} />
     if (page === 'curriculum' && role !== 'user') return <Page userEmail={profile?.email} />
-    if (page === 'clo-po' && role !== 'user') return <Page userEmail={profile?.email} />
     return <Page profile={profile} />
   }
 

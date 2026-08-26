@@ -66,29 +66,38 @@ function ProgramEducationalObjectives({ userEmail }: ProgramEducationalObjective
       <form className="panel create-resource" onSubmit={onSubmit}>
         <h3>New Program Educational Objective</h3>
         <div className="create-resource__row">
-          <input
-            className="input input--sm"
-            type="text"
-            placeholder="Code (e.g. PEO-1)"
-            value={form.code}
-            onChange={(e) => setForm({ ...form, code: e.target.value })}
-            required
-          />
-          <input
-            className="input input--sm"
-            type="text"
-            placeholder="Title"
-            value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
-            required
-          />
-          <input
-            className="input input--sm"
-            type="text"
-            placeholder="Description (optional)"
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-          />
+          <label className="field">
+            <span>Code</span>
+            <input
+              className="input input--sm"
+              type="text"
+              placeholder="e.g. PEO-1"
+              value={form.code}
+              onChange={(e) => setForm({ ...form, code: e.target.value })}
+              required
+            />
+          </label>
+          <label className="field">
+            <span>Title</span>
+            <input
+              className="input input--sm"
+              type="text"
+              placeholder="Enter title"
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              required
+            />
+          </label>
+          <label className="field">
+            <span>Description</span>
+            <input
+              className="input input--sm"
+              type="text"
+              placeholder="Optional description"
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+            />
+          </label>
           <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
             {busy ? 'Saving...' : 'Add'}
           </button>
