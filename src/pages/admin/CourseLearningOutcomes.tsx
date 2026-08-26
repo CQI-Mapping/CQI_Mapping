@@ -13,11 +13,9 @@ import {
   seedIt21Course,
 } from '../../services/database'
 import type { CourseLearningOutcomeStandalone } from '../../services/database'
-import { SEED_CLOS, CLO_PLO_MAPPING } from '../../data/vcqiSyllabus.js'
+import { SEED_CLOS } from '../../data/vcqiSyllabus.js'
 
 const EMPTY_FORM = { code: '', title: '', description: '' }
-
-type MappingRow = { code: string; text: string; plos: string }
 
 interface CourseLearningOutcomesProps {
   userEmail: string
@@ -39,7 +37,6 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
   const [editForm, setEditForm] = useState(EMPTY_FORM)
   const [seeded, setSeeded] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
-  const [mapping, setMapping] = useState<MappingRow[]>(CLO_PLO_MAPPING)
 
   const autoResize = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return
@@ -100,14 +97,6 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
     if (ok) setEditingId(null)
   }
 
-  const addMappingRow = () => {
-    setMapping([...mapping, { code: `CLO${mapping.length + 1}`, text: '', plos: '' }])
-  }
-
-  const removeMappingRow = (idx: number) => {
-    setMapping(mapping.filter((_, i) => i !== idx))
-  }
-
   return (
     <div className="curriculum-view">
       {error && <p className="msg msg--error">{error}</p>}
@@ -153,74 +142,6 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
         <div className="create-resource__submit">
           <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
             {busy ? 'Saving...' : 'Add'}
-          </button>
-        </div>
-
-        <h3 style={{ marginTop: 24 }}>Curriculum Mapping</h3>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>CLO Number</th>
-              <th>Description</th>
-              <th>Program Outcomes</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {mapping.map((c, idx) => (
-              <tr key={idx}>
-                <td>
-                  <input
-                    className="input input--sm"
-                    value={c.code}
-                    onChange={(e) => {
-                      const updated = [...mapping]
-                      updated[idx] = { ...updated[idx], code: e.target.value }
-                      setMapping(updated)
-                    }}
-                    placeholder="e.g. CLO1"
-                  />
-                </td>
-                <td>
-                  <textarea
-                    className="input input--sm"
-                    rows={2}
-                    value={c.text}
-                    onChange={(e) => {
-                      const updated = [...mapping]
-                      updated[idx] = { ...updated[idx], text: e.target.value }
-                      setMapping(updated)
-                      autoResize(e.target)
-                    }}
-                    ref={autoResize}
-                    placeholder="e.g. Compare and contrast..."
-                  />
-                </td>
-                <td>
-                  <input
-                    className="input input--sm"
-                    value={c.plos}
-                    onChange={(e) => {
-                      const updated = [...mapping]
-                      updated[idx] = { ...updated[idx], plos: e.target.value }
-                      setMapping(updated)
-                    }}
-                    placeholder="e.g. PLO 1, PLO 3"
-                  />
-                </td>
-                <td>
-                  <button type="button" className="btn btn--danger btn--sm" onClick={() => removeMappingRow(idx)}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <div style={{ marginTop: 8 }}>
-          <button type="button" className="btn btn--ghost btn--sm" onClick={addMappingRow}>
-            + Add Row
           </button>
         </div>
       </form>
