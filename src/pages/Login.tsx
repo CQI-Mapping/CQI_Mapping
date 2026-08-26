@@ -52,14 +52,7 @@ function Login() {
         <div className="login-card">
           <div className="login-brand">
             <div className="login-brand-mark">CQI</div>
-            <div>
-              <h1>CQI Monitoring System</h1>
-              <p>Curriculum Mapping · Outcomes Alignment</p>
-            </div>
           </div>
-
-          <h2>Welcome back</h2>
-          <p className="login-subtitle">Sign in to access your dashboard.</p>
 
           {error && <div className="login-alert login-alert--error">{error}</div>}
 
