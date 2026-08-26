@@ -538,15 +538,22 @@ function CurriculumMap({ userEmail }: CurriculumMapProps) {
           </table>
 
           {/* Course Learning Outcomes */}
-          <div className="sd-band sd-band--center">COURSE LEARNING OUTCOMES</div>
-          <div className="sd-clo-plo-list">
-            {CLO_PLO_MAPPING.map((c) => (
-              <div key={c.code} className="sd-clo-plo-item">
-                <div className="sd-clo-plo-item__clo">{c.code}: {c.text}</div>
-                <div className="sd-clo-plo-item__plos">{c.plos}</div>
-              </div>
-            ))}
-          </div>
+          <table className="sd-table sd-table--clo">
+            <thead>
+              <tr>
+                <th>Course Learning Outcomes</th>
+                <th className="sd-map-col">Program Outcomes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {CLO_PLO_MAPPING.map((c) => (
+                <tr key={c.code}>
+                  <td>{c.code}: {c.text}</td>
+                  <td>{c.plos}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
 
           {/* Course Details */}
           <div className="sd-details">

@@ -1358,34 +1358,6 @@ textarea.input {
   color: #111;
 }
 
-/* CLO/PLO list layout */
-.sd-clo-plo-list {
-  margin-bottom: 12px;
-}
-
-.sd-clo-plo-item {
-  margin-bottom: 12px;
-  padding: 8px 0;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.sd-clo-plo-item:last-child {
-  border-bottom: none;
-}
-
-.sd-clo-plo-item__clo {
-  font-size: 13px;
-  color: #111;
-  margin-bottom: 4px;
-}
-
-.sd-clo-plo-item__plos {
-  font-size: 13px;
-  color: #333;
-  margin-left: 16px;
-  white-space: pre-line;
-}
-
 /* Course details */
 .sd-details__list {
   margin: 6px 0 6px 1.4em;

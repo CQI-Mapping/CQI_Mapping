@@ -13,7 +13,7 @@ import {
   seedIt21Course,
 } from '../../services/database'
 import type { CourseLearningOutcomeStandalone } from '../../services/database'
-import { SEED_CLOS } from '../../data/vcqiSyllabus.js'
+import { SEED_CLOS, CLO_PLO_MAPPING } from '../../data/vcqiSyllabus.js'
 
 const EMPTY_FORM = { code: '', title: '', description: '' }
 
@@ -141,6 +141,26 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
           </button>
         </div>
       </form>
+
+      <div className="panel">
+        <h3>Curriculum Mapping</h3>
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Course Learning Outcomes</th>
+              <th>Program Outcomes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {CLO_PLO_MAPPING.map((c) => (
+              <tr key={c.code}>
+                <td>{c.code}: {c.text}</td>
+                <td>{c.plos}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {loading ? (
         <p>Loading course learning outcomes...</p>
