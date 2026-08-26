@@ -51,10 +51,7 @@ function ProgramOutcomes({ userEmail }: ProgramOutcomesProps) {
     const item = items.find((i) => i.id === id)
     if (!item) return
     const nextStatus = isActive(item) ? 'archived' : 'active'
-    const ok = await handleUpdate(id, { status: nextStatus }, 'program_outcome.updated')
-    if (ok) {
-      setMessage(`Program Outcome ${nextStatus === 'archived' ? 'archived' : 'restored'}.`)
-    }
+    await handleUpdate(id, { status: nextStatus }, 'program_outcome.updated')
   }
 
   useEffect(() => { crud.load() }, [crud.load])

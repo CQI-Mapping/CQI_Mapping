@@ -58,10 +58,7 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
     const item = items.find((i) => i.id === id)
     if (!item) return
     const nextStatus = isActive(item) ? 'archived' : 'active'
-    const ok = await handleUpdate(id, { status: nextStatus }, 'strategic_goal.updated')
-    if (ok) {
-      setMessage(`Strategic Goal ${nextStatus === 'archived' ? 'archived' : 'restored'}.`)
-    }
+    await handleUpdate(id, { status: nextStatus }, 'strategic_goal.updated')
   }
 
   useEffect(() => { crud.load() }, [crud.load])

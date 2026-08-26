@@ -50,10 +50,7 @@ function ProgramEducationalObjectives({ userEmail }: ProgramEducationalObjective
     const item = items.find((i) => i.id === id)
     if (!item) return
     const nextStatus = isActive(item) ? 'archived' : 'active'
-    const ok = await handleUpdate(id, { status: nextStatus }, 'peo.updated')
-    if (ok) {
-      setMessage(`PEO ${nextStatus === 'archived' ? 'archived' : 'restored'}.`)
-    }
+    await handleUpdate(id, { status: nextStatus }, 'peo.updated')
   }
 
   useEffect(() => { crud.load() }, [crud.load])

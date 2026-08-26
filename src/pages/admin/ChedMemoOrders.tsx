@@ -86,10 +86,7 @@ function ChedMemoOrders({ userEmail }: ChedMemoOrdersProps) {
     const item = items.find((i) => i.id === id)
     if (!item) return
     const nextStatus = isActive(item) ? 'archived' : 'active'
-    const ok = await handleUpdate(id, { status: nextStatus }, 'ched_memo_order.updated')
-    if (ok) {
-      setMessage(`CHED Memorandum Order ${nextStatus === 'archived' ? 'archived' : 'restored'}.`)
-    }
+    await handleUpdate(id, { status: nextStatus }, 'ched_memo_order.updated')
   }
 
   const visibleItems = items.filter((i) => showArchived ? !isActive(i) : isActive(i))
