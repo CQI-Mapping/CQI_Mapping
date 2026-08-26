@@ -1496,3 +1496,18 @@ textarea.input {
   color: #16a34a;
   border-bottom-color: #16a34a;
 }
+
+.sd-tab__count {
+  display: inline-block;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 12px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  margin-left: 4px;
+}
+
+.sd-tab--active .sd-tab__count {
+  background: #dcfce7;
+  color: #16a34a;
+}

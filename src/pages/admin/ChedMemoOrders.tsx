@@ -93,6 +93,7 @@ function ChedMemoOrders({ userEmail }: ChedMemoOrdersProps) {
   }
 
   const visibleItems = items.filter((i) => showArchived ? !isActive(i) : isActive(i))
+  const archivedCount = items.filter((i) => !isActive(i)).length
 
   return (
     <div className="curriculum-view">
@@ -161,7 +162,7 @@ function ChedMemoOrders({ userEmail }: ChedMemoOrdersProps) {
               className={`sd-tab ${showArchived ? 'sd-tab--active' : ''}`}
               onClick={() => setShowArchived(true)}
             >
-              Archive
+              Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
             </button>
           </div>
           <table className="table">
