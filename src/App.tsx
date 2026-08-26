@@ -31,6 +31,7 @@ import AdminStrategicGoals from './pages/admin/StrategicGoals'
 import AdminPEOs from './pages/admin/ProgramEducationalObjectives'
 import AdminProgramOutcomes from './pages/admin/ProgramOutcomes'
 import AdminCourseLearningOutcomes from './pages/admin/CourseLearningOutcomes'
+import AdminUsers from './pages/admin/Users'
 import { supabase } from './utils/supabaseClient'
 import { ensureProfile, syncDemoRole } from './services/database'
 import type { Profile as ProfileType, UserRole, NavItem } from './services/database'
@@ -44,6 +45,7 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'peos', label: 'Program Educational Objectives' },
     { id: 'program-outcomes', label: 'Program Outcomes' },
     { id: 'clo', label: 'Course Learning Outcomes' },
+    { id: 'users', label: 'Users & Accounts' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
   ],
@@ -71,6 +73,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     clo: AdminCourseLearningOutcomes,
     'strategic-goals': AdminStrategicGoals,
     'ched-memo': AdminChedMemoOrders,
+    users: AdminUsers,
     'activity-logs': AdminActivityLogs,
     profile: Profile,
   },
@@ -167,6 +170,7 @@ function App() {
     const Page = PAGES[role]?.[page] ?? UserDashboard
 
     if (page === 'profile') return <Page profile={profile} onSaved={setProfile} />
+    if (page === 'users') return <Page />
     if (page === 'curriculum' && role !== 'user') return <Page userEmail={profile?.email} />
     return <Page profile={profile} />
   }
