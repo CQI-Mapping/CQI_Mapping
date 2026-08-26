@@ -165,12 +165,13 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
               <tr>
                 <th>Goal</th>
                 <th>Description</th>
+                <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {visibleItems.length === 0 && (
-                <tr><td colSpan={3}>No strategic goals yet.</td></tr>
+                <tr><td colSpan={4}>No strategic goals yet.</td></tr>
               )}
               {visibleItems.map((item) => (
                 <tr key={item.id} className={!isActive(item) ? 'sd-archived' : ''}>
@@ -195,15 +196,18 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
                           rows={3}
                         />
                       </td>
-                      <td>
-                        <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>Save</button>{' '}
-                        <button className="btn btn--ghost btn--sm" onClick={() => setEditingId(null)}>Cancel</button>
-                      </td>
+                      <td></td>
+                      <td></td>
                     </>
                   ) : (
                     <>
                       <td><strong>{item.code}</strong></td>
                       <td>{item.description || '—'}</td>
+                      <td>
+                        <span className={`sd-status-badge ${isActive(item) ? 'sd-status-badge--active' : 'sd-status-badge--archived'}`}>
+                          {isActive(item) ? 'active' : 'archived'}
+                        </span>
+                      </td>
                       <td>
                         <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)}>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
