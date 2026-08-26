@@ -104,16 +104,18 @@ function ProgramOutcomes({ userEmail }: ProgramOutcomesProps) {
               required
             />
           </label>
-          <label className="field">
-            <span>Description</span>
-            <textarea
-              className="input input--sm"
-              rows={2}
-              placeholder="Optional description"
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-            />
-          </label>
+        </div>
+        <label className="field">
+          <span>Description</span>
+          <textarea
+            className="input input--sm"
+            rows={2}
+            placeholder="Optional description"
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+          />
+        </label>
+        <div className="create-resource__submit">
           <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
             {busy ? 'Saving...' : 'Add'}
           </button>
@@ -134,10 +136,10 @@ function ProgramOutcomes({ userEmail }: ProgramOutcomesProps) {
               </tr>
             </thead>
             <tbody>
-              {items.length === 0 && (
+              {items.filter(i => i.status !== 'archived').length === 0 && (
                 <tr><td colSpan={4}>No program outcomes yet.</td></tr>
               )}
-              {items.map((item) => (
+              {items.filter(i => i.status !== 'archived').map((item) => (
                 <tr key={item.id}>
                   {editingId === item.id ? (
                     <>
@@ -175,7 +177,10 @@ function ProgramOutcomes({ userEmail }: ProgramOutcomesProps) {
                       <td>{item.description || '—'}</td>
                       <td>
                         <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)}>Edit</button>{' '}
-                        <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'program_outcome.deleted')}>Delete</button>
+                        <button className="btn btn--danger btn--sm" onClick={async () => {
+                          if (!window.confirm('Archive this PO?')) return
+                          await handleUpdate(item.id, { status: 'archived' }, 'program_outcome.archived')
+                        }}>Archive</button>
                       </td>
                     </>
                   )}
