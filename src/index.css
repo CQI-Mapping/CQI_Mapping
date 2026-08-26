@@ -1430,6 +1430,26 @@ textarea.input {
   align-self: center;
 }
 
+.sd-status-badge {
+  font-size: 11px;
+  border-radius: 4px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sd-status-badge--active {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.sd-status-badge--archived {
+  background: #fef3c7;
+  color: #92400e;
+}
+
 .sd-po-actions {
   white-space: nowrap;
 }
@@ -1443,6 +1463,7 @@ textarea.input {
   .sd-actions,
   .sd-toolbar-controls,
   .sd-archived-badge,
+  .sd-status-badge,
   .sd-po-actions {
     display: none !important;
   }
