@@ -135,10 +135,10 @@ function ProgramEducationalObjectives({ userEmail }: ProgramEducationalObjective
               </tr>
             </thead>
             <tbody>
-              {items.length === 0 && (
+              {items.filter(i => i.status !== 'archived').length === 0 && (
                 <tr><td colSpan={4}>No program educational objectives yet.</td></tr>
               )}
-              {items.map((item) => (
+              {items.filter(i => i.status !== 'archived').map((item) => (
                 <tr key={item.id}>
                   {editingId === item.id ? (
                     <>
@@ -176,7 +176,10 @@ function ProgramEducationalObjectives({ userEmail }: ProgramEducationalObjective
                       <td>{item.description || '—'}</td>
                       <td>
                         <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)}>Edit</button>{' '}
-                        <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'peo.deleted')}>Delete</button>
+                        <button className="btn btn--danger btn--sm" onClick={async () => {
+                          if (!window.confirm('Archive this PEO?')) return
+                          await handleUpdate(item.id, { status: 'archived' }, 'peo.archived')
+                        }}>Archive</button>
                       </td>
                     </>
                   )}
