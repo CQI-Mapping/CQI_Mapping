@@ -2,7 +2,7 @@
 // Provides add, edit, and archive functionality for CHED Memorandum Orders
 // managed by the admin role. Uses the useEntityCrud hook for shared state.
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useEntityCrud } from './curriculum/useEntityCrud.js'
 import {
   fetchChedMemoOrders,
@@ -35,6 +35,12 @@ function ChedMemoOrders({ userEmail }: ChedMemoOrdersProps) {
   const [editForm, setEditForm] = useState(EMPTY_FORM)
   const [seeded, setSeeded] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
+
+  const autoResize = useCallback((el: HTMLTextAreaElement | null) => {
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [])
 
   useEffect(() => { crud.load() }, [crud.load])
 
@@ -121,12 +127,16 @@ function ChedMemoOrders({ userEmail }: ChedMemoOrdersProps) {
         </div>
         <label className="field">
           <span>Description</span>
-          <input
+          <textarea
             className="input input--sm"
-            type="text"
+            rows={3}
             placeholder="Optional description"
             value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            onChange={(e) => {
+              setForm({ ...form, description: e.target.value })
+              autoResize(e.target)
+            }}
+            ref={autoResize}
           />
         </label>
         <div className="create-resource__submit">
@@ -182,10 +192,15 @@ function ChedMemoOrders({ userEmail }: ChedMemoOrdersProps) {
                         />
                       </td>
                       <td>
-                        <input
+                        <textarea
                           className="input input--sm"
+                          rows={3}
                           value={editForm.description}
-                          onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                          onChange={(e) => {
+                            setEditForm({ ...editForm, description: e.target.value })
+                            autoResize(e.target)
+                          }}
+                          ref={autoResize}
                         />
                       </td>
                       <td>
