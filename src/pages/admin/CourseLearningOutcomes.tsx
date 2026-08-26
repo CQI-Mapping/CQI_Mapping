@@ -167,13 +167,14 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
               <tr>
                 <th>Code</th>
                 <th>Description</th>
+                <th>Program Outcomes</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {visibleItems.length === 0 && (
-                <tr><td colSpan={4}>No course learning outcomes yet.</td></tr>
+                <tr><td colSpan={5}>No course learning outcomes yet.</td></tr>
               )}
               {visibleItems.map((item) => (
                 <tr key={item.id} className={!isActive(item) ? 'sd-archived' : ''}>
@@ -205,6 +206,7 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
                     <>
                       <td><strong>{item.code}</strong></td>
                       <td>{item.description || '—'}</td>
+                      <td>{item.title || '—'}</td>
                       <td>
                         <span className={`sd-status-badge ${isActive(item) ? 'sd-status-badge--active' : 'sd-status-badge--archived'}`}>
                           {isActive(item) ? 'active' : 'archived'}
