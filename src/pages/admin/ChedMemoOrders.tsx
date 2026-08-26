@@ -92,7 +92,7 @@ function ChedMemoOrders({ userEmail }: ChedMemoOrdersProps) {
     }
   }
 
-  const visibleItems = items.filter((i) => showArchived ? true : isActive(i))
+  const visibleItems = items.filter((i) => showArchived ? !isActive(i) : isActive(i))
 
   return (
     <div className="curriculum-view">
