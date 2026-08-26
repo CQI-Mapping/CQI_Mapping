@@ -331,25 +331,28 @@ function CurriculumMap({ userEmail }: CurriculumMapProps) {
                     const isLast = i === arr.length - 1
                     const semicolon = isLast ? '.' : ';'
                     return (
-                      <span key={p.id} className={isActive(p) ? '' : 'sd-archived'}>
-                        {poNumber(p.code)}. {p.title.replace(/\.$/, '')}{semicolon}{' '}
-                        {editMode && (
-                          <span className="sd-po-single-item__actions">
-                            {rowActions('po', p.id)}
-                            {!isActive(p) && <span className="sd-archived-badge">archived</span>}
-                          </span>
-                        )}
-                        {editingThis && (
-                          <span className="sd-po-single-edit">
-                            <input
-                              className="input input--sm"
-                              value={edit.title}
-                              onChange={(e) => setEdit({ ...edit, title: e.target.value })}
-                              disabled={busy}
-                            />
-                          </span>
-                        )}
-                      </span>
+                      <div key={p.id} className={`sd-po-single-outcome ${isActive(p) ? '' : 'sd-archived'}`}>
+                        <div className="sd-po-single-outcome__num">{poNumber(p.code)}.</div>
+                        <div className="sd-po-single-outcome__text">
+                          {p.title.replace(/\.$/, '')}{semicolon}
+                          {editMode && (
+                            <span className="sd-po-single-item__actions">
+                              {rowActions('po', p.id)}
+                              {!isActive(p) && <span className="sd-archived-badge">archived</span>}
+                            </span>
+                          )}
+                          {editingThis && (
+                            <span className="sd-po-single-edit">
+                              <input
+                                className="input input--sm"
+                                value={edit.title}
+                                onChange={(e) => setEdit({ ...edit, title: e.target.value })}
+                                disabled={busy}
+                              />
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     )
                   })}
                 </td>
@@ -370,25 +373,28 @@ function CurriculumMap({ userEmail }: CurriculumMapProps) {
                     const isLast = i === arr.length - 1
                     const semicolon = isLast ? '.' : ';'
                     return (
-                      <span key={p.id} className={isActive(p) ? '' : 'sd-archived'}>
-                        {poNumber(p.code)}. {p.title.replace(/\.$/, '')}{semicolon}{' '}
-                        {editMode && (
-                          <span className="sd-po-single-item__actions">
-                            {rowActions('po', p.id)}
-                            {!isActive(p) && <span className="sd-archived-badge">archived</span>}
-                          </span>
-                        )}
-                        {editingThis && (
-                          <span className="sd-po-single-edit">
-                            <input
-                              className="input input--sm"
-                              value={edit.title}
-                              onChange={(e) => setEdit({ ...edit, title: e.target.value })}
-                              disabled={busy}
-                            />
-                          </span>
-                        )}
-                      </span>
+                      <div key={p.id} className={`sd-po-single-outcome ${isActive(p) ? '' : 'sd-archived'}`}>
+                        <div className="sd-po-single-outcome__num">{poNumber(p.code)}.</div>
+                        <div className="sd-po-single-outcome__text">
+                          {p.title.replace(/\.$/, '')}{semicolon}
+                          {editMode && (
+                            <span className="sd-po-single-item__actions">
+                              {rowActions('po', p.id)}
+                              {!isActive(p) && <span className="sd-archived-badge">archived</span>}
+                            </span>
+                          )}
+                          {editingThis && (
+                            <span className="sd-po-single-edit">
+                              <input
+                                className="input input--sm"
+                                value={edit.title}
+                                onChange={(e) => setEdit({ ...edit, title: e.target.value })}
+                                disabled={busy}
+                              />
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     )
                   })}
                 </td>
@@ -409,25 +415,28 @@ function CurriculumMap({ userEmail }: CurriculumMapProps) {
                     const isLast = i === arr.length - 1
                     const semicolon = isLast ? '.' : ';'
                     return (
-                      <span key={p.id} className={isActive(p) ? '' : 'sd-archived'}>
-                        {poNumber(p.code)}. {p.title.replace(/\.$/, '')}{semicolon}{' '}
-                        {editMode && (
-                          <span className="sd-po-single-item__actions">
-                            {rowActions('po', p.id)}
-                            {!isActive(p) && <span className="sd-archived-badge">archived</span>}
-                          </span>
-                        )}
-                        {editingThis && (
-                          <span className="sd-po-single-edit">
-                            <input
-                              className="input input--sm"
-                              value={edit.title}
-                              onChange={(e) => setEdit({ ...edit, title: e.target.value })}
-                              disabled={busy}
-                            />
-                          </span>
-                        )}
-                      </span>
+                      <div key={p.id} className={`sd-po-single-outcome ${isActive(p) ? '' : 'sd-archived'}`}>
+                        <div className="sd-po-single-outcome__num">{poNumber(p.code)}.</div>
+                        <div className="sd-po-single-outcome__text">
+                          {p.title.replace(/\.$/, '')}{semicolon}
+                          {editMode && (
+                            <span className="sd-po-single-item__actions">
+                              {rowActions('po', p.id)}
+                              {!isActive(p) && <span className="sd-archived-badge">archived</span>}
+                            </span>
+                          )}
+                          {editingThis && (
+                            <span className="sd-po-single-edit">
+                              <input
+                                className="input input--sm"
+                                value={edit.title}
+                                onChange={(e) => setEdit({ ...edit, title: e.target.value })}
+                                disabled={busy}
+                              />
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     )
                   })}
                 </td>
@@ -448,25 +457,28 @@ function CurriculumMap({ userEmail }: CurriculumMapProps) {
                     const isLast = i === arr.length - 1
                     const semicolon = isLast ? '.' : ';'
                     return (
-                      <span key={p.id} className={isActive(p) ? '' : 'sd-archived'}>
-                        {poNumber(p.code)}. {p.title.replace(/\.$/, '')}{semicolon}{' '}
-                        {editMode && (
-                          <span className="sd-po-single-item__actions">
-                            {rowActions('po', p.id)}
-                            {!isActive(p) && <span className="sd-archived-badge">archived</span>}
-                          </span>
-                        )}
-                        {editingThis && (
-                          <span className="sd-po-single-edit">
-                            <input
-                              className="input input--sm"
-                              value={edit.title}
-                              onChange={(e) => setEdit({ ...edit, title: e.target.value })}
-                              disabled={busy}
-                            />
-                          </span>
-                        )}
-                      </span>
+                      <div key={p.id} className={`sd-po-single-outcome ${isActive(p) ? '' : 'sd-archived'}`}>
+                        <div className="sd-po-single-outcome__num">{poNumber(p.code)}.</div>
+                        <div className="sd-po-single-outcome__text">
+                          {p.title.replace(/\.$/, '')}{semicolon}
+                          {editMode && (
+                            <span className="sd-po-single-item__actions">
+                              {rowActions('po', p.id)}
+                              {!isActive(p) && <span className="sd-archived-badge">archived</span>}
+                            </span>
+                          )}
+                          {editingThis && (
+                            <span className="sd-po-single-edit">
+                              <input
+                                className="input input--sm"
+                                value={edit.title}
+                                onChange={(e) => setEdit({ ...edit, title: e.target.value })}
+                                disabled={busy}
+                              />
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     )
                   })}
                 </td>
@@ -487,25 +499,28 @@ function CurriculumMap({ userEmail }: CurriculumMapProps) {
                     const isLast = i === arr.length - 1
                     const semicolon = isLast ? '.' : ';'
                     return (
-                      <span key={p.id} className={isActive(p) ? '' : 'sd-archived'}>
-                        {poNumber(p.code)}. {p.title.replace(/\.$/, '')}{semicolon}{' '}
-                        {editMode && (
-                          <span className="sd-po-single-item__actions">
-                            {rowActions('po', p.id)}
-                            {!isActive(p) && <span className="sd-archived-badge">archived</span>}
-                          </span>
-                        )}
-                        {editingThis && (
-                          <span className="sd-po-single-edit">
-                            <input
-                              className="input input--sm"
-                              value={edit.title}
-                              onChange={(e) => setEdit({ ...edit, title: e.target.value })}
-                              disabled={busy}
-                            />
-                          </span>
-                        )}
-                      </span>
+                      <div key={p.id} className={`sd-po-single-outcome ${isActive(p) ? '' : 'sd-archived'}`}>
+                        <div className="sd-po-single-outcome__num">{poNumber(p.code)}.</div>
+                        <div className="sd-po-single-outcome__text">
+                          {p.title.replace(/\.$/, '')}{semicolon}
+                          {editMode && (
+                            <span className="sd-po-single-item__actions">
+                              {rowActions('po', p.id)}
+                              {!isActive(p) && <span className="sd-archived-badge">archived</span>}
+                            </span>
+                          )}
+                          {editingThis && (
+                            <span className="sd-po-single-edit">
+                              <input
+                                className="input input--sm"
+                                value={edit.title}
+                                onChange={(e) => setEdit({ ...edit, title: e.target.value })}
+                                disabled={busy}
+                              />
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     )
                   })}
                 </td>
