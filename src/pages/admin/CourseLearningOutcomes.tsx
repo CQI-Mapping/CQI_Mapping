@@ -3,7 +3,7 @@
 // Uses the admin_course_learning_outcomes table for admin-managed standalone CLO list.
 // Uses the useEntityCrud hook for shared state.
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useEntityCrud } from './curriculum/useEntityCrud.js'
 import {
   fetchCourseLearningOutcomesStandalone,
@@ -36,6 +36,12 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState(EMPTY_FORM)
   const [seeded, setSeeded] = useState(false)
+
+  const autoResize = useCallback((el: HTMLTextAreaElement | null) => {
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [])
 
   useEffect(() => { crud.load() }, [crud.load])
 
@@ -110,16 +116,22 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
               required
             />
           </label>
-          <label className="field">
-            <span>Description</span>
-            <textarea
-              className="input input--sm"
-              rows={2}
-              placeholder="Optional description"
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-            />
-          </label>
+        </div>
+        <label className="field">
+          <span>Description</span>
+          <textarea
+            className="input input--sm"
+            rows={2}
+            placeholder="Optional description"
+            value={form.description}
+            onChange={(e) => {
+              setForm({ ...form, description: e.target.value })
+              autoResize(e.target)
+            }}
+            ref={autoResize}
+          />
+        </label>
+        <div className="create-resource__submit">
           <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
             {busy ? 'Saving...' : 'Add'}
           </button>
@@ -166,7 +178,11 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
                           className="input input--sm"
                           rows={2}
                           value={editForm.description}
-                          onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                          onChange={(e) => {
+                            setEditForm({ ...editForm, description: e.target.value })
+                            autoResize(e.target)
+                          }}
+                          ref={autoResize}
                         />
                       </td>
                       <td>
