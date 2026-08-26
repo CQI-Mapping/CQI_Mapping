@@ -205,18 +205,26 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
                       <td><strong>{item.code}</strong></td>
                       <td>{item.description || '—'}</td>
                       <td>
-                        <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)}>Edit</button>{' '}
+                        <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                          Edit
+                        </button>{' '}
                         <button
                           className={`btn btn--sm ${isActive(item) ? 'btn--danger' : 'btn--ghost'}`}
                           onClick={() => handleArchive(item.id)}
                         >
-                          {isActive(item) ? 'Archive' : 'Restore'}
+                          {isActive(item) ? (
+                            <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg> Archive</>
+                          ) : (
+                            <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg> Restore</>
+                          )}
                         </button>
                         {!isActive(item) && (
                           <button
                             className="btn btn--danger btn--sm"
                             onClick={() => handleDelete(item.id, 'strategic_goal.deleted')}
                           >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
                             Delete
                           </button>
                         )}
