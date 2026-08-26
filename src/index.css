@@ -1343,11 +1343,10 @@ textarea.input {
   margin-bottom: 3px;
 }
 
-/* Course learning outcomes table — widths from PDF page 5: 74% / 26%.
-   Header row: centered black title, left-aligned black column label */
-.sd-table--clo td:nth-child(1) { width: 74%; }
+/* Course learning outcomes table — first column aligned to STRATEGIC GOALS left border (87%) */
+.sd-table--clo td:nth-child(1) { width: 87%; }
 
-.sd-table--clo td:nth-child(2) { width: 26%; }
+.sd-table--clo td:nth-child(2) { width: 13%; }
 
 .sd-table--clo th:nth-child(1) {
   text-align: center;
