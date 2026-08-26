@@ -36,12 +36,27 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState(EMPTY_FORM)
   const [seeded, setSeeded] = useState(false)
+  const [showArchived, setShowArchived] = useState(false)
 
   const autoResize = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return
     el.style.height = 'auto'
     el.style.height = `${el.scrollHeight}px`
   }, [])
+
+  const isActive = (item: CourseLearningOutcomeStandalone) => item.status === 'active'
+  const visibleItems = items.filter((i) => showArchived ? !isActive(i) : isActive(i))
+  const archivedCount = items.filter((i) => !isActive(i)).length
+
+  const handleArchive = async (id: string) => {
+    const item = items.find((i) => i.id === id)
+    if (!item) return
+    const nextStatus = isActive(item) ? 'archived' : 'active'
+    const ok = await handleUpdate(id, { status: nextStatus }, 'clo.updated')
+    if (ok) {
+      setMessage(`CLO ${nextStatus === 'archived' ? 'archived' : 'restored'}.`)
+    }
+  }
 
   useEffect(() => { crud.load() }, [crud.load])
 
@@ -142,6 +157,20 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
         <p>Loading course learning outcomes...</p>
       ) : (
         <div className="panel table-wrap">
+          <div className="sd-tabs">
+            <button
+              className={`sd-tab ${!showArchived ? 'sd-tab--active' : ''}`}
+              onClick={() => setShowArchived(false)}
+            >
+              Active
+            </button>
+            <button
+              className={`sd-tab ${showArchived ? 'sd-tab--active' : ''}`}
+              onClick={() => setShowArchived(true)}
+            >
+              Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
+            </button>
+          </div>
           <table className="table">
             <thead>
               <tr>
@@ -152,10 +181,10 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
               </tr>
             </thead>
             <tbody>
-              {items.length === 0 && (
+              {visibleItems.length === 0 && (
                 <tr><td colSpan={4}>No course learning outcomes yet.</td></tr>
               )}
-              {items.map((item) => (
+              {visibleItems.map((item) => (
                 <tr key={item.id}>
                   {editingId === item.id ? (
                     <>
@@ -197,7 +226,12 @@ function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
                       <td>{item.description || '—'}</td>
                       <td>
                         <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)}>Edit</button>{' '}
-                        <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'clo.deleted')}>Delete</button>
+                        <button
+                          className={`btn btn--sm ${isActive(item) ? 'btn--danger' : 'btn--ghost'}`}
+                          onClick={() => handleArchive(item.id)}
+                        >
+                          {isActive(item) ? 'Archive' : 'Restore'}
+                        </button>
                       </td>
                     </>
                   )}
