@@ -7,6 +7,7 @@ import { adminCreateUser, addActivityLog } from '../../services/database'
 function Users() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [fullName, setFullName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -64,14 +65,24 @@ function Users() {
             </label>
             <label className="field">
               <span>Password</span>
-              <input
-                className="input"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+              <div className="password-wrapper">
+                <input
+                  className="input"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
             </label>
             <label className="field">
               <span>Full name</span>
