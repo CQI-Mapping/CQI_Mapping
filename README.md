@@ -9,7 +9,7 @@ This README is a full development reference: how to set the project up, how the 
 ## 1. Overview
 
 - **Frontend:** React 18 + Vite 8, TypeScript — `src/App.tsx` holds the active page in state and renders it based on the signed-in user's role.
-- **Backend:** Supabase (hosted Postgres + Auth). All data goes through the service functions in `src/services/database.js`.
+- **Backend:** Supabase (hosted Postgres + Auth). All data goes through the service functions in `src/services/database.ts`.
 - **Roles:**
   - `admin` — System Administrator / ICT Officer. Full control: manage accounts and roles, create users, manage and delete curriculum records, view the audit log.
   - `manager` — Program Head / CQI Lead. Manages curriculum records (create/edit/archive), browses the faculty directory (read-only), views the audit log.
@@ -40,7 +40,7 @@ The system uses three application roles, each mapped to the people who actually 
 | Client | `@supabase/supabase-js` |
 | Scripts | `npm run dev` / `npm run build` / `npm run preview` |
 
-No TypeScript, no CSS framework, no router library — deliberately simple so it's easy to extend during development.
+No CSS framework, no router library — deliberately simple so it's easy to extend during development.
 
 ---
 
@@ -91,6 +91,7 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
 .
 ├── .env                      # Local secrets (gitignored) — fill with your keys
 ├── .gitignore
+├── GUIDE.md                  # Simple step-by-step setup guide for new users
 ├── index.html                # Vite entry HTML
 ├── package.json              # Dependencies + scripts
 ├── tsconfig.json             # TypeScript configuration
@@ -103,32 +104,30 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
     ├── vite-env.d.ts         # Vite environment variable types
     ├── components/
     │   └── Sidebar.tsx       # Nav shell (items change per role) + logout
+    ├── data/
+    │   └── vcqiSyllabus.ts   # Static syllabus data (vision, mission, CLO/PO mappings)
     ├── pages/
     │   ├── Login.tsx         # Sign in (login only, no create-account tab)
     │   ├── Profile.tsx       # View/edit own profile (shared by all roles)
     │   ├── admin/
-    │   │   ├── Dashboard.tsx # Admin overview: role/resources/user counts
-    │   │   ├── Users.tsx     # Manage roles + create users
-    │   │   ├── Curriculum.tsx# Full CRUD incl. permanent delete
-    │   │   ├── ActivityLogs.tsx  # Filterable activity log table
-    │   │   ├── Analytics.tsx # CLO/PO coverage charts
-    │   │   ├── CloPoMapping.tsx  # Interactive heatmap editor
-    │   │   ├── analytics/
-    │   │   │   └── charts.tsx    # D3 chart components (bar, grouped bar, donut)
+    │   │   ├── Dashboard.tsx         # Admin overview: role/resources/user counts
+    │   │   ├── Users.tsx             # Manage roles + create users
+    │   │   ├── ChedMemoOrders.tsx    # CHED Memorandum Orders (editable)
+    │   │   ├── StrategicGoals.tsx    # Strategic Goals (editable)
+    │   │   ├── ProgramEducationalObjectives.tsx  # PEOs (editable)
+    │   │   ├── ProgramOutcomes.tsx   # Program Outcomes (editable)
+    │   │   ├── CourseLearningOutcomes.tsx  # CLOs (editable)
+    │   │   ├── View.tsx              # Printable curriculum map / syllabus report
+    │   │   ├── ActivityLogs.tsx      # Filterable activity log table
     │   │   └── curriculum/
-    │   │       ├── ProgramsView.tsx
-    │   │       ├── CoursesView.tsx
-    │   │       ├── PoView.tsx
-    │   │       ├── CloView.tsx
-    │   │       └── useEntityCrud.ts  # Shared CRUD hook
+    │   │       └── useEntityCrud.ts  # Shared CRUD hook for entity forms
     │   ├── manager/
-    │   │   ├── Dashboard.tsx # Manager overview + capabilities
-    │   │   ├── Users.tsx     # Read-only faculty directory
-    │   │   ├── Curriculum.tsx# Create/edit/archive (no delete)
-    │   │   └── ActivityLogs.tsx  # Filterable activity log table
+    │   │   ├── Dashboard.tsx         # Manager overview + capabilities
+    │   │   ├── Users.tsx             # Read-only faculty directory
+    │   │   └── Curriculum.tsx        # Create/edit/archive (no delete)
     │   └── user/
-    │       ├── Dashboard.tsx # User overview + capabilities
-    │       └── Curriculum.tsx# Read-only browse
+    │       ├── Dashboard.tsx         # User overview + capabilities
+    │       └── Curriculum.tsx        # Read-only browse
     ├── services/
     │   └── database.ts       # ALL Supabase queries used by the app
     ├── styles/
@@ -286,43 +285,62 @@ The CQI curriculum domain is seeded with:
 
 ## 7. Service Layer Reference
 
-All queries live in `src/services/database.js`. Signatures, purpose, and who can call them (per RLS):
+All queries live in `src/services/database.ts`. Signatures, purpose, and who can call them (per RLS):
 
-| Function | Signature | Purpose | Callable by |
-|---|---|---|---|
-| `getProfile` | `(userId)` | Fetch one profile | the owner; admins/managers |
-| `ensureProfile` | `(user)` | Fetch own profile; insert a fresh row (role `user`) if missing | the owner |
-| `updateProfile` | `(profileId, updates)` | Update own profile (e.g. full_name) | the owner; admins |
-| `syncDemoRole` | `()` | Restore the caller's expected role (demo accounts) or bootstrap the first admin | any signed-in user |
-| `fetchAllProfiles` | `()` | List all users | admins/managers |
-| `updateUserRole` | `(profileId, role)` | Change a user's role | admins |
-| `adminCreateUser` | `(email, password, fullName, role)` | Create an auth user via Supabase admin API | admins (needs service role key) |
-| `fetchResources` | `()` | List resources with creator name (embedded join) | all signed-in users |
-| `createResource` | `(title, description, userId)` | Insert a resource | admins/managers |
-| `updateResource` | `(id, updates)` | Edit title/description/status | admins/managers |
-| `deleteResource` | `(id)` | Permanently delete a resource | admins |
-| `fetchPrograms` | `()` | List all programs | all signed-in users |
-| `createProgram` | `(payload)` | Insert a program | admins/managers |
-| `updateProgram` | `(id, updates)` | Edit a program (code/name/description/status) | admins/managers |
-| `deleteProgram` | `(id)` | Permanently delete a program (cascades) | admins |
-| `fetchCourses` | `()` | List courses with embedded program | all signed-in users |
-| `createCourse` | `(payload)` | Insert a course | admins/managers |
-| `updateCourse` | `(id, updates)` | Edit a course | admins/managers |
-| `deleteCourse` | `(id)` | Permanently delete a course (cascades to CLOs) | admins |
-| `fetchProgramOutcomes` | `(programId = null)` | List program outcomes, optionally by program | all signed-in users |
-| `createProgramOutcome` | `(payload)` | Insert a program outcome | admins/managers |
-| `updateProgramOutcome` | `(id, updates)` | Edit a program outcome | admins/managers |
-| `deleteProgramOutcome` | `(id)` | Permanently delete a program outcome | admins |
-| `fetchCourseLearningOutcomes` | `(courseId = null)` | List course learning outcomes, optionally by course | all signed-in users |
-| `createCourseLearningOutcome` | `(payload)` | Insert a course learning outcome | admins/managers |
-| `updateCourseLearningOutcome` | `(id, updates)` | Edit a course learning outcome | admins/managers |
-| `deleteCourseLearningOutcome` | `(id)` | Permanently delete a course learning outcome | admins |
-| `fetchCloPoMatrix` | `(courseId = null)` | List CLO/PO matrix rows with CLO and PO embedded, optionally by course | all signed-in users |
-| `upsertCloPoMapping` | `(cloId, poId, level)` | Insert or update a CLO/PO strength cell (1–3) | admins/managers |
-| `deleteCloPoMapping` | `(cloId, poId)` | Remove a CLO/PO mapping (blank the cell) | admins |
-| `fetchActivityLogs` | `()` | Latest 100 audit entries | admins/managers |
-| `recordLoginEvent` | `(email, success, reason?)` | Record a sign-in attempt via the `record_login_event` RPC | any caller (RPC) |
-| `addActivityLog` | `(userEmail, action, details)` | Insert an audit entry | any signed-in user |
+| Function | Purpose | Callable by |
+|---|---|---|
+| `ensureProfile(user)` | Fetch own profile; insert a fresh row (role `user`) if missing | the owner |
+| `updateProfile(profileId, updates)` | Update own profile (e.g. full_name) | the owner; admins |
+| `syncDemoRole()` | Restore the caller's expected role (demo accounts) or bootstrap the first admin | any signed-in user |
+| `fetchAllProfiles()` | List all users | admins/managers |
+| `updateUserRole(profileId, role)` | Change a user's role | admins |
+| `adminCreateUser(email, password, fullName, role)` | Create an auth user via Supabase admin API | admins (needs service role key) |
+| `fetchResources()` | List resources with creator name (embedded join) | all signed-in users |
+| `createResource(title, description, userId)` | Insert a resource | admins/managers |
+| `updateResource(id, updates)` | Edit title/description/status | admins/managers |
+| `fetchPrograms()` | List all programs | all signed-in users |
+| `createProgram(payload)` | Insert a program | admins/managers |
+| `updateProgram(id, updates)` | Edit a program (code/name/description/status) | admins/managers |
+| `deleteProgram(id)` | Permanently delete a program (cascades) | admins |
+| `fetchCourses()` | List courses with embedded program | all signed-in users |
+| `createCourse(payload)` | Insert a course | admins/managers |
+| `updateCourse(id, updates)` | Edit a course | admins/managers |
+| `deleteCourse(id)` | Permanently delete a course (cascades to CLOs) | admins |
+| `seedIt21Course()` | Seed the IT21 course data | admins |
+| `fetchProgramOutcomes(programId)` | List program outcomes, optionally by program | all signed-in users |
+| `createProgramOutcome(payload)` | Insert a program outcome | admins/managers |
+| `updateProgramOutcome(id, updates)` | Edit a program outcome | admins/managers |
+| `deleteProgramOutcome(id)` | Permanently delete a program outcome | admins |
+| `fetchCourseLearningOutcomes(courseId)` | List course learning outcomes, optionally by course | all signed-in users |
+| `createCourseLearningOutcome(payload)` | Insert a course learning outcome | admins/managers |
+| `updateCourseLearningOutcome(id, updates)` | Edit a course learning outcome | admins/managers |
+| `deleteCourseLearningOutcome(id)` | Permanently delete a course learning outcome | admins |
+| `fetchCloPoMatrix(courseId)` | List CLO/PO matrix rows, optionally by course | all signed-in users |
+| `upsertCloPoMapping(cloId, poId, level)` | Insert or update a CLO/PO strength cell (1–3) | admins/managers |
+| `deleteCloPoMapping(cloId, poId)` | Remove a CLO/PO mapping | admins |
+| `fetchStrategicGoals()` | List strategic goals | all signed-in users |
+| `createStrategicGoal(payload)` | Insert a strategic goal | admins/managers |
+| `updateStrategicGoal(id, updates)` | Edit a strategic goal | admins/managers |
+| `deleteStrategicGoal(id)` | Permanently delete a strategic goal | admins |
+| `fetchProgramEducationalObjectives()` | List PEOs | all signed-in users |
+| `createProgramEducationalObjective(payload)` | Insert a PEO | admins/managers |
+| `updateProgramEducationalObjective(id, updates)` | Edit a PEO | admins/managers |
+| `deleteProgramEducationalObjective(id)` | Permanently delete a PEO | admins |
+| `fetchProgramOutcomesStandalone()` | List standalone program outcomes (for View page) | all signed-in users |
+| `createProgramOutcomeStandalone(payload)` | Insert a standalone PO | admins/managers |
+| `updateProgramOutcomeStandalone(id, updates)` | Edit a standalone PO | admins/managers |
+| `deleteProgramOutcomeStandalone(id)` | Permanently delete a standalone PO | admins |
+| `fetchCourseLearningOutcomesStandalone()` | List standalone CLOs (for View page) | all signed-in users |
+| `createCourseLearningOutcomeStandalone(payload)` | Insert a standalone CLO | admins/managers |
+| `updateCourseLearningOutcomeStandalone(id, updates)` | Edit a standalone CLO | admins/managers |
+| `deleteCourseLearningOutcomeStandalone(id)` | Permanently delete a standalone CLO | admins |
+| `fetchChedMemoOrders()` | List CHED memorandum orders | all signed-in users |
+| `createChedMemoOrder(payload)` | Insert a CHED memo order | admins/managers |
+| `updateChedMemoOrder(id, updates)` | Edit a CHED memo order | admins/managers |
+| `deleteChedMemoOrder(id)` | Permanently delete a CHED memo order | admins |
+| `fetchActivityLogs()` | Latest 100 audit entries | admins/managers |
+| `recordLoginEvent(email, success, reason?)` | Record a sign-in attempt via RPC | any caller (RPC) |
+| `addActivityLog(userEmail, action, details)` | Insert an audit entry | any signed-in user |
 
 > Note: `addActivityLog` is called from the client. A determined user could write to the audit log directly, so treat it as an activity log, not a tamper-proof security record. Login attempts use `record_login_event` — a `SECURITY DEFINER` function — precisely so failed logins (which have no session) can be recorded. For tamper-proof auditing of every action, move all inserts server-side.
 
@@ -335,7 +353,6 @@ All queries live in `src/services/database.js`. Signatures, purpose, and who can
 - Empty-field validation: submitting with a blank email or password shows "Email and password are required." without hitting the API.
 - Failed sign-ins show a generic "Invalid email or password." (never leaks Supabase's raw error, e.g. rate limits or account state).
 - Every attempt is written to `activity_logs` via the `record_login_event` RPC (`auth.login` on success, `auth.login_failed` on failure).
-- Shows a hint with the SQL to promote an account to admin.
 
 ### `admin/Dashboard.tsx`
 - Reads the `profile` prop. Shows stat cards: your role, total resources, and total users. Counts use `head: true` queries.
@@ -347,24 +364,28 @@ All queries live in `src/services/database.js`. Signatures, purpose, and who can
 ### `admin/Users.tsx`
 - Full account management: table of all users with an inline role `<select>` (calls `updateUserRole`, then writes an audit entry) plus a "Create user" form (calls `adminCreateUser`).
 
+### `admin/ChedMemoOrders.tsx`
+- Manage CHED Memorandum Orders: create, edit, archive, and delete records.
+
+### `admin/StrategicGoals.tsx`
+- Manage Strategic Goals: create, edit, archive, and delete records.
+
+### `admin/ProgramEducationalObjectives.tsx`
+- Manage Program Educational Objectives (PEOs): create, edit, archive, and delete records.
+
+### `admin/ProgramOutcomes.tsx`
+- Manage Program Outcomes: create, edit, archive, and delete records.
+
+### `admin/CourseLearningOutcomes.tsx`
+- Manage Course Learning Outcomes (CLOs): create, edit, archive, and delete records.
+
+### `admin/View.tsx`
+- Printable curriculum map / syllabus report. Displays Vision, Mission, Strategic Goals, PEOs, Program Outcomes, Curriculum Mapping, Course Learning Outcomes, and Course Details in a formatted document layout.
+- Supports inline editing and archiving of Strategic Goals, PEOs, and Program Outcomes via an Edit toggle.
+- Static syllabus content (vision/mission wording, curriculum mapping, course details) comes from `src/data/vcqiSyllabus.ts`.
+
 ### `manager/Users.tsx`
 - Read-only faculty directory showing role badges. Role changes are admin-only.
-
-### `admin/Curriculum.tsx`
-- Props: `userEmail`. Sub-tabbed curriculum domain manager with four views: **Programs**, **Courses**, **Program Outcomes (PO)**, **Course Learning Outcomes (CLO)**. Every view supports create, inline edit, and delete, and writes an audit entry per mutation.
-- Courses are created under a program (with a program filter on the list). POs are managed per selected program; CLOs per selected program → course.
-- Views live in `src/pages/admin/curriculum/` and share state/CRUD logic via the `useEntityCrud` hook.
-
-### `admin/CloPoMapping.tsx`
-- Props: `userEmail`. Interactive CLO/PO mapping matrix. Pick a program, then a course; rows are the course's CLOs, columns are the program's POs.
-- Each cell holds a strength level (1 = low, 2 = medium, 3 = high, blank = not mapped). Clicking a cell cycles blank → 1 → 2 → 3 → blank and persists via `upsertCloPoMapping` / `deleteCloPoMapping`, writing an audit entry per change.
-- A D3.js heatmap (SVG) renders below the matrix with the same color scheme. The `clo_po_matrix` table's `validate_clo_po_program` trigger rejects mappings whose CLO course and PO belong to different programs.
-
-### `admin/Analytics.tsx`
-- CQI monitoring charts derived from the curriculum domain (no assessment data needed yet).
-- Stat cards: programs, courses, learning outcomes, CLO coverage (share of CLOs with ≥1 mapping), and mapping cells.
-- D3.js charts: per-PO CLO coverage and average strength (bar charts, focused on a selected program), program comparison (grouped bars: total CLOs vs mapped CLOs), and a mapping-level distribution donut (1/2/3).
-- Chart components live in `src/pages/admin/analytics/charts.tsx` (reusable `BarChart`, `GroupedBarChart`, `DonutChart`).
 
 ### `manager/Curriculum.tsx`
 - Props: `userEmail`. Same as admin but without the Delete button.
@@ -381,6 +402,7 @@ All queries live in `src/services/database.js`. Signatures, purpose, and who can
 ### `App.tsx`
 - Holds `session`, `profile`, `activePage`. Defines the `NAV` map (role → nav items) and the `PAGES` map (role → page components, one per role folder; `Profile` is shared). On session change, loads the profile via `ensureProfile` (auto-creates the row if missing — e.g. after a schema re-run) and renders `Login` when signed out; otherwise renders the Sidebar + topbar + current page.
 - **Gating:** `page` is coerced to a role-valid page, so even a crafted `activePage` value can't show an unauthorized page.
+- **Login guard:** A `profileLoaded` flag prevents rendering the dashboard before the user's role is known, so the correct role-specific page appears immediately without a flash.
 
 ### `Sidebar.tsx`
 - Renders `navItems` (passed from App, role-specific), the current role, and a logout button.
