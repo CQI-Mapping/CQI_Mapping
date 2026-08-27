@@ -1,26 +1,24 @@
+// Admin Users page: create new manager accounts.
+// Minimal page with a form to add a manager by email, password, and full name.
+
 import { useState, useEffect } from 'react'
-import { fetchAllProfiles, updateUserRole, adminCreateUser, adminDeleteUser, addActivityLog } from '../../services/database'
-import type { Profile, UserRole } from '../../services/database'
+import { adminCreateUser, addActivityLog, fetchAllProfiles } from '../../services/database'
+import type { Profile } from '../../services/database'
 
-interface UsersProps {
-  userEmail: string
-}
-
-function Users({ userEmail }: UsersProps) {
-  const [users, setUsers] = useState<Profile[]>([])
-  const [loading, setLoading] = useState(true)
+function Users() {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [fullName, setFullName] = useState('')
+  const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  const [newEmail, setNewEmail] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [newName, setNewName] = useState('')
-  const [newRole, setNewRole] = useState<UserRole>('user')
-  const [creating, setCreating] = useState(false)
+  const [users, setUsers] = useState<Profile[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const load = async () => {
+  const loadUsers = async () => {
     setLoading(true)
-    setError('')
     try {
       setUsers(await fetchAllProfiles())
     } catch (e) {
@@ -30,57 +28,31 @@ function Users({ userEmail }: UsersProps) {
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { loadUsers() }, [])
 
-  const handleRoleChange = async (profileId: string, newRole: UserRole) => {
-    setError('')
-    setSuccess('')
-    try {
-      const updated = await updateUserRole(profileId, newRole)
-      setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)))
-      setSuccess(`Role updated to ${newRole}.`)
-      addActivityLog('role.updated')
-    } catch (e) {
-      setError('Failed to update role: ' + (e instanceof Error ? e.message : String(e)))
-    }
-  }
-
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setSuccess('')
-    if (!newEmail.trim() || !newPassword.trim()) {
+
+    if (!email.trim() || !password.trim()) {
       setError('Email and password are required.')
       return
     }
-    setCreating(true)
-    try {
-      await adminCreateUser(newEmail.trim(), newPassword, newName.trim(), newRole)
-      setSuccess(`User ${newEmail} created.`)
-      addActivityLog('user.created')
-      setNewEmail('')
-      setNewPassword('')
-      setNewName('')
-      setNewRole('user')
-      load()
-    } catch (e) {
-      setError('Failed to create user: ' + (e instanceof Error ? e.message : String(e)))
-    } finally {
-      setCreating(false)
-    }
-  }
 
-  const handleDelete = async (userId: string, email: string) => {
-    if (!window.confirm(`Delete user ${email}? This cannot be undone.`)) return
-    setError('')
-    setSuccess('')
+    setBusy(true)
     try {
-      await adminDeleteUser(userId)
-      setUsers((prev) => prev.filter((u) => u.id !== userId))
-      setSuccess(`User ${email} deleted.`)
-      addActivityLog('user.deleted')
+      await adminCreateUser(email.trim(), password, fullName.trim(), 'manager')
+      await addActivityLog(email.trim(), 'user.created')
+      setSuccess(`Manager ${email} created.`)
+      setEmail('')
+      setPassword('')
+      setFullName('')
+      loadUsers()
     } catch (e) {
-      setError('Failed to delete user: ' + (e instanceof Error ? e.message : String(e)))
+      setError('Failed to create manager: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -88,103 +60,92 @@ function Users({ userEmail }: UsersProps) {
     <div className="users">
       <div className="page-heading">
         <h2>Users &amp; Accounts</h2>
-        <p>Manage user accounts, roles, and create new users.</p>
+        <p>Create new manager accounts.</p>
       </div>
 
       {error && <p className="msg msg--error">{error}</p>}
       {success && <p className="msg msg--success">{success}</p>}
 
       <div className="panel create-user">
-        <h3>Create New User</h3>
-        <form onSubmit={handleCreate}>
+        <h3>Add Manager</h3>
+        <form onSubmit={handleSubmit}>
           <div className="create-user__row">
-            <input
-              className="input"
-              type="email"
-              placeholder="Email"
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.target.value)}
-              required
-            />
-            <input
-              className="input"
-              type="password"
-              placeholder="Password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              required
-            />
-            <input
-              className="input"
-              type="text"
-              placeholder="Full name"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-            />
-            <select
-              className="input"
-              value={newRole}
-              onChange={(e) => setNewRole(e.target.value as UserRole)}
-            >
-              <option value="user">User</option>
-              <option value="manager">Manager</option>
-              <option value="admin">Admin</option>
-            </select>
-            <button className="btn btn--primary" type="submit" disabled={creating}>
-              {creating ? 'Creating...' : 'Create'}
+            <label className="field">
+              <span>Email</span>
+              <input
+                className="input"
+                type="email"
+                placeholder="manager@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </label>
+            <label className="field">
+              <span>Password</span>
+              <div className="password-wrapper">
+                <input
+                  className="input"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
+            </label>
+            <label className="field">
+              <span>Full name</span>
+              <input
+                className="input"
+                type="text"
+                placeholder="Juan Dela Cruz"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+              />
+            </label>
+            <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
+              {busy ? 'Creating...' : 'Create Manager'}
             </button>
           </div>
         </form>
       </div>
 
-      <div className="panel" style={{ marginTop: 16 }}>
+      <div className="panel table-wrap" style={{ marginTop: 16 }}>
         <h3>All Users</h3>
         {loading ? (
           <p>Loading users...</p>
         ) : (
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Role</th>
-                  <th>Joined</th>
-                  <th></th>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Joined</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u) => (
+                <tr key={u.id}>
+                  <td>{u.full_name || '—'}</td>
+                  <td>{u.email}</td>
+                  <td>
+                    <span className={`role-badge role-badge--${u.role}`}>{u.role}</span>
+                  </td>
+                  <td>{new Date(u.created_at).toLocaleDateString()}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {users.map((u) => (
-                  <tr key={u.id}>
-                    <td>{u.full_name || '—'}</td>
-                    <td>{u.email}</td>
-                    <td>
-                      <select
-                        className="input input--sm"
-                        value={u.role}
-                        onChange={(e) => handleRoleChange(u.id, e.target.value as UserRole)}
-                      >
-                        <option value="user">User</option>
-                        <option value="manager">Manager</option>
-                        <option value="admin">Admin</option>
-                      </select>
-                    </td>
-                    <td>{new Date(u.created_at).toLocaleDateString()}</td>
-                    <td>
-                      {u.email !== userEmail && (
-                        <button
-                          className="btn btn--danger btn--sm"
-                          onClick={() => handleDelete(u.id, u.email)}
-                        >
-                          Delete
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
     </div>

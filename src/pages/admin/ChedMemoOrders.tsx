@@ -1,8 +1,8 @@
 // Admin CHED Memorandum Orders: CRUD for CMO records.
-// Provides add, edit, and delete functionality for CHED Memorandum Orders
+// Provides add, edit, and archive functionality for CHED Memorandum Orders
 // managed by the admin role. Uses the useEntityCrud hook for shared state.
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useEntityCrud } from './curriculum/useEntityCrud.js'
 import {
   fetchChedMemoOrders,
@@ -11,6 +11,7 @@ import {
   deleteChedMemoOrder,
 } from '../../services/database'
 import type { ChedMemoOrder } from '../../services/database'
+import { SEED_CMOS } from '../../data/vcqiSyllabus.js'
 
 const EMPTY_FORM = { code: '', title: '', description: '' }
 
@@ -33,8 +34,29 @@ function ChedMemoOrders({ allowDelete = true, allowArchive = true }: ChedMemoOrd
   const [form, setForm] = useState(EMPTY_FORM)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState(EMPTY_FORM)
+  const [seeded, setSeeded] = useState(false)
+  const [showArchived, setShowArchived] = useState(false)
+
+  const autoResize = useCallback((el: HTMLTextAreaElement | null) => {
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [])
 
   useEffect(() => { crud.load() }, [crud.load])
+
+  // Fill in any VCQI syllabus CMOs missing from the table (idempotent by code).
+  // Runs once after the first load completes; items is read but intentionally
+  // omitted from deps so the effect does not re-run after seeding.
+  useEffect(() => {
+    if (loading || seeded) return
+    setSeeded(true)
+    const existing = new Set(items.map((i) => i.code))
+    const missing = SEED_CMOS.filter((c) => !existing.has(c.code))
+    if (missing.length === 0) return
+    missing.reduce<Promise<unknown>>((prev, cmo) => prev.then(() => createChedMemoOrder(cmo)), Promise.resolve())
+      .then(() => crud.load())
+  }, [loading, seeded])
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -59,6 +81,18 @@ function ChedMemoOrders({ allowDelete = true, allowArchive = true }: ChedMemoOrd
     if (ok) setEditingId(null)
   }
 
+  const isActive = (item: ChedMemoOrder) => !item.status || item.status === 'active'
+
+  const handleArchive = async (id: string) => {
+    const item = items.find((i) => i.id === id)
+    if (!item) return
+    const nextStatus = isActive(item) ? 'archived' : 'active'
+    await handleUpdate(id, { status: nextStatus }, 'ched_memo_order.updated')
+  }
+
+  const visibleItems = items.filter((i) => showArchived ? !isActive(i) : isActive(i))
+  const archivedCount = items.filter((i) => !isActive(i)).length
+
   return (
     <div className="curriculum-view">
       {error && <p className="msg msg--error">{error}</p>}
@@ -67,29 +101,44 @@ function ChedMemoOrders({ allowDelete = true, allowArchive = true }: ChedMemoOrd
       <form className="panel create-resource" onSubmit={onSubmit}>
         <h3>New CHED Memorandum Order</h3>
         <div className="create-resource__row">
-          <input
+          <label className="field">
+            <span>Code</span>
+            <input
+              className="input input--sm"
+              type="text"
+              placeholder="e.g. CMO 1 s. 2024"
+              value={form.code}
+              onChange={(e) => setForm({ ...form, code: e.target.value })}
+              required
+            />
+          </label>
+          <label className="field">
+            <span>Title</span>
+            <input
+              className="input input--sm"
+              type="text"
+              placeholder="Enter title"
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              required
+            />
+          </label>
+        </div>
+        <label className="field">
+          <span>Description</span>
+          <textarea
             className="input input--sm"
-            type="text"
-            placeholder="Code (e.g. CMO 1 s. 2024)"
-            value={form.code}
-            onChange={(e) => setForm({ ...form, code: e.target.value })}
-            required
-          />
-          <input
-            className="input input--sm"
-            type="text"
-            placeholder="Title"
-            value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
-            required
-          />
-          <input
-            className="input input--sm"
-            type="text"
-            placeholder="Description (optional)"
+            rows={3}
+            placeholder="Optional description"
             value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            onChange={(e) => {
+              setForm({ ...form, description: e.target.value })
+              autoResize(e.target)
+            }}
+            ref={autoResize}
           />
+        </label>
+        <div className="create-resource__submit">
           <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
             {busy ? 'Saving...' : 'Add'}
           </button>
@@ -100,6 +149,20 @@ function ChedMemoOrders({ allowDelete = true, allowArchive = true }: ChedMemoOrd
         <p>Loading CHED Memorandum Orders...</p>
       ) : (
         <div className="panel table-wrap">
+          <div className="sd-tabs">
+            <button
+              className={`sd-tab ${!showArchived ? 'sd-tab--active' : ''}`}
+              onClick={() => setShowArchived(false)}
+            >
+              Active
+            </button>
+            <button
+              className={`sd-tab ${showArchived ? 'sd-tab--active' : ''}`}
+              onClick={() => setShowArchived(true)}
+            >
+              Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
+            </button>
+          </div>
           <table className="table">
             <thead>
               <tr>
@@ -111,11 +174,11 @@ function ChedMemoOrders({ allowDelete = true, allowArchive = true }: ChedMemoOrd
               </tr>
             </thead>
             <tbody>
-              {items.length === 0 && (
+              {visibleItems.length === 0 && (
                 <tr><td colSpan={5}>No CHED Memorandum Orders yet.</td></tr>
               )}
-              {items.map((item) => (
-                <tr key={item.id}>
+              {visibleItems.map((item) => (
+                <tr key={item.id} className={!isActive(item) ? 'sd-archived' : ''}>
                   {editingId === item.id ? (
                     <>
                       <td>
@@ -133,13 +196,18 @@ function ChedMemoOrders({ allowDelete = true, allowArchive = true }: ChedMemoOrd
                         />
                       </td>
                       <td>
-                        <input
+                        <textarea
                           className="input input--sm"
+                          rows={3}
                           value={editForm.description}
-                          onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                          onChange={(e) => {
+                            setEditForm({ ...editForm, description: e.target.value })
+                            autoResize(e.target)
+                          }}
+                          ref={autoResize}
                         />
                       </td>
-                      <td><span className={`status-badge status-badge--${item.status}`}>{item.status}</span></td>
+                      <td></td>
                       <td>
                         <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>Save</button>{' '}
                         <button className="btn btn--ghost btn--sm" onClick={() => setEditingId(null)}>Cancel</button>
@@ -152,15 +220,37 @@ function ChedMemoOrders({ allowDelete = true, allowArchive = true }: ChedMemoOrd
                       <td>{item.description || '—'}</td>
                       <td><span className={`status-badge status-badge--${item.status}`}>{item.status}</span></td>
                       <td>
-                        <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)}>Edit</button>{' '}
-                        {allowArchive && (
-                          <button className="btn btn--ghost btn--sm" onClick={() => handleToggleStatus(item, 'ched_memo_order.archived')}>
-                            {item.status === 'active' ? 'Archive' : 'Restore'}
+                        <span className={`sd-status-badge ${isActive(item) ? 'sd-status-badge--active' : 'sd-status-badge--archived'}`}>
+                          {isActive(item) ? 'active' : 'archived'}
+                        </span>
+                      </td>
+                      <td>
+                        <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} disabled={busy || !!editingId}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                          Edit
+                        </button>{' '}
+                        <button
+                          className={`btn btn--sm ${isActive(item) ? 'btn--danger' : 'btn--ghost'}`}
+                          onClick={() => handleArchive(item.id)}
+                          disabled={busy || !!editingId}
+                        >
+                          {isActive(item) ? (
+                            <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg> Archive</>
+                          ) : (
+                            <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg> Restore</>
+                          )}
+                        </button>
+                        {!isActive(item) && (
+                          <button
+                            className="btn btn--danger btn--sm"
+                            onClick={() => handleDelete(item.id, 'ched_memo_order.deleted')}
+                            disabled={busy || !!editingId}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                            Delete
                           </button>
-                        )}{' '}
-                        {allowDelete && (
-                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'ched_memo_order.deleted')}>Delete</button>
                         )}
+
                       </td>
                     </>
                   )}

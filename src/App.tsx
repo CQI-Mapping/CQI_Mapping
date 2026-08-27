@@ -31,6 +31,7 @@ import AdminStrategicGoals from './pages/admin/StrategicGoals'
 import AdminPEOs from './pages/admin/ProgramEducationalObjectives'
 import AdminProgramOutcomes from './pages/admin/ProgramOutcomes'
 import AdminCourseLearningOutcomes from './pages/admin/CourseLearningOutcomes'
+import AdminView from './pages/admin/View'
 import AdminUsers from './pages/admin/Users'
 import { supabase } from './utils/supabaseClient'
 import { ensureProfile, syncDemoRole } from './services/database'
@@ -40,13 +41,13 @@ import type { Session } from '@supabase/supabase-js'
 // NAV map: which sidebar items each role can see.
 const NAV: Record<UserRole, NavItem[]> = {
   admin: [
-    { id: 'dashboard', label: 'Dashboard' },
-    { id: 'users', label: 'Users & Accounts' },
+    { id: 'ched-memo', label: 'CHED Memorandum Orders' },
+    { id: 'strategic-goals', label: 'Strategic Goals' },
     { id: 'peos', label: 'Program Educational Objectives' },
     { id: 'program-outcomes', label: 'Program Outcomes' },
     { id: 'clo', label: 'Course Learning Outcomes' },
-    { id: 'strategic-goals', label: 'Strategic Goals' },
-    { id: 'ched-memo', label: 'CHED Memorandum Orders' },
+    { id: 'curriculum-map', label: 'View' },
+    { id: 'users', label: 'Users & Accounts' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
   ],
@@ -75,8 +76,10 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     peos: AdminPEOs,
     'program-outcomes': AdminProgramOutcomes,
     clo: AdminCourseLearningOutcomes,
+    'curriculum-map': AdminView,
     'strategic-goals': AdminStrategicGoals,
     'ched-memo': AdminChedMemoOrders,
+    users: AdminUsers,
     'activity-logs': AdminActivityLogs,
     profile: Profile,
   },
@@ -100,7 +103,9 @@ function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<ProfileType | null>(null)
   const [loading, setLoading] = useState(true)
+  const [profileLoaded, setProfileLoaded] = useState(false)
   const [activePage, setActivePage] = useState('dashboard')
+  const [sidebarOpen, setSidebarOpen] = useState(true)
 
   // On first render: restore an existing session from localStorage and subscribe to
   // auth changes (sign-in / sign-out) so the UI updates automatically.
@@ -113,7 +118,8 @@ function App() {
     const { data: { subscription } } = supabase!.auth.onAuthStateChange((_event, session) => {
       setSession(session)
       if (!session) {
-        setProfile(null) // signed out — clear the profile too
+        setProfile(null)
+        setProfileLoaded(false)
         setActivePage('dashboard')
       }
     })
@@ -144,9 +150,13 @@ function App() {
       })
       .then((p) => {
         if (!cancelled && p) setProfile(p)
+        setProfileLoaded(true)
         setLoading(false)
       })
-      .catch(() => setLoading(false))
+      .catch(() => {
+        setProfileLoaded(true)
+        setLoading(false)
+      })
 
     return () => { cancelled = true }
   }, [session])
@@ -165,24 +175,26 @@ function App() {
     return <Login />
   }
 
+  // Profile still loading → show spinner (prevents flashing the wrong role dashboard).
+  if (!profileLoaded) {
+    return <div className="center-screen">Loading...</div>
+  }
+
   // Role from the profile; unknown/missing roles fall back to 'user' (least privilege).
   const role: UserRole = (profile?.role ?? 'user') as UserRole
   const navItems = NAV[role] ?? NAV.user
 
   // Gating: coerce the requested page to one this role can access
-  const page = navItems.some((n: NavItem) => n.id === activePage) ? activePage : 'dashboard'
+  const page = navItems.some((n: NavItem) => n.id === activePage)
+    ? activePage
+    : navItems[0]?.id ?? 'dashboard'
 
   const renderPage = () => {
-    const Page = PAGES[role]?.[page] ?? UserDashboard
+    const Page = PAGES[role]?.[page] ?? PAGES[role]?.[navItems[0]?.id] ?? UserDashboard
 
     if (page === 'profile') return <Page profile={profile} onSaved={setProfile} />
-    if (page === 'users') return <Page userEmail={profile?.email} />
+    if (page === 'users') return <Page />
     if (page === 'curriculum' && role !== 'user') return <Page userEmail={profile?.email} />
-    if (page === 'clo-po' && role !== 'user') return <Page userEmail={profile?.email} />
-    // Managers share the admin Program Outcomes page, minus Delete/Archive.
-    if (page === 'program-outcomes' && role !== 'admin') return <Page allowDelete={false} allowArchive={false} />
-    // Users share the admin Course Learning Outcomes page, minus Delete/Archive.
-    if (page === 'clo' && role !== 'admin') return <Page allowDelete={false} allowArchive={false} />
     return <Page profile={profile} />
   }
 
@@ -194,6 +206,8 @@ function App() {
         onNavigate={setActivePage}
         onLogout={handleLogout}
         role={role}
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen((v) => !v)}
       />
 
       <div className="main-content">

@@ -10,6 +10,8 @@ interface SidebarProps {
   onNavigate: (page: string) => void
   onLogout: () => void
   role: UserRole
+  isOpen: boolean
+  onToggle: () => void
 }
 
 // Small inline SVG icon components (stroke-based, currentColor = the CSS color).
@@ -103,6 +105,17 @@ function LogoutIcon(props: React.SVGProps<SVGSVGElement>) {
   )
 }
 
+function MenuIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+      strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="3" y1="18" x2="21" y2="18" />
+    </svg>
+  )
+}
+
 // Map of nav item id -> icon component (fallback: DashboardIcon).
 const ICONS: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>>> = {
   dashboard: DashboardIcon,
@@ -114,9 +127,20 @@ const ICONS: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>>> 
   profile: ProfileIcon,
 }
 
-function Sidebar({ navItems, activePage, onNavigate, onLogout, role }: SidebarProps) {
+function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onToggle }: SidebarProps) {
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${!isOpen ? 'sidebar--collapsed' : ''}`}>
+      {/* Hamburger toggle */}
+      <button
+        type="button"
+        className="sidebar__toggle"
+        onClick={onToggle}
+        aria-label={isOpen ? 'Hide main menu' : 'Show main menu'}
+        title={isOpen ? 'Hide main menu' : 'Show main menu'}
+      >
+        <MenuIcon className="sidebar__toggle-icon" />
+      </button>
+
       {/* Brand block */}
       <div className="sidebar__brand">
         <div className="sidebar__brand-mark">CQI</div>
