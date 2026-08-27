@@ -1129,9 +1129,14 @@ code {
   line-height: 1.5;
 }
 
-.sd-titleblock__title,
+.sd-titleblock__title {
+  font-style: italic;
+  color: #1f3864;
+}
+
 .sd-titleblock__course {
   font-style: italic;
+  color: #000000;
 }
 
 /* Generic document table */
@@ -1486,19 +1491,6 @@ textarea.input {
   .syllabus-doc__page {
     border: none;
     padding: 0;
-  }
-
-  .sd-letterhead {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    z-index: 100;
-    background: #fff;
-  }
-
-  @page {
-    margin-top: 200px;
   }
 
   .panel {

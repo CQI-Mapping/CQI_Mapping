@@ -98,6 +98,7 @@ function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<ProfileType | null>(null)
   const [loading, setLoading] = useState(true)
+  const [profileLoaded, setProfileLoaded] = useState(false)
   const [activePage, setActivePage] = useState('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
@@ -112,7 +113,8 @@ function App() {
     const { data: { subscription } } = supabase!.auth.onAuthStateChange((_event, session) => {
       setSession(session)
       if (!session) {
-        setProfile(null) // signed out — clear the profile too
+        setProfile(null)
+        setProfileLoaded(false)
         setActivePage('dashboard')
       }
     })
@@ -142,9 +144,13 @@ function App() {
       })
       .then((p) => {
         if (!cancelled && p) setProfile(p)
+        setProfileLoaded(true)
         setLoading(false)
       })
-      .catch(() => setLoading(false))
+      .catch(() => {
+        setProfileLoaded(true)
+        setLoading(false)
+      })
 
     return () => { cancelled = true }
   }, [session])
@@ -163,15 +169,22 @@ function App() {
     return <Login />
   }
 
+  // Profile still loading → show spinner (prevents flashing the wrong role dashboard).
+  if (!profileLoaded) {
+    return <div className="center-screen">Loading...</div>
+  }
+
   // Role from the profile; unknown/missing roles fall back to 'user' (least privilege).
   const role: UserRole = (profile?.role ?? 'user') as UserRole
   const navItems = NAV[role] ?? NAV.user
 
   // Gating: coerce the requested page to one this role can access
-  const page = navItems.some((n: NavItem) => n.id === activePage) ? activePage : 'dashboard'
+  const page = navItems.some((n: NavItem) => n.id === activePage)
+    ? activePage
+    : navItems[0]?.id ?? 'dashboard'
 
   const renderPage = () => {
-    const Page = PAGES[role]?.[page] ?? UserDashboard
+    const Page = PAGES[role]?.[page] ?? PAGES[role]?.[navItems[0]?.id] ?? UserDashboard
 
     if (page === 'profile') return <Page profile={profile} onSaved={setProfile} />
     if (page === 'users') return <Page />

@@ -1,294 +1,171 @@
-# Guide to Run the CQI Monitoring System
+   # How to Run the CQI Monitoring System
 
-A step-by-step guide to set up and run this project on your computer.
+   A simple guide to get this app running on your computer. Follow each step in order.
 
----
+   ---
 
-## Prerequisites
+   ## What You Need First
 
-Before you start, make sure you have:
+   | Tool | Why | Get It |
+   |------|-----|--------|
+   | **Node.js 18 or higher** | Runs the app | [nodejs.org](https://nodejs.org) — pick LTS |
+   | **npm** | Installs project files | Comes with Node.js (no extra install) |
+   | **Supabase account** | Database and login | [supabase.com](https://supabase.com) — free |
 
-- **Node.js 18+** — Download from [nodejs.org](https://nodejs.org)
-- **npm** — Comes with Node.js
-- **Supabase account** — Create free at [supabase.com](https://supabase.com)
+   ---
 
----
+   ## Step 1: Install Node.js
 
-## Step 1: Install Node.js
+   1. Open [nodejs.org](https://nodejs.org)
+   2. Click the **LTS** download button
+   3. Run the file you downloaded, click **Next** through everything
+   4. Open **Command Prompt** or **PowerShell** and type:
+      ```
+      node -v
+      ```
+      If you see a version number (like `v20.11.0`), you are good.
 
-1. Go to [nodejs.org](https://nodejs.org)
-2. Download the **# Guide to Run the CQI Monitoring System
+   ---
 
-A step-by-step guide to set up and run this project on your computer.
+   ## Step 2: Create a Supabase Project
 
----
+   1. Go to [supabase.com](https://supabase.com) and sign up (free)
+   2. Click **"New project"**
+   3. Fill in:
+      - **Name:** `cqi-monitoring` (or anything you like)
+      - **Password:** Pick something you will remember — write it down
+      - **Region:** Choose the one closest to you
+   4. Wait about 2 minutes for it to finish setting up
 
-## Prerequisites
+   ---
 
-Before you start, make sure you have:
+   ## Step 3: Set Up the Database
 
-- **Node.js 18+** — Download from [nodejs.org](https://nodejs.org)
-- **npm** — Comes with Node.js
-- **Supabase account** — Create free at [supabase.com](https://supabase.com)
+   This creates the tables your app needs.
 
----
+   1. In your Supabase dashboard, look at the left menu → click **SQL Editor**
+   2. Click **"New query"**
+   3. Open the file `supabase-schema.sql` inside this project folder
+   4. Select all the text inside that file (`Ctrl+A`), copy it (`Ctrl+C`)
+   5. Paste it into the SQL Editor (`Ctrl+V`)
+   6. Click **"Run"** (or press `Ctrl+Enter`)
 
-## Step 1: Install Node.js
+   You should see a success message. If you see an error, make sure you copied the entire file.
 
-1. Go to [nodejs.org](https://nodejs.org)
-2. Download the **LTS** version
-3. Run the installer and follow the prompts
-4. Verify installation by opening a terminal and typing:
-   ```
-   node -v
-   npm -v
-   ```
+   ---
 
----
+   ## Step 4: Create User Accounts
 
-## Step 2: Set Up Supabase
+   Your app has 3 types of users: Admin, Manager, and User. Let's create them.
 
-1. Go to [supabase.com](https://supabase.com) and sign up / log in
-2. Click **"New project"**
-3. Fill in:
-   - **Project name:** `cqi-monitoring`
-   - **Database password:** (choose one and save it)
-   - **Region:** Closest to you
-4. Wait for the project to be created (1-2 minutes)
+   **A) In Supabase, create each account:**
 
----
+   1. Left menu → **Authentication** → **Users**
+   2. Click **"Add user"**
+   3. Enter the email and password from this table:
 
-## Step 3: Run the Database Schema
+   | Email | Password |
+   |-------|----------|
+   | admin@cqi.test | Admin@123456 |
+   | manager@cqi.test | Manager@123456 |
+   | user@cqi.test | User@123456 |
 
-1. In your Supabase project, go to **SQL Editor** (left sidebar)
-2. Click **"New query"**
-3. Open the file `supabase-schema.sql` from this project folder
-4. Copy the entire contents and paste into the SQL Editor
-5. Click **"Run"** to execute
+   4. Repeat for all 3 users
 
-This creates all the tables, roles, and security policies.
+   **B) Then assign their roles:**
 
----
+   1. Go back to **SQL Editor** → **New query**
+   2. Paste this and click **Run**:
 
-## Step 4: Create Test Accounts
-
-1. In Supabase, go to **Authentication > Users**
-2. Click **"Add user"** and create these accounts:
-
-| Email | Password | Role |
-|-------|----------|------|
-| admin@cqi.test | Admin@123456 | Admin |
-| manager@cqi.test | Manager@123456 | Manager |
-| user@cqi.test | User@123456 | User |
-
-3. After creating each user, go to **SQL Editor** and run:
    ```sql
    UPDATE public.profiles SET role = 'admin' WHERE email = 'admin@cqi.test';
    UPDATE public.profiles SET role = 'manager' WHERE email = 'manager@cqi.test';
    UPDATE public.profiles SET role = 'user' WHERE email = 'user@cqi.test';
    ```
 
----
+   ---
 
-## Step 5: Get Your Supabase Keys
+   ## Step 5: Get Your API Keys
 
-1. In Supabase, go to **Settings > API** (left sidebar)
-2. Copy these values:
-   - **Project URL** (looks like: `https://xxxxx.supabase.co`)
-   - **anon public** key (long string starting with `eyJ...`)
+   1. In Supabase, left menu → **Settings** → **API**
+   2. You need two things:
+      - **Project URL** — looks like `https://abc123.supabase.co`
+      - **anon public** key — a long string that starts with `eyJ`
+   3. Copy both of them somewhere safe (like Notepad)
 
----
+   ---
 
-## Step 6: Create the .env File
+   ## Step 6: Connect the App to Supabase
 
-1. In the project folder, create a file named `.env`
-2. Add these lines (replace with your actual keys):
-
-   ```
-   VITE_SUPABASE_URL=https://your-project-id.supabase.co
-   VITE_SUPABASE_ANON_KEY=your-anon-key-here
-   ```
-
----
-
-## Step 7: Install and Run
-
-1. Open a terminal in the project folder
-2. Install dependencies:
-   ```
-   npm install
-   ```
-3. Start the development server:
-   ```
-   npm run dev
-   ```
-4. Open the URL shown (usually `http://localhost:5173`)
-
----
-
-## Step 8: Sign In
-
-1. Use one of the test accounts from Step 4
-2. Sign in with email and password
-3. You should see the dashboard based on your role
-
----
-
-## Quick Commands
-
-| Command | What it does |
-|---------|--------------|
-| `npm install` | Install all project files |
-| `npm run dev` | Start the app in development mode |
-| `npm run build` | Create a production build |
-| `npm run preview` | Preview the production build |
-
----
-
-## Troubleshooting
-
-| Problem | Solution |
-|---------|----------|
-| `npm install` fails | Make sure Node.js 18+ is installed. Try deleting `node_modules` folder and running `npm install` again |
-| Can't sign in | Check your `.env` file has the correct Supabase URL and key |
-| "Invalid email or password" | Make sure you created the account in Supabase Authentication > Users |
-| Port already in use | Vite will automatically use another port. Check the terminal for the correct URL |
-| Blank page after login | Check browser console for errors. Usually means Supabase keys are wrong |
-
----
-
-## Test Accounts Summary
-
-| Role | Email | Password |
-|------|-------|----------|
-| Admin | admin@cqi.test | Admin@123456 |
-| Manager | manager@cqi.test | Manager@123456 |
-| User | user@cqi.test | User@123456 |
-** version
-3. Run the installer and follow the prompts
-4. Verify installation by opening a terminal and typing:
-   ```
-   node -v
-   npm -v
-   ```
-
----
-
-## Step 2: Set Up Supabase
-
-1. Go to [supabase.com](https://supabase.com) and sign up / log in
-2. Click **"New project"**
-3. Fill in:
-   - **Project name:** `cqi-monitoring`
-   - **Database password:** (choose one and save it)
-   - **Region:** Closest to you
-4. Wait for the project to be created (1-2 minutes)
-
----
-
-## Step 3: Run the Database Schema
-
-1. In your Supabase project, go to **SQL Editor** (left sidebar)
-2. Click **"New query"**
-3. Open the file `supabase-schema.sql` from this project folder
-4. Copy the entire contents and paste into the SQL Editor
-5. Click **"Run"** to execute
-
-This creates all the tables, roles, and security policies.
-
----
-
-## Step 4: Create Test Accounts
-
-1. In Supabase, go to **Authentication > Users**
-2. Click **"Add user"** and create these accounts:
-
-| Email | Password | Role |
-|-------|----------|------|
-| admin@cqi.test | Admin@123456 | Admin |
-| manager@cqi.test | Manager@123456 | Manager |
-| user@cqi.test | User@123456 | User |
-
-3. After creating each user, go to **SQL Editor** and run:
-   ```sql
-   UPDATE public.profiles SET role = 'admin' WHERE email = 'admin@cqi.test';
-   UPDATE public.profiles SET role = 'manager' WHERE email = 'manager@cqi.test';
-   UPDATE public.profiles SET role = 'user' WHERE email = 'user@cqi.test';
-   ```
-
----
-
-## Step 5: Get Your Supabase Keys
-
-1. In Supabase, go to **Settings > API** (left sidebar)
-2. Copy these values:
-   - **Project URL** (looks like: `https://xxxxx.supabase.co`)
-   - **anon public** key (long string starting with `eyJ...`)
-
----
-
-## Step 6: Create the .env File
-
-1. In the project folder, create a file named `.env`
-2. Add these lines (replace with your actual keys):
+   1. Open the project folder on your computer
+   2. Create a new file called `.env` (no name before the dot)
+   3. Open it in any text editor and paste this:
 
    ```
-   VITE_SUPABASE_URL=https://your-project-id.supabase.co
-   VITE_SUPABASE_ANON_KEY=your-anon-key-here
+   VITE_SUPABASE_URL=paste-your-project-url-here
+   VITE_SUPABASE_ANON_KEY=paste-your-anon-key-here
    ```
 
----
+   4. Replace the placeholder text with your actual URL and key from Step 5
+   5. Save the file
 
-## Step 7: Install and Run
+   ---
 
-1. Open a terminal in the project folder
-2. Install dependencies:
-   ```
-   npm install
-   ```
-3. Start the development server:
-   ```
-   npm run dev
-   ```
-4. Open the URL shown (usually `http://localhost:5173`)
+   ## Step 7: Start the App
 
----
+   1. Open **Command Prompt** or **PowerShell**
+   2. Go to your project folder:
+      ```
+      cd "C:\2nd sem 2026\Caps 1\Starting point"
+      ```
+   3. Install everything the app needs:
+      ```
+      npm install
+      ```
+   4. Start the app:
+      ```
+      npm run dev
+      ```
+   5. You will see a link like `http://localhost:5173` — open it in your browser
 
-## Step 8: Sign In
+   ---
 
-1. Use one of the test accounts from Step 4
-2. Sign in with email and password
-3. You should see the dashboard based on your role
+   ## Step 8: Log In
 
----
+   1. On the login page, type one of the emails and passwords from Step 4
+   2. Click sign in
+   3. You will see the dashboard for your role
 
-## Quick Commands
+   ---
 
-| Command | What it does |
-|---------|--------------|
-| `npm install` | Install all project files |
-| `npm run dev` | Start the app in development mode |
-| `npm run build` | Create a production build |
-| `npm run preview` | Preview the production build |
+   ## Handy Commands
 
----
+   | What You Want To Do | Type This |
+   |---------------------|-----------|
+   | Install project files | `npm install` |
+   | Start the app | `npm run dev` |
+   | Build for production | `npm run build` |
+   | Preview production build | `npm run preview` |
 
-## Troubleshooting
+   ---
 
-| Problem | Solution |
-|---------|----------|
-| `npm install` fails | Make sure Node.js 18+ is installed. Try deleting `node_modules` folder and running `npm install` again |
-| Can't sign in | Check your `.env` file has the correct Supabase URL and key |
-| "Invalid email or password" | Make sure you created the account in Supabase Authentication > Users |
-| Port already in use | Vite will automatically use another port. Check the terminal for the correct URL |
-| Blank page after login | Check browser console for errors. Usually means Supabase keys are wrong |
+   ## Something Not Working?
 
----
+   | Problem | Try This |
+   |---------|----------|
+   | `node -v` says "not recognized" | Restart your terminal. If still broken, reinstall Node.js |
+   | `npm install` fails | Delete the `node_modules` folder, then run `npm install` again |
+   | Can't log in | Double-check your `.env` file — make sure the URL and key are correct |
+   | "Wrong email or password" | You may have typed the password wrong, or forgot to create the user in Supabase |
+   | Page is blank after login | Open browser console (`F12` → Console tab) to see the error |
+   | Port 5173 is already used | Vite will use a different port — look at the terminal for the right URL |
 
-## Test Accounts Summary
+   ---
 
-| Role | Email | Password |
-|------|-------|----------|
-| Admin | admin@cqi.test | Admin@123456 |
-| Manager | manager@cqi.test | Manager@123456 |
-| User | user@cqi.test | User@123456 |
+   ## Test Accounts (Quick Reference)
+
+   | Role | Email | Password |
+   |------|-------|----------|
+   | Admin | admin@cqi.test | Admin@123456 |
+   | Manager | manager@cqi.test | Manager@123456 |
+   | User | user@cqi.test | User@123456 |
