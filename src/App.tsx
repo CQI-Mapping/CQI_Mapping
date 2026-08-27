@@ -6,13 +6,13 @@
 // mirroring the reference repo's per-role structure.
 //
 // Admin role pages (sidebar order):
-//   Dashboard, Program Educational Objectives, Program Outcomes,
+//   Dashboard, Users & Accounts, Program Educational Objectives, Program Outcomes,
 //   Course Learning Outcomes, Strategic Goals, CHED Memorandum Orders,
 //   Activity Logs, Profile
 //
-// Note: Users & Accounts, Curriculum, CLO/PO Mapping, and Analytics were
-// removed from the admin role in this version. The manager role retains
-// its own Curriculum, Faculty, and Activity Logs pages.
+// The manager role retains its own Curriculum, Program Outcomes (create/edit,
+// no delete), Faculty (with add), and Activity Logs pages.
+// The user role gains a Course Learning Outcomes page (create/edit, no delete).
 
 import { useState, useEffect } from 'react'
 import Sidebar from './components/Sidebar'
@@ -54,6 +54,7 @@ const NAV: Record<UserRole, NavItem[]> = {
   manager: [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'curriculum', label: 'Curriculum' },
+    { id: 'program-outcomes', label: 'Program Outcomes' },
     { id: 'users', label: 'Faculty' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
@@ -61,6 +62,7 @@ const NAV: Record<UserRole, NavItem[]> = {
   user: [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'curriculum', label: 'Curriculum' },
+    { id: 'clo', label: 'Course Learning Outcomes' },
     { id: 'profile', label: 'Profile' },
   ],
 }
@@ -70,6 +72,7 @@ const NAV: Record<UserRole, NavItem[]> = {
 const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
   admin: {
     dashboard: AdminDashboard,
+    users: AdminUsers,
     peos: AdminPEOs,
     'program-outcomes': AdminProgramOutcomes,
     clo: AdminCourseLearningOutcomes,
@@ -83,6 +86,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
   manager: {
     dashboard: ManagerDashboard,
     curriculum: ManagerCurriculum,
+    'program-outcomes': AdminProgramOutcomes,
     users: ManagerUsers,
     'activity-logs': ManagerActivityLogs,
     profile: Profile,
@@ -90,6 +94,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
   user: {
     dashboard: UserDashboard,
     curriculum: UserCurriculum,
+    clo: AdminCourseLearningOutcomes,
     profile: Profile,
   },
 }
@@ -130,6 +135,7 @@ function App() {
   // dashboard even after roles were wiped by a schema re-run.
   useEffect(() => {
     if (!session?.user) return
+    setLoading(true)
     let cancelled = false
 
     ensureProfile(session.user)
@@ -140,7 +146,7 @@ function App() {
             if (role && role !== p.role) return ensureProfile(session.user)
             return p
           })
-          .catch(() => p) // RPC missing/not deployed yet → keep the loaded profile
+          .catch((err) => { console.error('syncDemoRole failed:', err); return p })
       })
       .then((p) => {
         if (!cancelled && p) setProfile(p)

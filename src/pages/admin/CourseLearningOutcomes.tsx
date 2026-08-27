@@ -18,19 +18,23 @@ import { SEED_CLOS } from '../../data/vcqiSyllabus.js'
 const EMPTY_FORM = { code: '', description: '', programOutcomes: '' }
 
 interface CourseLearningOutcomesProps {
-  userEmail: string
+  // False renders the page without the Delete button (non-admin roles);
+  // RLS enforces the same rule server-side.
+  allowDelete?: boolean
+  // False hides Archive/Restore (non-admin roles); the DB guard trigger
+  // rejects status changes from non-admins regardless.
+  allowArchive?: boolean
 }
 
-function CourseLearningOutcomes({ userEmail }: CourseLearningOutcomesProps) {
+function CourseLearningOutcomes({ allowDelete = true, allowArchive = true }: CourseLearningOutcomesProps) {
   const crud = useEntityCrud<CourseLearningOutcomeStandalone>({
     loadFn: fetchCourseLearningOutcomesStandalone,
     createFn: createCourseLearningOutcomeStandalone,
     updateFn: updateCourseLearningOutcomeStandalone,
     deleteFn: deleteCourseLearningOutcomeStandalone,
-    userEmail,
     scope: 'Course Learning Outcome',
   })
-  const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete } = crud
+  const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete, handleToggleStatus } = crud
 
   const [form, setForm] = useState(EMPTY_FORM)
   const [editingId, setEditingId] = useState<string | null>(null)

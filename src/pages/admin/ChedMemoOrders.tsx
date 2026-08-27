@@ -16,19 +16,20 @@ import { SEED_CMOS } from '../../data/vcqiSyllabus.js'
 const EMPTY_FORM = { code: '', title: '', description: '' }
 
 interface ChedMemoOrdersProps {
-  userEmail: string
+  // Archive/Restore and Delete render only when allowed (admin role).
+  allowDelete?: boolean
+  allowArchive?: boolean
 }
 
-function ChedMemoOrders({ userEmail }: ChedMemoOrdersProps) {
+function ChedMemoOrders({ allowDelete = true, allowArchive = true }: ChedMemoOrdersProps) {
   const crud = useEntityCrud<ChedMemoOrder>({
     loadFn: fetchChedMemoOrders,
     createFn: createChedMemoOrder,
     updateFn: updateChedMemoOrder,
     deleteFn: deleteChedMemoOrder,
-    userEmail,
     scope: 'CHED Memorandum Order',
   })
-  const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete } = crud
+  const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete, handleToggleStatus } = crud
 
   const [form, setForm] = useState(EMPTY_FORM)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -217,6 +218,7 @@ function ChedMemoOrders({ userEmail }: ChedMemoOrdersProps) {
                       <td><strong>{item.code}</strong></td>
                       <td>{item.title}</td>
                       <td>{item.description || '—'}</td>
+                      <td><span className={`status-badge status-badge--${item.status}`}>{item.status}</span></td>
                       <td>
                         <span className={`sd-status-badge ${isActive(item) ? 'sd-status-badge--active' : 'sd-status-badge--archived'}`}>
                           {isActive(item) ? 'active' : 'archived'}

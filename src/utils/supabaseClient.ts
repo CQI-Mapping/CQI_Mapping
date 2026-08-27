@@ -1,6 +1,10 @@
 // Creates the single Supabase client used by every page and service.
 // The keys come from .env (gitignored) so real secrets are never in source code.
 // NOTE: we use the anon (public) key here — Row Level Security decides what each user can do.
+// Privileged operations (create/delete users) go through the admin-users Edge
+// Function, which keeps the service-role key on the server. Never add a
+// service-role key to this file — anything in VITE_* is bundled into the JS
+// shipped to browsers.
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL

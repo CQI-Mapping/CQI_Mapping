@@ -16,19 +16,20 @@ import { SEED_PEOS } from '../../data/vcqiSyllabus.js'
 const EMPTY_FORM = { code: '', title: '', description: '' }
 
 interface ProgramEducationalObjectivesProps {
-  userEmail: string
+  // Archive/Restore and Delete render only when allowed (admin role).
+  allowDelete?: boolean
+  allowArchive?: boolean
 }
 
-function ProgramEducationalObjectives({ userEmail }: ProgramEducationalObjectivesProps) {
+function ProgramEducationalObjectives({ allowDelete = true, allowArchive = true }: ProgramEducationalObjectivesProps) {
   const crud = useEntityCrud<ProgramEducationalObjective>({
     loadFn: fetchProgramEducationalObjectives,
     createFn: createProgramEducationalObjective,
     updateFn: updateProgramEducationalObjective,
     deleteFn: deleteProgramEducationalObjective,
-    userEmail,
     scope: 'Program Educational Objective',
   })
-  const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete } = crud
+  const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete, handleToggleStatus } = crud
 
   const [form, setForm] = useState(EMPTY_FORM)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -216,6 +217,7 @@ function ProgramEducationalObjectives({ userEmail }: ProgramEducationalObjective
                       <td><strong>{item.code}</strong></td>
                       <td>{item.title}</td>
                       <td>{item.description || '—'}</td>
+                      <td><span className={`status-badge status-badge--${item.status}`}>{item.status}</span></td>
                       <td>
                         <span className={`sd-status-badge ${isActive(item) ? 'sd-status-badge--active' : 'sd-status-badge--archived'}`}>
                           {isActive(item) ? 'active' : 'archived'}

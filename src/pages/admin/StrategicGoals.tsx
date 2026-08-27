@@ -1,6 +1,6 @@
 // Admin Strategic Goals: CRUD for institutional strategic goal records.
-// Provides add, edit, and delete functionality for strategic goals
-// managed by the admin role. Uses the useEntityCrud hook for shared state.
+// Provides add, edit, archive/restore, and delete functionality for strategic
+// goals managed by the admin role. Uses the useEntityCrud hook for shared state.
 
 import { useState, useEffect, useCallback } from 'react'
 import { useEntityCrud } from './curriculum/useEntityCrud.js'
@@ -24,19 +24,20 @@ const DEFAULTS = [
 ]
 
 interface StrategicGoalsProps {
-  userEmail: string
+  // Archive/Restore and Delete render only when allowed (admin role).
+  allowDelete?: boolean
+  allowArchive?: boolean
 }
 
-function StrategicGoals({ userEmail }: StrategicGoalsProps) {
+function StrategicGoals({ allowDelete = true, allowArchive = true }: StrategicGoalsProps) {
   const crud = useEntityCrud<StrategicGoal>({
     loadFn: fetchStrategicGoals,
     createFn: createStrategicGoal,
     updateFn: updateStrategicGoal,
     deleteFn: deleteStrategicGoal,
-    userEmail,
     scope: 'Strategic Goal',
   })
-  const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete } = crud
+  const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete, handleToggleStatus } = crud
 
   const [form, setForm] = useState(EMPTY_FORM)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -203,6 +204,7 @@ function StrategicGoals({ userEmail }: StrategicGoalsProps) {
                     <>
                       <td><strong>{item.code}</strong></td>
                       <td>{item.description || '—'}</td>
+                      <td><span className={`status-badge status-badge--${item.status}`}>{item.status}</span></td>
                       <td>
                         <span className={`sd-status-badge ${isActive(item) ? 'sd-status-badge--active' : 'sd-status-badge--archived'}`}>
                           {isActive(item) ? 'active' : 'archived'}
