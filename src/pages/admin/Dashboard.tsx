@@ -1,30 +1,43 @@
+
 // Admin dashboard: system overview for the administrator role.
 // Shows stat cards (role, curriculum record count, user count) plus the
 // admin capability list.
 
 import { useState, useEffect } from 'react'
-import { supabase } from '../../utils/supabaseClient'
+import {
+  fetchAllProfiles,
+  fetchStrategicGoals,
+  fetchProgramEducationalObjectives,
+  fetchProgramOutcomesStandalone,
+  fetchCourseLearningOutcomesStandalone,
+  fetchChedMemoOrders,
+} from '../../services/database'
 import type { Profile } from '../../services/database'
 
 interface DashboardProps {
   profile: Profile | null
 }
 
+interface Stat {
+  label: string
+  value: number | null
+  sub: string
+}
+
 function Dashboard({ profile }: DashboardProps) {
-  const [userCount, setUserCount] = useState<number | null>(null)
-  const [resourceCount, setResourceCount] = useState<number | null>(null)
+  const [stats, setStats] = useState<Stat[]>([])
 
-  // Load counts once per mount.
   useEffect(() => {
-    const count = async (table: string) => {
-      const { count } = await supabase!
-        .from(table)
-        .select('id', { count: 'exact', head: true })
-      return count ?? 0
-    }
-
-    count('profiles').then(setUserCount)
-    count('resources').then(setResourceCount)
+    const counters: Array<{ label: string; sub: string; load: () => Promise<unknown[]> }> = [
+      { label: 'Users', sub: 'Registered profiles', load: () => fetchAllProfiles() },
+      { label: 'Strategic Goals', sub: 'Institutional alignment', load: () => fetchStrategicGoals() },
+      { label: 'Program Educational Objectives', sub: 'Graduate attributes', load: () => fetchProgramEducationalObjectives() },
+      { label: 'Program Outcomes', sub: 'PO-1 → PO-27', load: () => fetchProgramOutcomesStandalone() },
+      { label: 'Course Learning Outcomes', sub: 'Course-level competencies', load: () => fetchCourseLearningOutcomesStandalone() },
+      { label: 'CHED Memo Orders', sub: 'CHED Memorandum Orders', load: () => fetchChedMemoOrders() },
+    ]
+    Promise.all(counters.map(async (c) => ({ label: c.label, sub: c.sub, value: (await c.load()).length })))
+      .then(setStats)
   }, [])
 
   return (
@@ -44,17 +57,13 @@ function Dashboard({ profile }: DashboardProps) {
           <span className="stat-card__sub">Controls what you can do in this app</span>
         </div>
 
-        <div className="stat-card">
-          <span className="stat-card__label">Curriculum records</span>
-          <span className="stat-card__value">{resourceCount ?? '...'}</span>
-          <span className="stat-card__sub">Visible to every signed-in role</span>
-        </div>
-
-        <div className="stat-card">
-          <span className="stat-card__label">Users</span>
-          <span className="stat-card__value">{userCount ?? '...'}</span>
-          <span className="stat-card__sub">Registered profiles in the system</span>
-        </div>
+        {stats.map((s) => (
+          <div className="stat-card" key={s.label}>
+            <span className="stat-card__label">{s.label}</span>
+            <span className="stat-card__value">{s.value ?? '...'}</span>
+            <span className="stat-card__sub">{s.sub}</span>
+          </div>
+        ))}
       </div>
 
       <div className="panel">
@@ -71,3 +80,4 @@ function Dashboard({ profile }: DashboardProps) {
 }
 
 export default Dashboard
+

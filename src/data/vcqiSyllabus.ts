@@ -27,6 +27,14 @@ export interface SeedClo {
   description: string
 }
 
+export const SEED_STRATEGIC_GOALS: SeedCmo[] = [
+  { code: 'SG-1', title: 'Excellence in Teaching and Learning', description: null },
+  { code: 'SG-2', title: 'Outstanding Human Resource Development', description: null },
+  { code: 'SG-3', title: 'High Impact Research', description: null },
+  { code: 'SG-4', title: 'Exemplary Service to the Profession and Community Engagement', description: null },
+  { code: 'SG-5', title: '21st Century Infrastructure and Operational Sustainability', description: null },
+]
+
 export const SEED_PEOS: SeedPeo[] = [
   {
     code: 'PEO-1',
