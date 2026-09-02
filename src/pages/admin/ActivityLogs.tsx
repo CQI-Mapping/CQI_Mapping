@@ -32,6 +32,16 @@ const ACTION_LABELS = {
   'user.created': 'Created user account',
   'user.deleted': 'Deleted user account',
   'profile.updated': 'Updated profile',
+  'program_outcome.archived': 'Archived program outcome',
+  'program_outcome.restored': 'Restored program outcome',
+  'clo.archived': 'Archived course learning outcome',
+  'clo.restored': 'Restored course learning outcome',
+  'peo.archived': 'Archived program educational objective',
+  'peo.restored': 'Restored program educational objective',
+  'strategic_goal.archived': 'Archived strategic goal',
+  'strategic_goal.restored': 'Restored strategic goal',
+  'ched_memo_order.archived': 'Archived CHED memorandum order',
+  'ched_memo_order.restored': 'Restored CHED memorandum order',
 }
 
 function labelAction(raw: string): string {

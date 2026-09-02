@@ -22,10 +22,9 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
     createFn: createCourseLearningOutcomeStandalone,
     updateFn: updateCourseLearningOutcomeStandalone,
     deleteFn: deleteCourseLearningOutcomeStandalone,
-    userEmail,
     scope: 'Course Learning Outcome',
   })
-  const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete } = crud
+  const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete, handleToggleStatus } = crud
 
   const [form, setForm] = useState(EMPTY)
   const [editForm, setEditForm] = useState(EMPTY)

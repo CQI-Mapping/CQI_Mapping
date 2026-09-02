@@ -69,9 +69,10 @@ function Dashboard({ profile }: DashboardProps) {
       <div className="panel">
         <h3>What can you do here?</h3>
         <ul className="role-list">
-          <li><strong>Users &amp; Accounts</strong> — manage accounts and roles, and create new users.</li>
-          <li><strong>Curriculum</strong> — create, edit, archive, and delete curriculum records.</li>
-          <li><strong>Activity Logs</strong> — see a record of every action taken in the system.</li>
+          <li><strong>Users &amp; Accounts</strong> — manage accounts and roles, create or delete users.</li>
+          <li><strong>Program Educational Objectives / Program Outcomes / Course Learning Outcomes</strong> — full CRUD on the outcome reference lists.</li>
+          <li><strong>Strategic Goals &amp; CHED Memorandum Orders</strong> — maintain institutional goals and CHED issuances.</li>
+          <li><strong>Activity Logs</strong> — see a server-stamped record of actions taken in the system.</li>
         </ul>
       </div>
     </div>
