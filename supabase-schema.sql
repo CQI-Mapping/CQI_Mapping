@@ -120,6 +120,7 @@ CREATE TABLE public.course_learning_outcomes (
 CREATE TABLE public.strategic_goals (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code TEXT UNIQUE NOT NULL,
+    title TEXT,
     description TEXT,
     status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),

@@ -503,6 +503,7 @@ export async function deleteCloPoMapping(cloId: string, poId: string): Promise<v
 export interface StrategicGoal {
   id: string
   code: string
+  title: string | null
   description: string | null
   status: string
   created_at: string

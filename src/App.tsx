@@ -41,6 +41,7 @@ import type { Session } from '@supabase/supabase-js'
 // NAV map: which sidebar items each role can see.
 const NAV: Record<UserRole, NavItem[]> = {
   admin: [
+    { id: 'dashboard', label: 'Dashboard' },
     { id: 'ched-memo', label: 'CHED Memorandum Orders' },
     { id: 'strategic-goals', label: 'Strategic Goals' },
     { id: 'peos', label: 'Program Educational Objectives' },
@@ -204,7 +205,7 @@ function App() {
         onToggle={() => setSidebarOpen((v) => !v)}
       />
 
-      <div className="main-content">
+      <div className="main-content" onClick={() => { if (sidebarOpen) setSidebarOpen(false) }}>
         <header className="topbar">
           <div className="topbar__title">CQI Monitoring System</div>
           <div className="topbar__user">

@@ -283,7 +283,10 @@ function View({ userEmail }: ViewProps) {
                     editableListRow(
                       'goal',
                       g,
-                      <em>{g.code.replace(/^SG-/, 'Goal ')}. {g.title};</em>,
+                      <>
+                        <em>{g.code.replace(/^SG-/, 'Goal ')}. {g.title};</em>
+                        {g.description && <div className="sd-peo__desc">{g.description}</div>}
+                      </>,
                     ),
                   )}
                   {visibleGoals.length === 0 && <span>No strategic goals.</span>}

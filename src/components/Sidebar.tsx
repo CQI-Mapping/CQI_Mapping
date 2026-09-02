@@ -161,6 +161,7 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
               className={`sidebar__nav-item ${activePage === id ? 'sidebar__nav-item--active' : ''}`}
               onClick={() => onNavigate(id)}
               aria-current={activePage === id ? 'page' : undefined}
+              title={label}
             >
               <Icon className="sidebar__nav-icon" />
               <span>{label}</span>
