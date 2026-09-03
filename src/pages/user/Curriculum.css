@@ -1,0 +1,242 @@
+/* Curriculum.css — matches the white-card / green-accent look of the Admin pages */
+
+.cq-page {
+  padding: 4px;
+}
+
+.cq-header h2 {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1a2332;
+  margin: 0 0 4px;
+}
+.cq-header p {
+  color: #6b7688;
+  font-size: 13.5px;
+  margin: 0 0 20px;
+}
+
+.cq-error {
+  background: #fbe9e9;
+  color: #b23a3a;
+  border: 1px solid #f3c9c9;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.cq-grid {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.cq-card {
+  background: #ffffff;
+  border: 1px solid #e6e9f0;
+  border-radius: 12px;
+  padding: 20px;
+}
+.cq-card h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a2332;
+  margin: 0 0 4px;
+}
+.cq-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.cq-sub {
+  font-size: 12px;
+  color: #9aa3b2;
+  margin: 4px 0 0;
+}
+
+.cq-page label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7688;
+  margin: 14px 0 5px;
+}
+.cq-page label:first-of-type {
+  margin-top: 12px;
+}
+
+.cq-page input[type='text'],
+.cq-page input,
+.cq-page select {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid #dbe0ea;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-family: inherit;
+  background: #fbfcfe;
+  color: #1a2332;
+}
+.cq-page input:focus,
+.cq-page select:focus {
+  outline: 2px solid #1c7a4c;
+  outline-offset: 0;
+  border-color: #1c7a4c;
+}
+
+.cq-btn-primary {
+  width: 100%;
+  margin-top: 18px;
+  background: #1c7a4c;
+  color: #fff;
+  border: none;
+  border-radius: 9px;
+  padding: 10px 16px;
+  font-weight: 600;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.cq-btn-primary:hover {
+  filter: brightness(1.07);
+}
+.cq-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.cq-zoom-controls {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.cq-zoom-controls button {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid #e6e9f0;
+  background: #fff;
+  color: #6b7688;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+}
+.cq-zoom-controls button:hover {
+  background: #f4f8f6;
+}
+.cq-zoom-controls button:nth-child(2) {
+  width: auto;
+  padding: 0 10px;
+  font-size: 10px;
+}
+
+.cq-svg {
+  width: 100%;
+  height: 340px;
+  cursor: grab;
+}
+.cq-svg:active {
+  cursor: grabbing;
+}
+
+.cq-link {
+  stroke: #c3d2cb;
+  stroke-width: 1.6px;
+}
+
+.cq-node {
+  cursor: pointer;
+}
+.cq-node text {
+  font-size: 11px;
+  font-weight: 700;
+  fill: #1a2332;
+  pointer-events: none;
+}
+.cq-circle {
+  fill: #c8d4cd;
+  stroke: #fff;
+  stroke-width: 2px;
+}
+.cq-circle.selected {
+  fill: #1c7a4c;
+}
+.cq-circle.selected + text,
+.cq-node:has(.cq-circle.selected) text {
+  fill: #fff;
+}
+.cq-circle.pinned {
+  stroke: #1a2332;
+  stroke-width: 2.5px;
+}
+
+.cq-kv {
+  font-size: 12px;
+  color: #9aa3b2;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin: 14px 0 4px;
+}
+.cq-kv:first-of-type {
+  margin-top: 0;
+}
+.cq-code {
+  font-weight: 800;
+  font-size: 16px;
+  color: #1a2332;
+  margin: 0;
+}
+.cq-title {
+  font-weight: 600;
+  font-size: 13.5px;
+  color: #333f52;
+  margin: 2px 0 0;
+}
+
+.cq-checklist {
+  max-height: 140px;
+  overflow-y: auto;
+  border: 1px solid #dbe0ea;
+  border-radius: 8px;
+  padding: 6px 4px;
+  background: #fbfcfe;
+}
+.cq-check-row {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  font-size: 12.5px;
+  font-weight: 400 !important;
+  color: #1a2332;
+  margin: 0 !important;
+  cursor: pointer;
+}
+.cq-check-row input[type='checkbox'] {
+  width: auto;
+  margin: 0;
+}
+
+.cq-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cq-chip {
+  display: inline-block;
+  background: #e6f5ec;
+  color: #125c39;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 6px;
+}
+
+@media (max-width: 900px) {
+  .cq-grid {
+    grid-template-columns: 1fr;
+  }
+}
