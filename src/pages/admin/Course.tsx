@@ -156,11 +156,7 @@ export default function Course({ profile }: CourseProps) {
 
   const programCourses = visible.filter((c) => c.id !== editId)
 
-  const totalCredits = (f: CourseForm) => {
-    const lec = parseInt(f.creditLecture, 10) || 0
-    const lab = parseInt(f.creditLaboratory, 10) || 0
-    return lec + lab
-  }
+  const totalCredits = () => 3
 
   const idOf = (v: string | { id: string } | null) => (v && typeof v === 'object' ? v.id : v)
   const curriculumLabel = (id: string | { id: string } | null) => {
@@ -177,7 +173,7 @@ export default function Course({ profile }: CourseProps) {
     corequisite: f.coreqNA ? '' : f.coreq.trim(),
     credit_lecture: parseInt(f.creditLecture, 10) || 0,
     credit_laboratory: parseInt(f.creditLaboratory, 10) || 0,
-    units: totalCredits(f),
+    units: totalCredits(),
     description: f.description.trim() || null,
   })
 
@@ -361,7 +357,7 @@ export default function Course({ profile }: CourseProps) {
                 {creditField('Laboratory', 'creditLaboratory')}
                 <label className="field">
                   <span>Total</span>
-                  <input className="input" type="number" readOnly value={totalCredits(activeForm)} />
+                  <input className="input" type="number" readOnly value={totalCredits()} />
                 </label>
               </div>
             </div>
