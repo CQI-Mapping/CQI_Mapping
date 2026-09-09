@@ -95,6 +95,7 @@ export default function ProgramOutcomes() {
       deleteAction="program_outcome.deleted"
       codeLabel="Code"
       codePlaceholder="e.g. PO-1"
+      codeWidth="110px"
       titleLabel="Description"
       alignments={alignments}
       sort={(a, b) => {

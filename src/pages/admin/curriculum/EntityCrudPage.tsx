@@ -36,6 +36,7 @@ interface EntityCrudPageProps<T extends { id: string }> {
   deleteAction: string
   codeLabel?: string
   codePlaceholder?: string
+  codeWidth?: string
   isActive?: (item: T) => boolean
   sort?: (a: T, b: T) => number
   showDescription?: boolean
@@ -70,6 +71,7 @@ export default function EntityCrudPage<T extends { id: string }>({
   deleteAction,
   codeLabel = 'Code',
   codePlaceholder = 'e.g. CODE-1',
+  codeWidth,
   isActive = (i) => !(i as { status?: string }).status || (i as { status?: string }).status === 'active',
   sort,
   showDescription = true,
@@ -184,7 +186,7 @@ export default function EntityCrudPage<T extends { id: string }>({
           <>
             <label className="field">
               <span>{codeLabel}</span>
-              <input className="input input--sm" type="text" placeholder={codePlaceholder} value={form.code}
+              <input className="input input--sm" type="text" placeholder={codePlaceholder} style={codeWidth ? { width: codeWidth } : undefined} value={form.code}
                 onChange={(e) => setForm({ ...form, code: e.target.value })} required />
             </label>
             {showTitle && (
@@ -200,7 +202,7 @@ export default function EntityCrudPage<T extends { id: string }>({
         <div className="create-resource__row">
           <label className="field">
             <span>{codeLabel}</span>
-            <input className="input input--sm" type="text" placeholder={codePlaceholder} value={form.code}
+            <input className="input input--sm" type="text" placeholder={codePlaceholder} style={codeWidth ? { width: codeWidth } : undefined} value={form.code}
               onChange={(e) => setForm({ ...form, code: e.target.value })} required />
           </label>
           {showTitle && (
@@ -267,7 +269,7 @@ export default function EntityCrudPage<T extends { id: string }>({
                 <tr key={item.id} className={!isActive(item) ? 'sd-archived' : ''}>
                   {editingId === item.id ? (
                     <>
-                      <td><input className="input input--sm" value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} /></td>
+                      <td><input className="input input--sm" style={codeWidth ? { width: codeWidth } : undefined} value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} /></td>
                       {showTitle && (
                         <td>{titleMultiline ? (
                           <textarea className="input input--sm" rows={3} ref={autoResize} value={editForm.title}
