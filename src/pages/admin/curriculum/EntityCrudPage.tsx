@@ -29,6 +29,8 @@ interface EntityCrudPageProps<T extends { id: string }> {
   sort?: (a: T, b: T) => number
   showDescription?: boolean
   showTitle?: boolean
+  titleField?: string
+  titleLabel?: string
   formatCode?: (code: string) => string
 }
 
@@ -49,6 +51,8 @@ export default function EntityCrudPage<T extends { id: string }>({
   sort,
   showDescription = true,
   showTitle = true,
+  titleField = 'title',
+  titleLabel = 'Title',
   formatCode = (c) => c,
 }: EntityCrudPageProps<T>) {
   const crud = useEntityCrud<T>({ loadFn: load, createFn: create, updateFn: update, deleteFn: remove, userEmail: '', scope })
@@ -89,7 +93,7 @@ export default function EntityCrudPage<T extends { id: string }>({
 
   const payload = (f: typeof blank) => ({
     code: f.code.trim(),
-    title: f.title.trim(),
+    [titleField]: f.title.trim(),
     description: f.description.trim() || null,
   }) as Partial<T>
 
@@ -102,7 +106,7 @@ export default function EntityCrudPage<T extends { id: string }>({
     setEditingId(item.id)
     setEditForm({
       code: (item as { code?: string }).code || '',
-      title: (item as { title?: string }).title || '',
+      title: ((item as Record<string, unknown>)[titleField] as string | undefined) || '',
       description: (item as { description?: string }).description || '',
     })
   }
@@ -112,7 +116,7 @@ export default function EntityCrudPage<T extends { id: string }>({
   }
 
   const codeOf = (i: T) => (i as { code?: string }).code || ''
-  const titleOf = (i: T) => (i as { title?: string }).title || ''
+  const titleOf = (i: T) => ((i as Record<string, unknown>)[titleField] as string | undefined) || ''
   const descOf = (i: T) => (i as { description?: string }).description
 
   return (
@@ -130,7 +134,7 @@ export default function EntityCrudPage<T extends { id: string }>({
           </label>
           {showTitle && (
             <label className="field">
-              <span>Title</span>
+              <span>{titleLabel}</span>
               <input className="input input--sm" type="text" placeholder="Enter title" value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })} required />
             </label>
@@ -160,7 +164,7 @@ export default function EntityCrudPage<T extends { id: string }>({
             </button>
           </div>
           <table className="table">
-            <thead><tr><th>Code</th>{showTitle && <th>Title</th>}{showDescription && <th>Description</th>}<th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Code</th>{showTitle && <th>{titleLabel}</th>}{showDescription && <th>Description</th>}<th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {visible.length === 0 && <tr><td colSpan={3 + (showTitle ? 1 : 0) + (showDescription ? 1 : 0)}>No {title.toLowerCase()} yet.</td></tr>}
               {visible.map((item) => (
