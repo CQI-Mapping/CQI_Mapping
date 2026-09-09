@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import EntityCrudPage, { type AlignmentOption } from './curriculum/EntityCrudPage.js'
+import EntityCrudPage, { type AlignmentOption, type AlignmentField } from './curriculum/EntityCrudPage.js'
 import {
   fetchProgramOutcomesStandalone,
   createProgramOutcomeStandalone,
@@ -7,6 +7,7 @@ import {
   deleteProgramOutcomeStandalone,
   fetchChedMemoOrders,
   fetchProgramEducationalObjectives,
+  fetchStrategicGoals,
 } from '../../services/database'
 import type { ProgramOutcomeStandalone } from '../../services/database'
 
@@ -17,8 +18,10 @@ const FIXED_OPTIONS = [
 ]
 
 export default function ProgramOutcomes() {
-  const [options, setOptions] = useState<AlignmentOption[] | null>(null)
+  const [cmoOptions, setCmoOptions] = useState<AlignmentOption[]>([])
   const [peoOptions, setPeoOptions] = useState<AlignmentOption[]>([])
+  const [sgOptions, setSgOptions] = useState<AlignmentOption[]>([])
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -26,13 +29,12 @@ export default function ProgramOutcomes() {
     ;(async () => {
       try {
         const pos = await fetchProgramOutcomesStandalone()
-        const referenced = new Set(pos.map((p) => p.cmo_id).filter(Boolean) as string[])
+        const referencedCmos = new Set(pos.map((p) => p.cmo_id).filter(Boolean) as string[])
         const cmos = (await fetchChedMemoOrders()).filter(
-          (c) => c.status === 'active' || referenced.has(c.id),
+          (c) => c.status === 'active' || referencedCmos.has(c.id),
         )
-
         const fixedOptions: AlignmentOption[] = FIXED_OPTIONS.map((v) => ({ value: v, cmo_id: null }))
-        const cmoOptions: AlignmentOption[] = cmos.map((c) => ({
+        const cmoOpts: AlignmentOption[] = cmos.map((c) => ({
           value: `${c.title} (${c.code})`,
           cmo_id: c.id,
         }))
@@ -41,24 +43,44 @@ export default function ProgramOutcomes() {
         const peos = (await fetchProgramEducationalObjectives()).filter(
           (p) => p.status === 'active' || referencedPeos.has(p.id),
         )
-        const peosOptions: AlignmentOption[] = peos.map((p) => ({
+        const peoOpts: AlignmentOption[] = peos.map((p) => ({
           value: `${p.code} \u2014 ${p.title}`,
           relationId: p.id,
         }))
 
+        const referencedSgs = new Set(pos.map((p) => (p as { sg_id?: string | null }).sg_id).filter(Boolean) as string[])
+        const sgs = (await fetchStrategicGoals()).filter(
+          (s) => s.status === 'active' || referencedSgs.has(s.id),
+        )
+        const sgOpts: AlignmentOption[] = sgs.map((s) => ({
+          value: `${s.code} \u2014 ${s.title || s.description || ''}`.replace(/ \u2014 $/, ''),
+          relationId: s.id,
+        }))
+
         if (!cancelled) {
-          setOptions([...fixedOptions, ...cmoOptions])
-          setPeoOptions(peosOptions)
+          setCmoOptions([...fixedOptions, ...cmoOpts])
+          setPeoOptions(peoOpts)
+          setSgOptions(sgOpts)
+          setLoading(false)
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load CMO data.')
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : 'Failed to load alignment data.')
+          setLoading(false)
+        }
       }
     })()
     return () => { cancelled = true }
   }, [])
 
   if (error) return <p className="msg msg--error">{error}</p>
-  if (!options) return <p>Loading program outcomes...</p>
+  if (loading) return <p>Loading program outcomes...</p>
+
+  const alignments: AlignmentField[] = [
+    { label: 'Program Educational Objectives', relationField: 'peo_id', options: peoOptions },
+    { label: 'Strategic Goals', relationField: 'sg_id', options: sgOptions },
+    { label: 'CMO Alignment', relationField: 'cmo_id', textField: 'description', options: cmoOptions },
+  ]
 
   return (
     <EntityCrudPage<ProgramOutcomeStandalone>
@@ -74,12 +96,7 @@ export default function ProgramOutcomes() {
       codeLabel="Code"
       codePlaceholder="e.g. PO-1"
       titleLabel="Description"
-      descriptionLabel="CMO Alignment"
-      descriptionOptions={options}
-      relationField="cmo_id"
-      descriptionLabel2="Program Educational Objectives"
-      descriptionOptions2={peoOptions}
-      relationField2="peo_id"
+      alignments={alignments}
       sort={(a, b) => {
         const n = (s: string) => parseInt(s.replace(/\D/g, ''), 10)
         return (n((a as { code?: string }).code || '') || 0) - (n((b as { code?: string }).code || '') || 0)
