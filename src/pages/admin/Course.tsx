@@ -24,9 +24,7 @@ type CourseForm = {
   title: string
   curriculum: string
   prereq: string
-  prereqNA: boolean
   coreq: string
-  coreqNA: boolean
   creditLecture: string
   creditLaboratory: string
   description: string
@@ -37,9 +35,7 @@ const blank: CourseForm = {
   title: '',
   curriculum: '',
   prereq: '',
-  prereqNA: false,
   coreq: '',
-  coreqNA: false,
   creditLecture: '',
   creditLaboratory: '',
   description: '',
@@ -100,16 +96,6 @@ export default function Course({ profile }: CourseProps) {
 
   const programCourses = visible.filter((c) => c.id !== editId)
 
-  const pickPrereq = (code: string) => {
-    if (!code) return
-    setActiveForm((current: CourseForm) => ({ ...current, prereq: code }))
-  }
-
-  const pickCoreq = (code: string) => {
-    if (!code) return
-    setActiveForm((current: CourseForm) => ({ ...current, coreq: code }))
-  }
-
   const totalCredits = (f: CourseForm) => {
     const lec = parseInt(f.creditLecture, 10) || 0
     const lab = parseInt(f.creditLaboratory, 10) || 0
@@ -127,8 +113,8 @@ export default function Course({ profile }: CourseProps) {
     code: f.code.trim(),
     title: f.title.trim(),
     curriculum_id: f.curriculum || null,
-    prerequisite: f.prereqNA ? '' : f.prereq.trim(),
-    corequisite: f.coreqNA ? '' : f.coreq.trim(),
+    prerequisite: f.prereq,
+    corequisite: f.coreq,
     credit_lecture: parseInt(f.creditLecture, 10) || 0,
     credit_laboratory: parseInt(f.creditLaboratory, 10) || 0,
     units: totalCredits(f),
@@ -163,9 +149,7 @@ export default function Course({ profile }: CourseProps) {
       title: item.title,
       curriculum: relId(item.curriculum_id),
       prereq: item.prerequisite || '',
-      prereqNA: !item.prerequisite,
       coreq: item.corequisite || '',
-      coreqNA: !item.corequisite,
       creditLecture: String(item.credit_lecture ?? 0),
       creditLaboratory: String(item.credit_laboratory ?? 0),
       description: item.description || '',
@@ -269,47 +253,23 @@ export default function Course({ profile }: CourseProps) {
             </label>
             <label className="field">
               <span>Pre-requisite</span>
-              <div className="na-row">
-                <input className="input" type="text" placeholder="e.g. IT12"
-                  value={activeForm.prereqNA ? '' : activeForm.prereq}
-                  onChange={(e) => setActiveForm({ ...activeForm, prereq: e.target.value })}
-                  disabled={activeForm.prereqNA} />
-                <select className="input" value="" onChange={(e) => pickPrereq(e.target.value)}
-                  disabled={activeForm.prereqNA}>
-                  <option value="">Pick…</option>
-                  {programCourses.map((c) => (
-                    <option key={c.id} value={c.code}>{c.code}</option>
-                  ))}
-                </select>
-                <label className="na-check">
-                  <input type="checkbox" checked={activeForm.prereqNA}
-                    onChange={(e) => setActiveForm({ ...activeForm, prereqNA: e.target.checked, prereq: e.target.checked ? '' : activeForm.prereq })} />
-                  <span className="cb-box" aria-hidden="true" />
-                  N/A
-                </label>
-              </div>
+              <select className="input" value={activeForm.prereq}
+                onChange={(e) => setActiveForm({ ...activeForm, prereq: e.target.value })}>
+                <option value="">N/A</option>
+                {programCourses.map((c) => (
+                  <option key={c.id} value={c.code}>{c.code}</option>
+                ))}
+              </select>
             </label>
             <label className="field">
               <span>Co-requisite</span>
-              <div className="na-row">
-                <input className="input" type="text" placeholder="e.g. IT13"
-                  value={activeForm.coreqNA ? '' : activeForm.coreq}
-                  onChange={(e) => setActiveForm({ ...activeForm, coreq: e.target.value })}
-                  disabled={activeForm.coreqNA} />
-                <select className="input" value="" onChange={(e) => pickCoreq(e.target.value)}
-                  disabled={activeForm.coreqNA}>
-                  <option value="">Pick…</option>
-                  {programCourses.map((c) => (
-                    <option key={c.id} value={c.code}>{c.code}</option>
-                  ))}
-                </select>
-                <label className="na-check">
-                  <input type="checkbox" checked={activeForm.coreqNA}
-                    onChange={(e) => setActiveForm({ ...activeForm, coreqNA: e.target.checked, coreq: e.target.checked ? '' : activeForm.coreq })} />
-                  <span className="cb-box" aria-hidden="true" />
-                  N/A
-                </label>
-              </div>
+              <select className="input" value={activeForm.coreq}
+                onChange={(e) => setActiveForm({ ...activeForm, coreq: e.target.value })}>
+                <option value="">N/A</option>
+                {programCourses.map((c) => (
+                  <option key={c.id} value={c.code}>{c.code}</option>
+                ))}
+              </select>
             </label>
             <div className="field">
               <span>Credit</span>
