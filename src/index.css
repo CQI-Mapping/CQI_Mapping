@@ -1155,6 +1155,14 @@ code {
   align-items: center;
 }
 
+.create-resource__row > .field {
+  min-width: 0;
+}
+
+.create-resource__row .field .input {
+  width: 100%;
+}
+
 .create-resource__submit {
   display: flex;
   justify-content: flex-end;

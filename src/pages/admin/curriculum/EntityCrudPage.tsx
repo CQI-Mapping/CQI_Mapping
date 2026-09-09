@@ -43,7 +43,7 @@ interface EntityCrudPageProps<T extends { id: string }> {
   descriptionLabel?: string
   alignments?: AlignmentField[]
   tableAlignments?: AlignmentField[]
-  formAlignments?: AlignmentField[]
+  inlineForm?: boolean
   showTitle?: boolean
   titleField?: string
   titleLabel?: string
@@ -80,7 +80,7 @@ export default function EntityCrudPage<T extends { id: string }>({
   descriptionLabel = 'Description',
 alignments,
   tableAlignments,
-  formAlignments,
+  inlineForm = false,
   showTitle = true,
   titleField = 'title',
   titleLabel = 'Title',
@@ -93,11 +93,13 @@ alignments,
   const crud = useEntityCrud<T>({ loadFn: load, createFn: create, updateFn: update, deleteFn: remove, userEmail: '', scope })
   const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete } = crud
 
+  const allAlignments = tableAlignments ?? alignments ?? []
+
   const blank = (): FormState => ({
     code: '',
     title: '',
     description: '',
-    align: (alignments ?? []).reduce((acc, a) => ({ ...acc, [a.relationField]: '' }), {}),
+    align: (allAlignments).reduce((acc, a) => ({ ...acc, [a.relationField]: '' }), {}),
   })
   const [form, setForm] = useState<FormState>(blank)
   const [editForm, setEditForm] = useState<FormState>(blank)
@@ -124,7 +126,7 @@ alignments,
       [titleField]: f.title.trim(),
       description: f.description.trim() || null,
     }
-    for (const a of alignments ?? []) {
+    for (const a of allAlignments) {
       const val = (f.align[a.relationField] || '').trim()
       const opt = a.options.find((o) => o.value === val)
       if (a.textField) base[a.textField] = opt ? opt.value : null
@@ -141,7 +143,7 @@ alignments,
   const startEdit = (item: T) => {
     setEditingId(item.id)
     const align: Record<string, string> = {}
-    for (const a of alignments ?? []) {
+    for (const a of allAlignments) {
       if (a.textField) {
         align[a.relationField] = ((item as Record<string, unknown>)[a.textField] as string | undefined) || ''
       } else {
@@ -202,6 +204,35 @@ alignments,
               </label>
             )}
           </>
+        ) : inlineForm ? (
+          <div className="create-resource__row" style={{ gridTemplateColumns: `repeat(${1 + (showTitle ? 1 : 0) + ((alignments ?? []).length || (showDescription ? 1 : 0))}, minmax(0, 1fr))` }}>
+            <label className="field">
+              <span>{codeLabel}</span>
+              <input className="input input--sm" type="text" placeholder={codePlaceholder} style={codeWidth ? { width: codeWidth } : undefined} value={form.code}
+                onChange={(e) => setForm({ ...form, code: e.target.value })} required />
+            </label>
+            {showTitle && (
+              <label className="field">
+                <span>{titleLabel}</span>
+                <input className="input input--sm" type="text" placeholder={`Enter ${titleLabel.toLowerCase()}`} value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })} required />
+              </label>
+            )}
+            {alignments ? alignments.map((a) => (
+              <label className="field" key={a.relationField}>
+                <span>{a.label}</span>
+                {alignmentSelect(a, form.align[a.relationField] || '', (v) =>
+                  setForm({ ...form, align: { ...form.align, [a.relationField]: v } }))}
+              </label>
+            )) : showDescription && (
+              <label className="field">
+                <span>{descriptionLabel}</span>
+                <textarea className="input input--sm" rows={3} placeholder="Optional description" ref={autoResize}
+                  value={form.description}
+                  onChange={(e) => { setForm({ ...form, description: e.target.value }); autoResize(e.target) }} />
+              </label>
+            )}
+          </div>
         ) : (
         <div className="create-resource__row create-resource__row--2col">
           <label className="field">
@@ -218,8 +249,8 @@ alignments,
           )}
         </div>
         )}
-        {formAlignments ?? alignments
-        ? (formAlignments ?? alignments)!.map((a) => (
+        {!inlineForm && (alignments
+        ? alignments.map((a) => (
             <label className="field" key={a.relationField}>
               <span>{a.label}</span>
               {alignmentSelect(a, form.align[a.relationField] || '', (v) =>
@@ -233,7 +264,7 @@ alignments,
                 value={form.description}
                 onChange={(e) => { setForm({ ...form, description: e.target.value }); autoResize(e.target) }} />
             </label>
-          )}
+          ))}
         <div className="create-resource__submit">
           <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>{busy ? 'Saving...' : 'Add'}</button>
         </div>

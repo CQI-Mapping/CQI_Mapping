@@ -97,9 +97,9 @@ export default function ProgramOutcomes() {
       codePlaceholder="e.g. PO-1"
       codeWidth="110px"
       titleLabel="Description"
-      alignments={alignments}
+      alignments={alignments.slice(0, 2)}
       tableAlignments={[alignments[2], alignments[0], alignments[1]]}
-      formAlignments={[alignments[0], alignments[1]]}
+      inlineForm
       sort={(a, b) => {
         const n = (s: string) => parseInt(s.replace(/\D/g, ''), 10)
         return (n((a as { code?: string }).code || '') || 0) - (n((b as { code?: string }).code || '') || 0)
