@@ -44,6 +44,7 @@ interface EntityCrudPageProps<T extends { id: string }> {
   alignments?: AlignmentField[]
   tableAlignments?: AlignmentField[]
   inlineForm?: boolean
+  stackedAlignments?: AlignmentField[]
   showTitle?: boolean
   titleField?: string
   titleLabel?: string
@@ -81,6 +82,7 @@ export default function EntityCrudPage<T extends { id: string }>({
 alignments,
   tableAlignments,
   inlineForm = false,
+  stackedAlignments = [],
   showTitle = true,
   titleField = 'title',
   titleLabel = 'Title',
@@ -249,6 +251,13 @@ alignments,
           )}
         </div>
         )}
+        {inlineForm && stackedAlignments.map((a) => (
+          <label className="field" key={a.relationField}>
+            <span>{a.label}</span>
+            {alignmentSelect(a, form.align[a.relationField] || '', (v) =>
+              setForm({ ...form, align: { ...form.align, [a.relationField]: v } }))}
+          </label>
+        ))}
         {!inlineForm && (alignments
         ? alignments.map((a) => (
             <label className="field" key={a.relationField}>
