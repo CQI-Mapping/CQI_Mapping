@@ -138,6 +138,12 @@ CREATE TABLE public.admin_program_outcomes (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Backfill for existing rows after adding cmo_id:
+-- UPDATE public.admin_program_outcomes a
+-- SET cmo_id = c.id
+-- FROM public.ched_memorandum_orders c
+-- WHERE a.cmo_id IS NULL AND a.description ILIKE '%' || c.code || '%';
+
 -- PROGRAM EDUCATIONAL OBJECTIVES
 CREATE TABLE public.program_educational_objectives (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -170,6 +176,11 @@ CREATE TABLE public.ched_memorandum_orders (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Program Outcome -> CHED Memorandum Order link (nullable; set when the
+-- outcome's alignment references a CMO that exists).
+ALTER TABLE public.admin_program_outcomes
+    ADD COLUMN IF NOT EXISTS cmo_id UUID REFERENCES public.ched_memorandum_orders(id) ON DELETE SET NULL;
 
 -- CLO/PO matrix: strength (1-3) of each course learning outcome's
 -- contribution to each program outcome of the same program. One row per

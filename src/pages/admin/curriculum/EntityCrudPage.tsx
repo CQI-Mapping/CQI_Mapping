@@ -35,6 +35,8 @@ interface EntityCrudPageProps<T extends { id: string }> {
   titleLabel?: string
   formatCode?: (code: string) => string
   allowDelete?: boolean
+  relationField?: string
+  resolveRelation?: (description: string) => string | null
 }
 
 export default function EntityCrudPage<T extends { id: string }>({
@@ -60,6 +62,8 @@ export default function EntityCrudPage<T extends { id: string }>({
   titleLabel = 'Title',
   formatCode = (c) => c,
   allowDelete = true,
+  relationField,
+  resolveRelation,
 }: EntityCrudPageProps<T>) {
   const crud = useEntityCrud<T>({ loadFn: load, createFn: create, updateFn: update, deleteFn: remove, userEmail: '', scope })
   const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete } = crud
@@ -97,11 +101,16 @@ export default function EntityCrudPage<T extends { id: string }>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, seeded])
 
-  const payload = (f: typeof blank) => ({
-    code: f.code.trim(),
-    [titleField]: f.title.trim(),
-    description: f.description.trim() || null,
-  }) as Partial<T>
+  const payload = (f: typeof blank) => {
+    const description = f.description.trim() || ''
+    const base: Record<string, unknown> = {
+      code: f.code.trim(),
+      [titleField]: f.title.trim(),
+      description: description || null,
+    }
+    if (relationField && resolveRelation) base[relationField] = resolveRelation(description) ?? null
+    return base as Partial<T>
+  }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()

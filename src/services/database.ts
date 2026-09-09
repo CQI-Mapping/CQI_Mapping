@@ -600,6 +600,7 @@ export interface ProgramOutcomeStandalone {
   code: string
   title: string
   description: string | null
+  cmo_id: string | null
   status: string
   created_at: string
   updated_at: string
