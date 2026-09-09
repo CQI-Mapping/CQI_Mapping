@@ -14,7 +14,6 @@
 //   Activity Logs  — fetchActivityLogs, addActivityLog (server-stamped via RPC)
 
 import { supabase as _supabase } from '../utils/supabaseClient'
-import { SEED_CLOS, IT21_COURSE, IT21_PROGRAM_CODE, BSIT_PROGRAM } from '../data/vcqiSyllabus.js'
 import type { User } from '@supabase/supabase-js'
 
 // Assert supabase client is configured (throws at runtime if not).
@@ -40,18 +39,78 @@ export interface ActivityLogEntry {
   created_at: string
 }
 
-export interface Resource {
+export interface Program {
   id: string
-  title: string
+  code: string
+  name: string
   description: string | null
   status: string
-  created_by: string | { full_name: string | null }
   created_at: string
 }
+
+export interface Course {
+    id: string
+    code: string
+    title: string
+    units: number
+    credit_lecture: number
+    credit_laboratory: number
+    description: string | null
+    program_id: string | { id: string; code: string; name: string }
+    curriculum_id: string | { id: string; code: string } | null
+    prerequisite: string
+    corequisite: string
+    created_at: string
+    updated_at: string
+  }
+
+export interface ProgramOutcome {
+  id: string
+  code: string
+  description: string | null
+  program_id: string
+  created_at: string
+}
+
+export interface CourseLearningOutcome {
+  id: string
+  code: string
+  description: string | null
+  course_id: string
+  created_at: string
+}
+
+export interface CloPoMappingEntry {
+  id: string
+  level: number
+  clo_id: { id: string; code: string; course_id: string }
+  po_id: { id: string; code: string; program_id: string }
+}
+
+export interface Resource {
+    id: string
+    title: string
+    code: string | null
+    description: string | null
+    units: number | null
+    status: string
+    created_by: string | { full_name: string | null }
+    created_at: string
+  }
 
 export interface NavItem {
   id: string
   label: string
+}
+
+export interface ChedMemoOrder {
+  id: string
+  code: string
+  title: string
+  description: string | null
+  status?: string
+  created_at: string
+  updated_at: string
 }
 
 // ---------- Profiles ----------
@@ -185,22 +244,23 @@ export async function fetchResources(): Promise<Resource[]> {
 }
 
 export async function createResource(
-  title: string,
-  description: string | null,
-  userId: string
-): Promise<Resource> {
-  const { data, error } = await supabase
+    code: string,
+    description: string | null,
+    units: number | null,
+    userId: string
+  ): Promise<Resource> {
+    const { data, error } = await supabase
     .from('resources')
-    .insert({ title, description, created_by: userId })
-    .select()
-    .single()
-  if (error) throw error
-  return data
-}
+      .insert({ title: code, code, description, units, created_by: userId })
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  }
 
 export async function updateResource(
   id: string,
-  updates: Partial<Pick<Resource, 'title' | 'description' | 'status'>>
+  updates: Partial<Pick<Resource, 'title' | 'code' | 'description' | 'units' | 'status'>>
 ): Promise<Resource> {
   const { data, error } = await supabase
     .from('resources')
@@ -255,9 +315,9 @@ export async function deleteProgram(id: string): Promise<void> {
 
 export async function fetchCourses(): Promise<Course[]> {
   const { data, error } = await supabase
-    .from('courses')
-    .select('*, program_id ( id, code, name )')
-    .order('code', { ascending: true })
+.from('courses')
+      .select('*, program_id ( id, code, name ), curriculum_id ( id, code )')
+      .order('code', { ascending: true })
   if (error) throw error
   return data
 }
@@ -286,66 +346,6 @@ export async function updateCourse(id: string, updates: Partial<Course>): Promis
 export async function deleteCourse(id: string): Promise<void> {
   const { error } = await supabase.from('courses').delete().eq('id', id)
   if (error) throw error
-}
-
-// VCQI syllabus seeding: ensure the BSIT program, the IT21 - Object Oriented
-// Programming course, and its course learning outcomes all exist. Idempotent —
-// existing rows are looked up by unique code before inserting, so repeated
-// calls never create duplicates.
-export async function seedIt21Course(): Promise<void> {
-  let { data: program, error: programError } = await supabase
-    .from('programs')
-    .select('id')
-    .eq('code', IT21_PROGRAM_CODE)
-    .maybeSingle()
-  if (programError) throw programError
-
-  if (!program) {
-    const { data: insertedProgram, error: insertProgramError } = await supabase
-      .from('programs')
-      .insert({ code: BSIT_PROGRAM.code, name: BSIT_PROGRAM.name, description: BSIT_PROGRAM.description })
-      .select('id')
-      .single()
-    if (insertProgramError) throw insertProgramError
-    program = insertedProgram
-  }
-
-  const { data: course, error: courseError } = await supabase
-    .from('courses')
-    .select('id')
-    .eq('program_id', program.id)
-    .eq('code', IT21_COURSE.code)
-    .maybeSingle()
-  if (courseError) throw courseError
-
-  let courseId: string | undefined = course?.id
-  if (!courseId) {
-    const { data: inserted, error: insertError } = await supabase
-      .from('courses')
-      .insert({
-        program_id: program.id,
-        code: IT21_COURSE.code,
-        title: IT21_COURSE.title,
-        units: IT21_COURSE.units,
-      })
-      .select('id')
-      .single()
-    if (insertError) throw insertError
-    courseId = inserted.id
-  }
-
-  const { data: clos, error: closError } = await supabase
-    .from('course_learning_outcomes')
-    .select('code')
-    .eq('course_id', courseId)
-  if (closError) throw closError
-  const existingCodes = new Set((clos ?? []).map((c) => c.code))
-  const missing = SEED_CLOS.filter((c) => !existingCodes.has(c.code))
-  if (missing.length === 0) return
-  const { error: insertCloError } = await supabase
-    .from('course_learning_outcomes')
-    .insert(missing.map((c) => ({ course_id: courseId!, code: c.code, description: c.title })))
-  if (insertCloError) throw insertCloError
 }
 
 // PROGRAM OUTCOMES (PO)
@@ -550,6 +550,7 @@ export interface ProgramOutcomeStandalone {
   code: string
   title: string
   description: string | null
+  cmo_id: string | null
   status: string
   created_at: string
   updated_at: string

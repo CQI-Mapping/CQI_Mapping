@@ -6,13 +6,9 @@
 // mirroring the reference repo's per-role structure.
 //
 // Admin role pages (sidebar order):
-//   Dashboard, Users & Accounts, Program Educational Objectives, Program Outcomes,
-//   Course Learning Outcomes, Strategic Goals, CHED Memorandum Orders,
-//   Activity Logs, Profile
-//
-// The manager role retains its own Curriculum, Program Outcomes (create/edit,
-// no delete), Faculty (with add), and Activity Logs pages.
-// The user role gains a Course Learning Outcomes page (create/edit, no delete).
+//   Dashboard, Program Educational Objectives, Program Outcomes,
+//   Curriculum, Course, Course Learning Outcomes, Strategic Goals,
+//   CHED Memorandum Orders, Users & Accounts, Activity Logs, Profile
 
 import { useState, useEffect } from 'react'
 import Sidebar from './components/Sidebar'
@@ -31,8 +27,9 @@ import AdminStrategicGoals from './pages/admin/StrategicGoals'
 import AdminPEOs from './pages/admin/ProgramEducationalObjectives'
 import AdminProgramOutcomes from './pages/admin/ProgramOutcomes'
 import AdminCourseLearningOutcomes from './pages/admin/CourseLearningOutcomes'
-import AdminView from './pages/admin/View'
 import AdminUsers from './pages/admin/Users'
+import AdminProgram from './pages/admin/Program'
+import AdminCourse from './pages/admin/Course'
 import { supabase } from './utils/supabaseClient'
 import { ensureProfile, syncDemoRole } from './services/database'
 import type { Profile as ProfileType, UserRole, NavItem } from './services/database'
@@ -42,12 +39,14 @@ import type { Session } from '@supabase/supabase-js'
 const NAV: Record<UserRole, NavItem[]> = {
   admin: [
     { id: 'dashboard', label: 'Dashboard' },
+    { id: 'program', label: 'Program' },
     { id: 'ched-memo', label: 'CHED Memorandum Orders' },
     { id: 'strategic-goals', label: 'Strategic Goals' },
     { id: 'peos', label: 'Program Educational Objectives' },
     { id: 'program-outcomes', label: 'Program Outcomes' },
+    { id: 'curriculum', label: 'Curriculum' },
+    { id: 'course', label: 'Course' },
     { id: 'clo', label: 'Course Learning Outcomes' },
-    { id: 'curriculum-map', label: 'View' },
     { id: 'users', label: 'Users & Accounts' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
@@ -73,11 +72,12 @@ const NAV: Record<UserRole, NavItem[]> = {
 const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
   admin: {
     dashboard: AdminDashboard,
-    users: AdminUsers,
+    program: AdminProgram,
     peos: AdminPEOs,
     'program-outcomes': AdminProgramOutcomes,
+    curriculum: ManagerCurriculum,
+    course: AdminCourse,
     clo: AdminCourseLearningOutcomes,
-    'curriculum-map': AdminView,
     'strategic-goals': AdminStrategicGoals,
     'ched-memo': AdminChedMemoOrders,
     users: AdminUsers,
@@ -144,7 +144,7 @@ function App() {
         if (cancelled) return null
         return syncDemoRole()
           .then((role) => {
-            if (role && role !== p.role) return ensureProfile(session.user)
+            if (role && role !== p.role) return { ...p, role }
             return p
           })
           .catch((err) => { console.error('syncDemoRole failed:', err); return p })
@@ -155,8 +155,10 @@ function App() {
         setLoading(false)
       })
       .catch(() => {
-        setProfileLoaded(true)
-        setLoading(false)
+        if (!cancelled) {
+          setProfileLoaded(true)
+          setLoading(false)
+        }
       })
 
     return () => { cancelled = true }

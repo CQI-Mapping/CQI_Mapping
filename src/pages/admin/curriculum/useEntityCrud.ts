@@ -15,7 +15,27 @@ interface UseEntityCrudParams<T> {
   scope: string
 }
 
-export function useEntityCrud<T extends { id: string; status: string }>({
+function friendlyError(raw: string): string {
+  if (/duplicate key.*violates unique constraint/.test(raw)) {
+    const keyName = raw.match(/violates unique constraint "(\w+)"/)?.[1] ?? ''
+    const parts = keyName.replace(/_key$/, '').split('_').filter(Boolean)
+    const columnWords = ['code', 'title', 'name', 'email', 'id']
+    const columns = parts.filter((p) => columnWords.includes(p))
+    if (columns.length >= 2)
+      return `A ${columns.join(' and ')} combination already exists. Please use a different code or title.`
+    if (columns.length === 1)
+      return `This ${columns[0]} already exists. Please use a different ${columns[0]}.`
+    return 'A record with these details already exists. Please use different values.'
+  }
+  if (/new row.*violates row-level security/.test(raw)) return 'You do not have permission to perform this action.'
+  if (/permission denied/.test(raw)) return 'Permission denied. Please check your account role.'
+  if (/invalid input syntax/.test(raw)) return 'The data format is invalid. Please check your entries.'
+  if (/violates foreign key constraint/.test(raw)) return 'This item is linked to other records and cannot be modified.'
+  if (/violates check constraint/.test(raw)) return 'One or more fields contain invalid values.'
+  return raw
+}
+
+export function useEntityCrud<T extends { id: string }>({
   loadFn,
   createFn,
   updateFn,
@@ -35,7 +55,8 @@ export function useEntityCrud<T extends { id: string; status: string }>({
     try {
       setItems(await loadFn())
     } catch (e) {
-      setError('Unable to load: ' + (e instanceof Error ? e.message : String(e)))
+      const raw = e instanceof Error ? e.message : (e && typeof e === 'object' ? (e as Record<string, unknown>).message || JSON.stringify(e) : String(e))
+      setError('Unable to load: ' + friendlyError(String(raw)))
     } finally {
       setLoading(false)
     }
@@ -52,7 +73,8 @@ export function useEntityCrud<T extends { id: string; status: string }>({
       load()
       return true
     } catch (e) {
-      setError(`Failed to create ${scope.toLowerCase()}: ` + (e instanceof Error ? e.message : String(e)))
+      const raw = e instanceof Error ? e.message : (e && typeof e === 'object' ? (e as Record<string, unknown>).message || JSON.stringify(e) : String(e))
+      setError(friendlyError(String(raw)))
       return false
     } finally {
       setBusy(false)
@@ -70,7 +92,8 @@ export function useEntityCrud<T extends { id: string; status: string }>({
       load()
       return true
     } catch (e) {
-      setError(`Failed to update ${scope.toLowerCase()}: ` + (e instanceof Error ? e.message : String(e)))
+      const raw = e instanceof Error ? e.message : (e && typeof e === 'object' ? (e as Record<string, unknown>).message || JSON.stringify(e) : String(e))
+      setError(friendlyError(String(raw)))
       return false
     } finally {
       setBusy(false)
@@ -88,7 +111,8 @@ export function useEntityCrud<T extends { id: string; status: string }>({
       load()
       return true
     } catch (e) {
-      setError(`Failed to delete ${scope.toLowerCase()}: ` + (e instanceof Error ? e.message : String(e)))
+      const raw = e instanceof Error ? e.message : (e && typeof e === 'object' ? (e as Record<string, unknown>).message || JSON.stringify(e) : String(e))
+      setError(friendlyError(String(raw)))
       return false
     }
   }

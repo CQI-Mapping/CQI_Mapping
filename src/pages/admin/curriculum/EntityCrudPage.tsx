@@ -6,10 +6,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useEntityCrud } from './useEntityCrud.js'
 
-interface SeedItem {
-  code: string
-  title: string
-  description: string | null
+// One selectable "alignment" option. `value` is the text stored in the entity's
+// description column (also the select's round-trippable value); `cmo_id`
+// (optional) records the CHED Memorandum Order to link to for that choice.
+export interface AlignmentOption {
+  value: string
+  cmo_id?: string | null
 }
 
 interface EntityCrudPageProps<T extends { id: string }> {
@@ -24,9 +26,20 @@ interface EntityCrudPageProps<T extends { id: string }> {
   deleteAction: string
   codeLabel?: string
   codePlaceholder?: string
-  seeds?: SeedItem[]
   isActive?: (item: T) => boolean
   sort?: (a: T, b: T) => number
+  showDescription?: boolean
+  descriptionLabel?: string
+  descriptionOptions?: AlignmentOption[]
+  showTitle?: boolean
+  titleField?: string
+  titleLabel?: string
+  titleMultiline?: boolean
+  formatCode?: (code: string) => string
+  allowDelete?: boolean
+  relationField?: string
+  counts?: Record<string, number>
+  countLabel?: string
 }
 
 export default function EntityCrudPage<T extends { id: string }>({
@@ -41,9 +54,20 @@ export default function EntityCrudPage<T extends { id: string }>({
   deleteAction,
   codeLabel = 'Code',
   codePlaceholder = 'e.g. CODE-1',
-  seeds,
   isActive = (i) => !(i as { status?: string }).status || (i as { status?: string }).status === 'active',
   sort,
+  showDescription = true,
+  descriptionLabel = 'Description',
+  descriptionOptions,
+  showTitle = true,
+  titleField = 'title',
+  titleLabel = 'Title',
+  titleMultiline = false,
+  formatCode = (c) => c,
+  allowDelete = true,
+  relationField,
+  counts,
+  countLabel = 'Linked',
 }: EntityCrudPageProps<T>) {
   const crud = useEntityCrud<T>({ loadFn: load, createFn: create, updateFn: update, deleteFn: remove, userEmail: '', scope })
   const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete } = crud
@@ -52,7 +76,6 @@ export default function EntityCrudPage<T extends { id: string }>({
   const [form, setForm] = useState(blank)
   const [editForm, setEditForm] = useState(blank)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [seeded, setSeeded] = useState(false)
   const [archived, setArchived] = useState(false)
 
   const autoResize = useCallback((el: HTMLTextAreaElement | null) => {
@@ -67,25 +90,17 @@ export default function EntityCrudPage<T extends { id: string }>({
 
   useEffect(() => { crud.load() }, [crud.load])
 
-  // Seed any records from `seeds` that are missing (matched by code).
-  useEffect(() => {
-    if (loading || seeded || !seeds || seeds.length === 0) return
-    setSeeded(true)
-    const existing = new Set(items.map((i) => (i as { code?: string }).code))
-    const missing = seeds.filter((s) => !existing.has(s.code))
-    if (missing.length === 0) return
-    missing.reduce<Promise<unknown>>((prev, s) => prev.then(() => create(s as Partial<T>)), Promise.resolve())
-      .then(() => crud.load())
-      .catch(() => {})
-    // items intentionally omitted from deps so seeding runs once
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, seeded])
-
-  const payload = (f: typeof blank) => ({
-    code: f.code.trim(),
-    title: f.title.trim(),
-    description: f.description.trim() || null,
-  }) as Partial<T>
+  const payload = (f: typeof blank) => {
+    const value = f.description.trim() || ''
+    const opt = descriptionOptions?.find((o) => o.value === value)
+    const base: Record<string, unknown> = {
+      code: f.code.trim(),
+      [titleField]: f.title.trim(),
+      description: opt ? opt.value : (value || null),
+    }
+    if (relationField) base[relationField] = opt && opt.cmo_id ? opt.cmo_id : null
+    return base as Partial<T>
+  }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -96,7 +111,7 @@ export default function EntityCrudPage<T extends { id: string }>({
     setEditingId(item.id)
     setEditForm({
       code: (item as { code?: string }).code || '',
-      title: (item as { title?: string }).title || '',
+      title: ((item as Record<string, unknown>)[titleField] as string | undefined) || '',
       description: (item as { description?: string }).description || '',
     })
   }
@@ -106,8 +121,17 @@ export default function EntityCrudPage<T extends { id: string }>({
   }
 
   const codeOf = (i: T) => (i as { code?: string }).code || ''
-  const titleOf = (i: T) => (i as { title?: string }).title || ''
+  const titleOf = (i: T) => ((i as Record<string, unknown>)[titleField] as string | undefined) || ''
   const descOf = (i: T) => (i as { description?: string }).description
+
+  const alignmentSelect = (value: string, onChange: (v: string) => void) => (
+    <select className="input input--sm" value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">None</option>
+      {descriptionOptions?.map((o) => (
+        <option key={o.value} value={o.value}>{o.value}</option>
+      ))}
+    </select>
+  )
 
   return (
     <div className="curriculum-view">
@@ -116,24 +140,48 @@ export default function EntityCrudPage<T extends { id: string }>({
 
       <form className="panel create-resource" onSubmit={submit}>
         <h3>New {title}</h3>
+        {titleMultiline ? (
+          <>
+            <label className="field">
+              <span>{codeLabel}</span>
+              <input className="input input--sm" type="text" placeholder={codePlaceholder} value={form.code}
+                onChange={(e) => setForm({ ...form, code: e.target.value })} required />
+            </label>
+            {showTitle && (
+              <label className="field">
+                <span>{titleLabel}</span>
+                <textarea className="input input--sm" rows={3} placeholder={`Enter full ${titleLabel.toLowerCase()}`} ref={autoResize}
+                  value={form.title}
+                  onChange={(e) => { setForm({ ...form, title: e.target.value }); autoResize(e.target) }} required />
+              </label>
+            )}
+          </>
+        ) : (
         <div className="create-resource__row">
           <label className="field">
             <span>{codeLabel}</span>
             <input className="input input--sm" type="text" placeholder={codePlaceholder} value={form.code}
               onChange={(e) => setForm({ ...form, code: e.target.value })} required />
           </label>
-          <label className="field">
-            <span>Title</span>
-            <input className="input input--sm" type="text" placeholder="Enter title" value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })} required />
-          </label>
+          {showTitle && (
+            <label className="field">
+              <span>{titleLabel}</span>
+              <input className="input input--sm" type="text" placeholder={`Enter ${titleLabel.toLowerCase()}`} value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })} required />
+            </label>
+          )}
         </div>
-        <label className="field">
-          <span>Description</span>
-          <textarea className="input input--sm" rows={3} placeholder="Optional description" ref={autoResize}
-            value={form.description}
-            onChange={(e) => { setForm({ ...form, description: e.target.value }); autoResize(e.target) }} />
-        </label>
+        )}
+        {showDescription && (
+          <label className="field">
+            <span>{descriptionLabel}</span>
+            {descriptionOptions ? alignmentSelect(form.description, (v) => setForm({ ...form, description: v })) : (
+              <textarea className="input input--sm" rows={3} placeholder="Optional description" ref={autoResize}
+                value={form.description}
+                onChange={(e) => { setForm({ ...form, description: e.target.value }); autoResize(e.target) }} />
+            )}
+          </label>
+        )}
         <div className="create-resource__submit">
           <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>{busy ? 'Saving...' : 'Add'}</button>
         </div>
@@ -150,17 +198,44 @@ export default function EntityCrudPage<T extends { id: string }>({
             </button>
           </div>
           <table className="table">
-            <thead><tr><th>Code</th><th>Title</th><th>Description</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Code</th>
+                {showTitle && <th>{titleLabel}</th>}
+                {showDescription && <th>{descriptionLabel}</th>}
+                {counts && <th>{countLabel}</th>}
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
             <tbody>
-              {visible.length === 0 && <tr><td colSpan={5}>No {title.toLowerCase()} yet.</td></tr>}
+              {visible.length === 0 && (
+                <tr>
+                  <td colSpan={3 + (showTitle ? 1 : 0) + (showDescription ? 1 : 0) + (counts ? 1 : 0)}>
+                    No {title.toLowerCase()} yet.
+                  </td>
+                </tr>
+              )}
               {visible.map((item) => (
                 <tr key={item.id} className={!isActive(item) ? 'sd-archived' : ''}>
                   {editingId === item.id ? (
                     <>
                       <td><input className="input input--sm" value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} /></td>
-                      <td><input className="input input--sm" value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} /></td>
-                      <td><textarea className="input input--sm" rows={3} ref={autoResize} value={editForm.description}
-                        onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} /></td>
+                      {showTitle && (
+                        <td>{titleMultiline ? (
+                          <textarea className="input input--sm" rows={3} ref={autoResize} value={editForm.title}
+                            onChange={(e) => { setEditForm({ ...editForm, title: e.target.value }); autoResize(e.target) }} />
+                        ) : (
+                          <input className="input input--sm" value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} />
+                        )}</td>
+                      )}
+                      {showDescription && (
+                        <td>{descriptionOptions ? alignmentSelect(editForm.description, (v) => setEditForm({ ...editForm, description: v })) : (
+                          <textarea className="input input--sm" rows={3} ref={autoResize} value={editForm.description}
+                            onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} />
+                        )}</td>
+                      )}
+                      {counts && <td></td>}
                       <td></td>
                       <td>
                         <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>Save</button>{' '}
@@ -169,9 +244,10 @@ export default function EntityCrudPage<T extends { id: string }>({
                     </>
                   ) : (
                     <>
-                      <td><strong>{codeOf(item)}</strong></td>
-                      <td>{titleOf(item)}</td>
-                      <td>{descOf(item) || '—'}</td>
+                      <td><strong>{formatCode(codeOf(item))}</strong></td>
+                      {showTitle && <td>{titleOf(item)}</td>}
+                      {showDescription && <td>{descOf(item) || '—'}</td>}
+                      {counts && <td>{counts[item.id] ?? 0}</td>}
                       <td>
                         <span className={`sd-status-badge ${isActive(item) ? 'sd-status-badge--active' : 'sd-status-badge--archived'}`}>
                           {isActive(item) ? 'active' : 'archived'}
@@ -183,7 +259,7 @@ export default function EntityCrudPage<T extends { id: string }>({
                           onClick={() => handleUpdate(item.id, { status: isActive(item) ? 'archived' : 'active' }, updateAction)} disabled={busy || !!editingId}>
                           {isActive(item) ? 'Archive' : 'Restore'}
                         </button>
-                        {!isActive(item) && (
+                        {!isActive(item) && allowDelete && (
                           <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, deleteAction)} disabled={busy || !!editingId}>Delete</button>
                         )}
                       </td>

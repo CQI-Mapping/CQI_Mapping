@@ -2,6 +2,9 @@
 -- =============================================================================
 -- CQI Monitoring System — Database Schema
 -- =============================================================================
+-- This file defines all tables, triggers, and RLS policies for the
+-- CQI (Continuous Quality Improvement) Mapping application.
+--
 -- Tables:
 --   profiles                      — user accounts (linked to auth.users)
 --   resources                     — curriculum records (managed by manager/admin)
@@ -47,6 +50,29 @@ CREATE TABLE public.profiles (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE public.resources (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      title TEXT NOT NULL,
+      code TEXT NOT NULL DEFAULT '',
+      description TEXT,
+      units INTEGER CHECK (units >= 0),
+      status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
+    created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE public.activity_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_email TEXT,
+    action TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- CQI curriculum domain: academic programs, their courses, program outcomes
+-- (PO), and course learning outcomes (CLO). These feed the CLO/PO mapping
+-- matrix and the CQI analytics dashboards in later phases.
+
 CREATE TABLE public.programs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code TEXT UNIQUE NOT NULL,
@@ -58,15 +84,21 @@ CREATE TABLE public.programs (
 );
 
 CREATE TABLE public.courses (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    program_id UUID NOT NULL REFERENCES public.programs(id) ON DELETE CASCADE,
-    code TEXT NOT NULL,
-    title TEXT NOT NULL,
-    units INTEGER NOT NULL DEFAULT 3 CHECK (units > 0),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (program_id, code)
-);
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      program_id UUID NOT NULL REFERENCES public.programs(id) ON DELETE CASCADE,
+      curriculum_id UUID REFERENCES public.resources(id) ON DELETE SET NULL,
+      code TEXT NOT NULL,
+      title TEXT NOT NULL,
+      prerequisite TEXT NOT NULL DEFAULT '',
+      corequisite TEXT NOT NULL DEFAULT '',
+      credit_lecture INTEGER NOT NULL DEFAULT 0 CHECK (credit_lecture >= 0 AND credit_lecture <= 3),
+      credit_laboratory INTEGER NOT NULL DEFAULT 0 CHECK (credit_laboratory >= 0 AND credit_laboratory <= 3),
+      units INTEGER NOT NULL DEFAULT 0 CHECK (units >= 0),
+      description TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (program_id, code)
+  );
 
 CREATE TABLE public.program_outcomes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -113,16 +145,41 @@ CREATE TABLE public.strategic_goals (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- CHED MEMORANDUM ORDERS (created before admin_program_outcomes so the
+-- Program Outcome -> CMO link can be declared inline below).
+-- codes may repeat IF the title differs; the exact (code, title) pair is unique.
+CREATE TABLE public.ched_memorandum_orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (code, title)
+);
+
+-- PROGRAM OUTCOMES (standalone admin list)
+-- cmo_id: optional link to a CHED Memorandum Order, set when the outcome's
+-- alignment references a CMO that exists.
 CREATE TABLE public.admin_program_outcomes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code TEXT UNIQUE NOT NULL,
     title TEXT NOT NULL,
     description TEXT,
+    cmo_id UUID REFERENCES public.ched_memorandum_orders(id) ON DELETE SET NULL,
     status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Backfill for existing rows after adding cmo_id:
+-- UPDATE public.admin_program_outcomes a
+-- SET cmo_id = c.id
+-- FROM public.ched_memorandum_orders c
+-- WHERE a.cmo_id IS NULL AND a.description ILIKE '%' || c.code || '%';
+
+-- PROGRAM EDUCATIONAL OBJECTIVES
 CREATE TABLE public.program_educational_objectives (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code TEXT UNIQUE NOT NULL,
@@ -143,15 +200,8 @@ CREATE TABLE public.admin_course_learning_outcomes (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE public.ched_memorandum_orders (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    code TEXT UNIQUE NOT NULL,
-    title TEXT NOT NULL,
-    description TEXT,
-    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
+-- CHED MEMORANDUM ORDERS
+-- (definition is above, before admin_program_outcomes)
 
 -- ============================================================
 -- HELPER: current user's role (bypasses RLS, avoids recursion)
@@ -481,53 +531,12 @@ REVOKE ALL ON FUNCTION public.sync_demo_role() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.sync_demo_role() TO authenticated;
 
 -- ============================================================
--- ARCHIVE GUARD
--- RLS is row-level only, so a manager/user with UPDATE rights on a
--- table could still flip the status column via the API even though
--- the UI hides Archive buttons. This trigger makes status changes
--- admin-only at the database level.
--- ============================================================
-
-CREATE OR REPLACE FUNCTION public.enforce_status_admin_only()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    IF NEW.status IS DISTINCT FROM OLD.status
-       AND public.current_user_role() <> 'admin' THEN
-        RAISE EXCEPTION 'Only admins can archive or restore records';
-    END IF;
-    RETURN NEW;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS guard_strategic_goals_status ON public.strategic_goals;
-CREATE TRIGGER guard_strategic_goals_status
-    BEFORE UPDATE ON public.strategic_goals
-    FOR EACH ROW EXECUTE FUNCTION public.enforce_status_admin_only();
-
-DROP TRIGGER IF EXISTS guard_admin_program_outcomes_status ON public.admin_program_outcomes;
-CREATE TRIGGER guard_admin_program_outcomes_status
-    BEFORE UPDATE ON public.admin_program_outcomes
-    FOR EACH ROW EXECUTE FUNCTION public.enforce_status_admin_only();
-
-DROP TRIGGER IF EXISTS guard_peo_status ON public.program_educational_objectives;
-CREATE TRIGGER guard_peo_status
-    BEFORE UPDATE ON public.program_educational_objectives
-    FOR EACH ROW EXECUTE FUNCTION public.enforce_status_admin_only();
-
-DROP TRIGGER IF EXISTS guard_admin_clo_status ON public.admin_course_learning_outcomes;
-CREATE TRIGGER guard_admin_clo_status
-    BEFORE UPDATE ON public.admin_course_learning_outcomes
-    FOR EACH ROW EXECUTE FUNCTION public.enforce_status_admin_only();
-
-DROP TRIGGER IF EXISTS guard_ched_memo_status ON public.ched_memorandum_orders;
-CREATE TRIGGER guard_ched_memo_status
-    BEFORE UPDATE ON public.ched_memorandum_orders
-    FOR EACH ROW EXECUTE FUNCTION public.enforce_status_admin_only();
-
--- ============================================================
--- SEED DATA — restore profiles for existing auth users
+-- PROFILE RESTORE (not seed data)
+-- Recreate profiles for EXISTING auth users (the DROP above wiped
+-- them) and restore the demo roles, so admin/manager/user land on
+-- the right dashboard after a schema re-run. New signups are still
+-- handled by handle_new_user. ON CONFLICT DO NOTHING keeps any role
+-- an admin deliberately changed.
 -- ============================================================
 
 INSERT INTO public.profiles (id, email, full_name, role)
