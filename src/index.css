@@ -449,13 +449,14 @@ code {
   color: #475569;
 }
 
-/* ---- Login (2026 NBSC/BSIT theme: blue + gold accent) ---- */
+/* ---- Login (2026 NBSC/BSIT theme: green + gold accent) ---- */
 
 .login-page {
-  --login-blue: #1d4ed8;
-  --login-blue-dark: #1e3a8a;
-  --login-blue-deep: #12275e;
-  --login-ink: #1e3a8a;
+  --login-green: #16a34a;
+  --login-green-light: #22c55e;
+  --login-green-dark: #15803d;
+  --login-green-deep: #0d3b1e;
+  --login-ink: #14532d;
   --login-gold: #f5c518;
   position: relative;
   min-height: 100vh;
@@ -465,10 +466,10 @@ code {
   padding: 24px;
   overflow: hidden;
   background:
-    radial-gradient(circle at 15% 18%, rgba(37, 99, 235, 0.55), transparent 46%),
-    radial-gradient(circle at 85% 78%, rgba(56, 189, 248, 0.4), transparent 50%),
+    radial-gradient(circle at 15% 18%, rgba(34, 197, 94, 0.5), transparent 46%),
+    radial-gradient(circle at 85% 78%, rgba(74, 222, 128, 0.4), transparent 50%),
     radial-gradient(circle at 82% 18%, rgba(245, 197, 24, 0.16), transparent 34%),
-    linear-gradient(135deg, var(--login-blue-deep) 0%, var(--login-blue-dark) 55%, #0e2f74 100%);
+    linear-gradient(135deg, var(--login-green-deep) 0%, var(--login-green-dark) 55%, #14532d 100%);
 }
 
 .login-page::before {
@@ -500,12 +501,12 @@ code {
   padding: 34px 36px 26px;
   color: var(--login-ink);
   box-shadow:
-    0 24px 60px -18px rgba(3, 12, 40, 0.6),
-    0 4px 16px rgba(3, 12, 40, 0.22);
-  /* Faint graph-paper grid echoing the curriculum-map motif (blue tint) */
+    0 24px 60px -18px rgba(4, 32, 14, 0.6),
+    0 4px 16px rgba(4, 32, 14, 0.22);
+  /* Faint graph-paper grid echoing the curriculum-map motif (green tint) */
   background-image:
-    linear-gradient(rgba(29, 78, 216, 0.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(29, 78, 216, 0.07) 1px, transparent 1px);
+    linear-gradient(rgba(22, 163, 74, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(22, 163, 74, 0.07) 1px, transparent 1px);
   background-size: 24px 24px;
   background-blend-mode: overlay;
 }
@@ -522,7 +523,7 @@ code {
   width: 76px;
   height: 76px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #2563eb 0%, var(--login-blue) 55%, #0e2f74 100%);
+  background: linear-gradient(135deg, #22c55e 0%, var(--login-green) 55%, #0d3b1e 100%);
   color: #fff;
   font-weight: 800;
   font-size: 22px;
@@ -531,7 +532,7 @@ code {
   align-items: center;
   justify-content: center;
   box-shadow:
-    0 10px 24px -8px rgba(29, 78, 216, 0.65),
+    0 10px 24px -8px rgba(22, 163, 74, 0.65),
     inset 0 0 0 3px rgba(255, 255, 255, 0.28);
 }
 
@@ -559,7 +560,7 @@ code {
   width: 56px;
   height: 3px;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--login-blue), var(--login-gold));
+  background: linear-gradient(90deg, var(--login-green), var(--login-gold));
 }
 
 .login-card > h2 {
@@ -605,7 +606,7 @@ code {
 }
 
 .form-group input {
-  border: 1px solid #c7d2fe;
+  border: 1px solid #bbf7d0;
   border-radius: 10px;
   padding: 12px 13px;
   font-size: 14px;
@@ -617,8 +618,8 @@ code {
 
 .form-group input:focus {
   outline: none;
-  border-color: var(--login-blue);
-  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.18);
+  border-color: var(--login-green);
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.18);
 }
 
 .login-btn {
@@ -627,21 +628,21 @@ code {
   border: none;
   border-radius: 12px;
   padding: 13px 16px;
-  background: linear-gradient(135deg, #2563eb 0%, var(--login-blue) 100%);
+  background: linear-gradient(135deg, #22c55e 0%, var(--login-green) 100%);
   color: #fff;
   font-size: 15px;
   font-family: inherit;
   font-weight: 700;
   letter-spacing: 0.3px;
   cursor: pointer;
-  box-shadow: 0 12px 24px -10px rgba(29, 78, 216, 0.65);
+  box-shadow: 0 12px 24px -10px rgba(22, 163, 74, 0.65);
   transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
 .login-btn:hover {
-  background: linear-gradient(135deg, #1d4ed8 0%, #1e3a8a 100%);
+  background: linear-gradient(135deg, var(--login-green) 0%, var(--login-green-dark) 100%);
   transform: translateY(-1px);
-  box-shadow: 0 16px 28px -10px rgba(29, 78, 216, 0.7);
+  box-shadow: 0 16px 28px -10px rgba(22, 163, 74, 0.7);
 }
 
 .login-btn:disabled {
@@ -675,7 +676,7 @@ code {
 }
 
 .password-toggle:hover {
-  color: var(--login-blue);
+  color: var(--login-green);
 }
 
 .login-hint {
