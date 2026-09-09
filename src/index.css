@@ -256,6 +256,14 @@ code {
   cursor: pointer;
 }
 
+.na-check input[type='checkbox'] {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--primary, #2563eb);
+}
+
 .na-row {
   display: flex;
   align-items: center;
