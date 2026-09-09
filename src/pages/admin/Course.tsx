@@ -45,8 +45,6 @@ const blank: CourseForm = {
   description: '',
 }
 
-const courseCodeOf = (c: Course) => (typeof c === 'object' && c ? c.code : '')
-
 const relId = (v: string | { id: string } | null | undefined) =>
   v && typeof v === 'object' ? v.id : (v || '')
 
@@ -100,8 +98,6 @@ export default function Course({ profile }: CourseProps) {
     typeof c.program_id === 'object' ? c.program_id.id === programId : c.program_id === programId,
   )
 
-  const programCourses = visible.filter((c) => c.id !== editId)
-
   const totalCredits = (f: CourseForm) => {
     const lec = parseInt(f.creditLecture, 10) || 0
     const lab = parseInt(f.creditLaboratory, 10) || 0
@@ -109,12 +105,6 @@ export default function Course({ profile }: CourseProps) {
   }
 
   const idOf = (v: string | { id: string } | null) => (v && typeof v === 'object' ? v.id : v)
-  const courseLabel = (id: string | { id: string } | null) => {
-    if (!id) return 'N/A'
-    const c = courses.find((x) => x.id === idOf(id))
-    return c ? c.code : 'N/A'
-  }
-
   const curriculumLabel = (id: string | { id: string } | null) => {
     if (!id) return '-'
     const r = curriculums.find((x) => x.id === idOf(id))
@@ -125,8 +115,8 @@ export default function Course({ profile }: CourseProps) {
     code: f.code.trim(),
     title: f.title.trim(),
     curriculum_id: f.curriculum || null,
-    prerequisite_id: f.prereqNA ? null : (f.prereq || null),
-    corequisite_id: f.coreqNA ? null : (f.coreq || null),
+    prerequisite: f.prereqNA ? '' : f.prereq.trim(),
+    corequisite: f.coreqNA ? '' : f.coreq.trim(),
     credit_lecture: parseInt(f.creditLecture, 10) || 0,
     credit_laboratory: parseInt(f.creditLaboratory, 10) || 0,
     units: totalCredits(f),
@@ -171,10 +161,10 @@ export default function Course({ profile }: CourseProps) {
       code: item.code,
       title: item.title,
       curriculum: relId(item.curriculum_id),
-      prereq: relId(item.prerequisite_id),
-      prereqNA: !item.prerequisite_id,
-      coreq: relId(item.corequisite_id),
-      coreqNA: !item.corequisite_id,
+      prereq: item.prerequisite || '',
+      prereqNA: !item.prerequisite,
+      coreq: item.corequisite || '',
+      coreqNA: !item.corequisite,
       creditLecture: String(item.credit_lecture ?? 0),
       creditLaboratory: String(item.credit_laboratory ?? 0),
       description: item.description || '',
@@ -284,14 +274,10 @@ export default function Course({ profile }: CourseProps) {
             <label className="field">
               <span>Pre-requisite</span>
               <div className="na-row">
-                <select className="input" value={activeForm.prereqNA ? '' : activeForm.prereq}
+                <input className="input" type="text" placeholder="e.g. IT12"
+                  value={activeForm.prereqNA ? '' : activeForm.prereq}
                   onChange={(e) => setActiveForm({ ...activeForm, prereq: e.target.value })}
-                  disabled={activeForm.prereqNA}>
-                  <option value="">N/A</option>
-                  {programCourses.map((c) => (
-                    <option key={c.id} value={c.id}>{courseCodeOf(c)}</option>
-                  ))}
-                </select>
+                  disabled={activeForm.prereqNA} />
                 <label className="na-check">
                   <input type="checkbox" checked={activeForm.prereqNA}
                     onChange={(e) => setActiveForm({ ...activeForm, prereqNA: e.target.checked, prereq: e.target.checked ? '' : activeForm.prereq })} />
@@ -303,14 +289,10 @@ export default function Course({ profile }: CourseProps) {
             <label className="field">
               <span>Co-requisite</span>
               <div className="na-row">
-                <select className="input" value={activeForm.coreqNA ? '' : activeForm.coreq}
+                <input className="input" type="text" placeholder="e.g. IT13"
+                  value={activeForm.coreqNA ? '' : activeForm.coreq}
                   onChange={(e) => setActiveForm({ ...activeForm, coreq: e.target.value })}
-                  disabled={activeForm.coreqNA}>
-                  <option value="">N/A</option>
-                  {programCourses.map((c) => (
-                    <option key={c.id} value={c.id}>{courseCodeOf(c)}</option>
-                  ))}
-                </select>
+                  disabled={activeForm.coreqNA} />
                 <label className="na-check">
                   <input type="checkbox" checked={activeForm.coreqNA}
                     onChange={(e) => setActiveForm({ ...activeForm, coreqNA: e.target.checked, coreq: e.target.checked ? '' : activeForm.coreq })} />
@@ -377,8 +359,8 @@ export default function Course({ profile }: CourseProps) {
                     <td><strong>{c.code}</strong></td>
                     <td>{c.title}</td>
                     <td>{curriculumLabel(c.curriculum_id)}</td>
-                    <td>{courseLabel(c.prerequisite_id)}</td>
-                    <td>{courseLabel(c.corequisite_id)}</td>
+                    <td>{c.prerequisite || 'N/A'}</td>
+                    <td>{c.corequisite || 'N/A'}</td>
                     <td>{c.credit_lecture ?? 0} / {c.credit_laboratory ?? 0} / {c.units ?? 0}</td>
                     <td>{c.description || '-'}</td>
                     <td>

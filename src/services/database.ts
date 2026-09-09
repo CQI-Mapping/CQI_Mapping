@@ -60,8 +60,8 @@ export interface Course {
     description: string | null
     program_id: string | { id: string; code: string; name: string }
     curriculum_id: string | { id: string; code: string } | null
-    prerequisite_id: string | { id: string; code: string } | null
-    corequisite_id: string | { id: string; code: string } | null
+    prerequisite: string
+    corequisite: string
     created_at: string
     updated_at: string
   }
@@ -312,7 +312,7 @@ export async function deleteProgram(id: string): Promise<void> {
 export async function fetchCourses(): Promise<Course[]> {
   const { data, error } = await supabase
 .from('courses')
-      .select('*, program_id ( id, code, name ), curriculum_id ( id, code ), prerequisite_id ( id, code ), corequisite_id ( id, code )')
+      .select('*, program_id ( id, code, name ), curriculum_id ( id, code )')
       .order('code', { ascending: true })
   if (error) throw error
   return data
