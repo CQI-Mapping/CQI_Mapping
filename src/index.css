@@ -302,6 +302,11 @@ code {
   min-width: 0;
 }
 
+.na-row select.input {
+  flex: none;
+  width: 130px;
+}
+
 .na-row .na-check {
   margin-top: 0;
   white-space: nowrap;
