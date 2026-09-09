@@ -99,6 +99,7 @@ export default function ProgramOutcomes() {
       titleLabel="Description"
       alignments={alignments}
       tableAlignments={[alignments[2], alignments[0], alignments[1]]}
+      formAlignments={[alignments[0], alignments[1]]}
       sort={(a, b) => {
         const n = (s: string) => parseInt(s.replace(/\D/g, ''), 10)
         return (n((a as { code?: string }).code || '') || 0) - (n((b as { code?: string }).code || '') || 0)
