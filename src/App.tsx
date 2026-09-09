@@ -34,6 +34,7 @@ import AdminCourseLearningOutcomes from './pages/admin/CourseLearningOutcomes'
 import AdminView from './pages/admin/View'
 import AdminUsers from './pages/admin/Users'
 import AdminProgram from './pages/admin/Program'
+import AdminCourse from './pages/admin/Course'
 import { supabase } from './utils/supabaseClient'
 import { ensureProfile, syncDemoRole } from './services/database'
 import type { Profile as ProfileType, UserRole, NavItem } from './services/database'
@@ -48,6 +49,7 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'strategic-goals', label: 'Strategic Goals' },
     { id: 'peos', label: 'Program Educational Objectives' },
     { id: 'program-outcomes', label: 'Program Outcomes' },
+    { id: 'course', label: 'Course' },
     { id: 'clo', label: 'Course Learning Outcomes' },
     { id: 'curriculum-map', label: 'View' },
     { id: 'users', label: 'Users & Accounts' },
@@ -76,6 +78,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     program: AdminProgram,
     peos: AdminPEOs,
     'program-outcomes': AdminProgramOutcomes,
+    course: AdminCourse,
     clo: AdminCourseLearningOutcomes,
     'curriculum-map': AdminView,
     'strategic-goals': AdminStrategicGoals,
