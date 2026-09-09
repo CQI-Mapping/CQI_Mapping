@@ -42,6 +42,7 @@ interface EntityCrudPageProps<T extends { id: string }> {
   showDescription?: boolean
   descriptionLabel?: string
   alignments?: AlignmentField[]
+  tableAlignments?: AlignmentField[]
   showTitle?: boolean
   titleField?: string
   titleLabel?: string
@@ -76,7 +77,8 @@ export default function EntityCrudPage<T extends { id: string }>({
   sort,
   showDescription = true,
   descriptionLabel = 'Description',
-  alignments,
+alignments,
+  tableAlignments,
   showTitle = true,
   titleField = 'title',
   titleLabel = 'Title',
@@ -250,7 +252,7 @@ export default function EntityCrudPage<T extends { id: string }>({
               <tr>
                 <th>Code</th>
                 {showTitle && <th>{titleLabel}</th>}
-                {(alignments ?? []).map((a) => <th key={a.relationField}>{a.label}</th>)}
+                {(tableAlignments ?? alignments ?? []).map((a) => <th key={a.relationField}>{a.label}</th>)}
                 {!alignments && showDescription && <th>{descriptionLabel}</th>}
                 {counts && <th>{countLabel}</th>}
                 <th>Status</th>
@@ -278,7 +280,7 @@ export default function EntityCrudPage<T extends { id: string }>({
                           <input className="input input--sm" value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} />
                         )}</td>
                       )}
-                      {(alignments ?? []).map((a) => (
+                      {(tableAlignments ?? alignments ?? []).map((a) => (
                         <td key={a.relationField}>
                           {alignmentSelect(a, editForm.align[a.relationField] || '', (v) =>
                             setEditForm({ ...editForm, align: { ...editForm.align, [a.relationField]: v } }))}
@@ -301,7 +303,7 @@ export default function EntityCrudPage<T extends { id: string }>({
                     <>
                       <td><strong>{formatCode(codeOf(item))}</strong></td>
                       {showTitle && <td>{titleOf(item)}</td>}
-                      {(alignments ?? []).map((a) => (
+                      {(tableAlignments ?? alignments ?? []).map((a) => (
                         <td key={a.relationField}>{alignLabelOf(item, a)}</td>
                       ))}
                       {!alignments && showDescription && <td>{descOf(item) || '—'}</td>}
