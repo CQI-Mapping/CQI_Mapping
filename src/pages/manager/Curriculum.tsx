@@ -134,7 +134,7 @@ function Curriculum({ userEmail }: CurriculumProps) {
     const next = item.status === 'active' ? 'archived' : 'active'
     try {
       await updateResource(item.id, { status: next })
-      await addActivityLog(userEmail, 'resource.archived')
+      await addActivityLog('resource.archived')
       setMessage(`Resource ${next}.`)
       load()
     } catch (e) {

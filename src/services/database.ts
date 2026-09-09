@@ -3,20 +3,18 @@
 // Row Level Security (RLS) on the DB is the real gate — these calls just go through it.
 //
 // Section guide:
-//   Types          — UserRole, Profile, ActivityLogEntry, Program, Course, etc.
-//   Profiles       — ensureProfile, updateProfile, syncDemoRole, fetchAllProfiles, etc.
+//   Types          — UserRole, Profile, ActivityLogEntry, Resource, NavItem, etc.
+//   Profiles       — ensureProfile, updateProfile, syncDemoRole, fetchAllProfiles
 //   Resources      — legacy curriculum records (used by manager role)
 //   Strategic Goals — CRUD for admin-managed strategic goals
 //   PEOs           — CRUD for admin-managed Program Educational Objectives
 //   POs (standalone) — CRUD for admin-managed Program Outcomes list
 //   CLOs (standalone) — CRUD for admin-managed Course Learning Outcomes list
 //   CMOs           — CRUD for admin-managed CHED Memorandum Orders
-//   Activity Logs  — fetchActivityLogs, addActivityLog (details column removed)
+//   Activity Logs  — fetchActivityLogs, addActivityLog (server-stamped via RPC)
 
 import { supabase as _supabase } from '../utils/supabaseClient'
 import type { User } from '@supabase/supabase-js'
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 
 // Assert supabase client is configured (throws at runtime if not).
 const supabase = _supabase!
@@ -179,9 +177,39 @@ export async function updateUserRole(profileId: string, role: UserRole): Promise
   return data
 }
 
-interface AdminCreateUserResult {
+// Privileged account operations run through the admin-users Edge Function.
+// The service-role key stays on the server; the function verifies the caller
+// is an admin from their JWT before acting.
+
+export interface AdminCreateUserResult {
   id: string
   email: string
+}
+
+interface AdminUsersFunctionError {
+  error?: string
+}
+
+async function invokeAdminUsers(body: Record<string, unknown>): Promise<unknown> {
+  const { data, error } = await supabase.functions.invoke('admin-users', { body })
+  if (error) {
+    // FunctionsHttpError: the function responded with a non-2xx status and a
+    // JSON body like { error: "message" } — surface its message when possible.
+    let message = error.message
+    try {
+      const payload = (await (error as { context?: Response }).context?.json()) as
+        | AdminUsersFunctionError
+        | undefined
+      if (payload?.error) message = payload.error
+    } catch {
+      /* keep the generic message */
+    }
+    throw new Error(message)
+  }
+  if (data && typeof data === 'object' && 'error' in data) {
+    throw new Error(String((data as AdminUsersFunctionError).error))
+  }
+  return data
 }
 
 export async function adminCreateUser(
@@ -190,42 +218,18 @@ export async function adminCreateUser(
   fullName: string,
   role: UserRole
 ): Promise<AdminCreateUserResult> {
-  const serviceKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
-  if (!serviceKey) {
-    throw new Error('Set VITE_SUPABASE_SERVICE_ROLE_KEY in .env to create users.')
-  }
+  const data = (await invokeAdminUsers({
+    action: 'create',
+    email,
+    password,
+    fullName,
+    role,
+  })) as AdminCreateUserResult
+  return data
+}
 
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
-    method: 'POST',
-    headers: {
-      apikey: serviceKey,
-      Authorization: `Bearer ${serviceKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { full_name: fullName },
-    }),
-  })
-
-  if (!res.ok) {
-    const err = await res.json()
-    throw new Error(err?.msg || 'Failed to create user.')
-  }
-
-  const created: AdminCreateUserResult = await res.json()
-
-  if (role && role !== 'user') {
-    const { error } = await supabase
-      .from('profiles')
-      .update({ role })
-      .eq('id', created.id)
-    if (error) throw error
-  }
-
-  return created
+export async function adminDeleteUser(userId: string): Promise<void> {
+  await invokeAdminUsers({ action: 'delete', userId })
 }
 
 // ---------- Resources (curriculum records) ----------
@@ -459,8 +463,6 @@ export interface StrategicGoal {
   updated_at: string
 }
 
-// ---------- Strategic Goals ----------
-
 export async function fetchStrategicGoals(): Promise<StrategicGoal[]> {
   const { data, error } = await supabase
     .from('strategic_goals')
@@ -496,6 +498,8 @@ export async function deleteStrategicGoal(id: string): Promise<void> {
   if (error) throw error
 }
 
+// ---------- Program Educational Objectives ----------
+
 export interface ProgramEducationalObjective {
   id: string
   code: string
@@ -505,8 +509,6 @@ export interface ProgramEducationalObjective {
   created_at: string
   updated_at: string
 }
-
-// ---------- Program Educational Objectives ----------
 
 export async function fetchProgramEducationalObjectives(): Promise<ProgramEducationalObjective[]> {
   const { data, error } = await supabase
@@ -554,7 +556,7 @@ export interface ProgramOutcomeStandalone {
   updated_at: string
 }
 
-export interface CourseLearningOutcomeStandalone {
+export interface ProgramOutcomeStandalone {
   id: string
   code: string
   title: string
@@ -563,8 +565,6 @@ export interface CourseLearningOutcomeStandalone {
   created_at: string
   updated_at: string
 }
-
-// ---------- Program Outcomes (standalone) ----------
 
 export async function fetchProgramOutcomesStandalone(): Promise<ProgramOutcomeStandalone[]> {
   const { data, error } = await supabase
@@ -603,6 +603,16 @@ export async function deleteProgramOutcomeStandalone(id: string): Promise<void> 
 
 // ---------- Course Learning Outcomes (standalone) ----------
 
+export interface CourseLearningOutcomeStandalone {
+  id: string
+  code: string
+  title: string
+  description: string | null
+  status: string
+  created_at: string
+  updated_at: string
+}
+
 export async function fetchCourseLearningOutcomesStandalone(): Promise<CourseLearningOutcomeStandalone[]> {
   const { data, error } = await supabase
     .from('admin_course_learning_outcomes')
@@ -640,6 +650,16 @@ export async function deleteCourseLearningOutcomeStandalone(id: string): Promise
 
 // ---------- CHED Memorandum Orders ----------
 
+export interface ChedMemoOrder {
+  id: string
+  code: string
+  title: string
+  description: string | null
+  status: string
+  created_at: string
+  updated_at: string
+}
+
 export async function fetchChedMemoOrders(): Promise<ChedMemoOrder[]> {
   const { data, error } = await supabase
     .from('ched_memorandum_orders')
@@ -675,7 +695,7 @@ export async function deleteChedMemoOrder(id: string): Promise<void> {
   if (error) throw error
 }
 
-// ---------- Activity logs (details column removed) ----------
+// ---------- Activity logs (server-stamped via log_activity RPC) ----------
 
 export async function fetchActivityLogs(): Promise<ActivityLogEntry[]> {
   const { data, error } = await supabase
@@ -700,12 +720,10 @@ export async function recordLoginEvent(
   if (error) console.warn('Login event not recorded:', error.message)
 }
 
-export async function addActivityLog(
-  userEmail: string,
-  action: string
-): Promise<void> {
-  const { error } = await supabase
-    .from('activity_logs')
-    .insert({ user_email: userEmail, action })
+// Audit entries are written by the SECURITY DEFINER log_activity() function,
+// which stamps the caller's real email from their JWT. The client supplies
+// only the action — never the actor — so entries can't be forged.
+export async function addActivityLog(action: string): Promise<void> {
+  const { error } = await supabase.rpc('log_activity', { p_action: action })
   if (error) console.warn('Audit log insert failed:', error.message)
 }

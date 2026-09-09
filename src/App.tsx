@@ -54,6 +54,7 @@ const NAV: Record<UserRole, NavItem[]> = {
   manager: [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'curriculum', label: 'Curriculum' },
+    { id: 'program-outcomes', label: 'Program Outcomes' },
     { id: 'users', label: 'Faculty' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
@@ -61,6 +62,7 @@ const NAV: Record<UserRole, NavItem[]> = {
   user: [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'curriculum', label: 'Curriculum' },
+    { id: 'clo', label: 'Course Learning Outcomes' },
     { id: 'profile', label: 'Profile' },
   ],
 }
@@ -85,6 +87,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
   manager: {
     dashboard: ManagerDashboard,
     curriculum: ManagerCurriculum,
+    'program-outcomes': AdminProgramOutcomes,
     users: ManagerUsers,
     'activity-logs': ManagerActivityLogs,
     profile: Profile,
@@ -92,6 +95,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
   user: {
     dashboard: UserDashboard,
     curriculum: UserCurriculum,
+    clo: AdminCourseLearningOutcomes,
     profile: Profile,
   },
 }
@@ -132,6 +136,7 @@ function App() {
   // dashboard even after roles were wiped by a schema re-run.
   useEffect(() => {
     if (!session?.user) return
+    setLoading(true)
     let cancelled = false
 
     ensureProfile(session.user)
@@ -142,7 +147,7 @@ function App() {
             if (role && role !== p.role) return { ...p, role }
             return p
           })
-          .catch(() => p) // RPC missing/not deployed yet → keep the loaded profile
+          .catch((err) => { console.error('syncDemoRole failed:', err); return p })
       })
       .then((p) => {
         if (!cancelled && p) setProfile(p)
