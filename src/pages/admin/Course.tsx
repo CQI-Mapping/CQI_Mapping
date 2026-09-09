@@ -351,7 +351,7 @@ export default function Course({ profile }: CourseProps) {
             </label>
             <div className="field">
               <span>Credit</span>
-              <div className="create-resource__row">
+              <div className="credit-group">
                 {creditField('Lecture', 'creditLecture')}
                 {creditField('Laboratory', 'creditLaboratory')}
                 <label className="field">

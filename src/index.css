@@ -297,6 +297,10 @@ code {
   gap: 10px;
 }
 
+.credit-group .field:last-child {
+  margin-bottom: 0;
+}
+
 .na-row > .combo {
   position: relative;
   flex: 1;
