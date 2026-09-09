@@ -207,7 +207,7 @@ alignments,
             )}
           </>
         ) : inlineForm ? (
-          <div className="create-resource__row" style={{ gridTemplateColumns: `repeat(${1 + (showTitle ? 1 : 0) + ((alignments ?? []).length || (showDescription ? 1 : 0))}, minmax(0, 1fr))`, gap: '6px' }}>
+          <div className="create-resource__row" style={{ gridTemplateColumns: codeWidth ? `${codeWidth} repeat(${(showTitle ? 1 : 0) + ((alignments ?? []).length || (showDescription ? 1 : 0))}, minmax(0, 1fr))` : `repeat(${1 + (showTitle ? 1 : 0) + ((alignments ?? []).length || (showDescription ? 1 : 0))}, minmax(0, 1fr))`, gap: '6px' }}>
             <label className="field">
               <span>{codeLabel}</span>
               <input className="input input--sm" type="text" placeholder={codePlaceholder} style={codeWidth ? { width: codeWidth } : undefined} value={form.code}
