@@ -51,14 +51,48 @@ function Login() {
       <div className="login-panel">
         <div className="login-card">
           <div className="login-brand">
-            <div className="login-brand-mark">CQI</div>
+            {/* ICS-inspired microchip logo */}
+            <div className="login-brand-mark" role="img" aria-label="CQI logo">
+              <svg className="login-chip" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                {/* outer chip */}
+                <rect x="15" y="15" width="34" height="34" rx="4" stroke="currentColor" strokeWidth="2" />
+                {/* inner core */}
+                <rect x="23" y="23" width="18" height="18" rx="2.5" stroke="currentColor" strokeWidth="1.6" opacity="0.85" />
+                {/* top pins */}
+                <path d="M24 9v6M32 9v6M40 9v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                {/* bottom pins */}
+                <path d="M24 49v6M32 49v6M40 49v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                {/* left pins */}
+                <path d="M9 24h6M9 32h6M9 40h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                {/* right pins */}
+                <path d="M49 24h6M49 32h6M49 40h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                {/* corner pads */}
+                <circle cx="24" cy="24" r="1.4" fill="currentColor" />
+                <circle cx="40" cy="24" r="1.4" fill="currentColor" />
+                <circle cx="24" cy="40" r="1.4" fill="currentColor" />
+                <circle cx="40" cy="40" r="1.4" fill="currentColor" />
+                {/* CQI text on the core */}
+                <text x="32" y="36.5" textAnchor="middle" fill="currentColor" fontWeight="800" fontSize="13" fontFamily="inherit" letterSpacing="0.5">
+                  CQI
+                </text>
+              </svg>
+            </div>
+
+            <h1>
+              Northern Bukidnon State College
+              <span>Institute for Computer Studies</span>
+            </h1>
+            <p className="login-brand-dept">BS Information Technology</p>
           </div>
+
+          <h2>Continuous Quality Improvement</h2>
+          <p className="login-subtitle">Curriculum and Program Outcomes Management System</p>
 
           {error && <div className="login-alert login-alert--error">{error}</div>}
 
           <form onSubmit={handleSubmit}>
             <div className="form-group">
-              <label htmlFor="email">Email</label>
+              <label htmlFor="email">Email Address</label>
               <div className="input-wrap">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" aria-hidden="true">
                   <rect x="2" y="4" width="20" height="16" rx="2" />
@@ -122,7 +156,7 @@ function Login() {
 
           {/* Dev convenience: the seeded test accounts for the demo */}
           <p className="login-hint">
-            Test accounts:
+            Test Accounts:
             <br />
             <strong>Admin</strong> — admin@cqi.test / Admin@123456
             <br />
@@ -132,7 +166,7 @@ function Login() {
           </p>
         </div>
 
-        <p className="login-footer">© 2026 NBSC · Institute of Computer Studies</p>
+        <p className="login-footer">© 2026 NBSC • Institute of Computer Studies</p>
       </div>
     </div>
   )
