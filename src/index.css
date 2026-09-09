@@ -1576,3 +1576,151 @@ textarea.input {
   background: #dcfce7;
   color: #16a34a;
 }
+
+/* ---- Program page ---- */
+
+.program-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+}
+
+.program-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.program-card__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.program-card__title {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+
+.program-card__desc {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--text-muted, #64748b);
+}
+
+.program-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.program-card__edit-row {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.program-card__courses {
+  margin-top: 16px;
+  border-top: 1px dashed var(--border);
+  padding-top: 16px;
+}
+
+.program-card__courses-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.program-card__courses-header h4 {
+  margin: 0;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted, #64748b);
+}
+
+.program-card__course-form {
+  display: grid;
+  grid-template-columns: 1fr 2fr 2fr auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.program-card__empty {
+  color: var(--text-muted, #64748b);
+  font-size: 13px;
+  font-style: italic;
+  margin: 0 0 8px;
+}
+
+.program-card__course-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.program-card__course-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--bg, #f8fafc);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.program-card__course-info {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+}
+
+.program-card__course-desc {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--text-muted, #64748b);
+}
+
+.program-card__course-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.program-card__course-edit {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 2fr 2fr auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.sd-tabs--sm {
+  gap: 8px;
+}
+
+@media (max-width: 768px) {
+  .program-card__header {
+    flex-direction: column;
+  }
+  .program-card__course-form {
+    grid-template-columns: 1fr;
+  }
+  .program-card__course-edit {
+    grid-template-columns: 1fr;
+  }
+  .program-card__course-row {
+    flex-direction: column;
+  }
+}
