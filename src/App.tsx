@@ -31,7 +31,6 @@ import AdminStrategicGoals from './pages/admin/StrategicGoals'
 import AdminPEOs from './pages/admin/ProgramEducationalObjectives'
 import AdminProgramOutcomes from './pages/admin/ProgramOutcomes'
 import AdminCourseLearningOutcomes from './pages/admin/CourseLearningOutcomes'
-import AdminView from './pages/admin/View'
 import AdminUsers from './pages/admin/Users'
 import AdminProgram from './pages/admin/Program'
 import AdminCourse from './pages/admin/Course'
@@ -51,7 +50,6 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'program-outcomes', label: 'Program Outcomes' },
     { id: 'course', label: 'Course' },
     { id: 'clo', label: 'Course Learning Outcomes' },
-    { id: 'curriculum-map', label: 'View' },
     { id: 'users', label: 'Users & Accounts' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
@@ -80,7 +78,6 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     'program-outcomes': AdminProgramOutcomes,
     course: AdminCourse,
     clo: AdminCourseLearningOutcomes,
-    'curriculum-map': AdminView,
     'strategic-goals': AdminStrategicGoals,
     'ched-memo': AdminChedMemoOrders,
     users: AdminUsers,
