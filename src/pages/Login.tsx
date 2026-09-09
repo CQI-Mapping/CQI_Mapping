@@ -47,6 +47,13 @@ function Login() {
 
   return (
     <div className="login-page">
+      {/* Animated aurora blobs */}
+      <div className="login-blobs" aria-hidden="true">
+        <span className="login-blob login-blob--1" />
+        <span className="login-blob login-blob--2" />
+        <span className="login-blob login-blob--3" />
+      </div>
+
       {/* Sign-in form panel */}
       <div className="login-panel">
         <div className="login-card">
@@ -58,26 +65,38 @@ function Login() {
 
           <form onSubmit={handleSubmit}>
             <div className="form-group">
-              <label htmlFor="email">Email Address</label>
-              <input
-                type="email"
-                id="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoFocus
-              />
+              <label htmlFor="email">Email</label>
+              <div className="input-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" aria-hidden="true">
+                  <rect x="2" y="4" width="20" height="16" rx="2" />
+                  <path d="M22 7l-10 6L2 7" />
+                </svg>
+                <input
+                  type="email"
+                  id="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
+                  autoFocus
+                />
+              </div>
             </div>
 
             <div className="form-group">
               <label htmlFor="password">Password</label>
-              <div className="password-wrapper">
+              <div className="input-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" aria-hidden="true">
+                  <rect x="3" y="11" width="18" height="11" rx="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
                 <input
                   type={showPassword ? 'text' : 'password'}
                   id="password"
-                  placeholder="••••••••"
+                  placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
@@ -119,6 +138,8 @@ function Login() {
             <strong>User</strong> — user@cqi.test / User@123456
           </p>
         </div>
+
+        <p className="login-footer">© 2026 NBSC · Institute of Computer Studies</p>
       </div>
     </div>
   )
