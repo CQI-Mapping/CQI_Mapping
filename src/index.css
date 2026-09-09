@@ -1157,6 +1157,7 @@ code {
 
 .create-resource__row > .field {
   min-width: 0;
+  margin-bottom: 0;
 }
 
 .create-resource__row .field .input {
