@@ -301,7 +301,7 @@ code {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-left: 40px;
+  margin-left: 52px;
 }
 
 .credit-group .field:last-child {
