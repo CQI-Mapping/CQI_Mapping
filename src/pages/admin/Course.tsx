@@ -279,6 +279,7 @@ export default function Course({ profile }: CourseProps) {
                 <label className="na-check">
                   <input type="checkbox" checked={activeForm.prereqNA}
                     onChange={(e) => setActiveForm({ ...activeForm, prereqNA: e.target.checked, prereq: e.target.checked ? '' : activeForm.prereq })} />
+                  <span className="cb-box" aria-hidden="true" />
                   N/A
                 </label>
               </div>
@@ -297,6 +298,7 @@ export default function Course({ profile }: CourseProps) {
                 <label className="na-check">
                   <input type="checkbox" checked={activeForm.coreqNA}
                     onChange={(e) => setActiveForm({ ...activeForm, coreqNA: e.target.checked, coreq: e.target.checked ? '' : activeForm.coreq })} />
+                  <span className="cb-box" aria-hidden="true" />
                   N/A
                 </label>
               </div>
