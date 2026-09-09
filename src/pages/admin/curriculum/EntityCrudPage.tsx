@@ -28,6 +28,8 @@ interface EntityCrudPageProps<T extends { id: string }> {
   isActive?: (item: T) => boolean
   sort?: (a: T, b: T) => number
   showDescription?: boolean
+  descriptionLabel?: string
+  descriptionOptions?: string[]
   showTitle?: boolean
   titleField?: string
   titleLabel?: string
@@ -51,6 +53,8 @@ export default function EntityCrudPage<T extends { id: string }>({
   isActive = (i) => !(i as { status?: string }).status || (i as { status?: string }).status === 'active',
   sort,
   showDescription = true,
+  descriptionLabel = 'Description',
+  descriptionOptions,
   showTitle = true,
   titleField = 'title',
   titleLabel = 'Title',
@@ -144,10 +148,20 @@ export default function EntityCrudPage<T extends { id: string }>({
         </div>
         {showDescription && (
           <label className="field">
-            <span>Description</span>
-            <textarea className="input input--sm" rows={3} placeholder="Optional description" ref={autoResize}
-              value={form.description}
-              onChange={(e) => { setForm({ ...form, description: e.target.value }); autoResize(e.target) }} />
+            <span>{descriptionLabel}</span>
+            {descriptionOptions ? (
+              <select className="input input--sm" value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}>
+                <option value="">None</option>
+                {descriptionOptions.map((o) => (
+                  <option key={o} value={o}>{o}</option>
+                ))}
+              </select>
+            ) : (
+              <textarea className="input input--sm" rows={3} placeholder="Optional description" ref={autoResize}
+                value={form.description}
+                onChange={(e) => { setForm({ ...form, description: e.target.value }); autoResize(e.target) }} />
+            )}
           </label>
         )}
         <div className="create-resource__submit">
@@ -178,8 +192,18 @@ export default function EntityCrudPage<T extends { id: string }>({
                         <td><input className="input input--sm" value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} /></td>
                       )}
                       {showDescription && (
-                        <td><textarea className="input input--sm" rows={3} ref={autoResize} value={editForm.description}
-                          onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} /></td>
+                        <td>{descriptionOptions ? (
+                          <select className="input input--sm" value={editForm.description}
+                            onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}>
+                            <option value="">None</option>
+                            {descriptionOptions.map((o) => (
+                              <option key={o} value={o}>{o}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <textarea className="input input--sm" rows={3} ref={autoResize} value={editForm.description}
+                            onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} />
+                        )}</td>
                       )}
                       <td></td>
                       <td>
