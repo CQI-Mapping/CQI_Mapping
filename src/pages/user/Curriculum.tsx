@@ -35,10 +35,11 @@ function Curriculum() {
           {items.map((item) => (
             <div className={`resource-card ${item.status === 'archived' ? 'resource-card--archived' : ''}`} key={item.id}>
               <div className="resource-card__body">
-                <h4>{item.title}</h4>
+                <h4>{item.code || item.title}</h4>
                 {item.description && <p>{item.description}</p>}
                 <div className="resource-card__meta">
                   <span className={`status-badge status-badge--${item.status}`}>{item.status}</span>
+                  {item.units != null && <span>{item.units} unit{item.units === 1 ? '' : 's'}</span>}
                   <span>by {(typeof item.created_by === 'object' && item.created_by?.full_name) || 'Unknown'}</span>
                   <span>{new Date(item.created_at).toLocaleString()}</span>
                 </div>

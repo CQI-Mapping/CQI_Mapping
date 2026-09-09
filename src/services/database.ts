@@ -51,14 +51,20 @@ export interface Program {
 }
 
 export interface Course {
-  id: string
-  code: string
-  title: string
-  units: number
-  program_id: string | { id: string; code: string; name: string }
-  created_at: string
-  updated_at: string
-}
+    id: string
+    code: string
+    title: string
+    units: number
+    credit_lecture: number
+    credit_laboratory: number
+    description: string | null
+    program_id: string | { id: string; code: string; name: string }
+    curriculum_id: string | { id: string; code: string } | null
+    prerequisite_id: string | { id: string; code: string } | null
+    corequisite_id: string | { id: string; code: string } | null
+    created_at: string
+    updated_at: string
+  }
 
 export interface ProgramOutcome {
   id: string
@@ -84,13 +90,15 @@ export interface CloPoMappingEntry {
 }
 
 export interface Resource {
-  id: string
-  title: string
-  description: string | null
-  status: string
-  created_by: string | { full_name: string | null }
-  created_at: string
-}
+    id: string
+    title: string
+    code: string | null
+    description: string | null
+    units: number | null
+    status: string
+    created_by: string | { full_name: string | null }
+    created_at: string
+  }
 
 export interface NavItem {
   id: string
@@ -232,22 +240,23 @@ export async function fetchResources(): Promise<Resource[]> {
 }
 
 export async function createResource(
-  title: string,
-  description: string | null,
-  userId: string
-): Promise<Resource> {
-  const { data, error } = await supabase
+    code: string,
+    description: string | null,
+    units: number | null,
+    userId: string
+  ): Promise<Resource> {
+    const { data, error } = await supabase
     .from('resources')
-    .insert({ title, description, created_by: userId })
-    .select()
-    .single()
-  if (error) throw error
-  return data
-}
+      .insert({ title: code, code, description, units, created_by: userId })
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  }
 
 export async function updateResource(
   id: string,
-  updates: Partial<Pick<Resource, 'title' | 'description' | 'status'>>
+  updates: Partial<Pick<Resource, 'title' | 'code' | 'description' | 'units' | 'status'>>
 ): Promise<Resource> {
   const { data, error } = await supabase
     .from('resources')
@@ -302,9 +311,9 @@ export async function deleteProgram(id: string): Promise<void> {
 
 export async function fetchCourses(): Promise<Course[]> {
   const { data, error } = await supabase
-    .from('courses')
-    .select('*, program_id ( id, code, name )')
-    .order('code', { ascending: true })
+.from('courses')
+      .select('*, program_id ( id, code, name ), curriculum_id ( id, code ), prerequisite_id ( id, code ), corequisite_id ( id, code )')
+      .order('code', { ascending: true })
   if (error) throw error
   return data
 }

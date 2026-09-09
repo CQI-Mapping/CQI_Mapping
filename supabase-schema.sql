@@ -57,10 +57,12 @@ CREATE TABLE public.profiles (
 );
 
 CREATE TABLE public.resources (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    title TEXT NOT NULL,
-    description TEXT,
-    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      title TEXT NOT NULL,
+      code TEXT NOT NULL DEFAULT '',
+      description TEXT,
+      units INTEGER CHECK (units >= 0),
+      status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
     created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -88,15 +90,21 @@ CREATE TABLE public.programs (
 );
 
 CREATE TABLE public.courses (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    program_id UUID NOT NULL REFERENCES public.programs(id) ON DELETE CASCADE,
-    code TEXT NOT NULL,
-    title TEXT NOT NULL,
-    units INTEGER NOT NULL DEFAULT 3 CHECK (units > 0),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (program_id, code)
-);
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      program_id UUID NOT NULL REFERENCES public.programs(id) ON DELETE CASCADE,
+      curriculum_id UUID REFERENCES public.resources(id) ON DELETE SET NULL,
+      code TEXT NOT NULL,
+      title TEXT NOT NULL,
+      prerequisite_id UUID REFERENCES public.courses(id) ON DELETE SET NULL,
+      corequisite_id UUID REFERENCES public.courses(id) ON DELETE SET NULL,
+      credit_lecture INTEGER NOT NULL DEFAULT 0 CHECK (credit_lecture >= 0),
+      credit_laboratory INTEGER NOT NULL DEFAULT 0 CHECK (credit_laboratory >= 0),
+      units INTEGER NOT NULL DEFAULT 0 CHECK (units >= 0),
+      description TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (program_id, code)
+  );
 
 CREATE TABLE public.program_outcomes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -150,7 +150,7 @@ export default function EntityCrudPage<T extends { id: string }>({
             {showTitle && (
               <label className="field">
                 <span>{titleLabel}</span>
-                <textarea className="input input--sm" rows={3} placeholder="Enter full title" ref={autoResize}
+                <textarea className="input input--sm" rows={3} placeholder={`Enter full ${titleLabel.toLowerCase()}`} ref={autoResize}
                   value={form.title}
                   onChange={(e) => { setForm({ ...form, title: e.target.value }); autoResize(e.target) }} required />
               </label>
@@ -166,7 +166,7 @@ export default function EntityCrudPage<T extends { id: string }>({
           {showTitle && (
             <label className="field">
               <span>{titleLabel}</span>
-              <input className="input input--sm" type="text" placeholder="Enter title" value={form.title}
+              <input className="input input--sm" type="text" placeholder={`Enter ${titleLabel.toLowerCase()}`} value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })} required />
             </label>
           )}

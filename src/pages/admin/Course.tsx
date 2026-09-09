@@ -1,25 +1,54 @@
-// Admin Course page: manages courses linked to a program. Pick a program from
-// the dropdown, then create / edit / delete the courses inside it.
+// Admin Course page: manages courses linked to a program. Pick a program and
+// curriculum, then create / edit / delete the courses inside it. Courses can
+// reference a prerequisite and corequisite from the same program, and credits
+// are split into lecture + laboratory (total is computed automatically).
 
 import { useState, useEffect, useCallback } from 'react'
 import {
   fetchPrograms,
+  fetchResources,
   fetchCourses,
   createCourse,
   updateCourse,
   deleteCourse,
   addActivityLog,
 } from '../../services/database'
-import type { Program, Course } from '../../services/database'
+import type { Program, Resource, Course } from '../../services/database'
 
 interface CourseProps {
   profile?: { email?: string | null } | null
 }
 
-const blank = { code: '', title: '', units: '3' }
+type CourseForm = {
+  code: string
+  title: string
+  curriculum: string
+  prereq: string
+  coreq: string
+  creditLecture: string
+  creditLaboratory: string
+  description: string
+}
+
+const blank: CourseForm = {
+  code: '',
+  title: '',
+  curriculum: '',
+  prereq: '',
+  coreq: '',
+  creditLecture: '',
+  creditLaboratory: '',
+  description: '',
+}
+
+const courseCodeOf = (c: Course) => (typeof c === 'object' && c ? c.code : '')
+
+const relId = (v: string | { id: string } | null | undefined) =>
+  v && typeof v === 'object' ? v.id : (v || '')
 
 export default function Course({ profile }: CourseProps) {
   const [programs, setPrograms] = useState<Program[]>([])
+  const [curriculums, setCurriculums] = useState<Resource[]>([])
   const [courses, setCourses] = useState<Course[]>([])
   const [programId, setProgramId] = useState('')
   const [loading, setLoading] = useState(true)
@@ -27,25 +56,35 @@ export default function Course({ profile }: CourseProps) {
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
 
-  const [form, setForm] = useState(blank)
+  const [form, setForm] = useState<CourseForm>(blank)
   const [editId, setEditId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState(blank)
+  const [editForm, setEditForm] = useState<CourseForm>(blank)
 
   const userEmail = profile?.email ?? 'unknown'
+
+  const errMsg = (e: unknown) => {
+    if (e instanceof Error) return e.message
+    if (e && typeof e === 'object') {
+      const m = (e as Record<string, unknown>).message
+      return typeof m === 'string' ? m : JSON.stringify(e)
+    }
+    return String(e)
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
     setError('')
     try {
-      const [p, c] = await Promise.all([fetchPrograms(), fetchCourses()])
+      const [p, res, c] = await Promise.all([fetchPrograms(), fetchResources(), fetchCourses()])
       setPrograms(p)
+      setCurriculums(res.filter((r) => r.status !== 'archived' && (r.code || r.title)))
       setCourses(c)
       setProgramId((prev) => {
         if (prev && p.some((x) => x.id === prev)) return prev
         return p[0]?.id ?? ''
       })
     } catch (e) {
-      setError('Unable to load courses: ' + (e instanceof Error ? e.message : String(e)))
+      setError('Unable to load courses: ' + errMsg(e))
     } finally {
       setLoading(false)
     }
@@ -57,6 +96,39 @@ export default function Course({ profile }: CourseProps) {
     typeof c.program_id === 'object' ? c.program_id.id === programId : c.program_id === programId,
   )
 
+  const programCourses = visible.filter((c) => c.id !== editId)
+
+  const totalCredits = (f: CourseForm) => {
+    const lec = parseInt(f.creditLecture, 10) || 0
+    const lab = parseInt(f.creditLaboratory, 10) || 0
+    return lec + lab
+  }
+
+  const idOf = (v: string | { id: string } | null) => (v && typeof v === 'object' ? v.id : v)
+  const courseLabel = (id: string | { id: string } | null) => {
+    if (!id) return 'N/A'
+    const c = courses.find((x) => x.id === idOf(id))
+    return c ? c.code : 'N/A'
+  }
+
+  const curriculumLabel = (id: string | { id: string } | null) => {
+    if (!id) return '-'
+    const r = curriculums.find((x) => x.id === idOf(id))
+    return r ? (r.code || r.title) : '-'
+  }
+
+  const buildPayload = (f: CourseForm) => ({
+    code: f.code.trim(),
+    title: f.title.trim(),
+    curriculum_id: f.curriculum || null,
+    prerequisite_id: f.prereq || null,
+    corequisite_id: f.coreq || null,
+    credit_lecture: parseInt(f.creditLecture, 10) || 0,
+    credit_laboratory: parseInt(f.creditLaboratory, 10) || 0,
+    units: totalCredits(f),
+    description: f.description.trim() || null,
+  })
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!programId) return
@@ -64,18 +136,13 @@ export default function Course({ profile }: CourseProps) {
     setMessage('')
     setBusy(true)
     try {
-      await createCourse({
-        program_id: programId,
-        code: form.code.trim(),
-        title: form.title.trim(),
-        units: parseInt(form.units, 10) || undefined,
-      })
+      await createCourse({ program_id: programId, ...buildPayload(form) })
       await addActivityLog(userEmail, 'course.created')
       setMessage('Course created.')
       setForm(blank)
       load()
     } catch (err) {
-      setError('Failed to create course: ' + (err instanceof Error ? err.message : String(err)))
+      setError('Failed to create course: ' + errMsg(err))
     } finally {
       setBusy(false)
     }
@@ -83,7 +150,18 @@ export default function Course({ profile }: CourseProps) {
 
   const startEdit = (item: Course) => {
     setEditId(item.id)
-    setEditForm({ code: item.code, title: item.title, units: String(item.units) })
+    const pid = typeof item.program_id === 'object' ? item.program_id.id : item.program_id
+    setProgramId(pid)
+    setEditForm({
+      code: item.code,
+      title: item.title,
+      curriculum: relId(item.curriculum_id),
+      prereq: relId(item.prerequisite_id),
+      coreq: relId(item.corequisite_id),
+      creditLecture: String(item.credit_lecture ?? 0),
+      creditLaboratory: String(item.credit_laboratory ?? 0),
+      description: item.description || '',
+    })
   }
 
   const saveEdit = async () => {
@@ -92,20 +170,22 @@ export default function Course({ profile }: CourseProps) {
     setMessage('')
     setBusy(true)
     try {
-      await updateCourse(editId, {
-        code: editForm.code.trim(),
-        title: editForm.title.trim(),
-        units: parseInt(editForm.units, 10) || undefined,
-      })
+      await updateCourse(editId, buildPayload(editForm))
       await addActivityLog(userEmail, 'course.updated')
       setMessage('Course updated.')
       setEditId(null)
+      setEditForm(blank)
       load()
     } catch (err) {
-      setError('Failed to update course: ' + (err instanceof Error ? err.message : String(err)))
+      setError('Failed to update course: ' + errMsg(err))
     } finally {
       setBusy(false)
     }
+  }
+
+  const cancelEdit = () => {
+    setEditId(null)
+    setEditForm(blank)
   }
 
   const handleDelete = async (id: string) => {
@@ -119,11 +199,23 @@ export default function Course({ profile }: CourseProps) {
       setMessage('Course deleted.')
       load()
     } catch (err) {
-      setError('Failed to delete course: ' + (err instanceof Error ? err.message : String(err)))
+      setError('Failed to delete course: ' + errMsg(err))
     } finally {
       setBusy(false)
     }
   }
+
+  const editing = editId !== null
+  const activeForm = editing ? editForm : form
+  const setActiveForm = editing ? setEditForm : setForm
+
+  const creditField = (label: string, key: 'creditLecture' | 'creditLaboratory') => (
+    <label className="field">
+      <span>{label}</span>
+      <input className="input" type="number" min={0} value={activeForm[key]}
+        onChange={(e) => setActiveForm({ ...activeForm, [key]: e.target.value })} />
+    </label>
+  )
 
   return (
     <div className="curriculum-view">
@@ -134,73 +226,124 @@ export default function Course({ profile }: CourseProps) {
       ) : (
         <>
           <form className="panel create-resource" onSubmit={handleCreate}>
-            <h3>New Course</h3>
+            <h3>{editing ? `Edit Course — ${editForm.code || 'untitled'}` : 'New Course'}</h3>
+            <label className="field">
+              <span>Program code</span>
+              <select className="input" value={programId}
+                onChange={(e) => setProgramId(e.target.value)} required disabled={editing}>
+                {programs.length === 0 && <option value="">No programs yet</option>}
+                {programs.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name || p.code}</option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Curriculum</span>
+              <select className="input" value={activeForm.curriculum}
+                onChange={(e) => setActiveForm({ ...activeForm, curriculum: e.target.value })}>
+                <option value="">None</option>
+                {curriculums.map((r) => (
+                  <option key={r.id} value={r.id}>{r.code || r.title}</option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Course Code</span>
+              <input className="input" type="text" placeholder="e.g. IT21"
+                value={activeForm.code}
+                onChange={(e) => setActiveForm({ ...activeForm, code: e.target.value })} required />
+            </label>
+            <label className="field">
+              <span>Course Title</span>
+              <input className="input" type="text" placeholder="Course title"
+                value={activeForm.title}
+                onChange={(e) => setActiveForm({ ...activeForm, title: e.target.value })} required />
+            </label>
             <div className="create-resource__row">
               <label className="field">
-                <span>Program</span>
-                <select className="input input--sm" value={programId} onChange={(e) => setProgramId(e.target.value)} required>
-                  {programs.length === 0 && <option value="">No programs yet</option>}
-                  {programs.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name || p.code}</option>
+                <span>Pre-requisite</span>
+                <select className="input" value={activeForm.prereq}
+                  onChange={(e) => setActiveForm({ ...activeForm, prereq: e.target.value })}>
+                  <option value="">N/A</option>
+                  {programCourses.map((c) => (
+                    <option key={c.id} value={c.id}>{courseCodeOf(c)}</option>
                   ))}
                 </select>
               </label>
               <label className="field">
-                <span>Code</span>
-                <input className="input input--sm" type="text" placeholder="e.g. IT21"
-                  value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} required />
-              </label>
-              <label className="field">
-                <span>Title</span>
-                <input className="input input--sm" type="text" placeholder="Course title"
-                  value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
-              </label>
-              <label className="field field--sm">
-                <span>Units</span>
-                <input className="input input--sm" type="number" min={1} max={20}
-                  value={form.units} onChange={(e) => setForm({ ...form, units: e.target.value })} required />
+                <span>Co-requisite</span>
+                <select className="input" value={activeForm.coreq}
+                  onChange={(e) => setActiveForm({ ...activeForm, coreq: e.target.value })}>
+                  <option value="">N/A</option>
+                  {programCourses.map((c) => (
+                    <option key={c.id} value={c.id}>{courseCodeOf(c)}</option>
+                  ))}
+                </select>
               </label>
             </div>
+            <div className="create-resource__row">
+              {creditField('Credit Lecture', 'creditLecture')}
+              {creditField('Credit Laboratory', 'creditLaboratory')}
+              <label className="field">
+                <span>Total</span>
+                <input className="input" type="number" readOnly value={totalCredits(activeForm)} />
+              </label>
+            </div>
+            <label className="field">
+              <span>Description</span>
+              <textarea className="input" rows={3} placeholder="Optional description"
+                value={activeForm.description}
+                onChange={(e) => setActiveForm({ ...activeForm, description: e.target.value })} />
+            </label>
             <div className="create-resource__submit">
-              <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>{busy ? 'Saving...' : 'Add'}</button>
+              {editing ? (
+                <>
+                  <button className="btn btn--primary btn--sm" type="button" onClick={saveEdit} disabled={busy}>
+                    {busy ? 'Saving...' : 'Save'}
+                  </button>{' '}
+                  <button className="btn btn--ghost btn--sm" type="button" onClick={cancelEdit} disabled={busy}>
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
+                  {busy ? 'Saving...' : 'Add'}
+                </button>
+              )}
             </div>
           </form>
 
           <div className="panel table-wrap">
             <table className="table">
               <thead>
-                <tr><th>Course</th><th>Title</th><th>Units</th><th>Actions</th></tr>
+                <tr>
+                  <th>Course</th>
+                  <th>Title</th>
+                  <th>Curriculum</th>
+                  <th>Pre-req</th>
+                  <th>Co-req</th>
+                  <th>Credits (Lec / Lab / Total)</th>
+                  <th>Description</th>
+                  <th>Actions</th>
+                </tr>
               </thead>
               <tbody>
                 {visible.length === 0 && (
-                  <tr><td colSpan={4}>No courses in this program yet.</td></tr>
+                  <tr><td colSpan={8}>No courses in this program yet.</td></tr>
                 )}
                 {visible.map((c) => (
                   <tr key={c.id}>
-                    {editId === c.id ? (
-                      <>
-                        <td><input className="input input--sm" value={editForm.code}
-                          onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} /></td>
-                        <td><input className="input input--sm" value={editForm.title}
-                          onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} /></td>
-                        <td><input className="input input--sm" type="number" min={1} max={20} value={editForm.units}
-                          onChange={(e) => setEditForm({ ...editForm, units: e.target.value })} /></td>
-                        <td>
-                          <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>Save</button>{' '}
-                          <button className="btn btn--ghost btn--sm" onClick={() => setEditId(null)} disabled={busy}>Cancel</button>
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td><strong>{c.code}</strong></td>
-                        <td>{c.title}</td>
-                        <td>{c.units}</td>
-                        <td>
-                          <button className="btn btn--ghost btn--sm" onClick={() => startEdit(c)} disabled={busy || !!editId}>Edit</button>{' '}
-                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(c.id)} disabled={busy || !!editId}>Delete</button>
-                        </td>
-                      </>
-                    )}
+                    <td><strong>{c.code}</strong></td>
+                    <td>{c.title}</td>
+                    <td>{curriculumLabel(c.curriculum_id)}</td>
+                    <td>{courseLabel(c.prerequisite_id)}</td>
+                    <td>{courseLabel(c.corequisite_id)}</td>
+                    <td>{c.credit_lecture ?? 0} / {c.credit_laboratory ?? 0} / {c.units ?? 0}</td>
+                    <td>{c.description || '-'}</td>
+                    <td>
+                      <button className="btn btn--ghost btn--sm" onClick={() => startEdit(c)} disabled={busy || !!editId}>Edit</button>{' '}
+                      <button className="btn btn--danger btn--sm" onClick={() => handleDelete(c.id)} disabled={busy || !!editId}>Delete</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

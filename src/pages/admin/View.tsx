@@ -421,7 +421,7 @@ function View({ userEmail }: ViewProps) {
                 <ol className="sd-details__list" key={c.id}>
                   <li><strong>Course Code:</strong> {c.code}</li>
                   <li><strong>Course Title:</strong> {c.title}</li>
-                  <li><strong>Units:</strong> {c.units}</li>
+                  <li><strong>Credits:</strong> Lecture {c.credit_lecture ?? 0} / Laboratory {c.credit_laboratory ?? 0} / Total {c.units ?? 0}</li>
                   <li><strong>Program:</strong> {programText(c)}</li>
                 </ol>
               ))

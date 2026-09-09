@@ -23,7 +23,11 @@ export default function ProgramOutcomes() {
     let cancelled = false
     ;(async () => {
       try {
-        const cmos = await fetchChedMemoOrders()
+        const pos = await fetchProgramOutcomesStandalone()
+        const referenced = new Set(pos.map((p) => p.cmo_id).filter(Boolean) as string[])
+        const cmos = (await fetchChedMemoOrders()).filter(
+          (c) => c.status === 'active' || referenced.has(c.id),
+        )
 
         const fixedOptions: AlignmentOption[] = FIXED_OPTIONS.map((v) => ({ value: v, cmo_id: null }))
         const cmoOptions: AlignmentOption[] = cmos.map((c) => ({
@@ -54,6 +58,7 @@ export default function ProgramOutcomes() {
       deleteAction="program_outcome.deleted"
       codeLabel="Code"
       codePlaceholder="e.g. PO-1"
+      titleLabel="Description"
       descriptionLabel="CMO Alignment"
       descriptionOptions={options}
       relationField="cmo_id"

@@ -17,18 +17,28 @@ interface CurriculumProps {
 }
 
 function Curriculum({ userEmail }: CurriculumProps) {
+  const errMsg = (e: unknown) => {
+    if (e instanceof Error) return e.message
+    if (e && typeof e === 'object') {
+      const m = (e as Record<string, unknown>).message
+      return typeof m === 'string' ? m : JSON.stringify(e)
+    }
+    return String(e)
+  }
   const [items, setItems] = useState<Resource[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
   // "New record" form state.
-  const [title, setTitle] = useState('')
+  const [code, setCode] = useState('')
   const [description, setDescription] = useState('')
+  const [units, setUnits] = useState('')
   // Inline-edit state (only one card edits at a time).
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editTitle, setEditTitle] = useState('')
+  const [editCode, setEditCode] = useState('')
   const [editDescription, setEditDescription] = useState('')
+  const [editUnits, setEditUnits] = useState('')
   const [busy, setBusy] = useState(false)
 
   // Fetch the list from the DB.
@@ -38,7 +48,7 @@ function Curriculum({ userEmail }: CurriculumProps) {
     try {
       setItems(await fetchResources())
     } catch (e) {
-      setError('Unable to load resources: ' + (e instanceof Error ? e.message : String(e)))
+      setError('Unable to load resources: ' + errMsg(e))
     } finally {
       setLoading(false)
     }
@@ -61,14 +71,17 @@ function Curriculum({ userEmail }: CurriculumProps) {
     try {
       const userId = await currentUserId()
       if (!userId) throw new Error('Not authenticated')
-      await createResource(title.trim(), description.trim() || null, userId)
+      const codeValue = code.trim()
+      if (!codeValue) throw new Error('Code is required')
+      await createResource(codeValue, description.trim() || null, units === '' ? null : Number(units), userId)
       await addActivityLog(userEmail, 'resource.created')
-      setTitle('')
+      setCode('')
       setDescription('')
+      setUnits('')
       setMessage('Resource created.')
       load()
     } catch (e) {
-      setError('Failed to create resource: ' + (e instanceof Error ? e.message : String(e)))
+      setError('Failed to create resource: ' + errMsg(e))
     } finally {
       setBusy(false)
     }
@@ -77,29 +90,38 @@ function Curriculum({ userEmail }: CurriculumProps) {
   // Load a card's current values into the edit form.
   const startEdit = (item: Resource) => {
     setEditingId(item.id)
-    setEditTitle(item.title)
+    setEditCode(item.code || '')
     setEditDescription(item.description || '')
+    setEditUnits(item.units == null ? '' : String(item.units))
   }
 
   const cancelEdit = () => {
     setEditingId(null)
-    setEditTitle('')
+    setEditCode('')
     setEditDescription('')
+    setEditUnits('')
   }
 
-  // Save the edited title/description + audit entry.
+  // Save the edited code/description/units + audit entry.
   const handleSave = async (id: string) => {
     setError('')
     setMessage('')
     setBusy(true)
     try {
-      await updateResource(id, { title: editTitle.trim(), description: editDescription.trim() || null })
+      const codeValue = editCode.trim()
+      if (!codeValue) throw new Error('Code is required')
+      await updateResource(id, {
+        title: codeValue,
+        code: codeValue,
+        description: editDescription.trim() || null,
+        units: editUnits === '' ? null : Number(editUnits),
+      })
       await addActivityLog(userEmail, 'resource.updated')
       setMessage('Resource updated.')
       cancelEdit()
       load()
     } catch (e) {
-      setError('Failed to update resource: ' + (e instanceof Error ? e.message : String(e)))
+      setError('Failed to update resource: ' + errMsg(e))
     } finally {
       setBusy(false)
     }
@@ -116,7 +138,7 @@ function Curriculum({ userEmail }: CurriculumProps) {
       setMessage(`Resource ${next}.`)
       load()
     } catch (e) {
-      setError('Failed to update resource: ' + (e instanceof Error ? e.message : String(e)))
+      setError('Failed to update resource: ' + errMsg(e))
     }
   }
 
@@ -132,22 +154,39 @@ function Curriculum({ userEmail }: CurriculumProps) {
 
       <form className="panel create-resource" onSubmit={handleCreate}>
         <h3>New curriculum record</h3>
-        <div className="create-resource__row">
+        <label className="field">
+          <span>Curriculum code</span>
           <input
             className="input"
             type="text"
-            placeholder="Title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            placeholder="e.g. BSIT 2021-2022"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
             required
           />
-          <input
+        </label>
+        <label className="field">
+          <span>Curriculum description</span>
+          <textarea
             className="input"
-            type="text"
-            placeholder="Description"
+            rows={3}
+            placeholder="Describe this curriculum record"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
+        </label>
+        <label className="field">
+          <span>Total Units</span>
+          <input
+            className="input"
+            type="number"
+            min="0"
+            placeholder="e.g. 3"
+            value={units}
+            onChange={(e) => setUnits(e.target.value)}
+          />
+        </label>
+        <div className="create-resource__submit">
           <button className="btn btn--primary" type="submit" disabled={busy}>
             {busy ? 'Saving...' : 'Add'}
           </button>
@@ -163,16 +202,33 @@ function Curriculum({ userEmail }: CurriculumProps) {
             <div className={`resource-card ${item.status === 'archived' ? 'resource-card--archived' : ''}`} key={item.id}>
               {editingId === item.id ? (
                 <div className="resource-card__edit">
-                  <input
-                    className="input"
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                  />
-                  <input
-                    className="input"
-                    value={editDescription}
-                    onChange={(e) => setEditDescription(e.target.value)}
-                  />
+                  <label className="field">
+                    <span>Curriculum code</span>
+                    <input
+                      className="input"
+                      value={editCode}
+                      onChange={(e) => setEditCode(e.target.value)}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Curriculum description</span>
+                    <textarea
+                      className="input"
+                      rows={3}
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Total Units</span>
+                    <input
+                      className="input"
+                      type="number"
+                      min="0"
+                      value={editUnits}
+                      onChange={(e) => setEditUnits(e.target.value)}
+                    />
+                  </label>
                   <div className="resource-card__actions">
                     <button className="btn btn--primary btn--sm" onClick={() => handleSave(item.id)} disabled={busy}>
                       Save
@@ -185,10 +241,11 @@ function Curriculum({ userEmail }: CurriculumProps) {
               ) : (
                 <>
                   <div className="resource-card__body">
-                    <h4>{item.title}</h4>
+                    <h4>{item.code || item.title}</h4>
                     {item.description && <p>{item.description}</p>}
                     <div className="resource-card__meta">
                       <span className={`status-badge status-badge--${item.status}`}>{item.status}</span>
+                      {item.units != null && <span>{item.units} unit{item.units === 1 ? '' : 's'}</span>}
                       <span>by {(typeof item.created_by === 'object' && item.created_by?.full_name) || 'Unknown'}</span>
                       <span>{new Date(item.created_at).toLocaleString()}</span>
                     </div>

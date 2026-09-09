@@ -7,12 +7,8 @@
 //
 // Admin role pages (sidebar order):
 //   Dashboard, Program Educational Objectives, Program Outcomes,
-//   Course Learning Outcomes, Strategic Goals, CHED Memorandum Orders,
-//   Activity Logs, Profile
-//
-// Note: Users & Accounts, Curriculum, CLO/PO Mapping, and Analytics were
-// removed from the admin role in this version. The manager role retains
-// its own Curriculum, Faculty, and Activity Logs pages.
+//   Curriculum, Course, Course Learning Outcomes, Strategic Goals,
+//   CHED Memorandum Orders, Users & Accounts, Activity Logs, Profile
 
 import { useState, useEffect } from 'react'
 import Sidebar from './components/Sidebar'
@@ -48,6 +44,7 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'strategic-goals', label: 'Strategic Goals' },
     { id: 'peos', label: 'Program Educational Objectives' },
     { id: 'program-outcomes', label: 'Program Outcomes' },
+    { id: 'curriculum', label: 'Curriculum' },
     { id: 'course', label: 'Course' },
     { id: 'clo', label: 'Course Learning Outcomes' },
     { id: 'users', label: 'Users & Accounts' },
@@ -76,6 +73,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     program: AdminProgram,
     peos: AdminPEOs,
     'program-outcomes': AdminProgramOutcomes,
+    curriculum: ManagerCurriculum,
     course: AdminCourse,
     clo: AdminCourseLearningOutcomes,
     'strategic-goals': AdminStrategicGoals,
