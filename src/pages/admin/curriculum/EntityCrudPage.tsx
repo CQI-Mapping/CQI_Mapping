@@ -12,6 +12,7 @@ import { useEntityCrud } from './useEntityCrud.js'
 export interface AlignmentOption {
   value: string
   cmo_id?: string | null
+  relationId?: string | null
 }
 
 interface EntityCrudPageProps<T extends { id: string }> {
@@ -31,6 +32,9 @@ interface EntityCrudPageProps<T extends { id: string }> {
   showDescription?: boolean
   descriptionLabel?: string
   descriptionOptions?: AlignmentOption[]
+  descriptionLabel2?: string
+  descriptionOptions2?: AlignmentOption[]
+  relationField2?: string
   showTitle?: boolean
   titleField?: string
   titleLabel?: string
@@ -59,6 +63,9 @@ export default function EntityCrudPage<T extends { id: string }>({
   showDescription = true,
   descriptionLabel = 'Description',
   descriptionOptions,
+  descriptionLabel2,
+  descriptionOptions2,
+  relationField2,
   showTitle = true,
   titleField = 'title',
   titleLabel = 'Title',
@@ -72,7 +79,7 @@ export default function EntityCrudPage<T extends { id: string }>({
   const crud = useEntityCrud<T>({ loadFn: load, createFn: create, updateFn: update, deleteFn: remove, userEmail: '', scope })
   const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete } = crud
 
-  const blank = { code: '', title: '', description: '' }
+  const blank = { code: '', title: '', description: '', description2: '' }
   const [form, setForm] = useState(blank)
   const [editForm, setEditForm] = useState(blank)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -98,7 +105,12 @@ export default function EntityCrudPage<T extends { id: string }>({
       [titleField]: f.title.trim(),
       description: opt ? opt.value : (value || null),
     }
-    if (relationField) base[relationField] = opt && opt.cmo_id ? opt.cmo_id : null
+    if (relationField) base[relationField] = opt ? (opt.relationId ?? opt.cmo_id ?? null) : null
+    if (descriptionOptions2 && relationField2) {
+      const value2 = f.description2.trim() || ''
+      const opt2 = descriptionOptions2.find((o) => o.value === value2)
+      base[relationField2] = opt2 ? (opt2.relationId ?? opt2.cmo_id ?? null) : null
+    }
     return base as Partial<T>
   }
 
@@ -109,10 +121,12 @@ export default function EntityCrudPage<T extends { id: string }>({
 
   const startEdit = (item: T) => {
     setEditingId(item.id)
+    const peoId = (item as { peo_id?: string | null }).peo_id ?? null
     setEditForm({
       code: (item as { code?: string }).code || '',
       title: ((item as Record<string, unknown>)[titleField] as string | undefined) || '',
       description: (item as { description?: string }).description || '',
+      description2: descriptionOptions2?.find((o) => (o.relationId ?? o.cmo_id ?? null) === peoId)?.value || '',
     })
   }
 
@@ -132,6 +146,20 @@ export default function EntityCrudPage<T extends { id: string }>({
       ))}
     </select>
   )
+
+  const alignmentSelect2 = (value: string, onChange: (v: string) => void) => (
+    <select className="input input--sm" value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">None</option>
+      {descriptionOptions2?.map((o) => (
+        <option key={o.value} value={o.value}>{o.value}</option>
+      ))}
+    </select>
+  )
+
+  const labelOf2 = (item: T) => {
+    const id = relationField2 ? ((item as Record<string, unknown>)[relationField2] as string | null) : null
+    return descriptionOptions2?.find((o) => (o.relationId ?? o.cmo_id ?? null) === id)?.value || '—'
+  }
 
   return (
     <div className="curriculum-view">
@@ -182,6 +210,12 @@ export default function EntityCrudPage<T extends { id: string }>({
             )}
           </label>
         )}
+        {descriptionOptions2 && (
+          <label className="field">
+            <span>{descriptionLabel2}</span>
+            {alignmentSelect2(form.description2, (v) => setForm({ ...form, description2: v }))}
+          </label>
+        )}
         <div className="create-resource__submit">
           <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>{busy ? 'Saving...' : 'Add'}</button>
         </div>
@@ -203,6 +237,7 @@ export default function EntityCrudPage<T extends { id: string }>({
                 <th>Code</th>
                 {showTitle && <th>{titleLabel}</th>}
                 {showDescription && <th>{descriptionLabel}</th>}
+                {descriptionOptions2 && <th>{descriptionLabel2}</th>}
                 {counts && <th>{countLabel}</th>}
                 <th>Status</th>
                 <th>Actions</th>
@@ -211,7 +246,7 @@ export default function EntityCrudPage<T extends { id: string }>({
             <tbody>
               {visible.length === 0 && (
                 <tr>
-                  <td colSpan={3 + (showTitle ? 1 : 0) + (showDescription ? 1 : 0) + (counts ? 1 : 0)}>
+                  <td colSpan={3 + (showTitle ? 1 : 0) + (showDescription ? 1 : 0) + (descriptionOptions2 ? 1 : 0) + (counts ? 1 : 0)}>
                     No {title.toLowerCase()} yet.
                   </td>
                 </tr>
@@ -235,6 +270,9 @@ export default function EntityCrudPage<T extends { id: string }>({
                             onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} />
                         )}</td>
                       )}
+                      {descriptionOptions2 && (
+                        <td>{alignmentSelect2(editForm.description2, (v) => setEditForm({ ...editForm, description2: v }))}</td>
+                      )}
                       {counts && <td></td>}
                       <td></td>
                       <td>
@@ -247,6 +285,7 @@ export default function EntityCrudPage<T extends { id: string }>({
                       <td><strong>{formatCode(codeOf(item))}</strong></td>
                       {showTitle && <td>{titleOf(item)}</td>}
                       {showDescription && <td>{descOf(item) || '—'}</td>}
+                      {descriptionOptions2 && <td>{labelOf2(item)}</td>}
                       {counts && <td>{counts[item.id] ?? 0}</td>}
                       <td>
                         <span className={`sd-status-badge ${isActive(item) ? 'sd-status-badge--active' : 'sd-status-badge--archived'}`}>

@@ -6,6 +6,7 @@ import {
   updateProgramOutcomeStandalone,
   deleteProgramOutcomeStandalone,
   fetchChedMemoOrders,
+  fetchProgramEducationalObjectives,
 } from '../../services/database'
 import type { ProgramOutcomeStandalone } from '../../services/database'
 
@@ -17,6 +18,7 @@ const FIXED_OPTIONS = [
 
 export default function ProgramOutcomes() {
   const [options, setOptions] = useState<AlignmentOption[] | null>(null)
+  const [peoOptions, setPeoOptions] = useState<AlignmentOption[]>([])
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -34,7 +36,20 @@ export default function ProgramOutcomes() {
           value: `${c.title} (${c.code})`,
           cmo_id: c.id,
         }))
-        if (!cancelled) setOptions([...fixedOptions, ...cmoOptions])
+
+        const referencedPeos = new Set(pos.map((p) => p.peo_id).filter(Boolean) as string[])
+        const peos = (await fetchProgramEducationalObjectives()).filter(
+          (p) => p.status === 'active' || referencedPeos.has(p.id),
+        )
+        const peosOptions: AlignmentOption[] = peos.map((p) => ({
+          value: `${p.code} \u2014 ${p.title}`,
+          relationId: p.id,
+        }))
+
+        if (!cancelled) {
+          setOptions([...fixedOptions, ...cmoOptions])
+          setPeoOptions(peosOptions)
+        }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load CMO data.')
       }
@@ -62,6 +77,9 @@ export default function ProgramOutcomes() {
       descriptionLabel="CMO Alignment"
       descriptionOptions={options}
       relationField="cmo_id"
+      descriptionLabel2="Program Educational Objectives"
+      descriptionOptions2={peoOptions}
+      relationField2="peo_id"
       sort={(a, b) => {
         const n = (s: string) => parseInt(s.replace(/\D/g, ''), 10)
         return (n((a as { code?: string }).code || '') || 0) - (n((b as { code?: string }).code || '') || 0)
