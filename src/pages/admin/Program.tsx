@@ -24,8 +24,8 @@ export default function Program() {
       createAction="program.created"
       updateAction="program.updated"
       deleteAction="program.deleted"
-      codeLabel="Course"
-      codePlaceholder="e.g. IT21"
+      codeLabel="Program"
+      codePlaceholder="e.g. BSCS"
       showTitle={false}
     />
   )
