@@ -12,6 +12,14 @@ interface SeedItem {
   description: string | null
 }
 
+// One selectable "alignment" option. `value` is the text stored in the entity's
+// description column (also the select's round-trippable value); `cmo_id`
+// (optional) records the CHED Memorandum Order to link to for that choice.
+export interface AlignmentOption {
+  value: string
+  cmo_id?: string | null
+}
+
 interface EntityCrudPageProps<T extends { id: string }> {
   title: string
   load: () => Promise<T[]>
@@ -29,14 +37,15 @@ interface EntityCrudPageProps<T extends { id: string }> {
   sort?: (a: T, b: T) => number
   showDescription?: boolean
   descriptionLabel?: string
-  descriptionOptions?: string[]
+  descriptionOptions?: AlignmentOption[]
   showTitle?: boolean
   titleField?: string
   titleLabel?: string
   formatCode?: (code: string) => string
   allowDelete?: boolean
   relationField?: string
-  resolveRelation?: (description: string) => string | null
+  counts?: Record<string, number>
+  countLabel?: string
 }
 
 export default function EntityCrudPage<T extends { id: string }>({
@@ -63,7 +72,8 @@ export default function EntityCrudPage<T extends { id: string }>({
   formatCode = (c) => c,
   allowDelete = true,
   relationField,
-  resolveRelation,
+  counts,
+  countLabel = 'Linked',
 }: EntityCrudPageProps<T>) {
   const crud = useEntityCrud<T>({ loadFn: load, createFn: create, updateFn: update, deleteFn: remove, userEmail: '', scope })
   const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete } = crud
@@ -94,7 +104,7 @@ export default function EntityCrudPage<T extends { id: string }>({
     const existing = new Set(items.map((i) => (i as { code?: string }).code))
     const missing = seeds.filter((s) => !existing.has(s.code))
     if (missing.length === 0) return
-    missing.reduce<Promise<unknown>>((prev, s) => prev.then(() => create(s as Partial<T>)), Promise.resolve())
+    missing.reduce<Promise<unknown>>((prev, s) => prev.then(() => create(payload(s as typeof blank))), Promise.resolve())
       .then(() => crud.load())
       .catch(() => {})
     // items intentionally omitted from deps so seeding runs once
@@ -102,13 +112,14 @@ export default function EntityCrudPage<T extends { id: string }>({
   }, [loading, seeded])
 
   const payload = (f: typeof blank) => {
-    const description = f.description.trim() || ''
+    const value = f.description.trim() || ''
+    const opt = descriptionOptions?.find((o) => o.value === value)
     const base: Record<string, unknown> = {
       code: f.code.trim(),
       [titleField]: f.title.trim(),
-      description: description || null,
+      description: opt ? opt.value : (value || null),
     }
-    if (relationField && resolveRelation) base[relationField] = resolveRelation(description) ?? null
+    if (relationField) base[relationField] = opt && opt.cmo_id ? opt.cmo_id : null
     return base as Partial<T>
   }
 
@@ -134,6 +145,15 @@ export default function EntityCrudPage<T extends { id: string }>({
   const titleOf = (i: T) => ((i as Record<string, unknown>)[titleField] as string | undefined) || ''
   const descOf = (i: T) => (i as { description?: string }).description
 
+  const alignmentSelect = (value: string, onChange: (v: string) => void) => (
+    <select className="input input--sm" value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">None</option>
+      {descriptionOptions?.map((o) => (
+        <option key={o.value} value={o.value}>{o.value}</option>
+      ))}
+    </select>
+  )
+
   return (
     <div className="curriculum-view">
       {error && <p className="msg msg--error">{error}</p>}
@@ -158,15 +178,7 @@ export default function EntityCrudPage<T extends { id: string }>({
         {showDescription && (
           <label className="field">
             <span>{descriptionLabel}</span>
-            {descriptionOptions ? (
-              <select className="input input--sm" value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}>
-                <option value="">None</option>
-                {descriptionOptions.map((o) => (
-                  <option key={o} value={o}>{o}</option>
-                ))}
-              </select>
-            ) : (
+            {descriptionOptions ? alignmentSelect(form.description, (v) => setForm({ ...form, description: v })) : (
               <textarea className="input input--sm" rows={3} placeholder="Optional description" ref={autoResize}
                 value={form.description}
                 onChange={(e) => { setForm({ ...form, description: e.target.value }); autoResize(e.target) }} />
@@ -189,9 +201,24 @@ export default function EntityCrudPage<T extends { id: string }>({
             </button>
           </div>
           <table className="table">
-            <thead><tr><th>Code</th>{showTitle && <th>{titleLabel}</th>}{showDescription && <th>{descriptionLabel}</th>}<th>Status</th><th>Actions</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Code</th>
+                {showTitle && <th>{titleLabel}</th>}
+                {showDescription && <th>{descriptionLabel}</th>}
+                {counts && <th>{countLabel}</th>}
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
             <tbody>
-              {visible.length === 0 && <tr><td colSpan={3 + (showTitle ? 1 : 0) + (showDescription ? 1 : 0)}>No {title.toLowerCase()} yet.</td></tr>}
+              {visible.length === 0 && (
+                <tr>
+                  <td colSpan={3 + (showTitle ? 1 : 0) + (showDescription ? 1 : 0) + (counts ? 1 : 0)}>
+                    No {title.toLowerCase()} yet.
+                  </td>
+                </tr>
+              )}
               {visible.map((item) => (
                 <tr key={item.id} className={!isActive(item) ? 'sd-archived' : ''}>
                   {editingId === item.id ? (
@@ -201,19 +228,12 @@ export default function EntityCrudPage<T extends { id: string }>({
                         <td><input className="input input--sm" value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} /></td>
                       )}
                       {showDescription && (
-                        <td>{descriptionOptions ? (
-                          <select className="input input--sm" value={editForm.description}
-                            onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}>
-                            <option value="">None</option>
-                            {descriptionOptions.map((o) => (
-                              <option key={o} value={o}>{o}</option>
-                            ))}
-                          </select>
-                        ) : (
+                        <td>{descriptionOptions ? alignmentSelect(editForm.description, (v) => setEditForm({ ...editForm, description: v })) : (
                           <textarea className="input input--sm" rows={3} ref={autoResize} value={editForm.description}
                             onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} />
                         )}</td>
                       )}
+                      {counts && <td></td>}
                       <td></td>
                       <td>
                         <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>Save</button>{' '}
@@ -225,6 +245,7 @@ export default function EntityCrudPage<T extends { id: string }>({
                       <td><strong>{formatCode(codeOf(item))}</strong></td>
                       {showTitle && <td>{titleOf(item)}</td>}
                       {showDescription && <td>{descOf(item) || '—'}</td>}
+                      {counts && <td>{counts[item.id] ?? 0}</td>}
                       <td>
                         <span className={`sd-status-badge ${isActive(item) ? 'sd-status-badge--active' : 'sd-status-badge--archived'}`}>
                           {isActive(item) ? 'active' : 'archived'}

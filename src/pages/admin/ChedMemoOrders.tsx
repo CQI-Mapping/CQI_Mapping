@@ -1,14 +1,31 @@
+import { useEffect, useState } from 'react'
 import EntityCrudPage from './curriculum/EntityCrudPage.js'
 import {
   fetchChedMemoOrders,
   createChedMemoOrder,
   updateChedMemoOrder,
   deleteChedMemoOrder,
+  fetchProgramOutcomesStandalone,
 } from '../../services/database'
 import type { ChedMemoOrder } from '../../services/database'
 import { SEED_CMOS } from '../../data/vcqiSyllabus.js'
 
 export default function ChedMemoOrders() {
+  const [counts, setCounts] = useState<Record<string, number>>({})
+
+  useEffect(() => {
+    fetchProgramOutcomesStandalone()
+      .then((pos) => {
+        const map: Record<string, number> = {}
+        for (const p of pos) {
+          if (!p.cmo_id) continue
+          map[p.cmo_id] = (map[p.cmo_id] || 0) + 1
+        }
+        setCounts(map)
+      })
+      .catch(() => {})
+  }, [])
+
   return (
     <EntityCrudPage<ChedMemoOrder>
       title="CHED Memorandum Order"
@@ -24,6 +41,8 @@ export default function ChedMemoOrders() {
       codePlaceholder="e.g. CMO 1 s. 2024"
       seeds={SEED_CMOS}
       showDescription={false}
+      counts={counts}
+      countLabel="Linked POs"
     />
   )
 }
