@@ -27,7 +27,6 @@ export default function Program() {
       codeLabel="Course"
       codePlaceholder="e.g. IT21"
       showTitle={false}
-      allowDelete={false}
     />
   )
 }
