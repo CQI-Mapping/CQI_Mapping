@@ -37,9 +37,9 @@ const blank: CourseForm = {
   title: '',
   curriculum: '',
   prereq: '',
-  prereqNA: true,
+  prereqNA: false,
   coreq: '',
-  coreqNA: true,
+  coreqNA: false,
   creditLecture: '',
   creditLaboratory: '',
   description: '',
@@ -133,11 +133,22 @@ export default function Course({ profile }: CourseProps) {
     description: f.description.trim() || null,
   })
 
+  const validateReqs = (f: CourseForm): string | null => {
+    if (!f.prereqNA && !f.prereq) return 'Select a Pre-requisite or check the N/A box.'
+    if (!f.coreqNA && !f.coreq) return 'Select a Co-requisite or check the N/A box.'
+    return null
+  }
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!programId) return
     setError('')
     setMessage('')
+    const validationError = validateReqs(form)
+    if (validationError) {
+      setError(validationError)
+      return
+    }
     setBusy(true)
     try {
       await createCourse({ program_id: programId, ...buildPayload(form) })
@@ -174,6 +185,11 @@ export default function Course({ profile }: CourseProps) {
     if (!editId) return
     setError('')
     setMessage('')
+    const validationError = validateReqs(editForm)
+    if (validationError) {
+      setError(validationError)
+      return
+    }
     setBusy(true)
     try {
       await updateCourse(editId, buildPayload(editForm))
