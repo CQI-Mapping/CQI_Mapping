@@ -156,7 +156,11 @@ export default function Course({ profile }: CourseProps) {
 
   const programCourses = visible.filter((c) => c.id !== editId)
 
-  const totalCredits = () => 3
+  const totalCredits = (f: CourseForm) => {
+    const lec = parseInt(f.creditLecture, 10) || 0
+    const lab = parseInt(f.creditLaboratory, 10) || 0
+    return lec + lab
+  }
 
   const idOf = (v: string | { id: string } | null) => (v && typeof v === 'object' ? v.id : v)
   const curriculumLabel = (id: string | { id: string } | null) => {
@@ -173,7 +177,7 @@ export default function Course({ profile }: CourseProps) {
     corequisite: f.coreqNA ? '' : f.coreq.trim(),
     credit_lecture: parseInt(f.creditLecture, 10) || 0,
     credit_laboratory: parseInt(f.creditLaboratory, 10) || 0,
-    units: totalCredits(),
+    units: totalCredits(f),
     description: f.description.trim() || null,
   })
 
@@ -265,16 +269,9 @@ export default function Course({ profile }: CourseProps) {
       <input className="input" type="number" min={0} max={3} value={activeForm[key]}
         onChange={(e) => {
           let v = e.target.value
-          const n = Number(v)
-          if (n > 3) v = '3'
-          if (n < 0) v = '0'
-          setActiveForm((prev) => {
-            const nv = parseInt(v, 10) || 0
-            const other = String(Math.max(0, Math.min(3, 3 - nv)))
-            return key === 'creditLecture'
-              ? { ...prev, creditLecture: v, creditLaboratory: other }
-              : { ...prev, creditLaboratory: v, creditLecture: other }
-          })
+          if (Number(v) > 3) v = '3'
+          if (Number(v) < 0) v = '0'
+          setActiveForm({ ...activeForm, [key]: v })
         }}
         onWheel={(e) => (e.target as HTMLInputElement).blur()} />
     </label>
@@ -365,7 +362,7 @@ export default function Course({ profile }: CourseProps) {
                 {creditField('Laboratory', 'creditLaboratory')}
                 <label className="field">
                   <span>Total</span>
-                  <input className="input" type="number" readOnly value={totalCredits()} />
+                  <input className="input" type="number" readOnly value={totalCredits(activeForm)} />
                 </label>
               </div>
             </div>

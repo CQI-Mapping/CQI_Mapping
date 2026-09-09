@@ -99,7 +99,7 @@ CREATE TABLE public.courses (
       corequisite TEXT NOT NULL DEFAULT '',
       credit_lecture INTEGER NOT NULL DEFAULT 0 CHECK (credit_lecture >= 0 AND credit_lecture <= 3),
       credit_laboratory INTEGER NOT NULL DEFAULT 0 CHECK (credit_laboratory >= 0 AND credit_laboratory <= 3),
-      units INTEGER NOT NULL DEFAULT 3 CHECK (units = 3),
+      units INTEGER NOT NULL DEFAULT 0 CHECK (units >= 0),
       description TEXT NOT NULL DEFAULT '',
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
