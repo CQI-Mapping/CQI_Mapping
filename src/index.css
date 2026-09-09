@@ -297,6 +297,13 @@ code {
   gap: 10px;
 }
 
+.credit-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-left: 16px;
+}
+
 .credit-group .field:last-child {
   margin-bottom: 0;
 }

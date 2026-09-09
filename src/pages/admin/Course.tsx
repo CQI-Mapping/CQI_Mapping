@@ -87,7 +87,7 @@ function ComboInput({ value, onChange, options, placeholder, disabled }: ComboIn
       />
       <button type="button" className="combo__caret" tabIndex={-1} disabled={disabled}
         aria-label="Toggle options" onClick={() => setOpen((v) => !v)}>
-        ▼
+        v
       </button>
       {open && !disabled && (
         <div className="combo__list">
