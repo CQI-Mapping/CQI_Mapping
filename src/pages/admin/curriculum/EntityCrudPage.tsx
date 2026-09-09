@@ -180,7 +180,7 @@ export default function EntityCrudPage<T extends { id: string }>({
             </button>
           </div>
           <table className="table">
-            <thead><tr><th>Code</th>{showTitle && <th>{titleLabel}</th>}{showDescription && <th>Description</th>}<th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Code</th>{showTitle && <th>{titleLabel}</th>}{showDescription && <th>{descriptionLabel}</th>}<th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {visible.length === 0 && <tr><td colSpan={3 + (showTitle ? 1 : 0) + (showDescription ? 1 : 0)}>No {title.toLowerCase()} yet.</td></tr>}
               {visible.map((item) => (
