@@ -86,9 +86,7 @@ function ComboInput({ value, onChange, options, placeholder, disabled }: ComboIn
         onFocus={() => setOpen(true)}
       />
       <button type="button" className="combo__caret" tabIndex={-1} disabled={disabled}
-        aria-label="Toggle options" onClick={() => setOpen((v) => !v)}>
-        &#9662;
-      </button>
+        aria-label="Toggle options" onClick={() => setOpen((v) => !v)} />
       {open && !disabled && (
         <div className="combo__list">
           {visibleOptions.length === 0 && <div className="combo__empty">No matches</div>}

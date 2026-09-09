@@ -310,16 +310,18 @@ code {
 
 .combo__caret {
   position: absolute;
-  right: 4px;
+  right: 11px;
   top: 50%;
-  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  padding: 0;
   border: none;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid #6b7280;
+  transform: translateY(-30%);
   background: none;
-  padding: 4px 6px;
   cursor: pointer;
-  color: #6b7280;
-  font-size: 12px;
-  line-height: 1;
 }
 
 .combo__caret:disabled {
