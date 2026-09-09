@@ -8,12 +8,17 @@ import {
 import type { Program } from '../../services/database'
 
 export default function Program() {
+  const createWithName = async (payload: Partial<Program>) =>
+    createProgram({ ...payload, name: payload.code ?? '' })
+  const updateWithName = async (id: string, payload: Partial<Program>) =>
+    updateProgram(id, { ...payload, name: payload.code ?? '' })
+
   return (
     <EntityCrudPage<Program>
       title="Program"
       load={fetchPrograms}
-      create={createProgram}
-      update={updateProgram}
+      create={createWithName}
+      update={updateWithName}
       remove={deleteProgram}
       scope="Program"
       createAction="program.created"
@@ -21,8 +26,8 @@ export default function Program() {
       deleteAction="program.deleted"
       codeLabel="Course"
       codePlaceholder="e.g. IT21"
-      titleField="name"
-      titleLabel="Name"
+      showTitle={false}
+      allowDelete={false}
     />
   )
 }

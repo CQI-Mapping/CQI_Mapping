@@ -32,6 +32,7 @@ interface EntityCrudPageProps<T extends { id: string }> {
   titleField?: string
   titleLabel?: string
   formatCode?: (code: string) => string
+  allowDelete?: boolean
 }
 
 export default function EntityCrudPage<T extends { id: string }>({
@@ -54,6 +55,7 @@ export default function EntityCrudPage<T extends { id: string }>({
   titleField = 'title',
   titleLabel = 'Title',
   formatCode = (c) => c,
+  allowDelete = true,
 }: EntityCrudPageProps<T>) {
   const crud = useEntityCrud<T>({ loadFn: load, createFn: create, updateFn: update, deleteFn: remove, userEmail: '', scope })
   const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete } = crud
@@ -201,7 +203,7 @@ export default function EntityCrudPage<T extends { id: string }>({
                           onClick={() => handleUpdate(item.id, { status: isActive(item) ? 'archived' : 'active' }, updateAction)} disabled={busy || !!editingId}>
                           {isActive(item) ? 'Archive' : 'Restore'}
                         </button>
-                        {!isActive(item) && (
+                        {!isActive(item) && allowDelete && (
                           <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, deleteAction)} disabled={busy || !!editingId}>Delete</button>
                         )}
                       </td>
