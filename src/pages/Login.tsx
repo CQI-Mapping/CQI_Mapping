@@ -52,7 +52,15 @@ function Login() {
         <div className="login-card">
           <div className="login-brand">
             <div className="login-brand-mark">CQI</div>
+            <h1>Northern Bukidnon State College</h1>
+            <div className="login-brand-line" />
+            <p>BS Information Technology</p>
           </div>
+
+          <h2>Continuous Quality Improvement</h2>
+          <p className="login-subtitle">
+            Curriculum and Program Outcomes Management System
+          </p>
 
           {error && <div className="login-alert login-alert--error">{error}</div>}
 

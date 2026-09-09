@@ -449,80 +449,137 @@ code {
   color: #475569;
 }
 
-/* ---- Login (centered card) ---- */
+/* ---- Login (2026 NBSC/BSIT theme: blue + gold accent) ---- */
 
 .login-page {
+  --login-blue: #1d4ed8;
+  --login-blue-dark: #1e3a8a;
+  --login-blue-deep: #12275e;
+  --login-ink: #1e3a8a;
+  --login-gold: #f5c518;
+  position: relative;
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: #dcfce7;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 15% 18%, rgba(37, 99, 235, 0.55), transparent 46%),
+    radial-gradient(circle at 85% 78%, rgba(56, 189, 248, 0.4), transparent 50%),
+    radial-gradient(circle at 82% 18%, rgba(245, 197, 24, 0.16), transparent 34%),
+    linear-gradient(135deg, var(--login-blue-deep) 0%, var(--login-blue-dark) 55%, #0e2f74 100%);
+}
+
+.login-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: 42px 42px;
+  -webkit-mask-image: radial-gradient(circle at 50% 42%, black, transparent 72%);
+  mask-image: radial-gradient(circle at 50% 42%, black, transparent 72%);
+  pointer-events: none;
+}
+
+.login-panel {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
 }
 
 .login-card {
   width: 100%;
-  max-width: 400px;
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 32px;
-  box-shadow: var(--shadow);
-  color: #14532d;
-  /* Faint graph-paper grid, echoing the curriculum-map motif */
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: 22px;
+  padding: 34px 36px 26px;
+  color: var(--login-ink);
+  box-shadow:
+    0 24px 60px -18px rgba(3, 12, 40, 0.6),
+    0 4px 16px rgba(3, 12, 40, 0.22);
+  /* Faint graph-paper grid echoing the curriculum-map motif (blue tint) */
   background-image:
-    linear-gradient(rgba(22, 163, 74, 0.12) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(22, 163, 74, 0.12) 1px, transparent 1px);
-  background-size: 22px 22px;
+    linear-gradient(rgba(29, 78, 216, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(29, 78, 216, 0.07) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-blend-mode: overlay;
 }
 
 .login-brand {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 12px;
-  margin-top: 20px;
-  margin-bottom: 20px;
+  margin: 4px 0 14px;
 }
 
 .login-brand-mark {
-  width: 100px;
-  height: 132px;
-  border-radius: 12px;
-  background: var(--primary);
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2563eb 0%, var(--login-blue) 55%, #0e2f74 100%);
   color: #fff;
-  font-weight: 700;
-  font-size: 28px;
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: 1px;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow:
+    0 10px 24px -8px rgba(29, 78, 216, 0.65),
+    inset 0 0 0 3px rgba(255, 255, 255, 0.28);
 }
 
 .login-brand h1 {
   margin: 0;
-  font-size: 17px;
-  line-height: 1.2;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.6px;
+  text-align: center;
+  line-height: 1.4;
 }
 
 .login-brand p {
   margin: 0;
   font-size: 12px;
-  color: var(--text-muted);
+  font-weight: 600;
+  color: var(--login-gold);
+  text-transform: uppercase;
+  letter-spacing: 2.4px;
+  text-align: center;
+}
+
+.login-brand-line {
+  width: 56px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--login-blue), var(--login-gold));
 }
 
 .login-card > h2 {
-  margin: 0 0 4px;
-  font-size: 22px;
+  margin: 2px 0 4px;
+  font-size: 21px;
+  font-weight: 800;
+  text-align: center;
+  color: var(--login-ink);
 }
 
 .login-subtitle {
-  margin: 0 0 20px;
-  color: var(--text-muted);
-  font-size: 14px;
+  margin: 0 0 22px;
+  color: #5b6b8c;
+  font-size: 13px;
+  text-align: center;
+  line-height: 1.5;
 }
 
 .login-alert {
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 10px 14px;
   font-size: 13px;
   margin-bottom: 16px;
@@ -531,7 +588,7 @@ code {
 .login-alert--error {
   background: #fef2f2;
   border: 1px solid #fecaca;
-  color: #991b1b;
+  color: #b91c1c;
 }
 
 .form-group {
@@ -543,45 +600,54 @@ code {
 
 .form-group label {
   font-size: 13px;
-  font-weight: 600;
-  color: var(--text-muted);
+  font-weight: 700;
+  color: #334155;
 }
 
 .form-group input {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 12px;
+  border: 1px solid #c7d2fe;
+  border-radius: 10px;
+  padding: 12px 13px;
   font-size: 14px;
   font-family: inherit;
   background: #fff;
   color: var(--text);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .form-group input:focus {
-  outline: 2px solid var(--primary);
-  outline-offset: -1px;
+  outline: none;
+  border-color: var(--login-blue);
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.18);
 }
 
 .login-btn {
   width: 100%;
+  margin-top: 6px;
   border: none;
-  border-radius: 8px;
-  padding: 11px 16px;
-  background: var(--primary);
+  border-radius: 12px;
+  padding: 13px 16px;
+  background: linear-gradient(135deg, #2563eb 0%, var(--login-blue) 100%);
   color: #fff;
-  font-size: 14px;
+  font-size: 15px;
   font-family: inherit;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.3px;
   cursor: pointer;
+  box-shadow: 0 12px 24px -10px rgba(29, 78, 216, 0.65);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
 .login-btn:hover {
-  background: var(--primary-dark);
+  background: linear-gradient(135deg, #1d4ed8 0%, #1e3a8a 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 16px 28px -10px rgba(29, 78, 216, 0.7);
 }
 
 .login-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+  transform: none;
 }
 
 .password-wrapper {
@@ -600,7 +666,7 @@ code {
   transform: translateY(-50%);
   background: none;
   border: none;
-  color: var(--text-muted);
+  color: #5b6b8c;
   cursor: pointer;
   padding: 4px;
   display: flex;
@@ -609,15 +675,21 @@ code {
 }
 
 .password-toggle:hover {
-  color: var(--primary);
+  color: var(--login-blue);
 }
 
 .login-hint {
   margin: 24px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid #eef2ff;
   font-size: 12px;
-  color: var(--text-muted);
+  color: #5b6b8c;
   text-align: center;
-  line-height: 1.6;
+  line-height: 1.7;
+}
+
+.login-hint strong {
+  color: var(--login-ink);
 }
 
 /* ---- Dashboard ---- */
