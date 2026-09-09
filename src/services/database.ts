@@ -54,11 +54,11 @@ export interface Program {
 export interface Course {
   id: string
   code: string
-  name: string
-  description: string | null
+  title: string
+  units: number
   program_id: string | { id: string; code: string; name: string }
-  status: string
   created_at: string
+  updated_at: string
 }
 
 export interface ProgramOutcome {

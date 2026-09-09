@@ -1,8 +1,384 @@
-export default function Program() {
+// Admin Program page: manages academic programs and the courses inside each
+// program. Master-detail layout — pick a program on the left to manage its
+// courses on the right. Programs support create / edit / archive / restore /
+// delete; courses (no status column) support create / edit / delete.
+
+import { useState, useEffect, useCallback } from 'react'
+import {
+  fetchPrograms,
+  createProgram,
+  updateProgram,
+  deleteProgram,
+  fetchCourses,
+  createCourse,
+  updateCourse,
+  deleteCourse,
+  addActivityLog,
+} from '../../services/database'
+import type { Program, Course } from '../../services/database'
+
+interface ProgramProps {
+  profile?: { email?: string | null } | null
+}
+
+const isActive = (item: { status?: string }) => !item.status || item.status === 'active'
+
+const blankProgram = { code: '', name: '', description: '' }
+const blankCourse = { code: '', title: '', units: '3' }
+
+export default function Program({ profile }: ProgramProps) {
+  const [programs, setPrograms] = useState<Program[]>([])
+  const [courses, setCourses] = useState<Course[]>([])
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const [programForm, setProgramForm] = useState(blankProgram)
+  const [courseForm, setCourseForm] = useState(blankCourse)
+  const [editProgramId, setEditProgramId] = useState<string | null>(null)
+  const [editProgram, setEditProgram] = useState(blankProgram)
+  const [editCourseId, setEditCourseId] = useState<string | null>(null)
+  const [editCourse, setEditCourse] = useState(blankCourse)
+
+  const userEmail = profile?.email ?? 'unknown'
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const [p, c] = await Promise.all([fetchPrograms(), fetchCourses()])
+      setPrograms(p)
+      setCourses(c)
+      setSelectedId((prev) => {
+        if (prev && p.some((x) => x.id === prev)) return prev
+        return p[0]?.id ?? null
+      })
+    } catch (e) {
+      setError('Unable to load programs: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const selectedProgram = programs.find((p) => p.id === selectedId) ?? null
+  const selectedCourses = courses.filter((c) =>
+    typeof c.program_id === 'object' ? c.program_id.id === selectedId : c.program_id === selectedId,
+  )
+
+  // ----- Programs -----
+
+  const handleCreateProgram = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setMessage('')
+    setBusy(true)
+    try {
+      const created = await createProgram({
+        code: programForm.code.trim(),
+        name: programForm.name.trim(),
+        description: programForm.description.trim() || null,
+      })
+      await addActivityLog(userEmail, 'program.created')
+      setMessage('Program created.')
+      setProgramForm(blankProgram)
+      setSelectedId(created.id)
+      load()
+    } catch (err) {
+      setError('Failed to create program: ' + (err instanceof Error ? err.message : String(err)))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const startEditProgram = (item: Program) => {
+    setEditProgramId(item.id)
+    setEditProgram({ code: item.code, name: item.name, description: item.description || '' })
+  }
+
+  const saveEditProgram = async () => {
+    if (!editProgramId) return
+    setError('')
+    setMessage('')
+    setBusy(true)
+    try {
+      await updateProgram(editProgramId, {
+        code: editProgram.code.trim(),
+        name: editProgram.name.trim(),
+        description: editProgram.description.trim() || null,
+      })
+      await addActivityLog(userEmail, 'program.updated')
+      setMessage('Program updated.')
+      setEditProgramId(null)
+      load()
+    } catch (err) {
+      setError('Failed to update program: ' + (err instanceof Error ? err.message : String(err)))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const toggleProgramStatus = async (item: Program) => {
+    setError('')
+    setMessage('')
+    setBusy(true)
+    const next = isActive(item) ? 'archived' : 'active'
+    try {
+      await updateProgram(item.id, { status: next })
+      await addActivityLog(userEmail, 'program.archived')
+      setMessage(`Program ${next}.`)
+      load()
+    } catch (err) {
+      setError('Failed to update program status: ' + (err instanceof Error ? err.message : String(err)))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleDeleteProgram = async (id: string) => {
+    if (!window.confirm('Delete this program permanently? Its courses will also be deleted.')) return
+    setError('')
+    setMessage('')
+    setBusy(true)
+    try {
+      await deleteProgram(id)
+      await addActivityLog(userEmail, 'program.deleted')
+      setMessage('Program deleted.')
+      if (selectedId === id) setSelectedId(null)
+      load()
+    } catch (err) {
+      setError('Failed to delete program: ' + (err instanceof Error ? err.message : String(err)))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // ----- Courses -----
+
+  const handleCreateCourse = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedId) return
+    setError('')
+    setMessage('')
+    setBusy(true)
+    try {
+      await createCourse({
+        program_id: selectedId,
+        code: courseForm.code.trim(),
+        title: courseForm.title.trim(),
+        units: parseInt(courseForm.units, 10) || undefined,
+      })
+      await addActivityLog(userEmail, 'course.created')
+      setMessage('Course created.')
+      setCourseForm(blankCourse)
+      load()
+    } catch (err) {
+      setError('Failed to create course: ' + (err instanceof Error ? err.message : String(err)))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const startEditCourse = (item: Course) => {
+    setEditCourseId(item.id)
+    setEditCourse({ code: item.code, title: item.title, units: String(item.units) })
+  }
+
+  const saveEditCourse = async () => {
+    if (!editCourseId) return
+    setError('')
+    setMessage('')
+    setBusy(true)
+    try {
+      await updateCourse(editCourseId, {
+        code: editCourse.code.trim(),
+        title: editCourse.title.trim(),
+        units: parseInt(editCourse.units, 10) || undefined,
+      })
+      await addActivityLog(userEmail, 'course.updated')
+      setMessage('Course updated.')
+      setEditCourseId(null)
+      load()
+    } catch (err) {
+      setError('Failed to update course: ' + (err instanceof Error ? err.message : String(err)))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleDeleteCourse = async (id: string) => {
+    if (!window.confirm('Delete this course permanently?')) return
+    setError('')
+    setMessage('')
+    setBusy(true)
+    try {
+      await deleteCourse(id)
+      await addActivityLog(userEmail, 'course.deleted')
+      setMessage('Course deleted.')
+      load()
+    } catch (err) {
+      setError('Failed to delete course: ' + (err instanceof Error ? err.message : String(err)))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
-    <div>
-      <h1>Programs</h1>
-      <p>This is the Program overview page.</p>
+    <div className="curriculum-view">
+      {error && <p className="msg msg--error">{error}</p>}
+      {message && <p className="msg msg--success">{message}</p>}
+      {loading ? (
+        <p>Loading programs...</p>
+      ) : (
+        <div className="program-layout">
+          {/* Programs */}
+          <section className="panel program-panel">
+            <h3>Programs</h3>
+            <form className="create-resource" onSubmit={handleCreateProgram}>
+              <div className="create-resource__row">
+                <label className="field">
+                  <span>Code</span>
+                  <input className="input input--sm" type="text" placeholder="e.g. BSIT"
+                    value={programForm.code} onChange={(e) => setProgramForm({ ...programForm, code: e.target.value })} required />
+                </label>
+                <label className="field">
+                  <span>Name</span>
+                  <input className="input input--sm" type="text" placeholder="Program name"
+                    value={programForm.name} onChange={(e) => setProgramForm({ ...programForm, name: e.target.value })} required />
+                </label>
+              </div>
+              <label className="field">
+                <span>Description</span>
+                <textarea className="input input--sm" rows={2} placeholder="Optional description"
+                  value={programForm.description}
+                  onChange={(e) => setProgramForm({ ...programForm, description: e.target.value })} />
+              </label>
+              <div className="create-resource__submit">
+                <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>{busy ? 'Saving...' : 'Add Program'}</button>
+              </div>
+            </form>
+
+            <div className="program-list">
+              {programs.length === 0 && <p>No programs yet.</p>}
+              {programs.map((p) => (
+                <div key={p.id} className={`program-item${p.id === selectedId ? ' program-item--active' : ''}${isActive(p) ? '' : ' sd-archived'}`}>
+                  {editProgramId === p.id ? (
+                    <div className="program-item__edit">
+                      <input className="input input--sm" value={editProgram.code}
+                        onChange={(e) => setEditProgram({ ...editProgram, code: e.target.value })} />
+                      <input className="input input--sm" value={editProgram.name}
+                        onChange={(e) => setEditProgram({ ...editProgram, name: e.target.value })} />
+                      <textarea className="input input--sm" rows={2} value={editProgram.description}
+                        onChange={(e) => setEditProgram({ ...editProgram, description: e.target.value })} />
+                      <div className="program-item__actions">
+                        <button className="btn btn--primary btn--sm" onClick={saveEditProgram} disabled={busy}>Save</button>
+                        <button className="btn btn--ghost btn--sm" onClick={() => setEditProgramId(null)} disabled={busy}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <button className="program-item__select" onClick={() => setSelectedId(p.id)} disabled={busy}>
+                        <span className="program-item__code">{p.code}</span>
+                        <span className="program-item__name">{p.name}</span>
+                        {!isActive(p) && <span className="sd-status-badge sd-status-badge--archived">archived</span>}
+                      </button>
+                      <div className="program-item__actions">
+                        <button className="btn btn--ghost btn--sm" onClick={() => startEditProgram(p)} disabled={busy}>Edit</button>
+                        <button className="btn btn--ghost btn--sm" onClick={() => toggleProgramStatus(p)} disabled={busy}>
+                          {isActive(p) ? 'Archive' : 'Restore'}
+                        </button>
+                        {!isActive(p) && (
+                          <button className="btn btn--danger btn--sm" onClick={() => handleDeleteProgram(p.id)} disabled={busy}>Delete</button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Courses in selected program */}
+          <section className="panel program-panel">
+            <h3>
+              Courses
+              {selectedProgram && <span className="program-panel__sub"> — {selectedProgram.code} {selectedProgram.name}</span>}
+            </h3>
+            {!selectedProgram ? (
+              <p>Select a program to manage its courses.</p>
+            ) : (
+              <>
+                <form className="create-resource" onSubmit={handleCreateCourse}>
+                  <div className="create-resource__row">
+                    <label className="field">
+                      <span>Code</span>
+                      <input className="input input--sm" type="text" placeholder="e.g. IT21"
+                        value={courseForm.code} onChange={(e) => setCourseForm({ ...courseForm, code: e.target.value })} required />
+                    </label>
+                    <label className="field">
+                      <span>Title</span>
+                      <input className="input input--sm" type="text" placeholder="Course title"
+                        value={courseForm.title} onChange={(e) => setCourseForm({ ...courseForm, title: e.target.value })} required />
+                    </label>
+                    <label className="field field--sm">
+                      <span>Units</span>
+                      <input className="input input--sm" type="number" min={1} max={20}
+                        value={courseForm.units} onChange={(e) => setCourseForm({ ...courseForm, units: e.target.value })} required />
+                    </label>
+                  </div>
+                  <div className="create-resource__submit">
+                    <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>{busy ? 'Saving...' : 'Add Course'}</button>
+                  </div>
+                </form>
+
+                <div className="panel table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr><th>Code</th><th>Title</th><th>Units</th><th>Actions</th></tr>
+                    </thead>
+                    <tbody>
+                      {selectedCourses.length === 0 && (
+                        <tr><td colSpan={4}>No courses in this program yet.</td></tr>
+                      )}
+                      {selectedCourses.map((c) => (
+                        <tr key={c.id}>
+                          {editCourseId === c.id ? (
+                            <>
+                              <td><input className="input input--sm" value={editCourse.code}
+                                onChange={(e) => setEditCourse({ ...editCourse, code: e.target.value })} /></td>
+                              <td><input className="input input--sm" value={editCourse.title}
+                                onChange={(e) => setEditCourse({ ...editCourse, title: e.target.value })} /></td>
+                              <td><input className="input input--sm" type="number" min={1} max={20} value={editCourse.units}
+                                onChange={(e) => setEditCourse({ ...editCourse, units: e.target.value })} /></td>
+                              <td>
+                                <button className="btn btn--primary btn--sm" onClick={saveEditCourse} disabled={busy}>Save</button>{' '}
+                                <button className="btn btn--ghost btn--sm" onClick={() => setEditCourseId(null)} disabled={busy}>Cancel</button>
+                              </td>
+                            </>
+                          ) : (
+                            <>
+                              <td><strong>{c.code}</strong></td>
+                              <td>{c.title}</td>
+                              <td>{c.units}</td>
+                              <td>
+                                <button className="btn btn--ghost btn--sm" onClick={() => startEditCourse(c)} disabled={busy || !!editCourseId}>Edit</button>{' '}
+                                <button className="btn btn--danger btn--sm" onClick={() => handleDeleteCourse(c.id)} disabled={busy || !!editCourseId}>Delete</button>
+                              </td>
+                            </>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </section>
+        </div>
+      )}
     </div>
   )
 }
