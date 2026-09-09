@@ -1,47 +1,36 @@
 // Admin Curriculum Map: printable report that mirrors the VCQI course
 // syllabus document (IT21 - Object Oriented Programming) page by page.
 //
-// The institution-record tables (Strategic Goals, PEOs, Program Outcomes,
-// CHED Memorandum Orders) support inline editing and archiving directly on
-// this page via the "Edit" toggle: click Edit, modify a row's fields, then
-// Save. Archive hides a record from the report without deleting it (requires
-// the status column migration — see supabase-schema.sql). Syllabus-fixed
-// content (vision/mission wording, curriculum mapping columns, course
-// details) is transcribed in src/data/vcqiSyllabus.ts and stays read-only.
+// All report data is loaded from the database: strategic goals, PEOs and
+// program outcomes (standalone tables), course learning outcomes, and the
+// courses list. Institutional letterhead and vision/mission text are static
+// (they are school branding, not input data). Records support inline editing
+// and archiving directly on this page via the "Edit" toggle.
 
 import { useState, useEffect, useCallback } from 'react'
 import {
   fetchStrategicGoals,
   fetchProgramEducationalObjectives,
   fetchProgramOutcomesStandalone,
-  fetchChedMemoOrders,
+  fetchCourseLearningOutcomesStandalone,
+  fetchCourses,
   updateStrategicGoal,
   updateProgramEducationalObjective,
   updateProgramOutcomeStandalone,
-  updateChedMemoOrder,
 } from '../../services/database'
 import type {
   StrategicGoal,
   ProgramEducationalObjective,
   ProgramOutcomeStandalone,
-  ChedMemoOrder,
+  CourseLearningOutcomeStandalone,
+  Course,
 } from '../../services/database'
-import {
-  DOC_HEADER,
-  DOC_VISION,
-  DOC_MISSION,
-  PO_SECTION_HEADINGS,
-  MAPPING_COMMON_DISCIPLINE,
-  MAPPING_SUB_DISCIPLINE,
-  CLO_PLO_MAPPING,
-  COURSE_DETAILS,
-} from '../../data/vcqiSyllabus.js'
 
 interface ViewProps {
   userEmail: string
 }
 
-type EditableKind = 'goal' | 'peo' | 'po' | 'cmo'
+type EditableKind = 'goal' | 'peo' | 'po'
 
 interface EditState {
   kind: EditableKind
@@ -51,20 +40,33 @@ interface EditState {
   description: string
 }
 
+// Institutional letterhead / branding (not input data).
+const SCHOOL = {
+  republic: 'Republic of the Philippines',
+  school: 'NORTHERN BUKIDNON STATE COLLEGE',
+  address: 'Manolo Fortich, 8703 Bukidnon',
+  motto: 'Creando futura, Transformationis vitae, Ductae a Deo',
+  title: 'COURSE SYLLABUS',
+  institute: 'INSTITUTE FOR COMPUTER STUDIES',
+  program: 'BACHELOR OF SCIENCE IN INFORMATION TECHNOLOGY',
+  term: 'Summer, SY: 2024 - 2025',
+}
+
+const DOC_VISION =
+  'Northern Bukidnon State College will be a college of choice, nationally recognized for having innovative and sustainable academic programs, research, extensions and services that cultivate educational, personal, and professional growth to meet the needs of our students, our society, and the global community.'
+
+const DOC_MISSION =
+  'Northern Bukidnon State College is an accessible community-based institution that provides educational opportunities to develop students into socially responsible, competent, and productive professionals.'
+
 const poNumber = (code: string) => parseInt(code.replace(/[^0-9]/g, ''), 10)
 
 const isActive = (item: { status?: string }) => !item.status || item.status === 'active'
 
-type EditableItem = StrategicGoal | ProgramEducationalObjective | ChedMemoOrder
+type EditableItem = StrategicGoal | ProgramEducationalObjective
 
-// Reference shown in the Program Outcomes section headers, e.g.
-// "COMMON TO HORIZONTAL TYPES (CMO 46 s. 2012)". The code is resolved from
-// the CHED Memorandum Orders database record (not hardcoded), so edits to the
-// code on that page show up here. Falls back to the given code when no
-// matching record exists.
-const cmoRef = (code: string, cmos: ChedMemoOrder[]) => {
-  const cmo = cmos.find((c) => c.code.toLowerCase() === code.toLowerCase())
-  return cmo ? cmo.code : code
+interface PoGroup {
+  heading: string
+  items: ProgramOutcomeStandalone[]
 }
 
 function View({ userEmail }: ViewProps) {
@@ -74,7 +76,8 @@ function View({ userEmail }: ViewProps) {
   const [goals, setGoals] = useState<StrategicGoal[]>([])
   const [peos, setPeos] = useState<ProgramEducationalObjective[]>([])
   const [pos, setPos] = useState<ProgramOutcomeStandalone[]>([])
-  const [cmos, setCmos] = useState<ChedMemoOrder[]>([])
+  const [clos, setClos] = useState<CourseLearningOutcomeStandalone[]>([])
+  const [courses, setCourses] = useState<Course[]>([])
 
   const [editMode, setEditMode] = useState(false)
   const [edit, setEdit] = useState<EditState | null>(null)
@@ -84,16 +87,18 @@ function View({ userEmail }: ViewProps) {
     setLoading(true)
     setError(null)
     try {
-      const [g, p, po, c] = await Promise.all([
+      const [g, p, po, clo, c] = await Promise.all([
         fetchStrategicGoals(),
         fetchProgramEducationalObjectives(),
         fetchProgramOutcomesStandalone(),
-        fetchChedMemoOrders(),
+        fetchCourseLearningOutcomesStandalone(),
+        fetchCourses(),
       ])
       setGoals(g)
       setPeos(p)
       setPos(po.sort((a, b) => poNumber(a.code) - poNumber(b.code)))
-      setCmos(c)
+      setClos(clo)
+      setCourses(c)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load curriculum map data.')
     } finally {
@@ -107,7 +112,6 @@ function View({ userEmail }: ViewProps) {
     const list =
       kind === 'goal' ? goals :
       kind === 'peo' ? peos :
-      kind === 'cmo' ? cmos :
       pos
     return list.find((i) => i.id === id)
   }
@@ -127,12 +131,9 @@ function View({ userEmail }: ViewProps) {
       const updates =
         edit.kind === 'peo'
           ? { title: edit.title.trim(), description: edit.description.trim() || null }
-          : edit.kind === 'cmo'
-            ? { code: edit.code.trim(), title: edit.title.trim(), description: edit.description.trim() || null }
-            : { title: edit.title.trim() }
+          : { title: edit.title.trim() }
       if (edit.kind === 'goal') await updateStrategicGoal(edit.id, updates)
       else if (edit.kind === 'peo') await updateProgramEducationalObjective(edit.id, updates)
-      else if (edit.kind === 'cmo') await updateChedMemoOrder(edit.id, updates)
       else await updateProgramOutcomeStandalone(edit.id, updates)
       setEdit(null)
       await load()
@@ -153,7 +154,6 @@ function View({ userEmail }: ViewProps) {
     try {
       if (kind === 'goal') await updateStrategicGoal(id, { status: next })
       else if (kind === 'peo') await updateProgramEducationalObjective(id, { status: next })
-      else if (kind === 'cmo') await updateChedMemoOrder(id, { status: next })
       else await updateProgramOutcomeStandalone(id, { status: next })
       await load()
     } catch {
@@ -170,6 +170,20 @@ function View({ userEmail }: ViewProps) {
   const visibleGoals = shown(goals)
   const visiblePeos = shown(peos)
   const visiblePos = shown(pos)
+
+  // Group active program outcomes by their alignment (description). The
+  // description text is the section heading, so the report follows whatever
+  // the user entered on the Program Outcomes page.
+  const poGroups: PoGroup[] = []
+  for (const po of visiblePos) {
+    const heading = (po.description || 'Uncategorized').trim().toUpperCase()
+    const last = poGroups[poGroups.length - 1]
+    if (last && last.heading === heading) last.items.push(po)
+    else poGroups.push({ heading, items: [po] })
+  }
+
+  const programText = (c: Course) =>
+    typeof c.program_id === 'object' && c.program_id ? c.program_id.name : SCHOOL.program
 
   // Inline edit controls for one record (Save / Cancel or Edit / Archive).
   const rowActions = (kind: EditableKind, id: string) => {
@@ -198,28 +212,20 @@ function View({ userEmail }: ViewProps) {
     )
   }
 
-  // One editable record inside the Vision/Goals/PEO/CMO table cells.
+  // One editable record inside the Vision/Goals/PEO table cells.
   const editableListRow = (kind: EditableKind, item: EditableItem, display: React.ReactNode) => {
     const editingThis = edit && edit.kind === kind && edit.id === item.id
     return (
       <div key={item.id} className={`sd-edit-row${isActive(item) ? '' : ' sd-archived'}`}>
         {editingThis ? (
           <div className="sd-edit-fields">
-            {kind === 'cmo' && (
-              <input
-                className="input input--sm"
-                value={edit.code}
-                onChange={(e) => setEdit({ ...edit, code: e.target.value })}
-                disabled={busy}
-              />
-            )}
             <input
               className="input input--sm"
               value={edit.title}
               onChange={(e) => setEdit({ ...edit, title: e.target.value })}
               disabled={busy}
             />
-            {(kind === 'peo' || kind === 'cmo') && (
+            {kind === 'peo' && (
               <textarea
                 className="input input--sm"
                 rows={3}
@@ -233,7 +239,6 @@ function View({ userEmail }: ViewProps) {
           <span className="sd-edit-row__text">{display}</span>
         )}
         {editMode && rowActions(kind, item.id)}
-
       </div>
     )
   }
@@ -270,22 +275,26 @@ function View({ userEmail }: ViewProps) {
           <header className="sd-letterhead">
             <img className="sd-letterhead__img" src="/nbsc-letterhead.jpg" alt="Northern Bukidnon State College" />
             <div className="sd-letterhead__text">
-              <div>{DOC_HEADER.republic}</div>
-              <div className="sd-letterhead__school">{DOC_HEADER.school}</div>
-              <div>{DOC_HEADER.address}</div>
-              <div className="sd-letterhead__motto">{DOC_HEADER.motto}</div>
+              <div>{SCHOOL.republic}</div>
+              <div className="sd-letterhead__school">{SCHOOL.school}</div>
+              <div>{SCHOOL.address}</div>
+              <div className="sd-letterhead__motto">{SCHOOL.motto}</div>
             </div>
           </header>
 
           {/* Title block */}
           <div className="sd-titleblock">
-            <div className="sd-titleblock__title">{DOC_HEADER.title}</div>
-            <div>{DOC_HEADER.institute}</div>
-            <div>{DOC_HEADER.program}</div>
-            <div className="sd-titleblock__course">
-              {COURSE_DETAILS.code} - {COURSE_DETAILS.title}
-            </div>
-            <div>{DOC_HEADER.term}</div>
+            <div className="sd-titleblock__title">{SCHOOL.title}</div>
+            <div>{SCHOOL.institute}</div>
+            <div>{courses[0] ? programText(courses[0]) : SCHOOL.program}</div>
+            {courses.length > 0 ? (
+              courses.map((c) => (
+                <div className="sd-titleblock__course" key={c.id}>{c.code} - {c.title}</div>
+              ))
+            ) : (
+              <div className="sd-titleblock__course">No courses yet</div>
+            )}
+            <div>{SCHOOL.term}</div>
           </div>
 
           {/* Vision | Mission | Strategic Goals | PEOs */}
@@ -329,7 +338,7 @@ function View({ userEmail }: ViewProps) {
             </tbody>
           </table>
 
-          {/* Program Outcomes — single continuous table, academic document format */}
+          {/* Program Outcomes — grouped by their alignment (description) */}
           <table className="sd-table sd-table--po-single">
             <thead>
               <tr>
@@ -337,267 +346,86 @@ function View({ userEmail }: ViewProps) {
               </tr>
             </thead>
             <tbody>
-              {/* Section 1: Common to all programs */}
-              <tr>
-                <td className="sd-po-single-section">
-                  <div className="sd-po-single-section__head">
-                    COMMON TO ALL PROGRAMS IN ALL TYPES OF SCHOOLS
-                  </div>
-                  <div className="sd-po-single-section__sub">
-                    The NBSC graduates have the ability to:
-                  </div>
-                  {visiblePos.filter((p) => { const n = poNumber(p.code); return n >= 1 && n <= 5 }).map((p, i, arr) => {
-                    const editingThis = edit && edit.kind === 'po' && edit.id === p.id
-                    const isLast = i === arr.length - 1
-                    const semicolon = isLast ? '.' : ';'
-                    return (
-                      <div key={p.id} className={`sd-po-single-outcome ${isActive(p) ? '' : 'sd-archived'}`}>
-                        {poNumber(p.code)}. {p.title.replace(/\.$/, '')}{semicolon}
-                        {editMode && (
-                          <span className="sd-po-single-item__actions">
-                            {rowActions('po', p.id)}
-
-                          </span>
-                        )}
-                        {editingThis && (
-                          <span className="sd-po-single-edit">
-                            <input
-                              className="input input--sm"
-                              value={edit.title}
-                              onChange={(e) => setEdit({ ...edit, title: e.target.value })}
-                              disabled={busy}
-                            />
-                          </span>
-                        )}
-                      </div>
-                    )
-                  })}
-                </td>
-              </tr>
-
-              {/* Section 2: BS in Computer Science POs */}
-              <tr>
-                <td className="sd-po-single-section">
-                  <div className="sd-po-single-section__head">
-                    BACHELOR OF SCIENCE IN COMPUTER SCIENCE PROGRAM OUTCOMES
-                  </div>
-                  {visiblePos.filter((p) => { const n = poNumber(p.code); return n >= 6 && n <= 9 }).map((p, i, arr) => {
-                    const editingThis = edit && edit.kind === 'po' && edit.id === p.id
-                    const isLast = i === arr.length - 1
-                    const semicolon = isLast ? '.' : ';'
-                    return (
-                      <div key={p.id} className={`sd-po-single-outcome ${isActive(p) ? '' : 'sd-archived'}`}>
-                        {poNumber(p.code)}. {p.title.replace(/\.$/, '')}{semicolon}
-                        {editMode && (
-                          <span className="sd-po-single-item__actions">
-                            {rowActions('po', p.id)}
-
-                          </span>
-                        )}
-                        {editingThis && (
-                          <span className="sd-po-single-edit">
-                            <input
-                              className="input input--sm"
-                              value={edit.title}
-                              onChange={(e) => setEdit({ ...edit, title: e.target.value })}
-                              disabled={busy}
-                            />
-                          </span>
-                        )}
-                      </div>
-                    )
-                  })}
-                </td>
-              </tr>
-
-              {/* Section 3: Specific to sub-discipline */}
-              <tr>
-                <td className="sd-po-single-section">
-                  <div className="sd-po-single-section__head">
-                    SPECIFIC TO A SUB-DISCIPLINE AND A MAJOR <em>({cmoRef('CMO 25 s. 2015', cmos)})</em>
-                  </div>
-                  {visiblePos.filter((p) => { const n = poNumber(p.code); return n >= 10 && n <= 22 }).map((p, i, arr) => {
-                    const editingThis = edit && edit.kind === 'po' && edit.id === p.id
-                    const isLast = i === arr.length - 1
-                    const semicolon = isLast ? '.' : ';'
-                    return (
-                      <div key={p.id} className={`sd-po-single-outcome ${isActive(p) ? '' : 'sd-archived'}`}>
-                        {poNumber(p.code)}. {p.title.replace(/\.$/, '')}{semicolon}
-                        {editMode && (
-                          <span className="sd-po-single-item__actions">
-                            {rowActions('po', p.id)}
-
-                          </span>
-                        )}
-                        {editingThis && (
-                          <span className="sd-po-single-edit">
-                            <input
-                              className="input input--sm"
-                              value={edit.title}
-                              onChange={(e) => setEdit({ ...edit, title: e.target.value })}
-                              disabled={busy}
-                            />
-                          </span>
-                        )}
-                      </div>
-                    )
-                  })}
-                </td>
-              </tr>
-
-              {/* Section 4: Common to horizontal types */}
-              <tr>
-                <td className="sd-po-single-section">
-                  <div className="sd-po-single-section__head">
-                    COMMON TO HORIZONTAL TYPES <em>({cmoRef('CMO 46 s. 2012', cmos)})</em>
-                  </div>
-                  {visiblePos.filter((p) => { const n = poNumber(p.code); return n >= 23 && n <= 25 }).map((p, i, arr) => {
-                    const editingThis = edit && edit.kind === 'po' && edit.id === p.id
-                    const isLast = i === arr.length - 1
-                    const semicolon = isLast ? '.' : ';'
-                    return (
-                      <div key={p.id} className={`sd-po-single-outcome ${isActive(p) ? '' : 'sd-archived'}`}>
-                        {poNumber(p.code)}. {p.title.replace(/\.$/, '')}{semicolon}
-                        {editMode && (
-                          <span className="sd-po-single-item__actions">
-                            {rowActions('po', p.id)}
-
-                          </span>
-                        )}
-                        {editingThis && (
-                          <span className="sd-po-single-edit">
-                            <input
-                              className="input input--sm"
-                              value={edit.title}
-                              onChange={(e) => setEdit({ ...edit, title: e.target.value })}
-                              disabled={busy}
-                            />
-                          </span>
-                        )}
-                      </div>
-                    )
-                  })}
-                </td>
-              </tr>
-
-              {/* Section 5: College defined */}
-              <tr>
-                <td className="sd-po-single-section">
-                  <div className="sd-po-single-section__head">
-                    COLLEGE DEFINED PROGRAM OUTCOME
-                  </div>
-                  {visiblePos.filter((p) => { const n = poNumber(p.code); return n >= 26 && n <= 27 }).map((p, i, arr) => {
-                    const editingThis = edit && edit.kind === 'po' && edit.id === p.id
-                    const isLast = i === arr.length - 1
-                    const semicolon = isLast ? '.' : ';'
-                    return (
-                      <div key={p.id} className={`sd-po-single-outcome ${isActive(p) ? '' : 'sd-archived'}`}>
-                        {poNumber(p.code)}. {p.title.replace(/\.$/, '')}{semicolon}
-                        {editMode && (
-                          <span className="sd-po-single-item__actions">
-                            {rowActions('po', p.id)}
-
-                          </span>
-                        )}
-                        {editingThis && (
-                          <span className="sd-po-single-edit">
-                            <input
-                              className="input input--sm"
-                              value={edit.title}
-                              onChange={(e) => setEdit({ ...edit, title: e.target.value })}
-                              disabled={busy}
-                            />
-                          </span>
-                        )}
-                      </div>
-                    )
-                  })}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-
-          {/* Curriculum Mapping — one row per outcome, PEO/Goal cells aligned.
-              Static transcription from the source syllabus (not editable). */}
-          <div className="sd-band sd-band--center">CURRICULUM MAPPING</div>
-          <table className="sd-table sd-table--map" style={{ marginBottom: 0 }}>
-            <thead>
-              <tr>
-                <th className="sd-map-outcomes">
-                  <div className="sd-map-title">Bachelor of Science in Information Technology Program Outcomes (CMO 25 s. 2015)</div>
-                </th>
-                <th className="sd-map-col">PROGRAM EDUCATIONAL OBJECTIVES</th>
-                <th className="sd-map-col">STRATEGIC GOALS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {MAPPING_COMMON_DISCIPLINE.map((m) => (
-                <tr key={m.item}>
-                  <td>{m.item}. {m.text}</td>
-                  <td className="sd-map-cell">{m.peos}</td>
-                  <td className="sd-map-cell">{m.goals}</td>
+              {poGroups.length === 0 && (
+                <tr>
+                  <td className="sd-po-single-section">No program outcomes yet.</td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          <table className="sd-table sd-table--map" style={{ marginTop: 0 }}>
-            <thead>
-              <tr>
-                <th className="sd-map-outcomes">
-                  <div className="sd-map-title">SPECIFIC TO A SUB-DISCIPLINE AND A MAJOR (CMO 25 s. 2015)</div>
-                </th>
-                <th className="sd-map-col">PROGRAM EDUCATIONAL OBJECTIVES</th>
-                <th className="sd-map-col">STRATEGIC GOALS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {MAPPING_SUB_DISCIPLINE.map((m) => (
-                <tr key={m.item}>
-                  <td>{m.item}. {m.text}</td>
-                  <td className="sd-map-cell">{m.peos}</td>
-                  <td className="sd-map-cell">{m.goals}</td>
+              )}
+              {poGroups.map((group, gi) => (
+                <tr key={group.heading}>
+                  <td className="sd-po-single-section">
+                    <div className="sd-po-single-section__head">{group.heading}</div>
+                    {gi === 0 && (
+                      <div className="sd-po-single-section__sub">
+                        The NBSC graduates have the ability to:
+                      </div>
+                    )}
+                    {group.items.map((p, i, arr) => {
+                      const editingThis = edit && edit.kind === 'po' && edit.id === p.id
+                      const isLast = i === arr.length - 1
+                      const semicolon = isLast ? '.' : ';'
+                      return (
+                        <div key={p.id} className={`sd-po-single-outcome ${isActive(p) ? '' : 'sd-archived'}`}>
+                          {poNumber(p.code)}. {p.title.replace(/\.$/, '')}{semicolon}
+                          {editMode && (
+                            <span className="sd-po-single-item__actions">
+                              {rowActions('po', p.id)}
+                            </span>
+                          )}
+                          {editingThis && (
+                            <span className="sd-po-single-edit">
+                              <input
+                                className="input input--sm"
+                                value={edit.title}
+                                onChange={(e) => setEdit({ ...edit, title: e.target.value })}
+                                disabled={busy}
+                              />
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
 
           {/* Course Learning Outcomes */}
-          <table className="sd-table sd-table--clo">
-            <thead>
-              <tr>
-                <th>Course Learning Outcomes</th>
-                <th className="sd-map-col">Program Outcomes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {CLO_PLO_MAPPING.map((c) => (
-                <tr key={c.code}>
-                  <td>{c.code}: {c.text}</td>
-                  <td>{c.plos}</td>
+          {clos.length > 0 && (
+            <table className="sd-table sd-table--clo">
+              <thead>
+                <tr>
+                  <th>Course Learning Outcomes</th>
+                  <th className="sd-map-col">Program Outcomes</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {clos.map((c) => (
+                  <tr key={c.id}>
+                    <td>{c.code}: {c.description}</td>
+                    <td>{c.title}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
 
           {/* Course Details */}
           <div className="sd-details">
             <div className="sd-band">COURSE DETAILS</div>
-            <ol className="sd-details__list">
-              <li><strong>Course Code:</strong> {COURSE_DETAILS.code}</li>
-              <li><strong>Course Title:</strong> {COURSE_DETAILS.title}</li>
-              <li><strong>Pre-requisite:</strong> {COURSE_DETAILS.prerequisite}</li>
-              <li><strong>Co-requisite:</strong> {COURSE_DETAILS.corequisite}</li>
-              <li><strong>Credit:</strong> {COURSE_DETAILS.credit}</li>
-            </ol>
-            <div className="sd-details__section"><strong>VI. COURSE DESCRIPTION</strong></div>
-            <p className="sd-cell--justify">{COURSE_DETAILS.description}</p>
-            <div className="sd-details__section"><strong>VII. COURSE LEARNING OUTCOMES</strong></div>
-            <ol className="sd-details__clos">
-              {CLO_PLO_MAPPING.map((c) => (
-                <li key={c.code}>{c.text}</li>
-              ))}
-            </ol>
-            <div className="sd-details__section"><strong>VIII. NUMBER OF HOURS:</strong> {COURSE_DETAILS.hours}</div>
+            {courses.length === 0 ? (
+              <p>No courses yet — add one on the Course page.</p>
+            ) : (
+              courses.map((c) => (
+                <ol className="sd-details__list" key={c.id}>
+                  <li><strong>Course Code:</strong> {c.code}</li>
+                  <li><strong>Course Title:</strong> {c.title}</li>
+                  <li><strong>Units:</strong> {c.units}</li>
+                  <li><strong>Program:</strong> {programText(c)}</li>
+                </ol>
+              ))
+            )}
           </div>
         </div>
       )}
