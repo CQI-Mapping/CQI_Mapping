@@ -47,13 +47,6 @@ function Login() {
 
   return (
     <div className="login-page">
-      {/* Animated aurora blobs */}
-      <div className="login-blobs" aria-hidden="true">
-        <span className="login-blob login-blob--1" />
-        <span className="login-blob login-blob--2" />
-        <span className="login-blob login-blob--3" />
-      </div>
-
       {/* Sign-in form panel */}
       <div className="login-panel">
         <div className="login-card">
