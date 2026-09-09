@@ -100,16 +100,6 @@ export default function Course({ profile }: CourseProps) {
 
   const programCourses = visible.filter((c) => c.id !== editId)
 
-  const pickPrereq = (code: string) => {
-    if (!code) return
-    setActiveForm((current: CourseForm) => ({ ...current, prereq: code }))
-  }
-
-  const pickCoreq = (code: string) => {
-    if (!code) return
-    setActiveForm((current: CourseForm) => ({ ...current, coreq: code }))
-  }
-
   const totalCredits = (f: CourseForm) => {
     const lec = parseInt(f.creditLecture, 10) || 0
     const lab = parseInt(f.creditLaboratory, 10) || 0
@@ -270,17 +260,15 @@ export default function Course({ profile }: CourseProps) {
             <label className="field">
               <span>Pre-requisite</span>
               <div className="na-row">
-<input className="input" type="text" placeholder="e.g. IT12"
+<input className="input" type="text" list="prereq-options" placeholder="Type or select a prerequisite"
                   value={activeForm.prereqNA ? '' : activeForm.prereq}
                   onChange={(e) => setActiveForm({ ...activeForm, prereq: e.target.value })}
                   disabled={activeForm.prereqNA} />
-                <select className="input" value="" onChange={(e) => pickPrereq(e.target.value)}
-                  disabled={activeForm.prereqNA}>
-                  <option value="">Pick…</option>
+                <datalist id="prereq-options">
                   {programCourses.map((c) => (
-                    <option key={c.id} value={c.code}>{c.code}</option>
+                    <option key={c.id} value={c.code} />
                   ))}
-                </select>
+                </datalist>
                 <label className="na-check">
                   <input type="checkbox" checked={activeForm.prereqNA}
                     onChange={(e) => setActiveForm({ ...activeForm, prereqNA: e.target.checked, prereq: e.target.checked ? '' : activeForm.prereq })} />
@@ -292,17 +280,15 @@ export default function Course({ profile }: CourseProps) {
             <label className="field">
               <span>Co-requisite</span>
               <div className="na-row">
-<input className="input" type="text" placeholder="e.g. IT13"
+<input className="input" type="text" list="coreq-options" placeholder="Type or select a co-requisite"
                   value={activeForm.coreqNA ? '' : activeForm.coreq}
                   onChange={(e) => setActiveForm({ ...activeForm, coreq: e.target.value })}
                   disabled={activeForm.coreqNA} />
-                <select className="input" value="" onChange={(e) => pickCoreq(e.target.value)}
-                  disabled={activeForm.coreqNA}>
-                  <option value="">Pick…</option>
+                <datalist id="coreq-options">
                   {programCourses.map((c) => (
-                    <option key={c.id} value={c.code}>{c.code}</option>
+                    <option key={c.id} value={c.code} />
                   ))}
-                </select>
+                </datalist>
                 <label className="na-check">
                   <input type="checkbox" checked={activeForm.coreqNA}
                     onChange={(e) => setActiveForm({ ...activeForm, coreqNA: e.target.checked, coreq: e.target.checked ? '' : activeForm.coreq })} />
