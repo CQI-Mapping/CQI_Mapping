@@ -199,7 +199,7 @@ export default function EntityCrudPage<T extends { id: string }>({
             )}
           </>
         ) : (
-        <div className="create-resource__row">
+        <div className="create-resource__row create-resource__row--2col">
           <label className="field">
             <span>{codeLabel}</span>
             <input className="input input--sm" type="text" placeholder={codePlaceholder} style={codeWidth ? { width: codeWidth } : undefined} value={form.code}
