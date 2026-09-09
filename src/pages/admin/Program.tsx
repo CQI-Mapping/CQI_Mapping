@@ -62,7 +62,7 @@ export default function Program({ profile }: ProgramProps) {
     try {
       const created = await createProgram({
         code: programForm.code.trim(),
-        name: programForm.name.trim(),
+        name: programForm.code.trim(),
         description: programForm.description.trim() || null,
       })
       await addActivityLog(userEmail, 'program.created')
@@ -90,7 +90,7 @@ export default function Program({ profile }: ProgramProps) {
     try {
       await updateProgram(editProgramId, {
         code: editProgram.code.trim(),
-        name: editProgram.name.trim(),
+        name: editProgram.code.trim(),
         description: editProgram.description.trim() || null,
       })
       await addActivityLog(userEmail, 'program.updated')
@@ -153,14 +153,9 @@ export default function Program({ profile }: ProgramProps) {
             <form className="create-resource" onSubmit={handleCreateProgram}>
               <div className="create-resource__row">
                 <label className="field">
-                  <span>Code</span>
-                  <input className="input input--sm" type="text" placeholder="e.g. BSIT"
+                  <span>Course</span>
+                  <input className="input input--sm" type="text" placeholder="e.g. IT21"
                     value={programForm.code} onChange={(e) => setProgramForm({ ...programForm, code: e.target.value })} required />
-                </label>
-                <label className="field">
-                  <span>Name</span>
-                  <input className="input input--sm" type="text" placeholder="Program name"
-                    value={programForm.name} onChange={(e) => setProgramForm({ ...programForm, name: e.target.value })} required />
                 </label>
               </div>
               <label className="field">
@@ -182,8 +177,6 @@ export default function Program({ profile }: ProgramProps) {
                     <div className="program-item__edit">
                       <input className="input input--sm" value={editProgram.code}
                         onChange={(e) => setEditProgram({ ...editProgram, code: e.target.value })} />
-                      <input className="input input--sm" value={editProgram.name}
-                        onChange={(e) => setEditProgram({ ...editProgram, name: e.target.value })} />
                       <textarea className="input input--sm" rows={2} value={editProgram.description}
                         onChange={(e) => setEditProgram({ ...editProgram, description: e.target.value })} />
                       <div className="program-item__actions">
@@ -195,7 +188,6 @@ export default function Program({ profile }: ProgramProps) {
                     <>
                       <button className="program-item__select" onClick={() => setSelectedId(p.id)} disabled={busy}>
                         <span className="program-item__code">{p.code}</span>
-                        <span className="program-item__name">{p.name}</span>
                         {!isActive(p) && <span className="sd-status-badge sd-status-badge--archived">archived</span>}
                       </button>
                       <div className="program-item__actions">
