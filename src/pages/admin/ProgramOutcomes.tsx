@@ -9,15 +9,11 @@ import {
 } from '../../services/database'
 import type { ProgramOutcomeStandalone } from '../../services/database'
 
-const CATEGORY_ALIGNMENTS = [
+const FIXED_OPTIONS = [
   'Common to all programs in all types of schools',
-  'Common to the discipline',
-  'Specific to a sub-discipline and a major (CMO 25 s. 2015)',
-  'Common to horizontal types (CMO 46 s. 2012)',
-  'College-defined program outcome',
+  'Bachelor of Science in Computer Science Program Outcomes',
+  'College defined program outcome',
 ]
-
-const CMO_CODE_RE = /CMO\s+\d+\s*s\.\s*\d{4}/i
 
 export default function ProgramOutcomes() {
   const [options, setOptions] = useState<AlignmentOption[] | null>(null)
@@ -28,18 +24,13 @@ export default function ProgramOutcomes() {
     ;(async () => {
       try {
         const cmos = await fetchChedMemoOrders()
-        const cmoByCode = new Map(cmos.map((c) => [c.code.toUpperCase(), c]))
 
-        const categoryOptions: AlignmentOption[] = CATEGORY_ALIGNMENTS.map((v) => {
-          const ref = v.match(CMO_CODE_RE)
-          const cmo = ref ? cmoByCode.get(ref[0].toUpperCase()) : undefined
-          return { value: v, cmo_id: cmo ? cmo.id : null }
-        })
+        const fixedOptions: AlignmentOption[] = FIXED_OPTIONS.map((v) => ({ value: v, cmo_id: null }))
         const cmoOptions: AlignmentOption[] = cmos.map((c) => ({
-          value: `${c.code} — ${c.title}`,
+          value: `${c.title} (${c.code})`,
           cmo_id: c.id,
         }))
-        if (!cancelled) setOptions([...categoryOptions, ...cmoOptions])
+        if (!cancelled) setOptions([...fixedOptions, ...cmoOptions])
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load CMO data.')
       }

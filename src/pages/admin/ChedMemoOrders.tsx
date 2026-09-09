@@ -39,6 +39,7 @@ export default function ChedMemoOrders() {
       codeLabel="Code"
       codePlaceholder="e.g. CMO 1 s. 2024"
       showDescription={false}
+      titleMultiline
       counts={counts}
       countLabel="Linked POs"
     />

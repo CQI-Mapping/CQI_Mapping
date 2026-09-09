@@ -25,8 +25,9 @@ export default function Program() {
       updateAction="program.updated"
       deleteAction="program.deleted"
       codeLabel="Program"
-      codePlaceholder="e.g. BSCS"
+      codePlaceholder="e.g. BSIT"
       showTitle={false}
+      titleField="name"
     />
   )
 }

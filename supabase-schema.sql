@@ -129,14 +129,16 @@ CREATE TABLE public.strategic_goals (
 
 -- CHED MEMORANDUM ORDERS (created before admin_program_outcomes so the
 -- Program Outcome -> CMO link can be declared inline below).
+-- codes may repeat IF the title differs; the exact (code, title) pair is unique.
 CREATE TABLE public.ched_memorandum_orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    code TEXT UNIQUE NOT NULL,
+    code TEXT NOT NULL,
     title TEXT NOT NULL,
     description TEXT,
     status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (code, title)
 );
 
 -- PROGRAM OUTCOMES (standalone admin list)
@@ -180,6 +182,9 @@ CREATE TABLE public.admin_course_learning_outcomes (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- CHED MEMORANDUM ORDERS
+-- (definition is above, before admin_program_outcomes)
 
 -- CLO/PO matrix: strength (1-3) of each course learning outcome's
 -- contribution to each program outcome of the same program. One row per
@@ -537,18 +542,14 @@ REVOKE ALL ON FUNCTION public.sync_demo_role() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.sync_demo_role() TO authenticated;
 
 -- ============================================================
--- SEED DATA
+-- PROFILE RESTORE (not seed data)
+-- Recreate profiles for EXISTING auth users (the DROP above wiped
+-- them) and restore the demo roles, so admin/manager/user land on
+-- the right dashboard after a schema re-run. New signups are still
+-- handled by handle_new_user. ON CONFLICT DO NOTHING keeps any role
+-- an admin deliberately changed.
 -- ============================================================
 
-INSERT INTO public.resources (title, description, status) VALUES
-    ('Curriculum mapping guide', 'How courses map to program outcomes in this CQI monitoring system.', 'active'),
-    ('Outcomes alignment matrix', 'CLO/PO alignment reference for program outcomes across the curriculum.', 'active'),
-    ('Sample archived course data', 'An example of an archived curriculum record only admins can delete.', 'archived');
-
--- Recreate profiles for EXISTING auth users (the DROP above wiped them) and
--- restore the demo roles, so admin/manager/user land on the right dashboard
--- after a schema re-run. New signups are still handled by handle_new_user.
--- ON CONFLICT DO NOTHING keeps any role an admin deliberately changed.
 INSERT INTO public.profiles (id, email, full_name, role)
 SELECT
     u.id,
@@ -565,71 +566,3 @@ SELECT
     END
 FROM auth.users u
 ON CONFLICT (id) DO NOTHING;
-
--- CQI curriculum seed: sample programs, courses, program outcomes (PO),
--- and course learning outcomes (CLO) to demo the admin Curriculum tabs.
-
-INSERT INTO public.programs (code, name, description, status) VALUES
-    ('BSIT', 'Bachelor of Science in Information Technology', 'Information technology curriculum for program outcomes alignment.', 'active'),
-    ('BSCS', 'Bachelor of Science in Computer Science', 'Computer science curriculum for program outcomes alignment.', 'active');
-
-INSERT INTO public.courses (program_id, code, title, units)
-SELECT p.id, c.code, c.title, c.units
-FROM (VALUES
-    ('BSIT', 'IT101', 'Introduction to Computing', 3),
-    ('BSIT', 'IT102', 'Computer Programming 1', 3),
-    ('BSIT', 'IT210', 'Database Systems', 3),
-    ('BSCS', 'CS101', 'Fundamentals of Computing', 3),
-    ('BSCS', 'CS120', 'Object-Oriented Programming', 3)
-) AS c(program_code, code, title, units)
-JOIN public.programs p ON p.code = c.program_code;
-
-INSERT INTO public.program_outcomes (program_id, code, description)
-SELECT p.id, po.code, po.description
-FROM (VALUES
-    ('BSIT', 'PO1', 'Apply knowledge of computing, science, and mathematics appropriate to the discipline.'),
-    ('BSIT', 'PO2', 'Analyze complex problems and identify computing requirements.'),
-    ('BSIT', 'PO3', 'Design, implement, and evaluate computing-based solutions.'),
-    ('BSIT', 'PO4', 'Function effectively as a member or leader of a development team.'),
-    ('BSIT', 'PO5', 'Communicate effectively with a range of audiences.'),
-    ('BSCS', 'PO1', 'Analyze a complex computing problem and apply principles of computing.'),
-    ('BSCS', 'PO2', 'Design and implement algorithms and computing solutions.'),
-    ('BSCS', 'PO3', 'Apply computer science theory and software development fundamentals.')
-) AS po(program_code, code, description)
-JOIN public.programs p ON p.code = po.program_code;
-
-INSERT INTO public.course_learning_outcomes (course_id, code, description)
-SELECT c.id, clo.code, clo.description
-FROM (VALUES
-    ('IT101', 'CLO1', 'Explain the fundamental concepts of computing and information technology.'),
-    ('IT101', 'CLO2', 'Demonstrate basic skills in using computer hardware and software.'),
-    ('IT101', 'CLO3', 'Describe the components of a computer system.'),
-    ('IT101', 'CLO4', 'Identify ethical issues in the use of information technology.'),
-    ('IT102', 'CLO1', 'Design algorithms to solve simple programming problems.'),
-    ('IT102', 'CLO2', 'Implement programs using a high-level programming language.'),
-    ('IT102', 'CLO3', 'Test and debug simple programs.'),
-    ('CS101', 'CLO1', 'Describe the roles of computing in society.'),
-    ('CS101', 'CLO2', 'Identify the main components of a computing system.')
-) AS clo(course_code, code, description)
-JOIN public.courses c ON c.code = clo.course_code;
-
--- CLO/PO matrix seed: sample strength (1-3) of each CLO's contribution to
--- the program outcomes of the same program.
-
-INSERT INTO public.clo_po_matrix (clo_id, po_id, level)
-SELECT clo.id, po.id, m.level
-FROM (VALUES
-    ('BSIT', 'IT101', 'CLO1', 'PO1', 3),
-    ('BSIT', 'IT101', 'CLO2', 'PO3', 2),
-    ('BSIT', 'IT101', 'CLO3', 'PO1', 2),
-    ('BSIT', 'IT101', 'CLO4', 'PO4', 1),
-    ('BSIT', 'IT102', 'CLO1', 'PO1', 2),
-    ('BSIT', 'IT102', 'CLO2', 'PO3', 3),
-    ('BSIT', 'IT102', 'CLO3', 'PO3', 2),
-    ('BSCS', 'CS101', 'CLO1', 'PO1', 1),
-    ('BSCS', 'CS101', 'CLO2', 'PO2', 2)
-) AS m(program_code, course_code, clo_code, po_code, level)
-JOIN public.programs p ON p.code = m.program_code
-JOIN public.courses c ON c.program_id = p.id AND c.code = m.course_code
-JOIN public.course_learning_outcomes clo ON clo.course_id = c.id AND clo.code = m.clo_code
-JOIN public.program_outcomes po ON po.program_id = p.id AND po.code = m.po_code;

@@ -34,6 +34,7 @@ interface EntityCrudPageProps<T extends { id: string }> {
   showTitle?: boolean
   titleField?: string
   titleLabel?: string
+  titleMultiline?: boolean
   formatCode?: (code: string) => string
   allowDelete?: boolean
   relationField?: string
@@ -61,6 +62,7 @@ export default function EntityCrudPage<T extends { id: string }>({
   showTitle = true,
   titleField = 'title',
   titleLabel = 'Title',
+  titleMultiline = false,
   formatCode = (c) => c,
   allowDelete = true,
   relationField,
@@ -138,6 +140,23 @@ export default function EntityCrudPage<T extends { id: string }>({
 
       <form className="panel create-resource" onSubmit={submit}>
         <h3>New {title}</h3>
+        {titleMultiline ? (
+          <>
+            <label className="field">
+              <span>{codeLabel}</span>
+              <input className="input input--sm" type="text" placeholder={codePlaceholder} value={form.code}
+                onChange={(e) => setForm({ ...form, code: e.target.value })} required />
+            </label>
+            {showTitle && (
+              <label className="field">
+                <span>{titleLabel}</span>
+                <textarea className="input input--sm" rows={3} placeholder="Enter full title" ref={autoResize}
+                  value={form.title}
+                  onChange={(e) => { setForm({ ...form, title: e.target.value }); autoResize(e.target) }} required />
+              </label>
+            )}
+          </>
+        ) : (
         <div className="create-resource__row">
           <label className="field">
             <span>{codeLabel}</span>
@@ -152,6 +171,7 @@ export default function EntityCrudPage<T extends { id: string }>({
             </label>
           )}
         </div>
+        )}
         {showDescription && (
           <label className="field">
             <span>{descriptionLabel}</span>
@@ -202,7 +222,12 @@ export default function EntityCrudPage<T extends { id: string }>({
                     <>
                       <td><input className="input input--sm" value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} /></td>
                       {showTitle && (
-                        <td><input className="input input--sm" value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} /></td>
+                        <td>{titleMultiline ? (
+                          <textarea className="input input--sm" rows={3} ref={autoResize} value={editForm.title}
+                            onChange={(e) => { setEditForm({ ...editForm, title: e.target.value }); autoResize(e.target) }} />
+                        ) : (
+                          <input className="input input--sm" value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} />
+                        )}</td>
                       )}
                       {showDescription && (
                         <td>{descriptionOptions ? alignmentSelect(editForm.description, (v) => setEditForm({ ...editForm, description: v })) : (
