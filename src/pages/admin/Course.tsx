@@ -266,8 +266,13 @@ export default function Course({ profile }: CourseProps) {
   const creditField = (label: string, key: 'creditLecture' | 'creditLaboratory') => (
     <label className="field">
       <span>{label}</span>
-      <input className="input" type="number" min={0} value={activeForm[key]}
-        onChange={(e) => setActiveForm({ ...activeForm, [key]: e.target.value })} />
+      <input className="input" type="number" min={0} max={3} value={activeForm[key]}
+        onChange={(e) => {
+          let v = e.target.value
+          if (Number(v) > 3) v = '3'
+          setActiveForm({ ...activeForm, [key]: v })
+        }}
+        onWheel={(e) => (e.target as HTMLInputElement).blur()} />
     </label>
   )
 
