@@ -6,12 +6,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useEntityCrud } from './useEntityCrud.js'
 
-interface SeedItem {
-  code: string
-  title: string
-  description: string | null
-}
-
 // One selectable "alignment" option. `value` is the text stored in the entity's
 // description column (also the select's round-trippable value); `cmo_id`
 // (optional) records the CHED Memorandum Order to link to for that choice.
@@ -32,7 +26,6 @@ interface EntityCrudPageProps<T extends { id: string }> {
   deleteAction: string
   codeLabel?: string
   codePlaceholder?: string
-  seeds?: SeedItem[]
   isActive?: (item: T) => boolean
   sort?: (a: T, b: T) => number
   showDescription?: boolean
@@ -60,7 +53,6 @@ export default function EntityCrudPage<T extends { id: string }>({
   deleteAction,
   codeLabel = 'Code',
   codePlaceholder = 'e.g. CODE-1',
-  seeds,
   isActive = (i) => !(i as { status?: string }).status || (i as { status?: string }).status === 'active',
   sort,
   showDescription = true,
@@ -82,7 +74,6 @@ export default function EntityCrudPage<T extends { id: string }>({
   const [form, setForm] = useState(blank)
   const [editForm, setEditForm] = useState(blank)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [seeded, setSeeded] = useState(false)
   const [archived, setArchived] = useState(false)
 
   const autoResize = useCallback((el: HTMLTextAreaElement | null) => {
@@ -96,20 +87,6 @@ export default function EntityCrudPage<T extends { id: string }>({
   const archivedCount = items.filter((i) => !isActive(i)).length
 
   useEffect(() => { crud.load() }, [crud.load])
-
-  // Seed any records from `seeds` that are missing (matched by code).
-  useEffect(() => {
-    if (loading || seeded || !seeds || seeds.length === 0) return
-    setSeeded(true)
-    const existing = new Set(items.map((i) => (i as { code?: string }).code))
-    const missing = seeds.filter((s) => !existing.has(s.code))
-    if (missing.length === 0) return
-    missing.reduce<Promise<unknown>>((prev, s) => prev.then(() => create(payload(s as typeof blank))), Promise.resolve())
-      .then(() => crud.load())
-      .catch(() => {})
-    // items intentionally omitted from deps so seeding runs once
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, seeded])
 
   const payload = (f: typeof blank) => {
     const value = f.description.trim() || ''

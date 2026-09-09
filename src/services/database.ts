@@ -14,7 +14,6 @@
 //   Activity Logs  — fetchActivityLogs, addActivityLog (details column removed)
 
 import { supabase as _supabase } from '../utils/supabaseClient'
-import { SEED_CLOS, IT21_COURSE, IT21_PROGRAM_CODE, BSIT_PROGRAM } from '../data/vcqiSyllabus.js'
 import type { User } from '@supabase/supabase-js'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
@@ -334,66 +333,6 @@ export async function updateCourse(id: string, updates: Partial<Course>): Promis
 export async function deleteCourse(id: string): Promise<void> {
   const { error } = await supabase.from('courses').delete().eq('id', id)
   if (error) throw error
-}
-
-// VCQI syllabus seeding: ensure the BSIT program, the IT21 - Object Oriented
-// Programming course, and its course learning outcomes all exist. Idempotent —
-// existing rows are looked up by unique code before inserting, so repeated
-// calls never create duplicates.
-export async function seedIt21Course(): Promise<void> {
-  let { data: program, error: programError } = await supabase
-    .from('programs')
-    .select('id')
-    .eq('code', IT21_PROGRAM_CODE)
-    .maybeSingle()
-  if (programError) throw programError
-
-  if (!program) {
-    const { data: insertedProgram, error: insertProgramError } = await supabase
-      .from('programs')
-      .insert({ code: BSIT_PROGRAM.code, name: BSIT_PROGRAM.name, description: BSIT_PROGRAM.description })
-      .select('id')
-      .single()
-    if (insertProgramError) throw insertProgramError
-    program = insertedProgram
-  }
-
-  const { data: course, error: courseError } = await supabase
-    .from('courses')
-    .select('id')
-    .eq('program_id', program.id)
-    .eq('code', IT21_COURSE.code)
-    .maybeSingle()
-  if (courseError) throw courseError
-
-  let courseId: string | undefined = course?.id
-  if (!courseId) {
-    const { data: inserted, error: insertError } = await supabase
-      .from('courses')
-      .insert({
-        program_id: program.id,
-        code: IT21_COURSE.code,
-        title: IT21_COURSE.title,
-        units: IT21_COURSE.units,
-      })
-      .select('id')
-      .single()
-    if (insertError) throw insertError
-    courseId = inserted.id
-  }
-
-  const { data: clos, error: closError } = await supabase
-    .from('course_learning_outcomes')
-    .select('code')
-    .eq('course_id', courseId)
-  if (closError) throw closError
-  const existingCodes = new Set((clos ?? []).map((c) => c.code))
-  const missing = SEED_CLOS.filter((c) => !existingCodes.has(c.code))
-  if (missing.length === 0) return
-  const { error: insertCloError } = await supabase
-    .from('course_learning_outcomes')
-    .insert(missing.map((c) => ({ course_id: courseId!, code: c.code, description: c.title })))
-  if (insertCloError) throw insertCloError
 }
 
 // PROGRAM OUTCOMES (PO)

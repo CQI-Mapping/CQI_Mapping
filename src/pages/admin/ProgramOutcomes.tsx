@@ -6,10 +6,8 @@ import {
   updateProgramOutcomeStandalone,
   deleteProgramOutcomeStandalone,
   fetchChedMemoOrders,
-  createChedMemoOrder,
 } from '../../services/database'
-import type { ChedMemoOrder, ProgramOutcomeStandalone } from '../../services/database'
-import { SEED_PROGRAM_OUTCOMES, SEED_CMOS } from '../../data/vcqiSyllabus.js'
+import type { ProgramOutcomeStandalone } from '../../services/database'
 
 const CATEGORY_ALIGNMENTS = [
   'Common to all programs in all types of schools',
@@ -29,26 +27,8 @@ export default function ProgramOutcomes() {
     let cancelled = false
     ;(async () => {
       try {
-        // Make sure the referenced CHED Memorandum Orders exist (they are also
-        // seeded on the CHED Memo page, but that page may never have been opened).
-        let cmos = await fetchChedMemoOrders()
-        const missing = SEED_CMOS.filter(
-          (s) => !cmos.some((c) => c.code.toLowerCase() === s.code.toLowerCase()),
-        )
-        for (const s of missing) {
-          await createChedMemoOrder({ code: s.code, title: s.title, description: s.description ?? null, status: 'active' })
-        }
-        if (missing.length > 0) cmos = await fetchChedMemoOrders()
-        const cmoByCode = new Map<string, ChedMemoOrder>(cmos.map((c) => [c.code.toUpperCase(), c]))
-
-        // Backfill cmo_id for outcomes whose alignment references an existing CMO.
-        const pos = await fetchProgramOutcomesStandalone()
-        for (const p of pos) {
-          if (p.cmo_id) continue
-          const ref = (p.description || '').match(CMO_CODE_RE)
-          const cmo = ref ? cmoByCode.get(ref[0].toUpperCase()) : undefined
-          if (cmo) await updateProgramOutcomeStandalone(p.id, { cmo_id: cmo.id })
-        }
+        const cmos = await fetchChedMemoOrders()
+        const cmoByCode = new Map(cmos.map((c) => [c.code.toUpperCase(), c]))
 
         const categoryOptions: AlignmentOption[] = CATEGORY_ALIGNMENTS.map((v) => {
           const ref = v.match(CMO_CODE_RE)
@@ -83,7 +63,6 @@ export default function ProgramOutcomes() {
       deleteAction="program_outcome.deleted"
       codeLabel="Code"
       codePlaceholder="e.g. PO-1"
-      seeds={SEED_PROGRAM_OUTCOMES}
       descriptionLabel="CMO Alignment"
       descriptionOptions={options}
       relationField="cmo_id"

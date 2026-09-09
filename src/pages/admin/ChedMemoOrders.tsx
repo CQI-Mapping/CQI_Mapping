@@ -8,7 +8,6 @@ import {
   fetchProgramOutcomesStandalone,
 } from '../../services/database'
 import type { ChedMemoOrder } from '../../services/database'
-import { SEED_CMOS } from '../../data/vcqiSyllabus.js'
 
 export default function ChedMemoOrders() {
   const [counts, setCounts] = useState<Record<string, number>>({})
@@ -39,7 +38,6 @@ export default function ChedMemoOrders() {
       deleteAction="ched_memo_order.deleted"
       codeLabel="Code"
       codePlaceholder="e.g. CMO 1 s. 2024"
-      seeds={SEED_CMOS}
       showDescription={false}
       counts={counts}
       countLabel="Linked POs"

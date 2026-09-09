@@ -9,10 +9,8 @@ import {
   createCourseLearningOutcomeStandalone,
   updateCourseLearningOutcomeStandalone,
   deleteCourseLearningOutcomeStandalone,
-  seedIt21Course,
 } from '../../services/database'
 import type { CourseLearningOutcomeStandalone } from '../../services/database'
-import { SEED_CLOS } from '../../data/vcqiSyllabus.js'
 
 const EMPTY = { code: '', description: '', programOutcomes: '' }
 
@@ -30,7 +28,6 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   const [form, setForm] = useState(EMPTY)
   const [editForm, setEditForm] = useState(EMPTY)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [seeded, setSeeded] = useState(false)
   const [archived, setArchived] = useState(false)
 
   const autoResize = useCallback((el: HTMLTextAreaElement | null) => {
@@ -44,21 +41,6 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   const archivedCount = items.filter((i) => !isActive(i)).length
 
   useEffect(() => { crud.load() }, [crud.load])
-
-  useEffect(() => {
-    if (loading || seeded) return
-    setSeeded(true)
-    const existing = new Set(items.map((i) => i.code))
-    const missing = SEED_CLOS.filter((c) => !existing.has(c.code))
-    ;(missing.length === 0
-      ? Promise.resolve()
-      : missing.reduce<Promise<unknown>>((prev, clo) => prev.then(() => createCourseLearningOutcomeStandalone(clo)), Promise.resolve()))
-      .then(() => seedIt21Course())
-      .then(() => crud.load())
-      .catch(() => {})
-    // items omitted from deps so seeding runs once
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, seeded])
 
   const outPayload = (f: typeof EMPTY) => ({
     code: f.code.trim(),

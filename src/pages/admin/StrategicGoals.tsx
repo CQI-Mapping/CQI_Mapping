@@ -6,7 +6,6 @@ import {
   deleteStrategicGoal,
 } from '../../services/database'
 import type { StrategicGoal } from '../../services/database'
-import { SEED_STRATEGIC_GOALS } from '../../data/vcqiSyllabus.js'
 
 export default function StrategicGoals() {
   return (
@@ -22,7 +21,6 @@ export default function StrategicGoals() {
       deleteAction="strategic_goal.deleted"
       codeLabel="Goal"
       codePlaceholder="e.g. Goal 1"
-      seeds={SEED_STRATEGIC_GOALS}
       showTitle={false}
       formatCode={(c) => c.replace(/^SG-/i, 'Goal ')}
     />

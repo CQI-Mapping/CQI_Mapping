@@ -6,7 +6,6 @@ import {
   deleteProgramEducationalObjective,
 } from '../../services/database'
 import type { ProgramEducationalObjective } from '../../services/database'
-import { SEED_PEOS } from '../../data/vcqiSyllabus.js'
 
 export default function ProgramEducationalObjectives() {
   return (
@@ -22,7 +21,6 @@ export default function ProgramEducationalObjectives() {
       deleteAction="peo.deleted"
       codeLabel="Code"
       codePlaceholder="e.g. PEO-1"
-      seeds={SEED_PEOS}
     />
   )
 }
