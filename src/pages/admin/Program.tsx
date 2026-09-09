@@ -175,8 +175,11 @@ export default function Program({ profile }: ProgramProps) {
                 <div key={p.id} className={`program-item${p.id === selectedId ? ' program-item--active' : ''}${isActive(p) ? '' : ' sd-archived'}`}>
                   {editProgramId === p.id ? (
                     <div className="program-item__edit">
-                      <input className="input input--sm" value={editProgram.code}
-                        onChange={(e) => setEditProgram({ ...editProgram, code: e.target.value })} />
+                      <label className="field">
+                        <span>Course</span>
+                        <input className="input input--sm" value={editProgram.code}
+                          onChange={(e) => setEditProgram({ ...editProgram, code: e.target.value })} />
+                      </label>
                       <textarea className="input input--sm" rows={2} value={editProgram.description}
                         onChange={(e) => setEditProgram({ ...editProgram, description: e.target.value })} />
                       <div className="program-item__actions">
@@ -187,7 +190,8 @@ export default function Program({ profile }: ProgramProps) {
                   ) : (
                     <>
                       <button className="program-item__select" onClick={() => setSelectedId(p.id)} disabled={busy}>
-                        <span className="program-item__code">{p.code}</span>
+                        <span className="program-item__code">Course</span>
+                        <span className="program-item__name">{p.name || p.code}</span>
                         {!isActive(p) && <span className="sd-status-badge sd-status-badge--archived">archived</span>}
                       </button>
                       <div className="program-item__actions">
