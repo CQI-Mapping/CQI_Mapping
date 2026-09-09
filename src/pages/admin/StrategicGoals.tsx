@@ -23,6 +23,8 @@ export default function StrategicGoals() {
       codeLabel="Goal"
       codePlaceholder="e.g. Goal 1"
       seeds={SEED_STRATEGIC_GOALS}
+      showTitle={false}
+      formatCode={(c) => c.replace(/^SG-/i, 'Goal ')}
     />
   )
 }

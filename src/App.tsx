@@ -33,6 +33,7 @@ import AdminProgramOutcomes from './pages/admin/ProgramOutcomes'
 import AdminCourseLearningOutcomes from './pages/admin/CourseLearningOutcomes'
 import AdminView from './pages/admin/View'
 import AdminUsers from './pages/admin/Users'
+import AdminProgram from './pages/admin/Program'
 import { supabase } from './utils/supabaseClient'
 import { ensureProfile, syncDemoRole } from './services/database'
 import type { Profile as ProfileType, UserRole, NavItem } from './services/database'
@@ -42,6 +43,7 @@ import type { Session } from '@supabase/supabase-js'
 const NAV: Record<UserRole, NavItem[]> = {
   admin: [
     { id: 'dashboard', label: 'Dashboard' },
+    { id: 'program', label: 'Program' },
     { id: 'ched-memo', label: 'CHED Memorandum Orders' },
     { id: 'strategic-goals', label: 'Strategic Goals' },
     { id: 'peos', label: 'Program Educational Objectives' },
@@ -71,6 +73,7 @@ const NAV: Record<UserRole, NavItem[]> = {
 const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
   admin: {
     dashboard: AdminDashboard,
+    program: AdminProgram,
     peos: AdminPEOs,
     'program-outcomes': AdminProgramOutcomes,
     clo: AdminCourseLearningOutcomes,
@@ -138,7 +141,7 @@ function App() {
         if (cancelled) return null
         return syncDemoRole()
           .then((role) => {
-            if (role && role !== p.role) return ensureProfile(session.user)
+            if (role && role !== p.role) return { ...p, role }
             return p
           })
           .catch(() => p) // RPC missing/not deployed yet → keep the loaded profile
@@ -149,8 +152,10 @@ function App() {
         setLoading(false)
       })
       .catch(() => {
-        setProfileLoaded(true)
-        setLoading(false)
+        if (!cancelled) {
+          setProfileLoaded(true)
+          setLoading(false)
+        }
       })
 
     return () => { cancelled = true }

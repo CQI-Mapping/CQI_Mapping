@@ -27,6 +27,9 @@ interface EntityCrudPageProps<T extends { id: string }> {
   seeds?: SeedItem[]
   isActive?: (item: T) => boolean
   sort?: (a: T, b: T) => number
+  showDescription?: boolean
+  showTitle?: boolean
+  formatCode?: (code: string) => string
 }
 
 export default function EntityCrudPage<T extends { id: string }>({
@@ -44,6 +47,9 @@ export default function EntityCrudPage<T extends { id: string }>({
   seeds,
   isActive = (i) => !(i as { status?: string }).status || (i as { status?: string }).status === 'active',
   sort,
+  showDescription = true,
+  showTitle = true,
+  formatCode = (c) => c,
 }: EntityCrudPageProps<T>) {
   const crud = useEntityCrud<T>({ loadFn: load, createFn: create, updateFn: update, deleteFn: remove, userEmail: '', scope })
   const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete } = crud
@@ -122,18 +128,22 @@ export default function EntityCrudPage<T extends { id: string }>({
             <input className="input input--sm" type="text" placeholder={codePlaceholder} value={form.code}
               onChange={(e) => setForm({ ...form, code: e.target.value })} required />
           </label>
-          <label className="field">
-            <span>Title</span>
-            <input className="input input--sm" type="text" placeholder="Enter title" value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })} required />
-          </label>
+          {showTitle && (
+            <label className="field">
+              <span>Title</span>
+              <input className="input input--sm" type="text" placeholder="Enter title" value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })} required />
+            </label>
+          )}
         </div>
-        <label className="field">
-          <span>Description</span>
-          <textarea className="input input--sm" rows={3} placeholder="Optional description" ref={autoResize}
-            value={form.description}
-            onChange={(e) => { setForm({ ...form, description: e.target.value }); autoResize(e.target) }} />
-        </label>
+        {showDescription && (
+          <label className="field">
+            <span>Description</span>
+            <textarea className="input input--sm" rows={3} placeholder="Optional description" ref={autoResize}
+              value={form.description}
+              onChange={(e) => { setForm({ ...form, description: e.target.value }); autoResize(e.target) }} />
+          </label>
+        )}
         <div className="create-resource__submit">
           <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>{busy ? 'Saving...' : 'Add'}</button>
         </div>
@@ -150,17 +160,21 @@ export default function EntityCrudPage<T extends { id: string }>({
             </button>
           </div>
           <table className="table">
-            <thead><tr><th>Code</th><th>Title</th><th>Description</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Code</th>{showTitle && <th>Title</th>}{showDescription && <th>Description</th>}<th>Status</th><th>Actions</th></tr></thead>
             <tbody>
-              {visible.length === 0 && <tr><td colSpan={5}>No {title.toLowerCase()} yet.</td></tr>}
+              {visible.length === 0 && <tr><td colSpan={3 + (showTitle ? 1 : 0) + (showDescription ? 1 : 0)}>No {title.toLowerCase()} yet.</td></tr>}
               {visible.map((item) => (
                 <tr key={item.id} className={!isActive(item) ? 'sd-archived' : ''}>
                   {editingId === item.id ? (
                     <>
                       <td><input className="input input--sm" value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} /></td>
-                      <td><input className="input input--sm" value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} /></td>
-                      <td><textarea className="input input--sm" rows={3} ref={autoResize} value={editForm.description}
-                        onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} /></td>
+                      {showTitle && (
+                        <td><input className="input input--sm" value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} /></td>
+                      )}
+                      {showDescription && (
+                        <td><textarea className="input input--sm" rows={3} ref={autoResize} value={editForm.description}
+                          onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} /></td>
+                      )}
                       <td></td>
                       <td>
                         <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>Save</button>{' '}
@@ -169,9 +183,9 @@ export default function EntityCrudPage<T extends { id: string }>({
                     </>
                   ) : (
                     <>
-                      <td><strong>{codeOf(item)}</strong></td>
-                      <td>{titleOf(item)}</td>
-                      <td>{descOf(item) || '—'}</td>
+                      <td><strong>{formatCode(codeOf(item))}</strong></td>
+                      {showTitle && <td>{titleOf(item)}</td>}
+                      {showDescription && <td>{descOf(item) || '—'}</td>}
                       <td>
                         <span className={`sd-status-badge ${isActive(item) ? 'sd-status-badge--active' : 'sd-status-badge--archived'}`}>
                           {isActive(item) ? 'active' : 'archived'}

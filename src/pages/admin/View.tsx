@@ -1,27 +1,30 @@
 // Admin Curriculum Map: printable report that mirrors the VCQI course
 // syllabus document (IT21 - Object Oriented Programming) page by page.
 //
-// The institution-record tables (Strategic Goals, PEOs, Program Outcomes)
-// support inline editing and archiving directly on this page via the
-// "Edit" toggle: click Edit, modify a row's fields, then Save. Archive
-// hides a record from the report without deleting it (requires the status
-// column migration — see supabase-schema.sql). Syllabus-fixed content
-// (vision/mission wording, curriculum mapping columns, course details) is
-// transcribed in src/data/vcqiSyllabus.ts and stays read-only.
+// The institution-record tables (Strategic Goals, PEOs, Program Outcomes,
+// CHED Memorandum Orders) support inline editing and archiving directly on
+// this page via the "Edit" toggle: click Edit, modify a row's fields, then
+// Save. Archive hides a record from the report without deleting it (requires
+// the status column migration — see supabase-schema.sql). Syllabus-fixed
+// content (vision/mission wording, curriculum mapping columns, course
+// details) is transcribed in src/data/vcqiSyllabus.ts and stays read-only.
 
 import { useState, useEffect, useCallback } from 'react'
 import {
   fetchStrategicGoals,
   fetchProgramEducationalObjectives,
   fetchProgramOutcomesStandalone,
+  fetchChedMemoOrders,
   updateStrategicGoal,
   updateProgramEducationalObjective,
   updateProgramOutcomeStandalone,
+  updateChedMemoOrder,
 } from '../../services/database'
 import type {
   StrategicGoal,
   ProgramEducationalObjective,
   ProgramOutcomeStandalone,
+  ChedMemoOrder,
 } from '../../services/database'
 import {
   DOC_HEADER,
@@ -38,11 +41,12 @@ interface ViewProps {
   userEmail: string
 }
 
-type EditableKind = 'goal' | 'peo' | 'po'
+type EditableKind = 'goal' | 'peo' | 'po' | 'cmo'
 
 interface EditState {
   kind: EditableKind
   id: string
+  code: string
   title: string
   description: string
 }
@@ -51,6 +55,18 @@ const poNumber = (code: string) => parseInt(code.replace(/[^0-9]/g, ''), 10)
 
 const isActive = (item: { status?: string }) => !item.status || item.status === 'active'
 
+type EditableItem = StrategicGoal | ProgramEducationalObjective | ChedMemoOrder
+
+// Reference shown in the Program Outcomes section headers, e.g.
+// "COMMON TO HORIZONTAL TYPES (CMO 46 s. 2012)". The code is resolved from
+// the CHED Memorandum Orders database record (not hardcoded), so edits to the
+// code on that page show up here. Falls back to the given code when no
+// matching record exists.
+const cmoRef = (code: string, cmos: ChedMemoOrder[]) => {
+  const cmo = cmos.find((c) => c.code.toLowerCase() === code.toLowerCase())
+  return cmo ? cmo.code : code
+}
+
 function View({ userEmail }: ViewProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -58,9 +74,9 @@ function View({ userEmail }: ViewProps) {
   const [goals, setGoals] = useState<StrategicGoal[]>([])
   const [peos, setPeos] = useState<ProgramEducationalObjective[]>([])
   const [pos, setPos] = useState<ProgramOutcomeStandalone[]>([])
+  const [cmos, setCmos] = useState<ChedMemoOrder[]>([])
 
   const [editMode, setEditMode] = useState(false)
-  const [showArchived, setShowArchived] = useState(false)
   const [edit, setEdit] = useState<EditState | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -68,14 +84,16 @@ function View({ userEmail }: ViewProps) {
     setLoading(true)
     setError(null)
     try {
-      const [g, p, po] = await Promise.all([
+      const [g, p, po, c] = await Promise.all([
         fetchStrategicGoals(),
         fetchProgramEducationalObjectives(),
         fetchProgramOutcomesStandalone(),
+        fetchChedMemoOrders(),
       ])
       setGoals(g)
       setPeos(p)
       setPos(po.sort((a, b) => poNumber(a.code) - poNumber(b.code)))
+      setCmos(c)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load curriculum map data.')
     } finally {
@@ -86,14 +104,18 @@ function View({ userEmail }: ViewProps) {
   useEffect(() => { load() }, [load])
 
   const itemOf = (kind: EditableKind, id: string) => {
-    const list = kind === 'goal' ? goals : kind === 'peo' ? peos : pos
+    const list =
+      kind === 'goal' ? goals :
+      kind === 'peo' ? peos :
+      kind === 'cmo' ? cmos :
+      pos
     return list.find((i) => i.id === id)
   }
 
   const startEdit = (kind: EditableKind, id: string) => {
     const item = itemOf(kind, id)
     if (!item) return
-    setEdit({ kind, id, title: item.title, description: item.description || '' })
+    setEdit({ kind, id, code: item.code, title: item.title, description: item.description || '' })
     setNotice(null)
   }
 
@@ -105,9 +127,12 @@ function View({ userEmail }: ViewProps) {
       const updates =
         edit.kind === 'peo'
           ? { title: edit.title.trim(), description: edit.description.trim() || null }
-          : { title: edit.title.trim() }
+          : edit.kind === 'cmo'
+            ? { code: edit.code.trim(), title: edit.title.trim(), description: edit.description.trim() || null }
+            : { title: edit.title.trim() }
       if (edit.kind === 'goal') await updateStrategicGoal(edit.id, updates)
       else if (edit.kind === 'peo') await updateProgramEducationalObjective(edit.id, updates)
+      else if (edit.kind === 'cmo') await updateChedMemoOrder(edit.id, updates)
       else await updateProgramOutcomeStandalone(edit.id, updates)
       setEdit(null)
       await load()
@@ -128,6 +153,7 @@ function View({ userEmail }: ViewProps) {
     try {
       if (kind === 'goal') await updateStrategicGoal(id, { status: next })
       else if (kind === 'peo') await updateProgramEducationalObjective(id, { status: next })
+      else if (kind === 'cmo') await updateChedMemoOrder(id, { status: next })
       else await updateProgramOutcomeStandalone(id, { status: next })
       await load()
     } catch {
@@ -137,10 +163,9 @@ function View({ userEmail }: ViewProps) {
     }
   }
 
-  // Row visibility: the report shows active records; edit mode can reveal
-  // archived ones via the "Show archived" checkbox.
+  // Row visibility: the report always shows active records only.
   const shown = <T extends { status?: string }>(list: T[]) =>
-    list.filter((i) => (showArchived && editMode ? true : isActive(i)))
+    list.filter((i) => isActive(i))
 
   const visibleGoals = shown(goals)
   const visiblePeos = shown(peos)
@@ -173,20 +198,28 @@ function View({ userEmail }: ViewProps) {
     )
   }
 
-  // One editable record inside the Vision/Goals/PEO table cells.
-  const editableListRow = (kind: EditableKind, item: StrategicGoal | ProgramEducationalObjective, display: React.ReactNode) => {
+  // One editable record inside the Vision/Goals/PEO/CMO table cells.
+  const editableListRow = (kind: EditableKind, item: EditableItem, display: React.ReactNode) => {
     const editingThis = edit && edit.kind === kind && edit.id === item.id
     return (
       <div key={item.id} className={`sd-edit-row${isActive(item) ? '' : ' sd-archived'}`}>
         {editingThis ? (
           <div className="sd-edit-fields">
+            {kind === 'cmo' && (
+              <input
+                className="input input--sm"
+                value={edit.code}
+                onChange={(e) => setEdit({ ...edit, code: e.target.value })}
+                disabled={busy}
+              />
+            )}
             <input
               className="input input--sm"
               value={edit.title}
               onChange={(e) => setEdit({ ...edit, title: e.target.value })}
               disabled={busy}
             />
-            {kind === 'peo' && (
+            {(kind === 'peo' || kind === 'cmo') && (
               <textarea
                 className="input input--sm"
                 rows={3}
@@ -212,18 +245,9 @@ function View({ userEmail }: ViewProps) {
           Generated: {new Date().toLocaleDateString()} &middot; {userEmail}
         </span>
         <div className="sd-toolbar-controls">
-          <label className="sd-check">
-            <input
-              type="checkbox"
-              checked={showArchived}
-              onChange={(e) => setShowArchived(e.target.checked)}
-              disabled={!editMode}
-            />
-            Show archived
-          </label>
           <button
             className={`btn btn--sm ${editMode ? 'btn--primary' : 'btn--ghost'}`}
-            onClick={() => { setEditMode(!editMode); setEdit(null); setShowArchived(false) }}
+            onClick={() => { setEditMode(!editMode); setEdit(null) }}
           >
             {editMode ? 'Done' : 'Edit'}
           </button>
@@ -283,10 +307,7 @@ function View({ userEmail }: ViewProps) {
                     editableListRow(
                       'goal',
                       g,
-                      <>
-                        <em>{g.code.replace(/^SG-/, 'Goal ')}. {g.title};</em>
-                        {g.description && <div className="sd-peo__desc">{g.description}</div>}
-                      </>,
+                      <span className="sd-goal">{g.code.replace(/^SG-/i, 'Goal ')}: {g.description}</span>,
                     ),
                   )}
                   {visibleGoals.length === 0 && <span>No strategic goals.</span>}
@@ -297,7 +318,7 @@ function View({ userEmail }: ViewProps) {
                       'peo',
                       p,
                       <>
-                        <strong>{p.code.replace(/-/, ' ')}: {p.title}</strong>
+                        <span>{p.code.replace(/-/, ' ')}: {p.title}</span>
                         {p.description && <div className="sd-peo__desc">{p.description}</div>}
                       </>,
                     ),
@@ -393,7 +414,7 @@ function View({ userEmail }: ViewProps) {
               <tr>
                 <td className="sd-po-single-section">
                   <div className="sd-po-single-section__head">
-                    SPECIFIC TO A SUB-DISCIPLINE AND A MAJOR <em>(CMO 25 s. 2015)</em>
+                    SPECIFIC TO A SUB-DISCIPLINE AND A MAJOR <em>({cmoRef('CMO 25 s. 2015', cmos)})</em>
                   </div>
                   {visiblePos.filter((p) => { const n = poNumber(p.code); return n >= 10 && n <= 22 }).map((p, i, arr) => {
                     const editingThis = edit && edit.kind === 'po' && edit.id === p.id
@@ -428,7 +449,7 @@ function View({ userEmail }: ViewProps) {
               <tr>
                 <td className="sd-po-single-section">
                   <div className="sd-po-single-section__head">
-                    COMMON TO HORIZONTAL TYPES <em>(CMO 46 s. 2012)</em>
+                    COMMON TO HORIZONTAL TYPES <em>({cmoRef('CMO 46 s. 2012', cmos)})</em>
                   </div>
                   {visiblePos.filter((p) => { const n = poNumber(p.code); return n >= 23 && n <= 25 }).map((p, i, arr) => {
                     const editingThis = edit && edit.kind === 'po' && edit.id === p.id
