@@ -297,9 +297,25 @@ code {
   gap: 10px;
 }
 
-.na-row > input.input {
+.na-row > .combo {
+  position: relative;
   flex: 1;
   min-width: 0;
+}
+
+.combo input.input {
+  width: 100%;
+  padding-right: 26px;
+}
+
+.combo__caret {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: #6b7280;
+  font-size: 12px;
 }
 
 .na-row .na-check {

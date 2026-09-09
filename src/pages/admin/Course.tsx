@@ -260,10 +260,13 @@ export default function Course({ profile }: CourseProps) {
             <label className="field">
               <span>Pre-requisite</span>
               <div className="na-row">
-<input className="input" type="text" list="prereq-options" placeholder="Type or select a prerequisite"
-                  value={activeForm.prereqNA ? '' : activeForm.prereq}
-                  onChange={(e) => setActiveForm({ ...activeForm, prereq: e.target.value })}
-                  disabled={activeForm.prereqNA} />
+<div className="combo">
+                  <input className="input" type="text" list="prereq-options" placeholder="Type or select prerequisite"
+                    value={activeForm.prereqNA ? '' : activeForm.prereq}
+                    onChange={(e) => setActiveForm({ ...activeForm, prereq: e.target.value })}
+                    disabled={activeForm.prereqNA} />
+                  <span className="combo__caret" aria-hidden="true">&#9662;</span>
+                </div>
                 <datalist id="prereq-options">
                   {programCourses.map((c) => (
                     <option key={c.id} value={c.code} />
@@ -280,10 +283,13 @@ export default function Course({ profile }: CourseProps) {
             <label className="field">
               <span>Co-requisite</span>
               <div className="na-row">
-<input className="input" type="text" list="coreq-options" placeholder="Type or select a co-requisite"
-                  value={activeForm.coreqNA ? '' : activeForm.coreq}
-                  onChange={(e) => setActiveForm({ ...activeForm, coreq: e.target.value })}
-                  disabled={activeForm.coreqNA} />
+<div className="combo">
+                  <input className="input" type="text" list="coreq-options" placeholder="Type or select co-requisite"
+                    value={activeForm.coreqNA ? '' : activeForm.coreq}
+                    onChange={(e) => setActiveForm({ ...activeForm, coreq: e.target.value })}
+                    disabled={activeForm.coreqNA} />
+                  <span className="combo__caret" aria-hidden="true">&#9662;</span>
+                </div>
                 <datalist id="coreq-options">
                   {programCourses.map((c) => (
                     <option key={c.id} value={c.code} />
