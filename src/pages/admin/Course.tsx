@@ -265,8 +265,16 @@ export default function Course({ profile }: CourseProps) {
       <input className="input" type="number" min={0} max={3} value={activeForm[key]}
         onChange={(e) => {
           let v = e.target.value
-          if (Number(v) > 3) v = '3'
-          setActiveForm({ ...activeForm, [key]: v })
+          const n = Number(v)
+          if (n > 3) v = '3'
+          if (n < 0) v = '0'
+          setActiveForm((prev) => {
+            const nv = parseInt(v, 10) || 0
+            const other = String(Math.max(0, Math.min(3, 3 - nv)))
+            return key === 'creditLecture'
+              ? { ...prev, creditLecture: v, creditLaboratory: other }
+              : { ...prev, creditLaboratory: v, creditLecture: other }
+          })
         }}
         onWheel={(e) => (e.target as HTMLInputElement).blur()} />
     </label>
