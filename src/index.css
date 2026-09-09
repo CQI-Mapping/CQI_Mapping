@@ -256,6 +256,22 @@ code {
   cursor: pointer;
 }
 
+.na-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.na-row select {
+  flex: 1;
+  min-width: 0;
+}
+
+.na-row .na-check {
+  margin-top: 0;
+  white-space: nowrap;
+}
+
 .msg {
   border-radius: 8px;
   padding: 10px 14px;

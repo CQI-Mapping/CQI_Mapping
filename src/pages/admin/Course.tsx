@@ -267,35 +267,39 @@ export default function Course({ profile }: CourseProps) {
             </label>
             <label className="field">
               <span>Pre-requisite</span>
-              <select className="input" value={activeForm.prereqNA ? '' : activeForm.prereq}
-                onChange={(e) => setActiveForm({ ...activeForm, prereq: e.target.value })}
-                disabled={activeForm.prereqNA}>
-                <option value="">N/A</option>
-                {programCourses.map((c) => (
-                  <option key={c.id} value={c.id}>{courseCodeOf(c)}</option>
-                ))}
-              </select>
-              <label className="na-check">
-                <input type="checkbox" checked={activeForm.prereqNA}
-                  onChange={(e) => setActiveForm({ ...activeForm, prereqNA: e.target.checked, prereq: e.target.checked ? '' : activeForm.prereq })} />
-                N/A
-              </label>
+              <div className="na-row">
+                <select className="input" value={activeForm.prereqNA ? '' : activeForm.prereq}
+                  onChange={(e) => setActiveForm({ ...activeForm, prereq: e.target.value })}
+                  disabled={activeForm.prereqNA}>
+                  <option value="">N/A</option>
+                  {programCourses.map((c) => (
+                    <option key={c.id} value={c.id}>{courseCodeOf(c)}</option>
+                  ))}
+                </select>
+                <label className="na-check">
+                  <input type="checkbox" checked={activeForm.prereqNA}
+                    onChange={(e) => setActiveForm({ ...activeForm, prereqNA: e.target.checked, prereq: e.target.checked ? '' : activeForm.prereq })} />
+                  N/A
+                </label>
+              </div>
             </label>
             <label className="field">
               <span>Co-requisite</span>
-              <select className="input" value={activeForm.coreqNA ? '' : activeForm.coreq}
-                onChange={(e) => setActiveForm({ ...activeForm, coreq: e.target.value })}
-                disabled={activeForm.coreqNA}>
-                <option value="">N/A</option>
-                {programCourses.map((c) => (
-                  <option key={c.id} value={c.id}>{courseCodeOf(c)}</option>
-                ))}
-              </select>
-              <label className="na-check">
-                <input type="checkbox" checked={activeForm.coreqNA}
-                  onChange={(e) => setActiveForm({ ...activeForm, coreqNA: e.target.checked, coreq: e.target.checked ? '' : activeForm.coreq })} />
-                N/A
-              </label>
+              <div className="na-row">
+                <select className="input" value={activeForm.coreqNA ? '' : activeForm.coreq}
+                  onChange={(e) => setActiveForm({ ...activeForm, coreq: e.target.value })}
+                  disabled={activeForm.coreqNA}>
+                  <option value="">N/A</option>
+                  {programCourses.map((c) => (
+                    <option key={c.id} value={c.id}>{courseCodeOf(c)}</option>
+                  ))}
+                </select>
+                <label className="na-check">
+                  <input type="checkbox" checked={activeForm.coreqNA}
+                    onChange={(e) => setActiveForm({ ...activeForm, coreqNA: e.target.checked, coreq: e.target.checked ? '' : activeForm.coreq })} />
+                  N/A
+                </label>
+              </div>
             </label>
             <div className="field">
               <span>Credit</span>
