@@ -297,9 +297,14 @@ code {
   gap: 10px;
 }
 
-.na-row select {
+.na-row > input.input {
   flex: 1;
   min-width: 0;
+}
+
+.na-row select.input {
+  flex: none;
+  width: 130px;
 }
 
 .na-row .na-check {

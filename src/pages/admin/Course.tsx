@@ -98,6 +98,18 @@ export default function Course({ profile }: CourseProps) {
     typeof c.program_id === 'object' ? c.program_id.id === programId : c.program_id === programId,
   )
 
+  const programCourses = visible.filter((c) => c.id !== editId)
+
+  const pickPrereq = (code: string) => {
+    if (!code) return
+    setActiveForm((current: CourseForm) => ({ ...current, prereq: code }))
+  }
+
+  const pickCoreq = (code: string) => {
+    if (!code) return
+    setActiveForm((current: CourseForm) => ({ ...current, coreq: code }))
+  }
+
   const totalCredits = (f: CourseForm) => {
     const lec = parseInt(f.creditLecture, 10) || 0
     const lab = parseInt(f.creditLaboratory, 10) || 0
@@ -123,22 +135,11 @@ export default function Course({ profile }: CourseProps) {
     description: f.description.trim() || null,
   })
 
-  const validateReqs = (f: CourseForm): string | null => {
-    if (!f.prereqNA && !f.prereq) return 'Select a Pre-requisite or check the N/A box.'
-    if (!f.coreqNA && !f.coreq) return 'Select a Co-requisite or check the N/A box.'
-    return null
-  }
-
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!programId) return
     setError('')
     setMessage('')
-    const validationError = validateReqs(form)
-    if (validationError) {
-      setError(validationError)
-      return
-    }
     setBusy(true)
     try {
       await createCourse({ program_id: programId, ...buildPayload(form) })
@@ -175,11 +176,6 @@ export default function Course({ profile }: CourseProps) {
     if (!editId) return
     setError('')
     setMessage('')
-    const validationError = validateReqs(editForm)
-    if (validationError) {
-      setError(validationError)
-      return
-    }
     setBusy(true)
     try {
       await updateCourse(editId, buildPayload(editForm))
@@ -278,6 +274,13 @@ export default function Course({ profile }: CourseProps) {
                   value={activeForm.prereqNA ? '' : activeForm.prereq}
                   onChange={(e) => setActiveForm({ ...activeForm, prereq: e.target.value })}
                   disabled={activeForm.prereqNA} />
+                <select className="input" value="" onChange={(e) => pickPrereq(e.target.value)}
+                  disabled={activeForm.prereqNA}>
+                  <option value="">Pick…</option>
+                  {programCourses.map((c) => (
+                    <option key={c.id} value={c.code}>{c.code}</option>
+                  ))}
+                </select>
                 <label className="na-check">
                   <input type="checkbox" checked={activeForm.prereqNA}
                     onChange={(e) => setActiveForm({ ...activeForm, prereqNA: e.target.checked, prereq: e.target.checked ? '' : activeForm.prereq })} />
@@ -293,6 +296,13 @@ export default function Course({ profile }: CourseProps) {
                   value={activeForm.coreqNA ? '' : activeForm.coreq}
                   onChange={(e) => setActiveForm({ ...activeForm, coreq: e.target.value })}
                   disabled={activeForm.coreqNA} />
+                <select className="input" value="" onChange={(e) => pickCoreq(e.target.value)}
+                  disabled={activeForm.coreqNA}>
+                  <option value="">Pick…</option>
+                  {programCourses.map((c) => (
+                    <option key={c.id} value={c.code}>{c.code}</option>
+                  ))}
+                </select>
                 <label className="na-check">
                   <input type="checkbox" checked={activeForm.coreqNA}
                     onChange={(e) => setActiveForm({ ...activeForm, coreqNA: e.target.checked, coreq: e.target.checked ? '' : activeForm.coreq })} />
