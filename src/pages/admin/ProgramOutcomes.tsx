@@ -97,7 +97,7 @@ export default function ProgramOutcomes() {
       codePlaceholder="e.g. PO-1"
       codeWidth="110px"
       titleLabel="Description"
-      alignments={alignments.slice(0, 2)}
+      alignments={alignments}
       tableAlignments={[alignments[2], alignments[0], alignments[1]]}
       inlineForm
       sort={(a, b) => {
