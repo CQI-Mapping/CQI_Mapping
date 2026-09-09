@@ -245,6 +245,17 @@ code {
   color: var(--text-muted);
 }
 
+.na-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-top: 4px;
+  cursor: pointer;
+}
+
 .msg {
   border-radius: 8px;
   padding: 10px 14px;

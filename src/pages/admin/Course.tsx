@@ -24,7 +24,9 @@ type CourseForm = {
   title: string
   curriculum: string
   prereq: string
+  prereqNA: boolean
   coreq: string
+  coreqNA: boolean
   creditLecture: string
   creditLaboratory: string
   description: string
@@ -35,7 +37,9 @@ const blank: CourseForm = {
   title: '',
   curriculum: '',
   prereq: '',
+  prereqNA: true,
   coreq: '',
+  coreqNA: true,
   creditLecture: '',
   creditLaboratory: '',
   description: '',
@@ -121,8 +125,8 @@ export default function Course({ profile }: CourseProps) {
     code: f.code.trim(),
     title: f.title.trim(),
     curriculum_id: f.curriculum || null,
-    prerequisite_id: f.prereq || null,
-    corequisite_id: f.coreq || null,
+    prerequisite_id: f.prereqNA ? null : (f.prereq || null),
+    corequisite_id: f.coreqNA ? null : (f.coreq || null),
     credit_lecture: parseInt(f.creditLecture, 10) || 0,
     credit_laboratory: parseInt(f.creditLaboratory, 10) || 0,
     units: totalCredits(f),
@@ -157,7 +161,9 @@ export default function Course({ profile }: CourseProps) {
       title: item.title,
       curriculum: relId(item.curriculum_id),
       prereq: relId(item.prerequisite_id),
+      prereqNA: !item.prerequisite_id,
       coreq: relId(item.corequisite_id),
+      coreqNA: !item.corequisite_id,
       creditLecture: String(item.credit_lecture ?? 0),
       creditLaboratory: String(item.credit_laboratory ?? 0),
       description: item.description || '',
@@ -262,32 +268,47 @@ export default function Course({ profile }: CourseProps) {
             <div className="create-resource__row">
               <label className="field">
                 <span>Pre-requisite</span>
-                <select className="input" value={activeForm.prereq}
-                  onChange={(e) => setActiveForm({ ...activeForm, prereq: e.target.value })}>
+                <select className="input" value={activeForm.prereqNA ? '' : activeForm.prereq}
+                  onChange={(e) => setActiveForm({ ...activeForm, prereq: e.target.value })}
+                  disabled={activeForm.prereqNA}>
                   <option value="">N/A</option>
                   {programCourses.map((c) => (
                     <option key={c.id} value={c.id}>{courseCodeOf(c)}</option>
                   ))}
                 </select>
+                <label className="na-check">
+                  <input type="checkbox" checked={activeForm.prereqNA}
+                    onChange={(e) => setActiveForm({ ...activeForm, prereqNA: e.target.checked, prereq: e.target.checked ? '' : activeForm.prereq })} />
+                  N/A
+                </label>
               </label>
               <label className="field">
                 <span>Co-requisite</span>
-                <select className="input" value={activeForm.coreq}
-                  onChange={(e) => setActiveForm({ ...activeForm, coreq: e.target.value })}>
+                <select className="input" value={activeForm.coreqNA ? '' : activeForm.coreq}
+                  onChange={(e) => setActiveForm({ ...activeForm, coreq: e.target.value })}
+                  disabled={activeForm.coreqNA}>
                   <option value="">N/A</option>
                   {programCourses.map((c) => (
                     <option key={c.id} value={c.id}>{courseCodeOf(c)}</option>
                   ))}
                 </select>
+                <label className="na-check">
+                  <input type="checkbox" checked={activeForm.coreqNA}
+                    onChange={(e) => setActiveForm({ ...activeForm, coreqNA: e.target.checked, coreq: e.target.checked ? '' : activeForm.coreq })} />
+                  N/A
+                </label>
               </label>
             </div>
-            <div className="create-resource__row">
-              {creditField('Credit Lecture', 'creditLecture')}
-              {creditField('Credit Laboratory', 'creditLaboratory')}
-              <label className="field">
-                <span>Total</span>
-                <input className="input" type="number" readOnly value={totalCredits(activeForm)} />
-              </label>
+            <div className="field">
+              <span>Credit</span>
+              <div className="create-resource__row">
+                {creditField('Lecture', 'creditLecture')}
+                {creditField('Laboratory', 'creditLaboratory')}
+                <label className="field">
+                  <span>Total</span>
+                  <input className="input" type="number" readOnly value={totalCredits(activeForm)} />
+                </label>
+              </div>
             </div>
             <label className="field">
               <span>Description</span>
