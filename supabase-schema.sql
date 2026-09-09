@@ -3,7 +3,7 @@
 -- =============================================================================
 -- CQI Monitoring System — Full Database Schema
 -- =============================================================================
--- This file defines all tables, triggers, RLS policies, and seed data for the
+-- This file defines all tables, triggers, and RLS policies for the
 -- CQI (Continuous Quality Improvement) Mapping application.
 --
 -- Tables:
@@ -127,12 +127,27 @@ CREATE TABLE public.strategic_goals (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- CHED MEMORANDUM ORDERS (created before admin_program_outcomes so the
+-- Program Outcome -> CMO link can be declared inline below).
+CREATE TABLE public.ched_memorandum_orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code TEXT UNIQUE NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- PROGRAM OUTCOMES (standalone admin list)
+-- cmo_id: optional link to a CHED Memorandum Order, set when the outcome's
+-- alignment references a CMO that exists.
 CREATE TABLE public.admin_program_outcomes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code TEXT UNIQUE NOT NULL,
     title TEXT NOT NULL,
     description TEXT,
+    cmo_id UUID REFERENCES public.ched_memorandum_orders(id) ON DELETE SET NULL,
     status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -165,22 +180,6 @@ CREATE TABLE public.admin_course_learning_outcomes (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-
--- CHED MEMORANDUM ORDERS
-CREATE TABLE public.ched_memorandum_orders (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    code TEXT UNIQUE NOT NULL,
-    title TEXT NOT NULL,
-    description TEXT,
-    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
--- Program Outcome -> CHED Memorandum Order link (nullable; set when the
--- outcome's alignment references a CMO that exists).
-ALTER TABLE public.admin_program_outcomes
-    ADD COLUMN IF NOT EXISTS cmo_id UUID REFERENCES public.ched_memorandum_orders(id) ON DELETE SET NULL;
 
 -- CLO/PO matrix: strength (1-3) of each course learning outcome's
 -- contribution to each program outcome of the same program. One row per
