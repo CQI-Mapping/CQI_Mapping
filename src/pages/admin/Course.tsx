@@ -3,7 +3,7 @@
 // reference a prerequisite and corequisite from the same program, and credits
 // are split into lecture + laboratory (total is computed automatically).
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   fetchPrograms,
   fetchResources,
@@ -47,6 +47,62 @@ const blank: CourseForm = {
 
 const relId = (v: string | { id: string } | null | undefined) =>
   v && typeof v === 'object' ? v.id : (v || '')
+
+interface ComboInputProps {
+  value: string
+  onChange: (value: string) => void
+  options: string[]
+  placeholder: string
+  disabled?: boolean
+}
+
+function ComboInput({ value, onChange, options, placeholder, disabled }: ComboInputProps) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const uniqueOptions = Array.from(new Set(options))
+  const visibleOptions = query
+    ? uniqueOptions.filter((o) => o.toLowerCase().includes(query.toLowerCase()))
+    : uniqueOptions
+
+  return (
+    <div className="combo" ref={ref}>
+      <input
+        className="input"
+        type="text"
+        placeholder={placeholder}
+        value={disabled ? '' : value}
+        disabled={disabled}
+        onChange={(e) => { onChange(e.target.value); setQuery(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+      />
+      <button type="button" className="combo__caret" tabIndex={-1} disabled={disabled}
+        aria-label="Toggle options" onClick={() => setOpen((v) => !v)}>
+        &#9662;
+      </button>
+      {open && !disabled && (
+        <div className="combo__list">
+          {visibleOptions.length === 0 && <div className="combo__empty">No matches</div>}
+          {visibleOptions.map((o) => (
+            <button type="button" key={o} className="combo__item"
+              onMouseDown={(e) => { e.preventDefault(); onChange(o); setOpen(false) }}>
+              {o}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function Course({ profile }: CourseProps) {
   const [programs, setPrograms] = useState<Program[]>([])
@@ -260,18 +316,13 @@ export default function Course({ profile }: CourseProps) {
             <label className="field">
               <span>Pre-requisite</span>
               <div className="na-row">
-<div className="combo">
-                  <input className="input" type="text" list="prereq-options" placeholder="Type or select prerequisite"
-                    value={activeForm.prereqNA ? '' : activeForm.prereq}
-                    onChange={(e) => setActiveForm({ ...activeForm, prereq: e.target.value })}
-                    disabled={activeForm.prereqNA} />
-                  <span className="combo__caret" aria-hidden="true">&#9662;</span>
-                </div>
-                <datalist id="prereq-options">
-                  {programCourses.map((c) => (
-                    <option key={c.id} value={c.code} />
-                  ))}
-                </datalist>
+<ComboInput
+                  value={activeForm.prereq}
+                  onChange={(v) => setActiveForm({ ...activeForm, prereq: v })}
+                  options={programCourses.map((c) => c.code)}
+                  placeholder="Type or select prerequisite"
+                  disabled={activeForm.prereqNA}
+                />
                 <label className="na-check">
                   <input type="checkbox" checked={activeForm.prereqNA}
                     onChange={(e) => setActiveForm({ ...activeForm, prereqNA: e.target.checked, prereq: e.target.checked ? '' : activeForm.prereq })} />
@@ -283,18 +334,13 @@ export default function Course({ profile }: CourseProps) {
             <label className="field">
               <span>Co-requisite</span>
               <div className="na-row">
-<div className="combo">
-                  <input className="input" type="text" list="coreq-options" placeholder="Type or select co-requisite"
-                    value={activeForm.coreqNA ? '' : activeForm.coreq}
-                    onChange={(e) => setActiveForm({ ...activeForm, coreq: e.target.value })}
-                    disabled={activeForm.coreqNA} />
-                  <span className="combo__caret" aria-hidden="true">&#9662;</span>
-                </div>
-                <datalist id="coreq-options">
-                  {programCourses.map((c) => (
-                    <option key={c.id} value={c.code} />
-                  ))}
-                </datalist>
+<ComboInput
+                  value={activeForm.coreq}
+                  onChange={(v) => setActiveForm({ ...activeForm, coreq: v })}
+                  options={programCourses.map((c) => c.code)}
+                  placeholder="Type or select co-requisite"
+                  disabled={activeForm.coreqNA}
+                />
                 <label className="na-check">
                   <input type="checkbox" checked={activeForm.coreqNA}
                     onChange={(e) => setActiveForm({ ...activeForm, coreqNA: e.target.checked, coreq: e.target.checked ? '' : activeForm.coreq })} />
