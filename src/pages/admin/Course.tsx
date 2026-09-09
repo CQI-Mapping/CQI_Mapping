@@ -24,7 +24,9 @@ type CourseForm = {
   title: string
   curriculum: string
   prereq: string
+  prereqNA: boolean
   coreq: string
+  coreqNA: boolean
   creditLecture: string
   creditLaboratory: string
   description: string
@@ -35,7 +37,9 @@ const blank: CourseForm = {
   title: '',
   curriculum: '',
   prereq: '',
+  prereqNA: false,
   coreq: '',
+  coreqNA: false,
   creditLecture: '',
   creditLaboratory: '',
   description: '',
@@ -94,8 +98,6 @@ export default function Course({ profile }: CourseProps) {
     typeof c.program_id === 'object' ? c.program_id.id === programId : c.program_id === programId,
   )
 
-  const programCourses = visible.filter((c) => c.id !== editId)
-
   const totalCredits = (f: CourseForm) => {
     const lec = parseInt(f.creditLecture, 10) || 0
     const lab = parseInt(f.creditLaboratory, 10) || 0
@@ -113,8 +115,8 @@ export default function Course({ profile }: CourseProps) {
     code: f.code.trim(),
     title: f.title.trim(),
     curriculum_id: f.curriculum || null,
-    prerequisite: f.prereq,
-    corequisite: f.coreq,
+    prerequisite: f.prereqNA ? '' : f.prereq.trim(),
+    corequisite: f.coreqNA ? '' : f.coreq.trim(),
     credit_lecture: parseInt(f.creditLecture, 10) || 0,
     credit_laboratory: parseInt(f.creditLaboratory, 10) || 0,
     units: totalCredits(f),
@@ -149,7 +151,9 @@ export default function Course({ profile }: CourseProps) {
       title: item.title,
       curriculum: relId(item.curriculum_id),
       prereq: item.prerequisite || '',
+      prereqNA: !item.prerequisite,
       coreq: item.corequisite || '',
+      coreqNA: !item.corequisite,
       creditLecture: String(item.credit_lecture ?? 0),
       creditLaboratory: String(item.credit_laboratory ?? 0),
       description: item.description || '',
@@ -253,23 +257,33 @@ export default function Course({ profile }: CourseProps) {
             </label>
             <label className="field">
               <span>Pre-requisite</span>
-              <select className="input" value={activeForm.prereq}
-                onChange={(e) => setActiveForm({ ...activeForm, prereq: e.target.value })}>
-                <option value="">N/A</option>
-                {programCourses.map((c) => (
-                  <option key={c.id} value={c.code}>{c.code}</option>
-                ))}
-              </select>
+              <div className="na-row">
+<input className="input" type="text" placeholder="e.g. IT12"
+                  value={activeForm.prereqNA ? '' : activeForm.prereq}
+                  onChange={(e) => setActiveForm({ ...activeForm, prereq: e.target.value })}
+                  disabled={activeForm.prereqNA} />
+                <label className="na-check">
+                  <input type="checkbox" checked={activeForm.prereqNA}
+                    onChange={(e) => setActiveForm({ ...activeForm, prereqNA: e.target.checked, prereq: e.target.checked ? '' : activeForm.prereq })} />
+                  <span className="cb-box" aria-hidden="true" />
+                  N/A
+                </label>
+              </div>
             </label>
             <label className="field">
               <span>Co-requisite</span>
-              <select className="input" value={activeForm.coreq}
-                onChange={(e) => setActiveForm({ ...activeForm, coreq: e.target.value })}>
-                <option value="">N/A</option>
-                {programCourses.map((c) => (
-                  <option key={c.id} value={c.code}>{c.code}</option>
-                ))}
-              </select>
+              <div className="na-row">
+<input className="input" type="text" placeholder="e.g. IT13"
+                  value={activeForm.coreqNA ? '' : activeForm.coreq}
+                  onChange={(e) => setActiveForm({ ...activeForm, coreq: e.target.value })}
+                  disabled={activeForm.coreqNA} />
+                <label className="na-check">
+                  <input type="checkbox" checked={activeForm.coreqNA}
+                    onChange={(e) => setActiveForm({ ...activeForm, coreqNA: e.target.checked, coreq: e.target.checked ? '' : activeForm.coreq })} />
+                  <span className="cb-box" aria-hidden="true" />
+                  N/A
+                </label>
+              </div>
             </label>
             <div className="field">
               <span>Credit</span>
