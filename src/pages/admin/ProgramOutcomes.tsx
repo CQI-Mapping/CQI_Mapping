@@ -65,7 +65,7 @@ export default function ProgramOutcomes() {
   if (loading) return <p>Loading program outcomes...</p>
 
   const alignments: AlignmentField[] = [
-    { label: 'Program Educational Objectives', relationField: 'peo_text', options: [], type: 'text', placeholder: 'Enter PEO' },
+    { label: 'Program Educational Objectives Alignment', relationField: 'peo_text', options: [], type: 'text', placeholder: 'Enter PEO' },
     { label: 'Strategic Goals', relationField: 'sg_id', options: sgOptions },
     { label: 'CMO Alignment', relationField: 'cmo_id', textField: 'description', options: cmoOptions },
   ]
