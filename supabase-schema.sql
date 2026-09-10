@@ -172,6 +172,7 @@ CREATE TABLE public.admin_program_outcomes (
     peo_id UUID REFERENCES public.program_educational_objectives(id) ON DELETE SET NULL,
     peo_text TEXT,
     sg_id UUID REFERENCES public.strategic_goals(id) ON DELETE SET NULL,
+    sg_text TEXT,
     status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()

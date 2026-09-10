@@ -6,7 +6,6 @@ import {
   updateProgramOutcomeStandalone,
   deleteProgramOutcomeStandalone,
   fetchChedMemoOrders,
-  fetchStrategicGoals,
 } from '../../services/database'
 import type { ProgramOutcomeStandalone } from '../../services/database'
 
@@ -18,7 +17,6 @@ const FIXED_OPTIONS = [
 
 export default function ProgramOutcomes() {
   const [cmoOptions, setCmoOptions] = useState<AlignmentOption[]>([])
-  const [sgOptions, setSgOptions] = useState<AlignmentOption[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -37,18 +35,8 @@ export default function ProgramOutcomes() {
           cmo_id: c.id,
         }))
 
-        const referencedSgs = new Set(pos.map((p) => (p as { sg_id?: string | null }).sg_id).filter(Boolean) as string[])
-        const sgs = (await fetchStrategicGoals()).filter(
-          (s) => s.status === 'active' || referencedSgs.has(s.id),
-        )
-        const sgOpts: AlignmentOption[] = sgs.map((s) => ({
-          value: `${s.code} \u2014 ${s.title || s.description || ''}`.replace(/ \u2014 $/, ''),
-          relationId: s.id,
-        }))
-
         if (!cancelled) {
           setCmoOptions([...fixedOptions, ...cmoOpts])
-          setSgOptions(sgOpts)
           setLoading(false)
         }
       } catch (e) {
@@ -66,7 +54,7 @@ export default function ProgramOutcomes() {
 
   const alignments: AlignmentField[] = [
     { label: 'Program Educational Objectives Alignment', relationField: 'peo_text', options: [], type: 'text', placeholder: 'Enter PEO' },
-    { label: 'Strategic Goals', relationField: 'sg_id', options: sgOptions },
+    { label: 'Strategic Goals', relationField: 'sg_text', options: [], type: 'text', placeholder: 'Enter Strategic Goals' },
     { label: 'CMO Alignment', relationField: 'cmo_id', textField: 'description', options: cmoOptions },
   ]
 
