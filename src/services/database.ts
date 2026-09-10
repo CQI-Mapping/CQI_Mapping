@@ -550,6 +550,7 @@ export interface ProgramOutcomeStandalone {
   description: string | null
   cmo_id: string | null
   peo_id: string | null
+  peo_text: string | null
   sg_id: string | null
   status: string
   created_at: string

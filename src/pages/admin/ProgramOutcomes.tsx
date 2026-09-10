@@ -6,7 +6,6 @@ import {
   updateProgramOutcomeStandalone,
   deleteProgramOutcomeStandalone,
   fetchChedMemoOrders,
-  fetchProgramEducationalObjectives,
   fetchStrategicGoals,
 } from '../../services/database'
 import type { ProgramOutcomeStandalone } from '../../services/database'
@@ -19,7 +18,6 @@ const FIXED_OPTIONS = [
 
 export default function ProgramOutcomes() {
   const [cmoOptions, setCmoOptions] = useState<AlignmentOption[]>([])
-  const [peoOptions, setPeoOptions] = useState<AlignmentOption[]>([])
   const [sgOptions, setSgOptions] = useState<AlignmentOption[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -39,15 +37,6 @@ export default function ProgramOutcomes() {
           cmo_id: c.id,
         }))
 
-        const referencedPeos = new Set(pos.map((p) => p.peo_id).filter(Boolean) as string[])
-        const peos = (await fetchProgramEducationalObjectives()).filter(
-          (p) => p.status === 'active' || referencedPeos.has(p.id),
-        )
-        const peoOpts: AlignmentOption[] = peos.map((p) => ({
-          value: `${p.code} \u2014 ${p.title}`,
-          relationId: p.id,
-        }))
-
         const referencedSgs = new Set(pos.map((p) => (p as { sg_id?: string | null }).sg_id).filter(Boolean) as string[])
         const sgs = (await fetchStrategicGoals()).filter(
           (s) => s.status === 'active' || referencedSgs.has(s.id),
@@ -59,7 +48,6 @@ export default function ProgramOutcomes() {
 
         if (!cancelled) {
           setCmoOptions([...fixedOptions, ...cmoOpts])
-          setPeoOptions(peoOpts)
           setSgOptions(sgOpts)
           setLoading(false)
         }
@@ -77,7 +65,7 @@ export default function ProgramOutcomes() {
   if (loading) return <p>Loading program outcomes...</p>
 
   const alignments: AlignmentField[] = [
-    { label: 'Program Educational Objectives', relationField: 'peo_id', options: peoOptions },
+    { label: 'Program Educational Objectives', relationField: 'peo_text', options: [], type: 'text', placeholder: 'Enter PEO' },
     { label: 'Strategic Goals', relationField: 'sg_id', options: sgOptions },
     { label: 'CMO Alignment', relationField: 'cmo_id', textField: 'description', options: cmoOptions },
   ]

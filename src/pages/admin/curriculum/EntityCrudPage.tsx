@@ -22,6 +22,8 @@ export interface AlignmentField {
   // If set, the chosen option's `value` is also persisted here
   // (e.g. CMO alignment text stored in the `description` column).
   textField?: string
+  type?: 'select' | 'text'
+  placeholder?: string
 }
 
 interface EntityCrudPageProps<T extends { id: string }> {
@@ -130,6 +132,11 @@ alignments,
     }
     for (const a of allAlignments) {
       const val = (f.align[a.relationField] || '').trim()
+      if (a.type === 'text') {
+        base[a.relationField] = val || null
+        if (a.textField) base[a.textField] = val || null
+        continue
+      }
       const opt = a.options.find((o) => o.value === val)
       if (a.textField) base[a.textField] = opt ? opt.value : null
       base[a.relationField] = opt ? optionId(opt) : null
@@ -146,6 +153,10 @@ alignments,
     setEditingId(item.id)
     const align: Record<string, string> = {}
     for (const a of allAlignments) {
+      if (a.type === 'text') {
+        align[a.relationField] = ((item as Record<string, unknown>)[a.relationField] as string | undefined) || ''
+        continue
+      }
       if (a.textField) {
         align[a.relationField] = ((item as Record<string, unknown>)[a.textField] as string | undefined) || ''
       } else {
@@ -169,19 +180,33 @@ alignments,
   const titleOf = (i: T) => ((i as Record<string, unknown>)[titleField] as string | undefined) || ''
   const descOf = (i: T) => (i as { description?: string }).description
   const alignLabelOf = (item: T, field: AlignmentField) => {
+    if (field.type === 'text') return ((item as Record<string, unknown>)[field.relationField] as string | undefined) || '—'
     if (field.textField) return ((item as Record<string, unknown>)[field.textField] as string | undefined) || '—'
     const relVal = (item as Record<string, unknown>)[field.relationField] as string | null
     return field.options.find((o) => optionId(o) === relVal)?.value || '—'
   }
 
-  const alignmentSelect = (field: AlignmentField, value: string, onChange: (v: string) => void) => (
-    <select className="input input--sm" value={value} onChange={(e) => onChange(e.target.value)}>
-      <option value="">None</option>
-      {field.options.map((o) => (
-        <option key={o.value} value={o.value}>{o.value}</option>
-      ))}
-    </select>
-  )
+  const alignmentSelect = (field: AlignmentField, value: string, onChange: (v: string) => void) => {
+    if (field.type === 'text') {
+      return (
+        <input
+          className="input input--sm"
+          type="text"
+          placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      )
+    }
+    return (
+      <select className="input input--sm" value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">None</option>
+        {field.options.map((o) => (
+          <option key={o.value} value={o.value}>{o.value}</option>
+        ))}
+      </select>
+    )
+  }
 
   return (
     <div className="curriculum-view">
