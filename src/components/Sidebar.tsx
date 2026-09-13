@@ -1,7 +1,6 @@
 // Sidebar: the left navigation shell. 2026 premium floating-glass design —
 // detached card, backdrop blur, command search, glowing active states.
 
-import { useState, useMemo } from 'react'
 import '../styles/Sidebar.css'
 import type { NavItem, UserRole } from '../services/database'
 
@@ -128,16 +127,6 @@ function MenuIcon(props: React.SVGProps<SVGSVGElement>) {
   )
 }
 
-function SearchIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-      strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <circle cx="11" cy="11" r="7" />
-      <path d="M20 20L16.5 16.5" />
-    </svg>
-  )
-}
-
 // Map of nav item id -> icon component (fallback: DashboardIcon).
 const ICONS: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>>> = {
   dashboard: DashboardIcon,
@@ -162,14 +151,6 @@ function initialsOf(role: string): string {
 }
 
 function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onToggle }: SidebarProps) {
-  const [query, setQuery] = useState('')
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return navItems
-    return navItems.filter(({ label }) => label.toLowerCase().includes(q))
-  }, [navItems, query])
-
   return (
     <aside className={`sidebar ${!isOpen ? 'sidebar--collapsed' : ''}`}>
       {/* Ambient glow decoration */}
@@ -198,44 +179,26 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
         </div>
       </div>
 
-      {/* Command search */}
-      <div className="sidebar__search">
-        <SearchIcon className="sidebar__search-icon" />
-        <input
-          className="sidebar__search-input"
-          type="text"
-          placeholder="Search…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          aria-label="Search navigation"
-        />
-        <span className="sidebar__search-kbd">⌘K</span>
-      </div>
-
       {/* Role-filtered navigation (navItems comes from App.tsx) */}
       <nav className="sidebar__nav" aria-label="Main navigation">
-        {filtered.length === 0 ? (
-          <span className="sidebar__empty">No matches</span>
-        ) : (
-          filtered.map(({ id, label }) => {
-            const Icon = ICONS[id] ?? DashboardIcon
-            const isActive = activePage === id
-            return (
-              <button
-                key={id}
-                type="button"
-                className={`sidebar__nav-item ${isActive ? 'sidebar__nav-item--active' : ''}`}
-                onClick={() => onNavigate(id)}
-                aria-current={isActive ? 'page' : undefined}
-                title={label}
-              >
-                <span className="sidebar__nav-item-indicator" aria-hidden />
-                <Icon className="sidebar__nav-icon" />
-                <span>{label}</span>
-              </button>
-            )
-          })
-        )}
+        {navItems.map(({ id, label }) => {
+          const Icon = ICONS[id] ?? DashboardIcon
+          const isActive = activePage === id
+          return (
+            <button
+              key={id}
+              type="button"
+              className={`sidebar__nav-item ${isActive ? 'sidebar__nav-item--active' : ''}`}
+              onClick={() => onNavigate(id)}
+              aria-current={isActive ? 'page' : undefined}
+              title={label}
+            >
+              <span className="sidebar__nav-item-indicator" aria-hidden />
+              <Icon className="sidebar__nav-icon" />
+              <span>{label}</span>
+            </button>
+          )
+        })}
       </nav>
 
       {/* Signed-in user's role + logout */}
