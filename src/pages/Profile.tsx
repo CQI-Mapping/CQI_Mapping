@@ -25,7 +25,7 @@ function Profile({ profile, onSaved }: ProfileProps) {
     setSaving(true)
     try {
       const updated = await updateProfile(profile!.id, { full_name: fullName.trim() })
-      await addActivityLog(profile!.email, 'profile.updated')
+      await addActivityLog('profile.updated')
       onSaved(updated)
       setMessage('Profile saved.')
     } catch (err) {

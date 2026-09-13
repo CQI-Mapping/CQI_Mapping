@@ -76,26 +76,23 @@ function Dashboard({ profile }: DashboardProps) {
           <span className="stat-card__sub">Controls what you can do in this app</span>
         </div>
 
-        {stats.length === 0
-          ? Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="stat-card stat-card--2026 stat-card--skeleton">
-                <div className="stat-card__icon stat-card__icon--skeleton" />
-                <span className="stat-card__label">Loading…</span>
-                <span className="stat-card__value">—</span>
-                <span className="stat-card__sub">Fetching data</span>
-              </div>
-            ))
-          : stats.map((s) => (
-              <div className="stat-card stat-card--2026" key={s.label}>
-                <div className="stat-card__accent" style={{ background: s.accent }} />
-                <div className="stat-card__icon" style={{ background: s.accent }}>
-                  <StatIcon type={s.icon} />
-                </div>
-                <span className="stat-card__label">{s.label}</span>
-                <span className="stat-card__value">{s.value ?? '…'}</span>
-                <span className="stat-card__sub">{s.sub}</span>
-              </div>
-            ))}
+        {stats.map((s) => (
+          <div className="stat-card" key={s.label}>
+            <span className="stat-card__label">{s.label}</span>
+            <span className="stat-card__value">{s.value ?? '...'}</span>
+            <span className="stat-card__sub">{s.sub}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="panel">
+        <h3>What can you do here?</h3>
+        <ul className="role-list">
+          <li><strong>Users &amp; Accounts</strong> — manage accounts and roles, create or delete users.</li>
+          <li><strong>Program Educational Objectives / Program Outcomes / Course Learning Outcomes</strong> — full CRUD on the outcome reference lists.</li>
+          <li><strong>Strategic Goals &amp; CHED Memorandum Orders</strong> — maintain institutional goals and CHED issuances.</li>
+          <li><strong>Activity Logs</strong> — see a server-stamped record of actions taken in the system.</li>
+        </ul>
       </div>
     </div>
   )
