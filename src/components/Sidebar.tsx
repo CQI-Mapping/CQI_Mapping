@@ -175,7 +175,6 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
         </div>
         <div className="sidebar__brand-text">
           <span className="sidebar__brand-title">CQI Monitoring</span>
-          <span className="sidebar__brand-sub">Curriculum Quality System</span>
         </div>
       </div>
 
