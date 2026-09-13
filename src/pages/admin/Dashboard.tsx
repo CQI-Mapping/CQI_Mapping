@@ -125,30 +125,11 @@ function Dashboard({ profile }: DashboardProps) {
             <div className="hero-modern__identity">
               <div className="hero-modern__intro">
                 <h1 className="hero-modern__name">Welcome back, {profile?.full_name || profile?.email}</h1>
-                <p className="hero-modern__role">
-                  <span className="hero-modern__role-dot" aria-hidden />
-                  <span>Full system access</span>
-                </p>
+               
               </div>
             </div>
 
-            <div className="hero-modern__stats" role="region" aria-label="System statistics">
-              <div className="hero-modern__stat">
-                <AnimatedNumber value={totalRecords} />
-                <span className="hero-modern__stat-label">Total Records</span>
-              </div>
-              <div className="hero-modern__stat-sep" aria-hidden />
-              <div className="hero-modern__stat">
-                <AnimatedNumber value={stats.length} />
-                <span className="hero-modern__stat-label">Categories</span>
-              </div>
-              <div className="hero-modern__stat-sep" aria-hidden />
-              <div className="hero-modern__stat">
-                <span className="hero-modern__val hero-modern__val--active">Active</span>
-                <span className="hero-modern__stat-label">System Status</span>
-              </div>
-            </div>
-          </div>
+        </div>
 
         </div>
       </section>
