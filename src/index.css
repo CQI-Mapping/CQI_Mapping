@@ -80,6 +80,7 @@ code {
 
 .app-layout {
   display: flex;
+  flex-direction: column;
   min-height: 100vh;
 }
 
@@ -92,29 +93,7 @@ code {
 }
 
 .topbar {
-  height: 60px;
-  background: var(--bg-panel);
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 24px;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-.topbar__title {
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.topbar__user {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 14px;
-  color: var(--text-muted);
+  display: none;
 }
 
 .content-area {
