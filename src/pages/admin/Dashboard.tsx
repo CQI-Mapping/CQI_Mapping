@@ -96,7 +96,6 @@ function Dashboard({ profile }: DashboardProps) {
             </p>
             <span className="dashboard-hero__sub">Monitor curriculum health and system activity at a glance</span>
           </div>
-          <span className="role-badge role-badge--admin dashboard-hero__badge">admin</span>
         </div>
       </div>
 
