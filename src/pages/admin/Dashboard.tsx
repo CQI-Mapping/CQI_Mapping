@@ -119,15 +119,10 @@ function Dashboard({ profile }: DashboardProps) {
                 {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
               </time>
             </div>
-            <span className="role-badge role-badge--admin hero-modern__badge">Admin</span>
           </header>
 
           <div className="hero-modern__main" id="hero-title">
             <div className="hero-modern__identity">
-              <div className="hero-modern__avatar-wrap">
-                <div className="hero-modern__avatar-ring" aria-hidden />
-                <div className="hero-modern__avatar">{getInitials(profile?.full_name || profile?.email, 'AU')}</div>
-              </div>
               <div className="hero-modern__intro">
                 <h1 className="hero-modern__name">Welcome back, {profile?.full_name || profile?.email}</h1>
                 <p className="hero-modern__role">
