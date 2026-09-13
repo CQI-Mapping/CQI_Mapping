@@ -57,46 +57,98 @@ function initialsOf(role: string): string {
   return role.split(/[\s-]+/).map((w) => w[0] ?? '').filter(Boolean).slice(0, 2).join('').toUpperCase()
 }
 
-// Academic-related IDs that get grouped under "Academics"
+// Academic-related IDs that get grouped under "Academics" — Awwwards-style mega menu
 const ACADEMICS_IDS = new Set([
   'program', 'ched-memo', 'strategic-goals', 'peos',
   'program-outcomes', 'curriculum', 'course', 'clo',
 ])
 
+const ACADEMICS_META: Record<string, { desc: string }> = {
+  program: { desc: 'Degree programs & offerings' },
+  'ched-memo': { desc: 'CHED memorandums & policies' },
+  'strategic-goals': { desc: 'Institutional alignment' },
+  peos: { desc: 'Graduate attributes & PEOs' },
+  'program-outcomes': { desc: 'PO-1 → PO-27 mapping' },
+  curriculum: { desc: 'Curriculum structure & maps' },
+  course: { desc: 'Course catalog & details' },
+  clo: { desc: 'Course learning outcomes' },
+}
+
 function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onToggle }: SidebarProps) {
   const [ddOpen, setDdOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
   const ddRef = useRef<HTMLDivElement>(null)
+  const profileRef = useRef<HTMLDivElement>(null)
   const navRef = useRef<HTMLDivElement>(null)
+  const leaveTimer = useRef<number | null>(null)
 
-  // Separate dashboard, academics, and other items
+  // Separate dashboard, academics, and other items — profile is handled in avatar dropdown (Awwwards-style)
   const academics = navItems.filter((n) => ACADEMICS_IDS.has(n.id))
   const hasAcademics = academics.length > 2
   const dashboardItem = navItems.find((n) => n.id === 'dashboard')
   const otherItems = hasAcademics
-    ? navItems.filter((n) => n.id !== 'dashboard' && !ACADEMICS_IDS.has(n.id))
-    : navItems.filter((n) => n.id !== 'dashboard')
+    ? navItems.filter((n) => n.id !== 'dashboard' && !ACADEMICS_IDS.has(n.id) && n.id !== 'profile')
+    : navItems.filter((n) => n.id !== 'dashboard' && n.id !== 'profile')
 
   const isAcademicsActive = academics.some((n) => n.id === activePage)
 
-  // Close dropdown on outside click
-  useEffect(() => {
-    if (!ddOpen) return
-    const handler = (e: MouseEvent) => {
-      if (ddRef.current && !ddRef.current.contains(e.target as Node)) setDdOpen(false)
+  // Hover helpers — delayed close so you can move from button to menu without it vanishing
+  const handleDdEnter = useCallback(() => {
+    if (window.innerWidth <= 1024) return
+    if (leaveTimer.current) {
+      window.clearTimeout(leaveTimer.current)
+      leaveTimer.current = null
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [ddOpen])
+    setDdOpen(true)
+    setProfileOpen(false)
+  }, [])
+  const handleDdLeave = useCallback(() => {
+    if (window.innerWidth <= 1024) return
+    if (leaveTimer.current) window.clearTimeout(leaveTimer.current)
+    leaveTimer.current = window.setTimeout(() => setDdOpen(false), 140)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (leaveTimer.current) window.clearTimeout(leaveTimer.current)
+    }
+  }, [])
+
+  // Close dropdowns on outside click + Esc (Awwwards-style)
+  useEffect(() => {
+    if (!ddOpen && !profileOpen) return
+    const onDown = (e: MouseEvent) => {
+      const target = e.target as Node
+      if (ddOpen && ddRef.current && !ddRef.current.contains(target)) setDdOpen(false)
+      if (profileOpen && profileRef.current && !profileRef.current.contains(target)) setProfileOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setDdOpen(false)
+        setProfileOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [ddOpen, profileOpen])
 
   // Close everything on navigate
   const navigate = useCallback((id: string) => {
     onNavigate(id)
     setDdOpen(false)
+    setProfileOpen(false)
     if (window.innerWidth <= 1024 && isOpen) onToggle()
   }, [onNavigate, isOpen, onToggle])
 
   // Close dropdown when nav changes
-  useEffect(() => { setDdOpen(false) }, [activePage])
+  useEffect(() => {
+    setDdOpen(false)
+    setProfileOpen(false)
+  }, [activePage])
 
   return (
     <>
@@ -134,34 +186,60 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
             )}
 
             {hasAcademics && (
-              <div className="hdr__dd" ref={ddRef}>
+              <div
+                className="hdr__dd"
+                ref={ddRef}
+                onMouseEnter={handleDdEnter}
+                onMouseLeave={handleDdLeave}
+              >
                 <button
                   type="button"
-                  className={`hdr__item ${isAcademicsActive ? 'hdr__item--active' : ''}`}
-                  onClick={() => setDdOpen((v) => !v)}
+                  className={`hdr__item hdr__item--academics ${isAcademicsActive ? 'hdr__item--active' : ''}`}
+                  onClick={() => {
+                    setDdOpen((v) => !v)
+                    setProfileOpen(false)
+                  }}
                   aria-expanded={ddOpen}
+                  aria-haspopup="menu"
                 >
                   <Icon d={ICONS.curriculum} className="hdr__icon" />
                   <span>Academics</span>
-                  <svg className={`hdr__chevron ${ddOpen ? 'hdr__chevron--open' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg className={`hdr__chevron ${ddOpen ? 'hdr__chevron--open' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M6 9l6 6 6-6" />
                   </svg>
                 </button>
                 {ddOpen && (
-                  <div className="hdr__dd-menu" role="menu">
-                    {academics.map(({ id, label }) => (
-                      <button
-                        key={id}
-                        type="button"
-                        role="menuitem"
-                        className={`hdr__dd-item ${activePage === id ? 'hdr__dd-item--active' : ''}`}
-                        onClick={() => navigate(id)}
-                      >
-                        <Icon d={ICONS[id] || ICONS.dashboard} className="hdr__dd-icon" />
-                        <span>{label}</span>
-                      </button>
-                    ))}
-                  </div>
+                  <>
+                    <button type="button" className="hdr__dd-overlay" onClick={() => setDdOpen(false)} aria-label="Close academics menu" tabIndex={-1} />
+                    <div className="hdr__dd-menu" role="menu">
+                      <div className="hdr__dd-grid" role="none">
+                        {academics.map(({ id, label }) => (
+                          <button
+                            key={id}
+                            type="button"
+                            role="menuitem"
+                            className={`hdr__dd-item ${activePage === id ? 'hdr__dd-item--active' : ''}`}
+                            onClick={() => navigate(id)}
+                          >
+                            <span className="hdr__dd-iconWrap">
+                              <Icon d={ICONS[id] || ICONS.dashboard} className="hdr__dd-icon" />
+                            </span>
+                            <span className="hdr__dd-text">
+                              <span className="hdr__dd-label">{label}</span>
+                              <span className="hdr__dd-desc">{ACADEMICS_META[id]?.desc ?? ''}</span>
+                            </span>
+                            <svg className="hdr__dd-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <path d="M9 18l6-6-6-6" />
+                            </svg>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="hdr__dd-foot">
+                        <span>Quick access to all academic records</span>
+                        <span className="hdr__dd-foot-hint">Press Esc to close</span>
+                      </div>
+                    </div>
+                  </>
                 )}
               </div>
             )}
@@ -191,17 +269,66 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
             ))}
           </nav>
 
-          {/* User + Logout */}
+          {/* Profile — Awwwards-style avatar dropdown (logout lives inside) */}
           <div className="hdr__right">
-            <div className="hdr__user">
-              <div className="hdr__avatar">{initialsOf(role)}</div>
-              <span className="hdr__role">{role}</span>
-              <span className="hdr__dot" />
+            <div className="hdr__profile" ref={profileRef}>
+              <button
+                type="button"
+                className={`hdr__profileBtn ${profileOpen ? 'hdr__profileBtn--open' : ''} ${activePage === 'profile' ? 'hdr__profileBtn--active' : ''}`}
+                onClick={() => {
+                  setProfileOpen((v) => !v)
+                  if (!profileOpen) setDdOpen(false)
+                }}
+                aria-expanded={profileOpen}
+                aria-haspopup="menu"
+                aria-label="Profile menu"
+              >
+                <div className="hdr__avatar">{initialsOf(role)}</div>
+                <span className="hdr__role">{role}</span>
+                <svg className={`hdr__chevron hdr__chevron--sm ${profileOpen ? 'hdr__chevron--open' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </button>
+              {profileOpen && (
+                <>
+                  <button type="button" className="hdr__profile-overlay" onClick={() => setProfileOpen(false)} aria-label="Close profile menu" tabIndex={-1} />
+                  <div className="hdr__profile-menu" role="menu">
+                    <div className="hdr__profile-head">
+                      <div className="hdr__profile-avatarLg">{initialsOf(role)}</div>
+                      <div className="hdr__profile-info">
+                        <span className="hdr__profile-name">{role.charAt(0).toUpperCase() + role.slice(1)} User</span>
+                        <span className="hdr__profile-sub">Signed in as {role}</span>
+                      </div>
+                      <span className="hdr__profile-badge">{role}</span>
+                    </div>
+                    <div className="hdr__profile-list" role="none">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={`hdr__profile-item ${activePage === 'profile' ? 'hdr__profile-item--active' : ''}`}
+                        onClick={() => navigate('profile')}
+                      >
+                        <Icon d={ICONS.profile} className="hdr__profile-icon" />
+                        <span>My Profile</span>
+                        <svg className="hdr__profile-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M9 18l6-6-6-6" />
+                        </svg>
+                      </button>
+                      <div className="hdr__profile-sep" role="separator" />
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="hdr__profile-item hdr__profile-item--danger"
+                        onClick={onLogout}
+                      >
+                        <Icon d={LOGOUT_ICON} className="hdr__profile-icon" />
+                        <span>Logout</span>
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
-            <button type="button" className="hdr__logout" onClick={onLogout}>
-              <Icon d={LOGOUT_ICON} className="hdr__icon" />
-              <span>Logout</span>
-            </button>
           </div>
         </div>
       </header>
