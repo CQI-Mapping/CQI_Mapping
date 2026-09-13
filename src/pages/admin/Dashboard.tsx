@@ -86,70 +86,17 @@ function Dashboard({ profile }: DashboardProps) {
 
   return (
     <div className="dashboard dashboard--2026">
-      <div className="hero-pro">
-        <div className="hero-pro__mesh" aria-hidden />
-        <div className="hero-pro__noise" aria-hidden />
-        <div className="hero-pro__glow hero-pro__glow--1" aria-hidden />
-        <div className="hero-pro__glow hero-pro__glow--2" aria-hidden />
-
-        <div className="hero-pro__top">
-          <span className="hero-pro__greeting">{getTimeGreeting()}</span>
-          <div className="hero-pro__date">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-            <span>{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+      <div className="dashboard-hero">
+        <div className="dashboard-hero__bg" aria-hidden />
+        <div className="dashboard-hero__content">
+          <div>
+            <h2>Admin Dashboard</h2>
+            <p>
+              Welcome back, <strong>{profile?.full_name || profile?.email}</strong>
+            </p>
+            <span className="dashboard-hero__sub">Monitor curriculum health and system activity at a glance</span>
           </div>
-        </div>
-
-        <div className="hero-pro__main">
-          <div className="hero-pro__left">
-            <div className="hero-pro__avatar">{getInitials(profile?.full_name || profile?.email, 'A')}</div>
-            <div className="hero-pro__intro">
-              <h1 className="hero-pro__name">{profile?.full_name || profile?.email}</h1>
-              <p className="hero-pro__role">
-                <span className="hero-pro__roleDot" />
-                <span className="hero-pro__roleBadge">Admin</span>
-                &mdash; full system access
-              </p>
-            </div>
-          </div>
-
-          <div className="hero-pro__stats">
-            <div className="hero-pro__stat">
-              <span className="hero-pro__statVal">{stats.length > 0 ? stats.reduce((a, s) => a + (s.value ?? 0), 0) : '...'}</span>
-              <span className="hero-pro__statLabel">Total Records</span>
-            </div>
-            <div className="hero-pro__statSep" />
-            <div className="hero-pro__stat">
-              <span className="hero-pro__statVal">{stats.length > 0 ? stats.length : '...'}</span>
-              <span className="hero-pro__statLabel">Categories</span>
-            </div>
-            <div className="hero-pro__statSep" />
-            <div className="hero-pro__stat">
-              <span className="hero-pro__statVal">Active</span>
-              <span className="hero-pro__statLabel">System Status</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="hero-pro__bottom">
-          <div className="hero-pro__actions">
-            <button type="button" className="hero-pro__btn hero-pro__btn--primary">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
-              Manage Users
-            </button>
-            <button type="button" className="hero-pro__btn hero-pro__btn--secondary">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-              Curriculum
-            </button>
-            <button type="button" className="hero-pro__btn hero-pro__btn--ghost">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-              Activity Logs
-            </button>
-          </div>
-          <div className="hero-pro__hint">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-            Monitor curriculum health and system activity
-          </div>
+          <span className="role-badge role-badge--admin dashboard-hero__badge">admin</span>
         </div>
       </div>
 
