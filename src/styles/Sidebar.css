@@ -10,7 +10,7 @@
 
 /* ---- Top Navbar (white bar, 56px) ---- */
 
-.sidebar {
+.hdr {
   position: sticky;
   top: 0;
   z-index: 30;
@@ -30,17 +30,21 @@
   transition: none;
 }
 
-.sidebar__glow,
-.sidebar__grain {
-  display: none;
+.hdr__inner {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
 }
 
 /* ---- Toggle (sidebar toggle for mobile) ---- */
 
-.sidebar__toggle {
+.hdr__hamburger {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   justify-content: center;
+  gap: 4px;
   width: 36px;
   height: 36px;
   flex-shrink: 0;
@@ -52,26 +56,42 @@
   transition: color 0.15s ease, background 0.15s ease;
 }
 
-.sidebar__toggle:hover {
+.hdr__hamburger:hover {
   background: #e9ecef;
   color: #212529;
 }
 
-.sidebar__toggle-icon {
+.hdr__hamburger-line {
+  display: block;
   width: 20px;
-  height: 20px;
+  height: 2px;
+  background: currentColor;
+  border-radius: 2px;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.hdr__hamburger-line--open:nth-child(1) {
+  transform: translateY(6px) rotate(45deg);
+}
+
+.hdr__hamburger-line--open:nth-child(2) {
+  opacity: 0;
+}
+
+.hdr__hamburger-line--open:nth-child(3) {
+  transform: translateY(-6px) rotate(-45deg);
 }
 
 /* ---- Brand ---- */
 
-.sidebar__brand {
+.hdr__brand {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
 }
 
-.sidebar__brand-mark {
+.hdr__mark {
   position: relative;
   width: 32px;
   height: 32px;
@@ -87,13 +107,7 @@
   letter-spacing: 0.04em;
 }
 
-.sidebar__brand-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.sidebar__brand-title {
+.hdr__title {
   color: #212529;
   font-weight: 700;
   font-size: 14px;
@@ -101,13 +115,9 @@
   line-height: 1;
 }
 
-.sidebar__brand-sub {
-  display: none;
-}
-
 /* ---- Nav — horizontal links ---- */
 
-.sidebar__nav {
+.hdr__nav {
   flex: 1;
   display: flex;
   flex-direction: row;
@@ -119,11 +129,11 @@
   scrollbar-width: none;
 }
 
-.sidebar__nav::-webkit-scrollbar {
+.hdr__nav::-webkit-scrollbar {
   display: none;
 }
 
-.sidebar__nav-item {
+.hdr__item {
   position: relative;
   display: flex;
   align-items: center;
@@ -141,32 +151,28 @@
   transition: color 0.15s ease, background 0.15s ease;
 }
 
-.sidebar__nav-item:hover {
+.hdr__item:hover {
   color: #212529;
   background: #f8f9fa;
 }
 
-.sidebar__nav-item--active {
+.hdr__item--active {
   color: #fff;
   background: #16a34a;
 }
 
-.sidebar__nav-item--active:hover {
+.hdr__item--active:hover {
   background: #15803d;
   color: #fff;
 }
 
-.sidebar__nav-item-indicator {
-  display: none;
-}
-
-.sidebar__nav-icon {
+.hdr__icon {
   width: 15px;
   height: 15px;
   flex-shrink: 0;
 }
 
-.sidebar__chevron {
+.hdr__chevron {
   width: 14px;
   height: 14px;
   flex-shrink: 0;
@@ -174,17 +180,17 @@
   transition: transform 0.15s ease;
 }
 
-.sidebar__chevron--open {
+.hdr__chevron--open {
   transform: rotate(180deg);
 }
 
 /* ---- Academics dropdown ---- */
 
-.sidebar__dropdown {
+.hdr__dd {
   position: relative;
 }
 
-.sidebar__dropdown-menu {
+.hdr__dd-menu {
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
@@ -200,7 +206,7 @@
   z-index: 40;
 }
 
-.sidebar__dropdown-item {
+.hdr__dd-item {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -218,24 +224,24 @@
   transition: background 0.12s ease, color 0.12s ease;
 }
 
-.sidebar__dropdown-item:hover {
+.hdr__dd-item:hover {
   background: #e9ecef;
   color: #212529;
 }
 
-.sidebar__dropdown-item--active {
+.hdr__dd-item--active {
   background: #d1e7dd;
   color: #0f5132;
 }
 
-.sidebar__dropdown-icon {
+.hdr__dd-icon {
   width: 15px;
   height: 15px;
   flex-shrink: 0;
   opacity: 0.7;
 }
 
-.sidebar__backdrop {
+.hdr__backdrop {
   position: fixed;
   inset: 0;
   top: 56px;
@@ -249,7 +255,7 @@
 
 /* ---- Footer / user — right side ---- */
 
-.sidebar__footer {
+.hdr__right {
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -259,7 +265,7 @@
   border-top: none;
 }
 
-.sidebar__user {
+.hdr__user {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -269,7 +275,7 @@
   border: 1px solid #dee2e6;
 }
 
-.sidebar__avatar {
+.hdr__avatar {
   width: 28px;
   height: 28px;
   flex-shrink: 0;
@@ -284,13 +290,7 @@
   letter-spacing: 0.03em;
 }
 
-.sidebar__user-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.sidebar__user-role {
+.hdr__role {
   color: #212529;
   font-size: 12px;
   font-weight: 600;
@@ -298,14 +298,7 @@
   line-height: 1;
 }
 
-.sidebar__user-note {
-  font-size: 10px;
-  color: #6c757d;
-  line-height: 1;
-  margin-top: 1px;
-}
-
-.sidebar__dot {
+.hdr__dot {
   width: 7px;
   height: 7px;
   flex-shrink: 0;
@@ -320,7 +313,7 @@
   50% { opacity: 0.6; transform: scale(0.85); }
 }
 
-.sidebar__logout {
+.hdr__logout {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -337,7 +330,7 @@
   transition: background 0.12s ease, color 0.12s ease;
 }
 
-.sidebar__logout:hover {
+.hdr__logout:hover {
   background: #fef2f2;
   color: #b91c1c;
 }
@@ -345,7 +338,7 @@
 /* ---- Responsive — mobile drawer ---- */
 
 @media (max-width: 1024px) {
-  .sidebar {
+  .hdr {
     flex-wrap: wrap;
     height: auto;
     min-height: 56px;
@@ -353,15 +346,20 @@
     gap: 8px;
   }
 
-  .sidebar__toggle {
+  .hdr__inner {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .hdr__hamburger {
     order: -1;
   }
 
-  .sidebar__brand {
+  .hdr__brand {
     flex: 1;
   }
 
-  .sidebar__nav {
+  .hdr__nav {
     order: 9;
     width: 100%;
     flex-direction: column;
@@ -376,32 +374,31 @@
     padding: 4px;
   }
 
-  .sidebar--collapsed .sidebar__nav,
-  .sidebar--collapsed .sidebar__footer {
+  .hdr--open .hdr__nav {
+    display: flex;
+  }
+
+  .hdr__nav {
     display: none;
   }
 
-  .sidebar--collapsed .sidebar__backdrop {
-    display: none;
-  }
-
-  .sidebar__nav-item {
+  .hdr__item {
     justify-content: flex-start;
     padding: 9px 12px;
     color: #495057;
   }
 
-  .sidebar__nav-item:hover {
+  .hdr__item:hover {
     background: #e9ecef;
     color: #212529;
   }
 
-  .sidebar__nav-item--active {
+  .hdr__item--active {
     color: #fff;
     background: #16a34a;
   }
 
-  .sidebar__dropdown-menu {
+  .hdr__dd-menu {
     position: static;
     margin-top: 2px;
     background: #fff;
@@ -409,7 +406,7 @@
     box-shadow: none;
   }
 
-  .sidebar__footer {
+  .hdr__right {
     order: 11;
     width: 100%;
     justify-content: space-between;
@@ -419,7 +416,7 @@
 }
 
 @media (min-width: 1025px) {
-  .sidebar__backdrop {
+  .hdr__backdrop {
     display: none;
   }
 }
