@@ -1,5 +1,5 @@
-// Sidebar: the left navigation shell. It receives navItems (already filtered by
-// role in App.tsx) and renders them as buttons, plus the current role and logout.
+// Sidebar: the left navigation shell. 2026 premium design — frosted glass,
+// glowing active states, gradient brand mark, and a user avatar chip.
 
 import '../styles/Sidebar.css'
 import type { NavItem, UserRole } from '../services/database'
@@ -140,9 +140,22 @@ const ICONS: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>>> 
   profile: ProfileIcon,
 }
 
+function initialsOf(role: string): string {
+  return role
+    .split(/[\s-]+/)
+    .map((w) => w[0] ?? '')
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+}
+
 function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onToggle }: SidebarProps) {
   return (
     <aside className={`sidebar ${!isOpen ? 'sidebar--collapsed' : ''}`}>
+      {/* Ambient glow decoration */}
+      <div className="sidebar__glow" aria-hidden />
+
       {/* Hamburger toggle */}
       <button
         type="button"
@@ -156,26 +169,33 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
 
       {/* Brand block */}
       <div className="sidebar__brand">
-        <div className="sidebar__brand-mark">CQI</div>
+        <div className="sidebar__brand-mark">
+          <span>CQI</span>
+        </div>
         <div className="sidebar__brand-text">
-          <span className="sidebar__brand-title">CQI Monitoring System</span>
-          <span className="sidebar__brand-sub">System Admin · CQI Lead · Faculty</span>
+          <span className="sidebar__brand-title">CQI Monitoring</span>
+          <span className="sidebar__brand-sub">Curriculum Quality System</span>
         </div>
       </div>
+
+      {/* Nav label */}
+      <div className="sidebar__section-label">NAVIGATION</div>
 
       {/* Role-filtered navigation (navItems comes from App.tsx) */}
       <nav className="sidebar__nav" aria-label="Main navigation">
         {navItems.map(({ id, label }) => {
           const Icon = ICONS[id] ?? DashboardIcon
+          const isActive = activePage === id
           return (
             <button
               key={id}
               type="button"
-              className={`sidebar__nav-item ${activePage === id ? 'sidebar__nav-item--active' : ''}`}
+              className={`sidebar__nav-item ${isActive ? 'sidebar__nav-item--active' : ''}`}
               onClick={() => onNavigate(id)}
-              aria-current={activePage === id ? 'page' : undefined}
+              aria-current={isActive ? 'page' : undefined}
               title={label}
             >
+              <span className="sidebar__nav-item-indicator" aria-hidden />
               <Icon className="sidebar__nav-icon" />
               <span>{label}</span>
             </button>
@@ -185,7 +205,13 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
 
       {/* Signed-in user's role + logout */}
       <div className="sidebar__footer">
-        <div className="sidebar__role">Signed in as <strong>{role}</strong></div>
+        <div className="sidebar__user">
+          <div className="sidebar__avatar">{initialsOf(role)}</div>
+          <div className="sidebar__user-text">
+            <span className="sidebar__user-role">{role}</span>
+            <span className="sidebar__user-note">Signed in</span>
+          </div>
+        </div>
         <button type="button" className="sidebar__logout" onClick={onLogout}>
           <LogoutIcon className="sidebar__nav-icon" />
           <span>Logout</span>
