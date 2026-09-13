@@ -31,7 +31,7 @@ export default function SuggestionInput({ value, onChange, options, placeholder 
 
   useEffect(() => setActive(0), [query])
 
-  const q = (query.trim() || value.trim()).toLowerCase()
+  const q = query.trim().toLowerCase()
   const visibleOptions = q
     ? options.filter((o) => o.value.toLowerCase().includes(q))
     : options
