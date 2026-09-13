@@ -178,9 +178,6 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
         </div>
       </div>
 
-      {/* Nav label */}
-      <div className="sidebar__section-label">NAVIGATION</div>
-
       {/* Role-filtered navigation (navItems comes from App.tsx) */}
       <nav className="sidebar__nav" aria-label="Main navigation">
         {navItems.map(({ id, label }) => {
