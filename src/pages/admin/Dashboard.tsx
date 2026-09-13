@@ -1,7 +1,4 @@
-// Admin dashboard: system overview for the administrator role.
-// Premium 2026 design with gradient hero and icon stat cards.
-
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   fetchAllProfiles,
   fetchStrategicGoals,
@@ -56,6 +53,23 @@ function StatIcon({ type }: { type: string }) {
   }
 }
 
+function AnimatedNumber({ value, duration = 1200 }: { value: number; duration?: number }) {
+  const [display, setDisplay] = useState(0)
+  const ref = useRef<number>()
+  useEffect(() => {
+    const start = performance.now()
+    const animate = (now: number) => {
+      const p = Math.min((now - start) / duration, 1)
+      const eased = 1 - Math.pow(1 - p, 3)
+      setDisplay(Math.floor(eased * value))
+      if (p < 1) ref.current = requestAnimationFrame(animate)
+    }
+    ref.current = requestAnimationFrame(animate)
+    return () => ref.current && cancelAnimationFrame(ref.current)
+  }, [value, duration])
+  return <span className="hero-modern__stat-val">{display.toLocaleString()}</span>
+}
+
 function getTimeGreeting(): string {
   const h = new Date().getHours()
   if (h < 12) return 'Good morning'
@@ -70,6 +84,7 @@ function getInitials(name: string | null | undefined, fallback: string): string 
 
 function Dashboard({ profile }: DashboardProps) {
   const [stats, setStats] = useState<Stat[]>([])
+  const totalRecords = stats.length > 0 ? stats.reduce((a, s) => a + (s.value ?? 0), 0) : 0
 
   useEffect(() => {
     const counters: Array<{ label: string; sub: string; icon: string; accent: string; load: () => Promise<unknown[]> }> = [
@@ -86,17 +101,76 @@ function Dashboard({ profile }: DashboardProps) {
 
   return (
     <div className="dashboard dashboard--2026">
-      <div className="dashboard-hero">
-        <div className="dashboard-hero__bg" aria-hidden />
-        <div className="dashboard-hero__content">
-          <div>
-            <h2>Admin Dashboard</h2>
-            <p>
-              Welcome back, <strong>{profile?.full_name || profile?.email}</strong>
-            </p>
+      <section className="hero-modern" aria-labelledby="hero-title">
+        <div className="hero-modern__bg" aria-hidden>
+          <div className="hero-modern__mesh" />
+          <div className="hero-modern__orb hero-modern__orb--1" />
+          <div className="hero-modern__orb hero-modern__orb--2" />
+          <div className="hero-modern__orb hero-modern__orb--3" />
+          <div className="hero-modern__noise" />
+        </div>
+
+        <div className="hero-modern__content">
+          <header className="hero-modern__header">
+            <div className="hero-modern__greeting">
+              <span className="hero-modern__time">{getTimeGreeting()}</span>
+              <span className="hero-modern__divider" aria-hidden />
+              <time className="hero-modern__date" dateTime={new Date().toISOString().split('T')[0]}>
+                {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+              </time>
+            </div>
+            <span className="role-badge role-badge--admin hero-modern__badge">Admin</span>
+          </header>
+
+          <div className="hero-modern__main" id="hero-title">
+            <div className="hero-modern__identity">
+              <div className="hero-modern__avatar-wrap">
+                <div className="hero-modern__avatar-ring" aria-hidden />
+                <div className="hero-modern__avatar">{getInitials(profile?.full_name || profile?.email, 'AU')}</div>
+              </div>
+              <div className="hero-modern__intro">
+                <h1 className="hero-modern__name">Welcome back, {profile?.full_name || profile?.email}</h1>
+                <p className="hero-modern__role">
+                  <span className="hero-modern__role-dot" aria-hidden />
+                  <span>Full system access</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="hero-modern__stats" role="region" aria-label="System statistics">
+              <div className="hero-modern__stat">
+                <AnimatedNumber value={totalRecords} />
+                <span className="hero-modern__stat-label">Total Records</span>
+              </div>
+              <div className="hero-modern__stat-sep" aria-hidden />
+              <div className="hero-modern__stat">
+                <AnimatedNumber value={stats.length} />
+                <span className="hero-modern__stat-label">Categories</span>
+              </div>
+              <div className="hero-modern__stat-sep" aria-hidden />
+              <div className="hero-modern__stat">
+                <span className="hero-modern__val hero-modern__val--active">Active</span>
+                <span className="hero-modern__stat-label">System Status</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="hero-modern__actions">
+            <button type="button" className="btn-modern btn-modern--primary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+              <span>Manage Users</span>
+            </button>
+            <button type="button" className="btn-modern btn-modern--secondary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+              <span>Curriculum</span>
+            </button>
+            <button type="button" className="btn-modern btn-modern--ghost">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+              <span>Activity Logs</span>
+            </button>
           </div>
         </div>
-      </div>
+      </section>
 
       <div className="stat-grid stat-grid--2026">
         <div className="stat-card stat-card--2026 stat-card--role">
