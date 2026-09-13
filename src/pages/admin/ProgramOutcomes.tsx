@@ -19,7 +19,13 @@ const FIXED_OPTIONS = [
 ]
 
 const toSuggestion = (i: { code: string; title: string | null }): SuggestionOption => ({
-  value: `${i.code} - ${i.title ?? ''}`.trim(),
+  value: i.code,
+  label: `${i.code} - ${i.title ?? ''}`.trim(),
+})
+
+const toSgSuggestion = (i: { code: string; description: string | null }): SuggestionOption => ({
+  value: i.code,
+  label: `${i.code.replace(/^SG-/i, 'Goal ')}: ${i.description ?? ''}`.trim(),
 })
 
 export default function ProgramOutcomes() {
@@ -51,7 +57,7 @@ export default function ProgramOutcomes() {
         if (!cancelled) {
           setCmoOptions([...fixedOptions, ...cmoOpts])
           setPeoSuggestions(peos.filter((p) => p.status === 'active').map(toSuggestion))
-          setSgSuggestions(sgs.filter((s) => s.status === 'active').map(toSuggestion))
+          setSgSuggestions(sgs.filter((s) => s.status === 'active').map(toSgSuggestion))
           setLoading(false)
         }
       } catch (e) {
@@ -68,8 +74,8 @@ export default function ProgramOutcomes() {
   if (loading) return <p>Loading program outcomes...</p>
 
   const alignments: AlignmentField[] = [
-    { label: 'Program Educational Objectives Alignment', relationField: 'peo_text', options: [], type: 'suggest', suggestionOptions: peoSuggestions, placeholder: 'Type to search PEOs' },
-    { label: 'Strategic Goals Alignment', relationField: 'sg_text', options: [], type: 'suggest', suggestionOptions: sgSuggestions, placeholder: 'Type to search strategic goals' },
+    { label: 'Program Educational Objectives Alignment', relationField: 'peo_text', options: [], type: 'suggest', suggestionOptions: peoSuggestions, placeholder: 'Type PEOs' },
+    { label: 'Strategic Goals Alignment', relationField: 'sg_text', options: [], type: 'suggest', suggestionOptions: sgSuggestions, placeholder: 'Type Strategic Goals' },
     { label: 'CMO Alignment', relationField: 'cmo_id', textField: 'description', options: cmoOptions },
   ]
 

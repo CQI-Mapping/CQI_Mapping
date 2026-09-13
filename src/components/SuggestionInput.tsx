@@ -17,9 +17,11 @@ interface SuggestionInputProps {
 
 export default function SuggestionInput({ value, onChange, options, placeholder }: SuggestionInputProps) {
   const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(value)
   const [active, setActive] = useState(0)
   const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => { setQuery(value) }, [value])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -32,13 +34,13 @@ export default function SuggestionInput({ value, onChange, options, placeholder 
   useEffect(() => setActive(0), [query])
 
   const q = query.trim().toLowerCase()
-  const visibleOptions = q
-    ? options.filter((o) => o.value.toLowerCase().includes(q))
-    : options
+  const visibleOptions = q.length >= 3
+    ? options.filter((o) => (o.label ?? o.value).toLowerCase().includes(q))
+    : []
 
   const select = (o: SuggestionOption) => {
     onChange(o.value)
-    setQuery('')
+    setQuery(o.value)
     setOpen(false)
   }
 
@@ -73,9 +75,9 @@ export default function SuggestionInput({ value, onChange, options, placeholder 
         className="input input--sm suggestion__input"
         type="text"
         placeholder={placeholder}
-        value={query || value}
-        onChange={(e) => { setQuery(e.target.value); setOpen(true) }}
-        onFocus={() => setOpen(true)}
+        value={query}
+        onChange={(e) => { setQuery(e.target.value); setOpen(e.target.value.trim().length >= 3); }}
+        onFocus={() => { if (query.trim().length >= 3) setOpen(true) }}
         onKeyDown={onKeyDown}
       />
       {open && (
