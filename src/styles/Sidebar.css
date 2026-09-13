@@ -1,4 +1,4 @@
-/* Sidebar — 2026 top header bar. Deep emerald, glass, horizontal. */
+/* Sidebar — 2026 top header bar. Deep emerald, glass, horizontal. User-friendly grouped. */
 
 .sidebar {
   position: sticky;
@@ -133,7 +133,7 @@
   gap: 4px;
   padding: 0;
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: visible;
   scrollbar-width: none;
 }
 
@@ -156,7 +156,7 @@
   font-weight: 500;
   border-radius: 10px;
   cursor: pointer;
-  transition: background 0.16s ease, color 0.16s ease, transform 0.16s ease;
+  transition: background 0.16s ease, color 0.16s ease;
 }
 
 .sidebar__nav-item:hover {
@@ -178,6 +178,84 @@
   width: 16px;
   height: 16px;
   flex-shrink: 0;
+}
+
+.sidebar__chevron {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  margin-left: 2px;
+  transition: transform 0.18s ease;
+}
+
+.sidebar__chevron--open {
+  transform: rotate(180deg);
+}
+
+/* Academics dropdown */
+
+.sidebar__dropdown {
+  position: relative;
+}
+
+.sidebar__dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 240px;
+  padding: 6px;
+  background: #0a2e16;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 40;
+}
+
+.sidebar__dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #cbd5e1;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sidebar__dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.sidebar__dropdown-item--active {
+  background: rgba(34, 197, 94, 0.18);
+  color: #fff;
+}
+
+.sidebar__dropdown-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+.sidebar__backdrop {
+  position: fixed;
+  inset: 0;
+  top: 64px;
+  background: rgba(0, 0, 0, 0.35);
+  border: none;
+  z-index: 20;
+  cursor: pointer;
 }
 
 /* ---- Footer / user — right side ---- */
@@ -276,11 +354,6 @@
   color: #fff;
 }
 
-/* ---- Collapsed — for top header, collapsed means mobile drawer hidden (no-op on desktop) ---- */
-.sidebar--collapsed {
-  /* desktop: no width change for header */
-}
-
 /* ---- Responsive — mobile drawer ---- */
 
 @media (max-width: 1024px) {
@@ -309,10 +382,15 @@
     gap: 3px;
     max-height: 60vh;
     overflow-y: auto;
+    overflow-x: hidden;
   }
 
   .sidebar--collapsed .sidebar__nav,
   .sidebar--collapsed .sidebar__footer {
+    display: none;
+  }
+
+  .sidebar--collapsed .sidebar__backdrop {
     display: none;
   }
 
@@ -321,11 +399,25 @@
     padding: 10px 12px;
   }
 
+  .sidebar__dropdown-menu {
+    position: static;
+    margin-top: 4px;
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.06);
+    box-shadow: none;
+  }
+
   .sidebar__footer {
     order: 11;
     width: 100%;
     justify-content: space-between;
     padding-top: 10px;
     border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+}
+
+@media (min-width: 1025px) {
+  .sidebar__backdrop {
+    display: none;
   }
 }

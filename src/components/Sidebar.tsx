@@ -1,6 +1,8 @@
-// Sidebar: the left navigation shell. 2026 premium floating-glass design —
-// detached card, backdrop blur, command search, glowing active states.
+// Sidebar — top header bar, user-friendly 2026 edition.
+// Groups 12 admin items into 5 top-level entries with an Academics dropdown,
+// adds mobile drawer with backdrop + auto-close, larger tap targets.
 
+import { useState, useRef, useEffect } from 'react'
 import '../styles/Sidebar.css'
 import type { NavItem, UserRole } from '../services/database'
 
@@ -127,6 +129,14 @@ function MenuIcon(props: React.SVGProps<SVGSVGElement>) {
   )
 }
 
+function ChevronIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  )
+}
+
 // Map of nav item id -> icon component (fallback: DashboardIcon).
 const ICONS: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>>> = {
   dashboard: DashboardIcon,
@@ -138,6 +148,11 @@ const ICONS: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>>> 
   analytics: ChartIcon,
   'activity-logs': AuditIcon,
   profile: ProfileIcon,
+  'ched-memo': ResourcesIcon,
+  'strategic-goals': ChartIcon,
+  peos: ResourcesIcon,
+  'program-outcomes': MatrixIcon,
+  clo: MatrixIcon,
 }
 
 function initialsOf(role: string): string {
@@ -150,72 +165,186 @@ function initialsOf(role: string): string {
     .toUpperCase()
 }
 
+const ACADEMICS_IDS = new Set(['program', 'ched-memo', 'strategic-goals', 'peos', 'program-outcomes', 'curriculum', 'course', 'clo'])
+
 function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onToggle }: SidebarProps) {
+  const [academicsOpen, setAcademicsOpen] = useState(false)
+  const ddRef = useRef<HTMLDivElement>(null)
+
+  const academics = navItems.filter((n) => ACADEMICS_IDS.has(n.id))
+  const shouldGroup = academics.length > 2
+  const topLevel = shouldGroup ? navItems.filter((n) => !ACADEMICS_IDS.has(n.id)) : navItems
+
+  // Reorder topLevel to keep Dashboard first for admin grouping
+  const orderedTop = shouldGroup
+    ? [
+        ...topLevel.filter((n) => n.id === 'dashboard'),
+        ...topLevel.filter((n) => n.id !== 'dashboard' && n.id !== 'profile'),
+        ...topLevel.filter((n) => n.id === 'profile'),
+      ]
+    : topLevel
+
+  const isAcademicsActive = academics.some((n) => n.id === activePage)
+
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (ddRef.current && !ddRef.current.contains(e.target as Node)) setAcademicsOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [])
+
+  // Close academics dropdown when activePage changes away
+  useEffect(() => { setAcademicsOpen(false) }, [activePage])
+
+  const handleNavigate = (id: string) => {
+    onNavigate(id)
+    setAcademicsOpen(false)
+    if (window.innerWidth <= 1024 && isOpen) onToggle()
+  }
+
   return (
-    <aside className={`sidebar ${!isOpen ? 'sidebar--collapsed' : ''}`}>
-      {/* Ambient glow decoration */}
-      <div className="sidebar__glow" aria-hidden />
-      <div className="sidebar__grain" aria-hidden />
+    <>
+      <aside className={`sidebar ${!isOpen ? 'sidebar--collapsed' : ''}`}>
+        <div className="sidebar__glow" aria-hidden />
+        <div className="sidebar__grain" aria-hidden />
 
-      {/* Hamburger toggle */}
-      <button
-        type="button"
-        className="sidebar__toggle"
-        onClick={onToggle}
-        aria-label={isOpen ? 'Hide main menu' : 'Show main menu'}
-        title={isOpen ? 'Hide main menu' : 'Show main menu'}
-      >
-        <MenuIcon className="sidebar__toggle-icon" />
-      </button>
-
-      {/* Brand block */}
-      <div className="sidebar__brand">
-        <div className="sidebar__brand-mark">
-          <span>CQI</span>
-        </div>
-        <div className="sidebar__brand-text">
-          <span className="sidebar__brand-title">CQI Monitoring</span>
-        </div>
-      </div>
-
-      {/* Role-filtered navigation (navItems comes from App.tsx) */}
-      <nav className="sidebar__nav" aria-label="Main navigation">
-        {navItems.map(({ id, label }) => {
-          const Icon = ICONS[id] ?? DashboardIcon
-          const isActive = activePage === id
-          return (
-            <button
-              key={id}
-              type="button"
-              className={`sidebar__nav-item ${isActive ? 'sidebar__nav-item--active' : ''}`}
-              onClick={() => onNavigate(id)}
-              aria-current={isActive ? 'page' : undefined}
-              title={label}
-            >
-              <span className="sidebar__nav-item-indicator" aria-hidden />
-              <Icon className="sidebar__nav-icon" />
-              <span>{label}</span>
-            </button>
-          )
-        })}
-      </nav>
-
-      {/* Signed-in user's role + logout */}
-      <div className="sidebar__footer">
-        <div className="sidebar__user">
-          <div className="sidebar__avatar">{initialsOf(role)}</div>
-          <div className="sidebar__user-text">
-            <span className="sidebar__user-role">{role}</span>
-            <span className="sidebar__user-note">Signed in · Online</span>
-          </div>
-          <span className="sidebar__dot" aria-hidden />
-        </div>
-        <button type="button" className="sidebar__logout" onClick={onLogout}>
-          <LogoutIcon className="sidebar__nav-icon" />
-          <span>Logout</span>
+        <button
+          type="button"
+          className="sidebar__toggle"
+          onClick={onToggle}
+          aria-label={isOpen ? 'Close menu' : 'Open menu'}
+          title={isOpen ? 'Close menu' : 'Open menu'}
+        >
+          <MenuIcon className="sidebar__toggle-icon" />
         </button>
-      </div>
-    </aside>
+
+        <div className="sidebar__brand">
+          <div className="sidebar__brand-mark">
+            <span>CQI</span>
+          </div>
+          <div className="sidebar__brand-text">
+            <span className="sidebar__brand-title">CQI Monitoring</span>
+          </div>
+        </div>
+
+        <nav className="sidebar__nav" aria-label="Main navigation">
+          {shouldGroup ? (
+            <>
+              {orderedTop
+                .filter((n) => n.id === 'dashboard')
+                .map(({ id, label }) => {
+                  const Icon = ICONS[id] ?? DashboardIcon
+                  const isActive = activePage === id
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      className={`sidebar__nav-item ${isActive ? 'sidebar__nav-item--active' : ''}`}
+                      onClick={() => handleNavigate(id)}
+                      aria-current={isActive ? 'page' : undefined}
+                      title={label}
+                    >
+                      <Icon className="sidebar__nav-icon" />
+                      <span>{label}</span>
+                    </button>
+                  )
+                })}
+
+              <div className="sidebar__dropdown" ref={ddRef}>
+                <button
+                  type="button"
+                  className={`sidebar__nav-item ${isAcademicsActive ? 'sidebar__nav-item--active' : ''}`}
+                  onClick={() => setAcademicsOpen((v) => !v)}
+                  aria-expanded={academicsOpen}
+                  aria-haspopup="menu"
+                  title="Academics"
+                >
+                  <ResourcesIcon className="sidebar__nav-icon" />
+                  <span>Academics</span>
+                  <ChevronIcon className={`sidebar__chevron ${academicsOpen ? 'sidebar__chevron--open' : ''}`} />
+                </button>
+                {academicsOpen && (
+                  <div className="sidebar__dropdown-menu" role="menu">
+                    {academics.map(({ id, label }) => {
+                      const Icon = ICONS[id] ?? DashboardIcon
+                      const isActive = activePage === id
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          role="menuitem"
+                          className={`sidebar__dropdown-item ${isActive ? 'sidebar__dropdown-item--active' : ''}`}
+                          onClick={() => handleNavigate(id)}
+                          title={label}
+                        >
+                          <Icon className="sidebar__dropdown-icon" />
+                          <span>{label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {orderedTop
+                .filter((n) => n.id !== 'dashboard')
+                .map(({ id, label }) => {
+                  const Icon = ICONS[id] ?? DashboardIcon
+                  const isActive = activePage === id
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      className={`sidebar__nav-item ${isActive ? 'sidebar__nav-item--active' : ''}`}
+                      onClick={() => handleNavigate(id)}
+                      aria-current={isActive ? 'page' : undefined}
+                      title={label}
+                    >
+                      <Icon className="sidebar__nav-icon" />
+                      <span>{label}</span>
+                    </button>
+                  )
+                })}
+            </>
+          ) : (
+            navItems.map(({ id, label }) => {
+              const Icon = ICONS[id] ?? DashboardIcon
+              const isActive = activePage === id
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  className={`sidebar__nav-item ${isActive ? 'sidebar__nav-item--active' : ''}`}
+                  onClick={() => handleNavigate(id)}
+                  aria-current={isActive ? 'page' : undefined}
+                  title={label}
+                >
+                  <Icon className="sidebar__nav-icon" />
+                  <span>{label}</span>
+                </button>
+              )
+            })
+          )}
+        </nav>
+
+        <div className="sidebar__footer">
+          <div className="sidebar__user">
+            <div className="sidebar__avatar">{initialsOf(role)}</div>
+            <div className="sidebar__user-text">
+              <span className="sidebar__user-role">{role}</span>
+              <span className="sidebar__user-note">Signed in · Online</span>
+            </div>
+            <span className="sidebar__dot" aria-hidden />
+          </div>
+          <button type="button" className="sidebar__logout" onClick={onLogout}>
+            <LogoutIcon className="sidebar__nav-icon" />
+            <span>Logout</span>
+          </button>
+        </div>
+      </aside>
+      {isOpen && <button type="button" className="sidebar__backdrop" onClick={onToggle} aria-label="Close menu" />}
+    </>
   )
 }
 
