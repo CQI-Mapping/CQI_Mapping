@@ -94,7 +94,6 @@ function Dashboard({ profile }: DashboardProps) {
             <p>
               Welcome back, <strong>{profile?.full_name || profile?.email}</strong>
             </p>
-            <span className="dashboard-hero__sub">Monitor curriculum health and system activity at a glance</span>
           </div>
         </div>
       </div>
