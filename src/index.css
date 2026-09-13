@@ -346,6 +346,55 @@ code {
   cursor: default;
 }
 
+.suggestion {
+  position: relative;
+}
+
+.suggestion input.input {
+  width: 100%;
+}
+
+.suggestion__list {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 180px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.suggestion__item,
+.suggestion__empty {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px;
+  font-size: 13px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--text, #1f2937);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggestion__item:hover,
+.suggestion__item--active {
+  background: var(--primary, #16a34a);
+  color: #fff;
+}
+
+.suggestion__empty {
+  color: #6b7280;
+  cursor: default;
+}
+
 .na-row .na-check {
   margin-top: 0;
   white-space: nowrap;

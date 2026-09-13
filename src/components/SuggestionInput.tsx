@@ -1,0 +1,95 @@
+// Google-style autocomplete input: as the user types, a dropdown of
+// matching options appears. Selecting one fills the input. Single-select only.
+
+import { useEffect, useRef, useState } from 'react'
+
+export interface SuggestionOption {
+  value: string
+  label?: string
+}
+
+interface SuggestionInputProps {
+  value: string
+  onChange: (value: string) => void
+  options: SuggestionOption[]
+  placeholder?: string
+}
+
+export default function SuggestionInput({ value, onChange, options, placeholder }: SuggestionInputProps) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [active, setActive] = useState(0)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  useEffect(() => setActive(0), [query])
+
+  const q = (query.trim() || value.trim()).toLowerCase()
+  const visibleOptions = q
+    ? options.filter((o) => o.value.toLowerCase().includes(q))
+    : options
+
+  const select = (o: SuggestionOption) => {
+    onChange(o.value)
+    setQuery('')
+    setOpen(false)
+  }
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      setOpen(false)
+      return
+    }
+    if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      setOpen(true)
+      return
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActive((i) => Math.min(i + 1, visibleOptions.length - 1))
+      return
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActive((i) => Math.max(i - 1, 0))
+      return
+    }
+    if (e.key === 'Enter' && visibleOptions[active]) {
+      e.preventDefault()
+      select(visibleOptions[active])
+    }
+  }
+
+  return (
+    <div className="suggestion" ref={ref}>
+      <input
+        className="input input--sm suggestion__input"
+        type="text"
+        placeholder={placeholder}
+        value={query || value}
+        onChange={(e) => { setQuery(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={onKeyDown}
+      />
+      {open && (
+        <div className="suggestion__list">
+          {visibleOptions.length === 0 && <div className="suggestion__empty">No matches</div>}
+          {visibleOptions.map((o, i) => (
+            <button type="button" key={o.value} className={`suggestion__item ${i === active ? 'suggestion__item--active' : ''}`}
+              onMouseDown={(e) => { e.preventDefault(); select(o) }}
+              onMouseEnter={() => setActive(i)}>
+              {o.label ?? o.value}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}

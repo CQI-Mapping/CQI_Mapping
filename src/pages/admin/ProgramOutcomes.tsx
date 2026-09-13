@@ -6,8 +6,11 @@ import {
   updateProgramOutcomeStandalone,
   deleteProgramOutcomeStandalone,
   fetchChedMemoOrders,
+  fetchProgramEducationalObjectives,
+  fetchStrategicGoals,
 } from '../../services/database'
 import type { ProgramOutcomeStandalone } from '../../services/database'
+import type { SuggestionOption } from '../../components/SuggestionInput'
 
 const FIXED_OPTIONS = [
   'Common to all programs in all types of schools',
@@ -15,8 +18,14 @@ const FIXED_OPTIONS = [
   'College defined program outcome',
 ]
 
+const toSuggestion = (i: { code: string; title: string | null }): SuggestionOption => ({
+  value: `${i.code} - ${i.title ?? ''}`.trim(),
+})
+
 export default function ProgramOutcomes() {
   const [cmoOptions, setCmoOptions] = useState<AlignmentOption[]>([])
+  const [peoSuggestions, setPeoSuggestions] = useState<SuggestionOption[]>([])
+  const [sgSuggestions, setSgSuggestions] = useState<SuggestionOption[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -24,7 +33,11 @@ export default function ProgramOutcomes() {
     let cancelled = false
     ;(async () => {
       try {
-        const pos = await fetchProgramOutcomesStandalone()
+        const [pos, peos, sgs] = await Promise.all([
+          fetchProgramOutcomesStandalone(),
+          fetchProgramEducationalObjectives(),
+          fetchStrategicGoals(),
+        ])
         const referencedCmos = new Set(pos.map((p) => p.cmo_id).filter(Boolean) as string[])
         const cmos = (await fetchChedMemoOrders()).filter(
           (c) => c.status === 'active' || referencedCmos.has(c.id),
@@ -37,6 +50,8 @@ export default function ProgramOutcomes() {
 
         if (!cancelled) {
           setCmoOptions([...fixedOptions, ...cmoOpts])
+          setPeoSuggestions(peos.filter((p) => p.status === 'active').map(toSuggestion))
+          setSgSuggestions(sgs.filter((s) => s.status === 'active').map(toSuggestion))
           setLoading(false)
         }
       } catch (e) {
@@ -53,8 +68,8 @@ export default function ProgramOutcomes() {
   if (loading) return <p>Loading program outcomes...</p>
 
   const alignments: AlignmentField[] = [
-    { label: 'Program Educational Objectives Alignment', relationField: 'peo_text', options: [], type: 'text', placeholder: 'Enter PEO' },
-    { label: 'Strategic Goals', relationField: 'sg_text', options: [], type: 'text', placeholder: 'Enter Strategic Goals' },
+    { label: 'Program Educational Objectives Alignment', relationField: 'peo_text', options: [], type: 'suggest', suggestionOptions: peoSuggestions, placeholder: 'Type to search PEOs' },
+    { label: 'Strategic Goals Alignment', relationField: 'sg_text', options: [], type: 'suggest', suggestionOptions: sgSuggestions, placeholder: 'Type to search strategic goals' },
     { label: 'CMO Alignment', relationField: 'cmo_id', textField: 'description', options: cmoOptions },
   ]
 

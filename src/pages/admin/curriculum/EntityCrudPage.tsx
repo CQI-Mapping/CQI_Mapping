@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useEntityCrud } from './useEntityCrud.js'
+import SuggestionInput, { type SuggestionOption } from '../../../components/SuggestionInput.js'
 
 // One selectable "alignment" option. `value` is the text shown in the select (and,
 // for text-based alignments, stored in the entity's description column); `cmo_id`
@@ -22,8 +23,10 @@ export interface AlignmentField {
   // If set, the chosen option's `value` is also persisted here
   // (e.g. CMO alignment text stored in the `description` column).
   textField?: string
-  type?: 'select' | 'text'
+  type?: 'select' | 'text' | 'suggest'
   placeholder?: string
+  // For `type: 'suggest'`, the list of options shown in the autocomplete dropdown.
+  suggestionOptions?: SuggestionOption[]
 }
 
 interface EntityCrudPageProps<T extends { id: string }> {
@@ -132,7 +135,7 @@ alignments,
     }
     for (const a of allAlignments) {
       const val = (f.align[a.relationField] || '').trim()
-      if (a.type === 'text') {
+      if (a.type === 'text' || a.type === 'suggest') {
         base[a.relationField] = val || null
         if (a.textField) base[a.textField] = val || null
         continue
@@ -153,7 +156,7 @@ alignments,
     setEditingId(item.id)
     const align: Record<string, string> = {}
     for (const a of allAlignments) {
-      if (a.type === 'text') {
+      if (a.type === 'text' || a.type === 'suggest') {
         align[a.relationField] = ((item as Record<string, unknown>)[a.relationField] as string | undefined) || ''
         continue
       }
@@ -180,13 +183,23 @@ alignments,
   const titleOf = (i: T) => ((i as Record<string, unknown>)[titleField] as string | undefined) || ''
   const descOf = (i: T) => (i as { description?: string }).description
   const alignLabelOf = (item: T, field: AlignmentField) => {
-    if (field.type === 'text') return ((item as Record<string, unknown>)[field.relationField] as string | undefined) || '—'
+    if (field.type === 'text' || field.type === 'suggest') return ((item as Record<string, unknown>)[field.relationField] as string | undefined) || '—'
     if (field.textField) return ((item as Record<string, unknown>)[field.textField] as string | undefined) || '—'
     const relVal = (item as Record<string, unknown>)[field.relationField] as string | null
     return field.options.find((o) => optionId(o) === relVal)?.value || '—'
   }
 
   const alignmentSelect = (field: AlignmentField, value: string, onChange: (v: string) => void) => {
+    if (field.type === 'suggest') {
+      return (
+        <SuggestionInput
+          value={value}
+          onChange={onChange}
+          options={field.suggestionOptions ?? []}
+          placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+        />
+      )
+    }
     if (field.type === 'text') {
       return (
         <input
