@@ -14,18 +14,18 @@ interface DashboardProps {
 }
 
 function Dashboard({ profile }: DashboardProps) {
-  const [stats, setStats] = useState<Array<{ label: string; value: number | null; accent: string; icon: string }>>([])
+  const [stats, setStats] = useState<Array<{ label: string; value: number | null; accent: string; icon: string; sub: string }>>([])
 
   useEffect(() => {
     const counters = [
-      { label: 'Users', icon: 'users', accent: 'linear-gradient(135deg,#0ea5e9,#6366f1)', load: () => fetchAllProfiles() },
-      { label: 'Strategic Goals', icon: 'goals', accent: 'linear-gradient(135deg,#10b981,#06b6d4)', load: () => fetchStrategicGoals() },
-      { label: 'Program Educational Objectives', icon: 'peo', accent: 'linear-gradient(135deg,#f59e0b,#ef4444)', load: () => fetchProgramEducationalObjectives() },
-      { label: 'Program Outcomes', icon: 'po', accent: 'linear-gradient(135deg,#8b5cf6,#ec4899)', load: () => fetchProgramOutcomesStandalone() },
-      { label: 'Course Learning Outcomes', icon: 'clo', accent: 'linear-gradient(135deg,#06b6d4,#3b82f6)', load: () => fetchCourseLearningOutcomesStandalone() },
-      { label: 'CHED Memo Orders', icon: 'ched', accent: 'linear-gradient(135deg,#84cc16,#16a34a)', load: () => fetchChedMemoOrders() },
+      { label: 'Users', icon: 'users', sub: 'Registered profiles in the system', accent: 'linear-gradient(135deg,#0ea5e9,#6366f1)', load: () => fetchAllProfiles() },
+      { label: 'Strategic Goals', icon: 'goals', sub: 'Institutional goals for the program', accent: 'linear-gradient(135deg,#10b981,#06b6d4)', load: () => fetchStrategicGoals() },
+      { label: 'Program Educational Objectives', icon: 'peo', sub: 'Long-term career goals for graduates', accent: 'linear-gradient(135deg,#f59e0b,#ef4444)', load: () => fetchProgramEducationalObjectives() },
+      { label: 'Program Outcomes', icon: 'po', sub: 'Skills graduates should attain', accent: 'linear-gradient(135deg,#8b5cf6,#ec4899)', load: () => fetchProgramOutcomesStandalone() },
+      { label: 'Course Learning Outcomes', icon: 'clo', sub: 'Learning targets for each course', accent: 'linear-gradient(135deg,#06b6d4,#3b82f6)', load: () => fetchCourseLearningOutcomesStandalone() },
+      { label: 'CHED Memo Orders', icon: 'ched', sub: 'CHED issuances referenced', accent: 'linear-gradient(135deg,#84cc16,#16a34a)', load: () => fetchChedMemoOrders() },
     ]
-    Promise.all(counters.map(async (c) => ({ label: c.label, value: (await c.load()).length, accent: c.accent, icon: c.icon })))
+    Promise.all(counters.map(async (c) => ({ label: c.label, value: (await c.load()).length, accent: c.accent, icon: c.icon, sub: c.sub })))
       .then(setStats)
   }, [])
 
@@ -77,22 +77,16 @@ function Dashboard({ profile }: DashboardProps) {
         </div>
 
         {stats.map((s) => (
-          <div className="stat-card" key={s.label}>
+          <div className="stat-card stat-card--2026" key={s.label}>
+            <div className="stat-card__accent" style={{ background: s.accent }} />
+            <div className="stat-card__icon" style={{ background: s.accent, color: '#fff' }}>
+              <StatIcon type={s.icon} />
+            </div>
             <span className="stat-card__label">{s.label}</span>
             <span className="stat-card__value">{s.value ?? '...'}</span>
             <span className="stat-card__sub">{s.sub}</span>
           </div>
         ))}
-      </div>
-
-      <div className="panel">
-        <h3>What can you do here?</h3>
-        <ul className="role-list">
-          <li><strong>Users &amp; Accounts</strong> — manage accounts and roles, create or delete users.</li>
-          <li><strong>Program Educational Objectives / Program Outcomes / Course Learning Outcomes</strong> — full CRUD on the outcome reference lists.</li>
-          <li><strong>Strategic Goals &amp; CHED Memorandum Orders</strong> — maintain institutional goals and CHED issuances.</li>
-          <li><strong>Activity Logs</strong> — see a server-stamped record of actions taken in the system.</li>
-        </ul>
       </div>
     </div>
   )
@@ -106,7 +100,7 @@ function StatIcon({ type }: { type: string }) {
     case 'goals':
       return <svg {...common}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
     case 'peo':
-      return <svg {...common}><path d="M22 10v6a2 2 0 0 1-2 2H6l-4 4V10a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/><path d="M12 7v6"/><path d="M9 10h6"/></svg>
+      return <svg {...common}><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></svg>
     case 'po':
       return <svg {...common}><path d="M3 3v18h18"/><path d="M7 16l3-3 3 3 5-8"/></svg>
     case 'clo':
