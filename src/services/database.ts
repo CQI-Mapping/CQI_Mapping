@@ -551,6 +551,10 @@ export interface ProgramOutcomeStandalone {
   title: string
   description: string | null
   cmo_id: string | null
+  peo_id: string | null
+  peo_text: string | null
+  sg_id: string | null
+  sg_text: string | null
   status: string
   created_at: string
   updated_at: string
