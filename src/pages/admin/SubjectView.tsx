@@ -450,25 +450,18 @@ export default function SubjectView() {
 
     const zoomGroup = svg.append('g')
 
-    // Straight line for each link (was curved before).
-    const lineOf = (s: MindNode, t: MindNode) => {
-      const sx = s.x ?? cx
-      const sy = s.y ?? cy
-      const tx = t.x ?? cx
-      const ty = t.y ?? cy
-      return {
-        d: `M${sx},${sy} L${tx},${ty}`,
-        mx: (sx + tx) / 2,
-        my: (sy + ty) / 2,
-      }
-    }
+    // Straight <line> exactly like branch-visualizer (index.html: link = svg.selectAll(".link").data(links).enter().append("line")...)
+    const midOf = (s: MindNode, t: MindNode) => ({
+      mx: ((s.x ?? cx) + (t.x ?? cx)) / 2,
+      my: ((s.y ?? cy) + (t.y ?? cy)) / 2,
+    })
 
     // ── Links ───────────────────────────────────────────────────────────
     const link = zoomGroup.append('g')
-      .selectAll('path')
+      .selectAll('line')
       .data(links)
-      .join('path')
-      .attr('fill', 'none')
+      .join('line')
+      .attr('class', 'link')
       .attr('stroke', (l) => l.stroke)
       .attr('stroke-width', 2)
       .attr('stroke-dasharray', (l) => (l.dashed ? '6 4' : 'none'))
@@ -578,10 +571,14 @@ export default function SubjectView() {
     })
 
     sim.on('tick', () => {
-      link.attr('d', (l) => lineOf(l.source as MindNode, l.target as MindNode).d)
+      link
+        .attr('x1', (l) => (l.source as MindNode).x ?? cx)
+        .attr('y1', (l) => (l.source as MindNode).y ?? cy)
+        .attr('x2', (l) => (l.target as MindNode).x ?? cx)
+        .attr('y2', (l) => (l.target as MindNode).y ?? cy)
       linkLabel
-        .attr('x', (l) => lineOf(l.source as MindNode, l.target as MindNode).mx)
-        .attr('y', (l) => lineOf(l.source as MindNode, l.target as MindNode).my - 4)
+        .attr('x', (l) => midOf(l.source as MindNode, l.target as MindNode).mx)
+        .attr('y', (l) => midOf(l.source as MindNode, l.target as MindNode).my - 4)
       node.attr('transform', (d) => `translate(${d.x ?? cx},${d.y ?? cy})`)
     })
 
