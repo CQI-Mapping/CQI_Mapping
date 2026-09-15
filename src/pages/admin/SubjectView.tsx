@@ -281,7 +281,7 @@ export default function SubjectView() {
             </select>
           </label>
 
-          <h3 className="subject-view__course-heading">Courses</h3>
+          <h3 className="subject-view__course-heading">Subject Code</h3>
           <label className="field">
             <span className="sr-only">Select course</span>
             <select className="input input--sm" value={selectedCourseId ?? ''}
