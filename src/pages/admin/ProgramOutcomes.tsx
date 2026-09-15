@@ -99,8 +99,16 @@ export default function ProgramOutcomes() {
       inlineForm
       stackedAlignments={[alignments[2]]}
       sort={(a, b) => {
-        const n = (s: string) => parseInt(s.replace(/\D/g, ''), 10)
-        return (n((a as { code?: string }).code || '') || 0) - (n((b as { code?: string }).code || '') || 0)
+        // Numeric PO order: PO-1 … PO-27 (fixes lexicographic PO-1, PO-10, PO-2)
+        const n = (s: string) => {
+          const m = s.match(/PO\D*(\d+)/i)
+          return m ? parseInt(m[1], 10) : 9999
+        }
+        const ca = String((a as { code?: string }).code || '')
+        const cb = String((b as { code?: string }).code || '')
+        const na = n(ca); const nb = n(cb)
+        if (na !== nb) return na - nb
+        return ca.localeCompare(cb)
       }}
     />
   )

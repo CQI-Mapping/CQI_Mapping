@@ -53,6 +53,12 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
     ;(async () => {
       try {
         const pos = (await fetchProgramOutcomesStandalone()).filter((p) => !p.status || p.status === 'active')
+        // Numeric PO order PO-1…PO-27 for the suggest dropdown
+        pos.sort((a, b) => {
+          const n = (s: string) => { const m = s.match(/PO\D*(\d+)/i); return m ? parseInt(m[1], 10) : 9999 }
+          const na = n(a.code || ''); const nb = n(b.code || '')
+          return na !== nb ? na - nb : String(a.code).localeCompare(String(b.code))
+        })
         if (!cancelled) setPoSuggestions(pos.map(toSuggestion))
       } catch {
         // suggestions are optional; leave the list empty on failure
