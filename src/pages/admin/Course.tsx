@@ -117,8 +117,7 @@ export default function Course({ profile }: CourseProps) {
   const [form, setForm] = useState<CourseForm>(blank)
   const [editId, setEditId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<CourseForm>(blank)
-
-  const userEmail = profile?.email ?? 'unknown'
+  const [archived, setArchived] = useState(false)
 
   const errMsg = (e: unknown) => {
     if (e instanceof Error) return e.message
@@ -150,11 +149,23 @@ export default function Course({ profile }: CourseProps) {
 
   useEffect(() => { load() }, [load])
 
+  const isActive = (c: Course) => !c.status || c.status === 'active'
   const visible = courses.filter((c) =>
     typeof c.program_id === 'object' ? c.program_id.id === programId : c.program_id === programId,
-  )
+  ).filter((c) => (archived ? !isActive(c) : isActive(c)))
 
-  const programCourses = visible.filter((c) => c.id !== editId)
+  const archivedCount = courses.filter(
+    (c) =>
+      !isActive(c) &&
+      (typeof c.program_id === 'object' ? c.program_id.id === programId : c.program_id === programId),
+  ).length
+
+  const programCourses = courses.filter(
+    (c) =>
+      isActive(c) &&
+      c.id !== editId &&
+      (typeof c.program_id === 'object' ? c.program_id.id === programId : c.program_id === programId),
+  )
 
   const totalCredits = (f: CourseForm) => {
     const lec = parseInt(f.creditLecture, 10) || 0
@@ -189,7 +200,7 @@ export default function Course({ profile }: CourseProps) {
     setBusy(true)
     try {
       await createCourse({ program_id: programId, ...buildPayload(form) })
-      await addActivityLog(userEmail, 'course.created')
+      await addActivityLog('course.created')
       setMessage('Course created.')
       setForm(blank)
       load()
@@ -225,7 +236,7 @@ export default function Course({ profile }: CourseProps) {
     setBusy(true)
     try {
       await updateCourse(editId, buildPayload(editForm))
-      await addActivityLog(userEmail, 'course.updated')
+      await addActivityLog('course.updated')
       setMessage('Course updated.')
       setEditId(null)
       setEditForm(blank)
@@ -249,11 +260,29 @@ export default function Course({ profile }: CourseProps) {
     setBusy(true)
     try {
       await deleteCourse(id)
-      await addActivityLog(userEmail, 'course.deleted')
+      await addActivityLog('course.deleted')
       setMessage('Course deleted.')
       load()
     } catch (err) {
       setError('Failed to delete course: ' + errMsg(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleToggleStatus = async (item: Course) => {
+    setError('')
+    setMessage('')
+    const next = isActive(item) ? 'archived' : 'active'
+    setBusy(true)
+    try {
+      await updateCourse(item.id, { status: next })
+      await addActivityLog(next === 'archived' ? 'course.archived' : 'course.restored')
+      setMessage(`Course ${next}.`)
+      if (editId === item.id) cancelEdit()
+      load()
+    } catch (err) {
+      setError('Failed to update course: ' + errMsg(err))
     } finally {
       setBusy(false)
     }
@@ -391,6 +420,12 @@ export default function Course({ profile }: CourseProps) {
           </form>
 
           <div className="panel table-wrap">
+            <div className="sd-tabs">
+              <button className={`sd-tab ${!archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(false)}>Active</button>
+              <button className={`sd-tab ${archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(true)}>
+                Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
+              </button>
+            </div>
             <table className="table">
               <thead>
                 <tr>
@@ -401,15 +436,16 @@ export default function Course({ profile }: CourseProps) {
                   <th>Co-req</th>
                   <th>Credits (Lec / Lab / Total)</th>
                   <th>Description</th>
+                  <th>Status</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {visible.length === 0 && (
-                  <tr><td colSpan={8}>No courses in this program yet.</td></tr>
+                  <tr><td colSpan={9}>No {archived ? 'archived' : 'active'} courses in this program yet.</td></tr>
                 )}
                 {visible.map((c) => (
-                  <tr key={c.id}>
+                  <tr key={c.id} className={!isActive(c) ? 'sd-archived' : ''}>
                     <td><strong>{c.code}</strong></td>
                     <td>{c.title}</td>
                     <td>{curriculumLabel(c.curriculum_id)}</td>
@@ -418,8 +454,19 @@ export default function Course({ profile }: CourseProps) {
                     <td>{c.credit_lecture ?? 0} / {c.credit_laboratory ?? 0} / {c.units ?? 0}</td>
                     <td>{c.description || '-'}</td>
                     <td>
+                      <span className={`sd-status-badge ${isActive(c) ? 'sd-status-badge--active' : 'sd-status-badge--archived'}`}>
+                        {isActive(c) ? 'active' : 'archived'}
+                      </span>
+                    </td>
+                    <td>
                       <button className="btn btn--ghost btn--sm" onClick={() => startEdit(c)} disabled={busy || !!editId}>Edit</button>{' '}
-                      <button className="btn btn--danger btn--sm" onClick={() => handleDelete(c.id)} disabled={busy || !!editId}>Delete</button>
+                      <button className={`btn btn--sm ${isActive(c) ? 'btn--danger' : 'btn--ghost'}`}
+                        onClick={() => handleToggleStatus(c)} disabled={busy || !!editId}>
+                        {isActive(c) ? 'Archive' : 'Restore'}
+                      </button>{' '}
+                      {!isActive(c) && (
+                        <button className="btn btn--danger btn--sm" onClick={() => handleDelete(c.id)} disabled={busy || !!editId}>Delete</button>
+                      )}
                     </td>
                   </tr>
                 ))}

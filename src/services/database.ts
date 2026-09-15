@@ -60,6 +60,7 @@ export interface Course {
     curriculum_id: string | { id: string; code: string } | null
     prerequisite: string
     corequisite: string
+    status: string
     created_at: string
     updated_at: string
   }

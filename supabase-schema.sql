@@ -95,6 +95,7 @@ CREATE TABLE public.courses (
       credit_laboratory INTEGER NOT NULL DEFAULT 0 CHECK (credit_laboratory >= 0 AND credit_laboratory <= 3),
       units INTEGER NOT NULL DEFAULT 0 CHECK (units >= 0),
       description TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       UNIQUE (program_id, code)
