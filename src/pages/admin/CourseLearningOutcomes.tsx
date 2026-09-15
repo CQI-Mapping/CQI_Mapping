@@ -95,7 +95,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             onChange={(e) => setForm({ ...form, course: e.target.value })} required />
         </label>
         <label className="field">
-          <span>CLO Number</span>
+          <span>CLO Code</span>
           <input className="input input--sm" type="text" placeholder="e.g. CLO-1" value={form.code}
             onChange={(e) => setForm({ ...form, code: e.target.value })} required />
         </label>
