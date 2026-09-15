@@ -40,6 +40,12 @@ function Curriculum({ userEmail }: CurriculumProps) {
   const [editDescription, setEditDescription] = useState('')
   const [editUnits, setEditUnits] = useState('')
   const [busy, setBusy] = useState(false)
+  const [archived, setArchived] = useState(false)
+
+  // Filtered lists
+  const isActive = (i: Resource) => !i.status || i.status === 'active'
+  const visible = items.filter((i) => (archived ? !isActive(i) : isActive(i)))
+  const archivedCount = items.filter((i) => !isActive(i)).length
 
   // Fetch the list from the DB.
   const load = async () => {
@@ -74,7 +80,7 @@ function Curriculum({ userEmail }: CurriculumProps) {
       const codeValue = code.trim()
       if (!codeValue) throw new Error('Code is required')
       await createResource(codeValue, description.trim() || null, units === '' ? null : Number(units), userId)
-      await addActivityLog(userEmail, 'resource.created')
+      await addActivityLog('resource.created')
       setCode('')
       setDescription('')
       setUnits('')
@@ -116,7 +122,7 @@ function Curriculum({ userEmail }: CurriculumProps) {
         description: editDescription.trim() || null,
         units: editUnits === '' ? null : Number(editUnits),
       })
-      await addActivityLog(userEmail, 'resource.updated')
+      await addActivityLog('resource.updated')
       setMessage('Resource updated.')
       cancelEdit()
       load()
@@ -134,7 +140,7 @@ function Curriculum({ userEmail }: CurriculumProps) {
     const next = item.status === 'active' ? 'archived' : 'active'
     try {
       await updateResource(item.id, { status: next })
-      await addActivityLog('resource.archived')
+      await addActivityLog(next === 'archived' ? 'resource.archived' : 'resource.restored')
       setMessage(`Resource ${next}.`)
       load()
     } catch (e) {
@@ -196,76 +202,84 @@ function Curriculum({ userEmail }: CurriculumProps) {
       {loading ? (
         <p>Loading curriculum...</p>
       ) : (
-        <div className="resource-list">
-          {items.length === 0 && <p>No curriculum records yet.</p>}
-          {items.map((item) => (
-            <div className={`resource-card ${item.status === 'archived' ? 'resource-card--archived' : ''}`} key={item.id}>
-              {editingId === item.id ? (
-                <div className="resource-card__edit">
-                  <label className="field">
-                    <span>Curriculum code</span>
-                    <input
-                      className="input"
-                      value={editCode}
-                      onChange={(e) => setEditCode(e.target.value)}
-                    />
-                  </label>
-                  <label className="field">
-                    <span>Curriculum description</span>
-                    <textarea
-                      className="input"
-                      rows={3}
-                      value={editDescription}
-                      onChange={(e) => setEditDescription(e.target.value)}
-                    />
-                  </label>
-                  <label className="field">
-                    <span>Total Units</span>
-                    <input
-                      className="input"
-                      type="number"
-                      min="0"
-                      value={editUnits}
-                      onChange={(e) => setEditUnits(e.target.value)}
-                    />
-                  </label>
-                  <div className="resource-card__actions">
-                    <button className="btn btn--primary btn--sm" onClick={() => handleSave(item.id)} disabled={busy}>
-                      Save
-                    </button>
-                    <button className="btn btn--ghost btn--sm" onClick={cancelEdit}>
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="resource-card__body">
-                    <h4>{item.code || item.title}</h4>
-                    {item.description && <p>{item.description}</p>}
-                    <div className="resource-card__meta">
-                      <span className={`status-badge status-badge--${item.status}`}>{item.status}</span>
-                      {item.units != null && <span>{item.units} unit{item.units === 1 ? '' : 's'}</span>}
-                      <span>by {(typeof item.created_by === 'object' && item.created_by?.full_name) || 'Unknown'}</span>
-                      <span>{new Date(item.created_at).toLocaleString()}</span>
+        <div className="panel table-wrap">
+          <div className="sd-tabs">
+            <button className={`sd-tab ${!archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(false)}>Active</button>
+            <button className={`sd-tab ${archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(true)}>
+              Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
+            </button>
+          </div>
+          <div className="resource-list">
+            {visible.length === 0 && <p>No {archived ? 'archived' : 'active'} curriculum records.</p>}
+            {visible.map((item) => (
+              <div className={`resource-card ${item.status === 'archived' ? 'resource-card--archived' : ''}`} key={item.id}>
+                {editingId === item.id ? (
+                  <div className="resource-card__edit">
+                    <label className="field">
+                      <span>Curriculum code</span>
+                      <input
+                        className="input"
+                        value={editCode}
+                        onChange={(e) => setEditCode(e.target.value)}
+                      />
+                    </label>
+                    <label className="field">
+                      <span>Curriculum description</span>
+                      <textarea
+                        className="input"
+                        rows={3}
+                        value={editDescription}
+                        onChange={(e) => setEditDescription(e.target.value)}
+                      />
+                    </label>
+                    <label className="field">
+                      <span>Total Units</span>
+                      <input
+                        className="input"
+                        type="number"
+                        min="0"
+                        value={editUnits}
+                        onChange={(e) => setEditUnits(e.target.value)}
+                      />
+                    </label>
+                    <div className="resource-card__actions">
+                      <button className="btn btn--primary btn--sm" onClick={() => handleSave(item.id)} disabled={busy}>
+                        Save
+                      </button>
+                      <button className="btn btn--ghost btn--sm" onClick={cancelEdit}>
+                        Cancel
+                      </button>
                     </div>
                   </div>
+                ) : (
+                  <>
+                    <div className="resource-card__body">
+                      <h4>{item.code || item.title}</h4>
+                      {item.description && <p>{item.description}</p>}
+                      <div className="resource-card__meta">
+                        <span className={`status-badge status-badge--${item.status}`}>{item.status}</span>
+                        {item.units != null && <span>{item.units} unit{item.units === 1 ? '' : 's'}</span>}
+                        <span>by {(typeof item.created_by === 'object' && item.created_by?.full_name) || 'Unknown'}</span>
+                        <span>{new Date(item.created_at).toLocaleString()}</span>
+                      </div>
+                    </div>
 
-                  <div className="resource-card__actions">
-                    <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)}>
-                      Edit
-                    </button>
-                    <button
-                      className="btn btn--ghost btn--sm"
-                      onClick={() => handleToggleStatus(item)}
-                    >
-                      {item.status === 'active' ? 'Archive' : 'Restore'}
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          ))}
+                    <div className="resource-card__actions">
+                      <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)}>
+                        Edit
+                      </button>
+                      <button
+                        className="btn btn--ghost btn--sm"
+                        onClick={() => handleToggleStatus(item)}
+                      >
+                        {item.status === 'active' ? 'Archive' : 'Restore'}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
