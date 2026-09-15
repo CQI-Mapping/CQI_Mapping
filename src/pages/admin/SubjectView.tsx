@@ -210,10 +210,20 @@ export default function SubjectView() {
       addSat(subject.corequisite, 'corequisite')
 
       // CLOs whose course matches the selected subject code.
-      const subjectClos = datasetsRef.clos.filter(
-        (clo) => normalizeCode(firstToken(clo.course || '')) === subjectKey
-          || normalizeCode(clo.course || '') === subjectKey,
-      )
+      // Lenient: handles "IT 21", "IT21", "IT 21 - OOP", "IT21-OOP", "IT-21" etc.
+      const subjectClos = datasetsRef.clos.filter((clo) => {
+        const raw = (clo.course || '').trim()
+        if (!raw) return false
+        const norm = normalizeCode(raw)
+        if (norm === subjectKey) return true
+        if (normalizeCode(firstToken(raw)) === subjectKey) return true
+        // contains check for "IT 21 - OOP" -> "IT21OOP" contains "IT21"
+        if (norm.includes(subjectKey)) return true
+        // token-wise check: split raw into tokens and see if any token normalizes to subject
+        const tokens = raw.split(/[\s,;|]+/).map((s) => normalizeCode(s)).filter(Boolean)
+        if (tokens.includes(subjectKey)) return true
+        return false
+      })
 
       const poMap = new Map<string, GraphNodeData>()
 
