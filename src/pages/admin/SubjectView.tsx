@@ -450,24 +450,16 @@ export default function SubjectView() {
 
     const zoomGroup = svg.append('g')
 
-    // Gentle curve for each link, like the hand-drawn sketch.
-    const curveOf = (s: MindNode, t: MindNode) => {
+    // Straight line for each link (was curved before).
+    const lineOf = (s: MindNode, t: MindNode) => {
       const sx = s.x ?? cx
       const sy = s.y ?? cy
       const tx = t.x ?? cx
       const ty = t.y ?? cy
-      const mx = (sx + tx) / 2
-      const my = (sy + ty) / 2
-      const dx = tx - sx
-      const dy = ty - sy
-      const len = Math.hypot(dx, dy) || 1
-      const bow = Math.min(26, len * 0.12)
-      const qx = mx - (dy / len) * bow
-      const qy = my + (dx / len) * bow
       return {
-        d: `M${sx},${sy} Q${qx},${qy} ${tx},${ty}`,
-        mx: 0.25 * sx + 0.5 * qx + 0.25 * tx,
-        my: 0.25 * sy + 0.5 * qy + 0.25 * ty,
+        d: `M${sx},${sy} L${tx},${ty}`,
+        mx: (sx + tx) / 2,
+        my: (sy + ty) / 2,
       }
     }
 
@@ -586,10 +578,10 @@ export default function SubjectView() {
     })
 
     sim.on('tick', () => {
-      link.attr('d', (l) => curveOf(l.source as MindNode, l.target as MindNode).d)
+      link.attr('d', (l) => lineOf(l.source as MindNode, l.target as MindNode).d)
       linkLabel
-        .attr('x', (l) => curveOf(l.source as MindNode, l.target as MindNode).mx)
-        .attr('y', (l) => curveOf(l.source as MindNode, l.target as MindNode).my - 4)
+        .attr('x', (l) => lineOf(l.source as MindNode, l.target as MindNode).mx)
+        .attr('y', (l) => lineOf(l.source as MindNode, l.target as MindNode).my - 4)
       node.attr('transform', (d) => `translate(${d.x ?? cx},${d.y ?? cy})`)
     })
 
