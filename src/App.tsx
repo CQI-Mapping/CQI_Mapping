@@ -114,6 +114,7 @@ function App() {
   const [profileLoaded, setProfileLoaded] = useState(false)
   const [activePage, setActivePage] = useState('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [subjectCourseId, setSubjectCourseId] = useState<string | null>(null)
 
   // On first render: restore an existing session from localStorage and subscribe to
   // auth changes (sign-in / sign-out) so the UI updates automatically.
@@ -205,6 +206,16 @@ function App() {
     if (page === 'profile') return <Page profile={profile} onSaved={setProfile} />
     if (page === 'users') return <Page />
     if (page === 'curriculum' && role !== 'user') return <Page userEmail={profile?.email} />
+    if (page === 'course') return (
+      <Page
+        profile={profile}
+        onViewSubject={(courseId: string) => {
+          setSubjectCourseId(courseId)
+          setActivePage('subject-view')
+        }}
+      />
+    )
+    if (page === 'subject-view') return <Page key={subjectCourseId ?? 'all'} preselectCourseId={subjectCourseId} />
     return <Page profile={profile} />
   }
 
