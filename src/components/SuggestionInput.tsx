@@ -33,6 +33,13 @@ export default function SuggestionInput({ value, onChange, options, placeholder 
 
   useEffect(() => setActive(0), [query])
 
+  // Follow the active item when user navigates with arrows (keyboard) — keeps it visible.
+  useEffect(() => {
+    if (!open) return
+    const el = ref.current?.querySelector('.suggestion__item--active') as HTMLElement | null
+    el?.scrollIntoView({ block: 'nearest' })
+  }, [active, open])
+
   const q = query.trim().toLowerCase()
   const visibleOptions = q.length >= 2
     ? options.filter((o) => (o.label ?? o.value).toLowerCase().includes(q))
