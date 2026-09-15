@@ -41,9 +41,14 @@ export default function SuggestionInput({ value, onChange, options, placeholder 
   }, [active, open])
 
   const q = query.trim().toLowerCase()
+  // When empty and focused, show the pre-filtered BSIT CMO-25 POs (for CLO page)
+  // otherwise require 2 chars to filter — keeps dropdown useful while respecting
+  // the "ONLY IF THERE IS NO INPUT" rule from the user.
   const visibleOptions = q.length >= 2
     ? options.filter((o) => (o.label ?? o.value).toLowerCase().includes(q))
-    : []
+    : q.length === 0 && open
+      ? options.slice(0, 12)
+      : []
 
   const select = (o: SuggestionOption) => {
     onChange(o.value)
@@ -83,8 +88,8 @@ export default function SuggestionInput({ value, onChange, options, placeholder 
         type="text"
         placeholder={placeholder}
         value={query}
-        onChange={(e) => { setQuery(e.target.value); setOpen(e.target.value.trim().length >= 2); }}
-        onFocus={() => { if (query.trim().length >= 2) setOpen(true) }}
+        onChange={(e) => { const v = e.target.value; setQuery(v); const t = v.trim(); setOpen(t.length === 0 || t.length >= 2); }}
+        onFocus={() => { const t = query.trim(); if (t.length === 0 || t.length >= 2) setOpen(true) }}
         onKeyDown={onKeyDown}
       />
       {open && (

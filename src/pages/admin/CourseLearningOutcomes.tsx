@@ -55,30 +55,32 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
       try {
         const [posRaw, cmos] = await Promise.all([
           fetchProgramOutcomesStandalone(),
-          fetchChedMemoOrders().catch(() => [] as Awaited<ReturnType<typeof fetchChedMemoOrders>>),
+          fetchChedMemoOrders(),
         ])
         let pos = posRaw.filter((p) => !p.status || p.status === 'active')
-        // Only BSIT Program Outcomes that actually have PEO/SG linkage:
-        // "Bachelor of Science in Information Technology Program Outcomes (CMO 25 s. 2015)"
-        // and "SPECIFIC TO A SUB-DISCIPLINE AND A MAJOR (CMO 25 s. 2015)" are the ones
-        // that have Program Educational Objectives / Strategic Goals attached.
+        // Build CMO lookup for BSIT filtering
         const cmoById = new Map(cmos.map((c) => [c.id, c]))
-        const isTargetCmo = (p: typeof pos[number]) => {
-          const desc = (p.description || '').toUpperCase()
-          const cmo = p.cmo_id ? cmoById.get(p.cmo_id) : null
-          const cmoTitle = `${cmo?.title ?? ''} ${cmo?.code ?? ''}`.toUpperCase()
-          const hay = `${desc} ${cmoTitle}`.trim()
-          if (!hay) return false
-          const isBSIT = hay.includes('INFORMATION TECHNOLOGY') && hay.includes('CMO 25')
-          const isSubDisc = hay.includes('SUB-DISCIPLINE') && hay.includes('CMO 25')
-          return isBSIT || isSubDisc
+        const isBSCMO25 = (cmoId: string | null) => {
+          if (!cmoId) return false
+          const c = cmoById.get(cmoId)
+          if (!c) return false
+          const hay = `${c.title || ''} ${c.code || ''}`.toLowerCase()
+          const isCmo25 = hay.includes('25') && hay.includes('2015')
+          const isBSIT = hay.includes('information technology')
+          const isSubDisc = hay.includes('sub-discipline') || hay.includes('sub discipline')
+          return isCmo25 && (isBSIT || isSubDisc)
         }
-        const hasPEOSG = (p: typeof pos[number]) =>
-          !!(p.peo_id || (p.peo_text && p.peo_text.trim()) || p.sg_id || (p.sg_text && p.sg_text.trim()))
-        const filtered = pos.filter((p) => isTargetCmo(p) && hasPEOSG(p))
-        // Fallback to PEO/SG filter alone if CMO titles differ across environments
-        const useList = filtered.length > 0 ? filtered : pos.filter(hasPEOSG)
-        pos = useList.length > 0 ? useList : pos
+        // Only BSIT CMO 25 s.2015 (the two categories named by user) and
+        // only those that already have PEO + SG alignment — when the input is
+        // empty the dropdown should suggest only these "ready" POs.
+        // If none match the strict filter, fall back to all active POs.
+        const filtered = pos.filter((p) => {
+          if (!isBSCMO25(p.cmo_id)) return false
+          const hasPEO = !!(p.peo_id || (p.peo_text && p.peo_text.trim()))
+          const hasSG = !!(p.sg_id || (p.sg_text && p.sg_text.trim()))
+          return hasPEO && hasSG
+        })
+        if (filtered.length > 0) pos = filtered
         // Numeric PO order PO-1…PO-27 for the suggest dropdown
         pos.sort((a, b) => {
           const n = (s: string) => { const m = s.match(/PO\D*(\d+)/i); return m ? parseInt(m[1], 10) : 9999 }
