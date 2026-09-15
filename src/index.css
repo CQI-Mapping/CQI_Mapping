@@ -2933,6 +2933,29 @@ textarea.input {
   background: var(--primary-dark);
 }
 
+.subject-view__view-btn {
+  margin-top: 12px;
+  width: 100%;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.subject-view__view-btn:hover:not(:disabled) {
+  background: var(--primary-dark);
+}
+
+.subject-view__view-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .subject-view__graph-title {
   font-size: 16px;
   margin-bottom: 8px;

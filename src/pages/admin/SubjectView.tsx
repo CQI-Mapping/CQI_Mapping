@@ -22,7 +22,7 @@ interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
   label: string
 }
 
-export default function SubjectView({ preselectCourseId }: { preselectCourseId?: string | null }) {
+export default function SubjectView() {
   const [programs, setPrograms] = useState<Program[]>([])
   const [courses, setCourses] = useState<Course[]>([])
   const [selectedProgramId, setSelectedProgramId] = useState('')
@@ -49,16 +49,6 @@ export default function SubjectView({ preselectCourseId }: { preselectCourseId?:
     })()
     return () => { cancelled = true }
   }, [])
-
-  // When preselectCourseId arrives (or changes), select the course and its program
-  useEffect(() => {
-    if (!preselectCourseId || loading) return
-    const course = courses.find((c) => c.id === preselectCourseId)
-    if (!course) return
-    const pid = typeof course.program_id === 'object' ? course.program_id.id : course.program_id
-    setSelectedProgramId(pid)
-    setSelectedCourseId(preselectCourseId)
-  }, [preselectCourseId, loading, courses])
 
   const programCourses = courses.filter((c) => {
     const pid = typeof c.program_id === 'object' ? c.program_id.id : c.program_id
@@ -268,6 +258,10 @@ export default function SubjectView({ preselectCourseId }: { preselectCourseId?:
               </li>
             ))}
           </ul>
+          <button className="btn btn--sm subject-view__view-btn" disabled={!selectedCourse || loading}
+            onClick={renderGraph}>
+            View
+          </button>
         </div>
 
         {/* ── Right panel: D3 graph ─────────────────────────────────────── */}
