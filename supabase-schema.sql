@@ -171,19 +171,15 @@ CREATE TABLE public.admin_program_outcomes (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
--- Same code is allowed with a different CMO Alignment (e.g. PO-1 + CMO-A vs PO-1 + CMO-B).
--- Enforce uniqueness on (code, cmo_id) where NULL is treated as equal so two PO-1
--- with no CMO are still duplicates. Postgres UNIQUE treats NULLs as distinct, so
--- we use a COALESCE-based unique index instead of a plain UNIQUE constraint.
-CREATE UNIQUE INDEX IF NOT EXISTS admin_program_outcomes_code_cmo_unique
-    ON public.admin_program_outcomes (code, COALESCE(cmo_id, '00000000-0000-0000-0000-000000000000'::uuid));
--- Drop the legacy single-column uniqueness if it exists (fresh DBs won't have it, but
--- existing DBs migrated from the old schema will).
+-- Per requirement, same code with same CMO Alignment is also allowed (no unique
+-- constraint on code at all) — duplicates are permitted. Drop any legacy uniqueness.
 DO $$ BEGIN
     IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'admin_program_outcomes_code_key') THEN
         ALTER TABLE public.admin_program_outcomes DROP CONSTRAINT admin_program_outcomes_code_key;
     END IF;
 END $$;
+DROP INDEX IF EXISTS public.admin_program_outcomes_code_cmo_unique;
+DROP INDEX IF EXISTS public.admin_program_outcomes_code_cmo_nulls_equal;
 
 -- Backfill for existing rows after adding cmo_id:
 -- UPDATE public.admin_program_outcomes a
