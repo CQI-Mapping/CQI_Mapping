@@ -16,9 +16,9 @@ import SuggestionInput, { type SuggestionOption } from '../../components/Suggest
 
 const EMPTY = { code: '', course: '', description: '', programOutcomes: '' }
 
-const toSuggestion = (i: { code: string; title: string | null }): SuggestionOption => ({
-  value: i.code, // store code only as PO-1 — title stays in label for the dropdown
-  label: `${i.code} - ${i.title ?? ''}`.trim(),
+const toSuggestion = (i: { code: string; title: string }): SuggestionOption => ({
+  value: i.code,
+  label: `${i.code} - ${i.title}`.trim(),
 })
 
 export default function CourseLearningOutcomes({ userEmail }: { userEmail: string }) {
