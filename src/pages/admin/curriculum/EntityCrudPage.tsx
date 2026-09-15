@@ -108,7 +108,22 @@ alignments,
     description: '',
     align: (allAlignments).reduce((acc, a) => ({ ...acc, [a.relationField]: '' }), {}),
   })
-  const [form, setForm] = useState<FormState>(blank)
+
+  const draftKey = `cqi.draft.${title}`
+  const readDraft = (): FormState => {
+    try {
+      const raw = sessionStorage.getItem(draftKey)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (parsed && typeof parsed === 'object') return { ...blank(), ...parsed }
+      }
+    } catch {
+      /* ignore invalid draft */
+    }
+    return blank()
+  }
+
+  const [form, setForm] = useState<FormState>(readDraft)
   const [editForm, setEditForm] = useState<FormState>(blank)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [archived, setArchived] = useState(false)
@@ -124,6 +139,14 @@ alignments,
   const archivedCount = items.filter((i) => !isActive(i)).length
 
   useEffect(() => { crud.load() }, [crud.load])
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(draftKey, JSON.stringify(form))
+    } catch {
+      /* ignore quota errors */
+    }
+  }, [form, draftKey])
 
   const optionId = (o: AlignmentOption) => o.relationId ?? o.cmo_id ?? null
 
@@ -149,7 +172,14 @@ alignments,
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (await handleCreate(payload(form), createAction)) setForm(blank())
+    if (await handleCreate(payload(form), createAction)) {
+      try {
+        sessionStorage.removeItem(draftKey)
+      } catch {
+        /* ignore */
+      }
+      setForm(blank())
+    }
   }
 
   const startEdit = (item: T) => {
