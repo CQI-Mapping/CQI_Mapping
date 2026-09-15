@@ -171,15 +171,12 @@ CREATE TABLE public.admin_program_outcomes (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
--- Same code is allowed with a different CMO Alignment, and same code+same CMO
--- is allowed when the Description differs (title). So uniqueness is on
--- (code, cmo_id, title) — e.g. PO-1+CMO-A+"Desc A" vs PO-1+CMO-A+"Desc B" are distinct.
--- Postgres UNIQUE treats NULL as distinct, so COALESCE cmo_id to treat NULL as equal.
-DROP INDEX IF EXISTS admin_program_outcomes_code_cmo_unique;
-DROP INDEX IF EXISTS admin_program_outcomes_code_cmo_title_unique;
-DROP INDEX IF EXISTS admin_program_outcomes_code_cmo_nulls_equal;
-CREATE UNIQUE INDEX admin_program_outcomes_code_cmo_title_unique
-    ON public.admin_program_outcomes (code, COALESCE(cmo_id, '00000000-0000-0000-0000-000000000000'::uuid), title);
+-- Same code is allowed with a different CMO Alignment (e.g. PO-1 + CMO-A vs PO-1 + CMO-B).
+-- Enforce uniqueness on (code, cmo_id) where NULL is treated as equal so two PO-1
+-- with no CMO are still duplicates. Postgres UNIQUE treats NULLs as distinct, so
+-- we use a COALESCE-based unique index instead of a plain UNIQUE constraint.
+CREATE UNIQUE INDEX IF NOT EXISTS admin_program_outcomes_code_cmo_unique
+    ON public.admin_program_outcomes (code, COALESCE(cmo_id, '00000000-0000-0000-0000-000000000000'::uuid));
 -- Drop the legacy single-column uniqueness if it exists (fresh DBs won't have it, but
 -- existing DBs migrated from the old schema will).
 DO $$ BEGIN
@@ -195,9 +192,10 @@ END $$;
 -- WHERE a.cmo_id IS NULL AND a.description ILIKE '%' || c.code || '%';
 
 -- COURSE LEARNING OUTCOMES (standalone admin list)
+-- Same CLO code is allowed in different courses (e.g. CLO-1 for CS-101 and CLO-1 for IT21)
 CREATE TABLE public.admin_course_learning_outcomes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    code TEXT UNIQUE NOT NULL,
+    code TEXT NOT NULL,
     course TEXT NOT NULL DEFAULT '',
     title TEXT NOT NULL,
     description TEXT,
@@ -205,6 +203,13 @@ CREATE TABLE public.admin_course_learning_outcomes (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE UNIQUE INDEX IF NOT EXISTS admin_course_learning_outcomes_code_course_unique
+    ON public.admin_course_learning_outcomes (code, course);
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'admin_course_learning_outcomes_code_key') THEN
+        ALTER TABLE public.admin_course_learning_outcomes DROP CONSTRAINT admin_course_learning_outcomes_code_key;
+    END IF;
+END $$;
 
 -- CHED MEMORANDUM ORDERS
 -- (definition is above, before admin_program_outcomes)

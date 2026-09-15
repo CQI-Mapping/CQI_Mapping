@@ -19,13 +19,12 @@ function friendlyError(raw: string): string {
   if (/duplicate key.*violates unique constraint/.test(raw)) {
     const keyName = raw.match(/violates unique constraint "(\w+)"/)?.[1] ?? ''
     const parts = keyName.replace(/_key$/, '').split('_').filter(Boolean)
-    const columnWords = ['code', 'title', 'name', 'email', 'id', 'cmo', 'peo', 'sg']
+    const columnWords = ['code', 'title', 'name', 'email', 'id', 'cmo', 'peo', 'sg', 'course']
     const columns = parts.filter((p) => columnWords.includes(p))
-    // Composite (code, cmo, title) for Program Outcomes: same code+same CMO
-    // is allowed when the Description (title) differs — uniqueness is on
-    // (code, COALESCE(cmo_id), title). Same code+same CMO+same Description is duplicate.
-    if (columns.includes('code') && columns.includes('cmo') && columns.includes('title')) {
-      return 'This combination of Code, CMO Alignment and Description already exists. Same code with the same CMO but a different Description is allowed — change the Description or pick a different CMO/Code.'
+    // Same CLO code with different course is allowed (UNIQUE(code,course)); same PO code
+    // with different CMO is allowed (UNIQUE(code,cmo_id)).
+    if (columns.includes('code') && columns.includes('course')) {
+      return 'This code already exists for this course. Same code with a different course is allowed — change the course or the code.'
     }
     if (columns.includes('code') && columns.includes('cmo')) {
       return 'This code already exists for the selected CMO Alignment. Same code with a different CMO Alignment is allowed — pick a different CMO or a different code.'
