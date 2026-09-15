@@ -331,116 +331,212 @@ export default function SubjectView() {
     [programCourses],
   )
 
-  // ── D3 tree render ─────────────────────────────────────────────────────────
+  // ── D3 radial mind-map render ────────────────────────────────────────────
+  // Center-out layout matching the reference sketch: the selected subject sits
+  // in the middle, prerequisites / corequisites / curriculum / CLOs ring around
+  // it, POs form the next ring, and PEO / SG / CMO leaves sit outermost.
   const renderGraph = useCallback(() => {
     const svgEl = svgRef.current
     const tip = tooltipRef.current
     if (!svgEl || !tip || !selectedCourse || !datasets) return () => {}
 
     const svg = d3.select(svgEl)
+    svg.on('.zoom', null)
     svg.selectAll('*').remove()
 
-    const width = containerSize.w || svgEl.clientWidth || 600
-    const height = containerSize.h || svgEl.clientHeight || 400
-    const margin = 60
+    const width = containerSize.w || svgEl.clientWidth || 640
+    const height = containerSize.h || svgEl.clientHeight || 460
+    const cx = width / 2
+    const cy = height / 2
 
     const data = buildGraphModel(datasets, selectedCourse)
-    const hierarchyRoot = d3.hierarchy<GraphNodeData>(data, (d) => d.children)
 
-    // Left-to-right tidy tree.
-    const tree = d3.tree<GraphNodeData>().nodeSize([54, 150])
-    const nodes = tree(hierarchyRoot).descendants()
+    // Re-root at the subject so it renders in the center; the curriculum
+    // becomes one branch of the first ring.
+    const subjectData = data.children[0]
+    const curriculumLeaf: GraphNodeData = { ...data, children: [] }
+    const rootData: GraphNodeData = {
+      ...subjectData,
+      children: [curriculumLeaf, ...(subjectData.children ?? [])],
+    }
 
-    // Plot: x grows with depth (right), y spreads by column (vertical).
-    const xMin = Math.min(...nodes.map((n) => n.y))
-    const xMax = Math.max(...nodes.map((n) => n.y))
-    const yMin = Math.min(...nodes.map((n) => n.x))
-    const yMax = Math.max(...nodes.map((n) => n.x))
+    interface MindNode extends d3.SimulationNodeDatum {
+      id: string
+      code: string
+      title: string
+      kind: NodeKind
+      placeholder: boolean
+      courseId?: string
+      depth: number
+      ring: number
+    }
+    interface MindLink extends d3.SimulationLinkDatum<MindNode> {
+      label: string | null
+      dashed: boolean
+      stroke: string
+    }
 
-    const plotX = (n: d3.HierarchyPointNode<GraphNodeData>) => margin + n.y
-    const plotY = (n: d3.HierarchyPointNode<GraphNodeData>) => margin + n.x
+    // Concentric rings sized to the viewport.
+    const unit = Math.min(width, height)
+    const RING_0 = Math.min(160, Math.max(110, unit * 0.22))
+    const RING_GAP = Math.min(155, Math.max(110, unit * 0.2))
+    const ringOf = (depth: number) => (depth === 0 ? 0 : RING_0 + (depth - 1) * RING_GAP)
 
-    // Arrow marker.
-    svg.append('defs').append('marker')
-      .attr('id', 'arrow')
-      .attr('viewBox', '0 -5 10 10')
-      .attr('refX', 22)
-      .attr('refY', 0)
-      .attr('markerWidth', 7)
-      .attr('markerHeight', 7)
-      .attr('orient', 'auto')
-      .append('path')
-      .attr('d', 'M0,-5L10,0L0,5')
-      .attr('fill', '#64748b')
+    const nodes: MindNode[] = []
+    const links: MindLink[] = []
+
+    const walk = (d: GraphNodeData, depth: number, parent: MindNode | null, angle: number) => {
+      const ring = ringOf(depth)
+      const node: MindNode = {
+        id: d.id,
+        code: d.code,
+        title: d.title,
+        kind: d.kind,
+        placeholder: d.placeholder,
+        courseId: d.courseId,
+        depth,
+        ring,
+        x: cx + Math.cos(angle) * ring,
+        y: cy + Math.sin(angle) * ring,
+        fx: depth === 0 ? cx : undefined,
+        fy: depth === 0 ? cy : undefined,
+      }
+      nodes.push(node)
+      if (parent) {
+        let label: string | null = null
+        if (depth === 1) {
+          if (d.kind === 'prerequisite') label = 'pre-req'
+          else if (d.kind === 'corequisite') label = 'co-req'
+          else if (d.kind === 'curriculum') label = 'curriculum'
+        }
+        links.push({
+          source: parent,
+          target: node,
+          label,
+          dashed: d.kind === 'corequisite' || d.placeholder,
+          stroke: d.placeholder ? '#94a3b8' : '#64748b',
+        })
+      }
+      const kids = d.children ?? []
+      kids.forEach((c, i) => {
+        // First ring spreads evenly around the center; deeper levels fan out
+        // around their parent for the organic sketch feel.
+        const childAngle = depth === 0
+          ? angle + (i * Math.PI * 2) / kids.length
+          : angle + (i - (kids.length - 1) / 2) * 0.6
+        walk(c, depth + 1, node, childAngle)
+      })
+    }
+    walk(rootData, 0, null, -Math.PI / 2)
+
+    const radiusOf = (d: MindNode) =>
+      d.depth === 0 ? 30 : d.depth === 1 ? 24 : d.depth === 2 ? 20 : 16
+
+    const sim = d3.forceSimulation<MindNode>(nodes)
+      .force('link', d3.forceLink<MindNode, MindLink>(links).distance(130).strength(0.55))
+      .force('charge', d3.forceManyBody().strength(-320))
+      .force('collide', d3.forceCollide<MindNode>().radius((d) => radiusOf(d) + 16).strength(0.9))
+      .force('ring', d3.forceRadial<MindNode>((d) => d.ring, cx, cy).strength((d) => (d.depth === 0 ? 0 : 0.9)))
 
     const zoomGroup = svg.append('g')
 
+    // Gentle curve for each link, like the hand-drawn sketch.
+    const curveOf = (s: MindNode, t: MindNode) => {
+      const sx = s.x ?? cx
+      const sy = s.y ?? cy
+      const tx = t.x ?? cx
+      const ty = t.y ?? cy
+      const mx = (sx + tx) / 2
+      const my = (sy + ty) / 2
+      const dx = tx - sx
+      const dy = ty - sy
+      const len = Math.hypot(dx, dy) || 1
+      const bow = Math.min(26, len * 0.12)
+      const qx = mx - (dy / len) * bow
+      const qy = my + (dx / len) * bow
+      return {
+        d: `M${sx},${sy} Q${qx},${qy} ${tx},${ty}`,
+        mx: 0.25 * sx + 0.5 * qx + 0.25 * tx,
+        my: 0.25 * sy + 0.5 * qy + 0.25 * ty,
+      }
+    }
+
     // ── Links ───────────────────────────────────────────────────────────
-    zoomGroup.append('g')
+    const link = zoomGroup.append('g')
       .selectAll('path')
-      .data(nodes.slice(1))
+      .data(links)
       .join('path')
       .attr('fill', 'none')
-      .attr('stroke', (d) => d.data.kind === 'corequisite' ? '#94a3b8' : '#64748b')
+      .attr('stroke', (l) => l.stroke)
       .attr('stroke-width', 2)
-      .attr('stroke-dasharray', (d) => d.data.kind === 'corequisite' ? '6 4' : 'none')
-      .attr('marker-end', (d) => d.data.kind === 'corequisite' ? 'none' : 'url(#arrow)')
-      .attr('d', (d) => {
-        const p = plotX(d.parent!), q = plotY(d.parent!)
-        const x = plotX(d), y = plotY(d)
-        const mid = p + (x - p) / 2
-        return `M ${p} ${q} C ${mid} ${q}, ${mid} ${y}, ${x} ${y}`
-      })
+      .attr('stroke-dasharray', (l) => (l.dashed ? '6 4' : 'none'))
 
-    // Edge labels for prerequisite/corequisite.
-    zoomGroup.append('g')
+    // Edge labels for the first ring.
+    const linkLabel = zoomGroup.append('g')
       .selectAll('text')
-      .data(nodes.slice(1).filter((n) => n.data.kind === 'prerequisite' || n.data.kind === 'corequisite'))
+      .data(links.filter((l) => l.label))
       .join('text')
       .attr('text-anchor', 'middle')
       .attr('fill', '#94a3b8')
       .attr('font-size', '10px')
-      .attr('x', (d) => (plotX(d.parent!) + plotX(d)) / 2)
-      .attr('y', (d) => (plotY(d.parent!) + plotY(d)) / 2 - 8)
-      .text((d) => (d.data.kind === 'prerequisite' ? 'pre-req' : 'co-req'))
+      .text((l) => l.label ?? '')
 
     // ── Nodes ───────────────────────────────────────────────────────────
     const node = zoomGroup.append('g')
-      .selectAll<SVGGElement, d3.HierarchyPointNode<GraphNodeData>>('g')
+      .selectAll<SVGGElement, MindNode>('g')
       .data(nodes)
       .join('g')
-      .attr('transform', (d) => `translate(${plotX(d)},${plotY(d)})`)
+      .attr('cursor', (d) => (d.depth === 0 ? 'default' : 'grab'))
 
-    const radius = (d: d3.HierarchyPointNode<GraphNodeData>) =>
-      d.data.kind === 'subject' ? 30 : d.data.kind === 'curriculum' ? 26 : 22
+    const drag = d3.drag<SVGGElement, MindNode>()
+      .on('start', (event, d) => {
+        if (!event.active) sim.alphaTarget(0.3).restart()
+        d.fx = d.x
+        d.fy = d.y
+      })
+      .on('drag', (event, d) => {
+        if (d.depth === 0) return
+        d.fx = event.x
+        d.fy = event.y
+      })
+      .on('end', (event, d) => {
+        if (!event.active) sim.alphaTarget(0)
+        if (d.depth === 0) { d.fx = cx; d.fy = cy }
+        else { d.fx = null; d.fy = null }
+      })
 
-    // Double ring for the selected subject.
-    node.filter((d) => d.data.kind === 'subject').append('circle')
-      .attr('r', radius)
+    node.each(function () {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(d3 as any).select(this).call(drag)
+    })
+
+    // Double ring for the selected subject (center).
+    node.filter((d) => d.depth === 0).append('circle')
+      .attr('r', 37)
       .attr('fill', 'rgba(37, 99, 235, 0.22)')
       .attr('stroke', '#2563eb')
       .attr('stroke-width', 2)
-    node.filter((d) => d.data.kind === 'subject').append('circle')
-      .attr('r', (d) => radius(d) - 6)
+    node.filter((d) => d.depth === 0).append('circle')
+      .attr('r', 30)
       .attr('fill', colorMap.subject)
       .attr('stroke', '#fff')
       .attr('stroke-width', 2)
 
-    node.filter((d) => d.data.kind !== 'subject').append('circle')
-      .attr('r', radius)
-      .attr('fill', (d) => d.data.placeholder ? '#f8fafc' : colorMap[d.data.kind])
-      .attr('stroke', (d) => d.data.placeholder ? '#94a3b8' : colorMap[d.data.kind])
-      .attr('stroke-dasharray', (d) => d.data.placeholder ? '5 3' : 'none')
+    node.filter((d) => d.depth !== 0).append('circle')
+      .attr('r', (d) => radiusOf(d))
+      .attr('fill', (d) => (d.placeholder ? '#f8fafc' : colorMap[d.kind]))
+      .attr('stroke', (d) => (d.placeholder ? '#94a3b8' : colorMap[d.kind]))
+      .attr('stroke-dasharray', (d) => (d.placeholder ? '5 3' : 'none'))
       .attr('stroke-width', 2)
 
     node.append('text')
       .attr('text-anchor', 'middle')
       .attr('dy', 4)
-      .attr('fill', (d) => (d.data.placeholder ? '#64748b' : '#fff'))
-      .attr('font-size', (d) => (d.data.kind === 'subject' ? 13 : 11))
+      .attr('fill', (d) => (d.placeholder ? '#64748b' : '#fff'))
+      .attr('font-size', (d) => (d.depth === 0 ? 13 : d.code.length > 10 ? 9 : 11))
       .attr('font-weight', 'bold')
       .attr('pointer-events', 'none')
-      .text((d) => (d.data.code.length > 14 ? d.data.code.slice(0, 12) + '…' : d.data.code) + (d.data.placeholder && d.data.kind !== 'curriculum' ? '?' : ''))
+      .text((d) => (d.code.length > 14 ? d.code.slice(0, 12) + '…' : d.code) + (d.placeholder && d.kind !== 'curriculum' ? '?' : ''))
 
     // Hover tooltip.
     node
@@ -448,7 +544,7 @@ export default function SubjectView() {
         tip.style.opacity = '1'
         tip.style.left = `${event.offsetX + 12}px`
         tip.style.top = `${event.offsetY - 28}px`
-        tip.innerHTML = `<strong>${d.data.code}</strong><br/>${d.data.title}`
+        tip.innerHTML = `<strong>${d.code}</strong><br/>${d.title}`
       })
       .on('mousemove', (event) => {
         tip.style.left = `${event.offsetX + 12}px`
@@ -458,7 +554,15 @@ export default function SubjectView() {
 
     // Click a resolved course node to select it in the left dropdown.
     node.on('click', (event, d) => {
-      if (d.data.courseId) { setSelectedCourseId(d.data.courseId); setShowGraph(false) }
+      if (d.courseId) { setSelectedCourseId(d.courseId); setShowGraph(false) }
+    })
+
+    sim.on('tick', () => {
+      link.attr('d', (l) => curveOf(l.source as MindNode, l.target as MindNode).d)
+      linkLabel
+        .attr('x', (l) => curveOf(l.source as MindNode, l.target as MindNode).mx)
+        .attr('y', (l) => curveOf(l.source as MindNode, l.target as MindNode).my - 4)
+      node.attr('transform', (d) => `translate(${d.x ?? cx},${d.y ?? cy})`)
     })
 
     // ── Zoom / pan ──────────────────────────────────────────────────────
@@ -468,19 +572,11 @@ export default function SubjectView() {
 
     svg.call(zoom)
 
-    const contentW = xMax - xMin + margin * 2
-    const contentH = Math.max(yMax - yMin + margin * 2, 120)
-    const scale = Math.min(width / contentW, height / contentH, 1.5)
-    const tx = width / 2 - (margin + (xMin + xMax) / 2) * scale
-    const ty = height / 2 - (margin + (yMin + yMax) / 2) * scale
-
-    svg.call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale))
-
-    const simulationHalt = () => {
+    return () => {
+      sim.stop()
       svg.on('.zoom', null)
     }
-    return simulationHalt
-  }, [selectedCourse, datasets, containerSize, buildGraphModel, programCourses, setSelectedCourseId])
+  }, [selectedCourse, datasets, containerSize, buildGraphModel, setSelectedCourseId])
 
   // ResizeObserver keeps the SVG sized responsively.
   useEffect(() => {
