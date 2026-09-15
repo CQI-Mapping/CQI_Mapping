@@ -1,36 +1,118 @@
-// Admin Subject View — interactive course graph builder modeled on
-// cliffamadeus/branch-visualizer. Left panel has inputs to add nodes and
-// links; right panel is a D3 force-directed graph with hover highlights.
+// Admin Subject View: two-panel layout — left panel has program dropdown +
+// subject dropdown; right panel renders a D3.js outcome hierarchy graph:
+//
+//   Curriculum
+//     └─ Subject
+//        ├─ Prerequisite(s)
+//        ├─ Corequisite(s)
+//        └─ CLO(s)
+//           └─ PO(s)
+//              ├─ PEO
+//              ├─ Strategic Goal
+//              └─ CHED Memorandum Order
+//
+// The graph only renders after the user presses View. Relationships are built
+// from the standalone admn tables (admin_course_learning_outcomes,
+// admin_program_outcomes, program_educational_objectives, strategic_goals,
+// ched_memorandum_orders, resources) — not clo_po_matrix.
 
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import * as d3 from 'd3'
-import { fetchPrograms, fetchCourses } from '../../services/database'
-import type { Program, Course } from '../../services/database'
+import {
+  fetchPrograms,
+  fetchCourses,
+  fetchResources,
+  fetchCourseLearningOutcomesStandalone,
+  fetchProgramOutcomesStandalone,
+  fetchProgramEducationalObjectives,
+  fetchStrategicGoals,
+  fetchChedMemoOrders,
+} from '../../services/database'
+import type {
+  Program,
+  Course,
+  Resource,
+  CourseLearningOutcomeStandalone,
+  ProgramOutcomeStandalone,
+  ProgramEducationalObjective,
+  StrategicGoal,
+  ChedMemoOrder,
+} from '../../services/database'
 
-interface GraphNodeDatum extends d3.SimulationNodeDatum {
+type NodeKind =
+  | 'curriculum'
+  | 'subject'
+  | 'prerequisite'
+  | 'corequisite'
+  | 'clo'
+  | 'po'
+  | 'peo'
+  | 'sg'
+  | 'cmo'
+
+interface GraphNodeData {
   id: string
   code: string
   title: string
+  kind: NodeKind
+  placeholder: boolean
+  courseId?: string
+  children: GraphNodeData[]
 }
 
-interface GraphLinkDatum extends d3.SimulationLinkDatum<GraphNodeDatum> {
-  source: GraphNodeDatum | string
-  target: GraphNodeDatum | string
+interface OutcomeDatasets {
+  resources: Resource[]
+  clos: CourseLearningOutcomeStandalone[]
+  pos: ProgramOutcomeStandalone[]
+  peos: ProgramEducationalObjective[]
+  sgs: StrategicGoal[]
+  cmos: ChedMemoOrder[]
 }
 
-const nodeId = (d: GraphNodeDatum | string): string => (typeof d === 'string' ? d : d.id)
+const colorMap: Record<NodeKind, string> = {
+  curriculum: '#9333ea',
+  subject: '#2563eb',
+  prerequisite: '#f97316',
+  corequisite: '#22c55e',
+  clo: '#06b6d4',
+  po: '#7c3aed',
+  peo: '#db2777',
+  sg: '#d97706',
+  cmo: '#0891b2',
+}
+
+const isActive = <T extends { status?: string }>(x: T) => !x.status || x.status === 'active'
+
+const normalizeCode = (code: string) =>
+  code.trim().toUpperCase().replace(/[\s\-–—._/,]+/g, '')
+
+const firstToken = (s: string) => {
+  const m = s.trim().split(/[\s\-–—]+/)[0]
+  return m || ''
+}
+
+const extractCodes = (text: string, prefix: 'PO' | 'PEO' | 'SG'): string[] => {
+  const re = new RegExp(`${prefix}\\s*-?\\s*(\\d+)`, 'gi')
+  const out: string[] = []
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) out.push(`${prefix}-${m[1]}`)
+  return out
+}
 
 export default function SubjectView() {
   const [programs, setPrograms] = useState<Program[]>([])
   const [courses, setCourses] = useState<Course[]>([])
   const [selectedProgramId, setSelectedProgramId] = useState('')
-  const [selectedCourseId, setSelectedCourseId] = useState('')
-  const [linkToId, setLinkToId] = useState('')
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [nodes, setNodes] = useState<GraphNodeDatum[]>([])
-  const [links, setLinks] = useState<GraphLinkDatum[]>([])
+  const [showGraph, setShowGraph] = useState(false)
+  const [spinner, setSpinner] = useState(false)
+  const [graphError, setGraphError] = useState('')
+  const [datasets, setDatasets] = useState<OutcomeDatasets | null>(null)
+  const [containerSize, setContainerSize] = useState({ w: 0, h: 0 })
   const svgRef = useRef<SVGSVGElement>(null)
+  const tooltipRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -39,7 +121,7 @@ export default function SubjectView() {
         const [p, c] = await Promise.all([fetchPrograms(), fetchCourses()])
         if (!cancelled) {
           setPrograms(p)
-          setCourses(c.filter((co) => !co.status || co.status === 'active'))
+          setCourses(c.filter(isActive))
           if (p.length > 0 && !selectedProgramId) setSelectedProgramId(p[0].id)
         }
       } catch (e) {
@@ -59,210 +141,450 @@ export default function SubjectView() {
     [courses, selectedProgramId],
   )
 
-  const selectedCourse = programCourses.find((c) => c.id === selectedCourseId) ?? null
-  const graphCourses = programCourses.filter((c) => nodes.some((n) => n.id === c.id))
-  const nodeIds = useMemo(() => new Set(nodes.map((n) => n.id)), [nodes])
+  const selectedCourse = useMemo(
+    () => programCourses.find((c) => c.id === selectedCourseId) ?? null,
+    [programCourses, selectedCourseId],
+  )
 
-  // ── Actions ────────────────────────────────────────────────────────────────
-  const startGraph = () => {
-    if (!selectedCourse) return
-    setNodes([{ id: selectedCourse.id, code: selectedCourse.code, title: selectedCourse.title }])
-    setLinks([])
-    setLinkToId('')
-  }
-
-  const addNode = () => {
-    if (!selectedCourse || nodeIds.has(selectedCourse.id)) return
-    const newNode: GraphNodeDatum = {
-      id: selectedCourse.id,
-      code: selectedCourse.code,
-      title: selectedCourse.title,
+  // ── Load + cache outcome datasets on first View ────────────────────────────
+  const loadDatasets = async () => {
+    if (datasets) return
+    setSpinner(true)
+    setGraphError('')
+    try {
+      const [resources, clos, pos, peos, sgs, cmos] = await Promise.all([
+        fetchResources(),
+        fetchCourseLearningOutcomesStandalone(),
+        fetchProgramOutcomesStandalone(),
+        fetchProgramEducationalObjectives(),
+        fetchStrategicGoals(),
+        fetchChedMemoOrders(),
+      ])
+      setDatasets({
+        resources: resources.filter(isActive),
+        clos: clos.filter(isActive),
+        pos: pos.filter(isActive),
+        peos: peos.filter(isActive),
+        sgs: sgs.filter(isActive),
+        cmos: cmos.filter(isActive),
+      })
+    } catch (e) {
+      setGraphError(e instanceof Error ? e.message : 'Failed to load relationships.')
+    } finally {
+      setSpinner(false)
     }
-    const newLink: GraphLinkDatum | null =
-      linkToId && nodeIds.has(linkToId) ? { source: linkToId, target: selectedCourse.id } : null
-    setNodes((prev) => [...prev, newNode])
-    if (newLink) setLinks((prev) => [...prev, newLink])
   }
 
-  const undoLast = () => {
-    const lastNode = nodes[nodes.length - 1]
-    if (!lastNode) return
-    setNodes((prev) => prev.filter((n) => n.id !== lastNode.id))
-    setLinks((prev) => prev.filter((l) => nodeId(l.source) !== lastNode.id && nodeId(l.target) !== lastNode.id))
-    setLinkToId('')
-  }
+  // ── Build the graph model ──────────────────────────────────────────────────
+  const buildGraphModel = useCallback(
+    (datasetsRef: OutcomeDatasets, subject: Course): GraphNodeData => {
+      const subjectKey = normalizeCode(subject.code)
 
-  const deleteNode = (id: string) => {
-    setNodes((prev) => prev.filter((n) => n.id !== id))
-    setLinks((prev) => prev.filter((l) => nodeId(l.source) !== id && nodeId(l.target) !== id))
-    setLinkToId('')
-  }
+      const subjectNode: GraphNodeData = {
+        id: `course-${subject.id}`,
+        code: subject.code,
+        title: subject.title,
+        kind: 'subject',
+        placeholder: false,
+        courseId: subject.id,
+        children: [],
+      }
 
-  const handleProgramChange = (pid: string) => {
-    setSelectedProgramId(pid)
-    setSelectedCourseId('')
-    setLinkToId('')
-    setNodes([])
-    setLinks([])
-  }
+      // Prerequisite + corequisite satellites attach to the subject.
+      const addSat = (raw: string, kind: NodeKind) => {
+        if (!raw) return
+        for (const code of raw.split(',').map((s) => s.trim()).filter(Boolean)) {
+          const target = programCourses.find((c) => normalizeCode(c.code) === normalizeCode(code))
+          subjectNode.children.push({
+            id: target ? `course-${target.id}` : `${kind}-missing-${code}`,
+            code,
+            title: target ? target.title : 'Not found or archived',
+            kind,
+            placeholder: !target,
+            courseId: target?.id,
+            children: [],
+          })
+        }
+      }
+      addSat(subject.prerequisite, 'prerequisite')
+      addSat(subject.corequisite, 'corequisite')
 
-  // ── D3 rendering ───────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!svgRef.current) return
-    const svg = d3.select(svgRef.current)
+      // CLOs whose course matches the selected subject code.
+      const subjectClos = datasetsRef.clos.filter(
+        (clo) => normalizeCode(firstToken(clo.course || '')) === subjectKey
+          || normalizeCode(clo.course || '') === subjectKey,
+      )
+
+      const poMap = new Map<string, GraphNodeData>()
+
+      const addLeaves = (poNode: GraphNodeData, poRec: ProgramOutcomeStandalone) => {
+        const pushChild = (child: GraphNodeData) => {
+          if (!poNode.children.some((c) => c.id === child.id)) poNode.children.push(child)
+        }
+
+        // PEO: id-first, then text-code fallback.
+        if (poRec.peo_id) {
+          const rec = datasetsRef.peos.find((p) => p.id === poRec.peo_id)
+          if (rec) pushChild({ id: `peo-${rec.id}`, code: rec.code, title: rec.title || rec.code, kind: 'peo', placeholder: false, children: [] })
+          else {
+            const tok = poRec.peo_text ? extractCodes(poRec.peo_text, 'PEO')[0] : ''
+            pushChild({ id: `peo-missing-${poRec.peo_id}`, code: tok || 'PEO', title: 'PEO not found or archived', kind: 'peo', placeholder: true, children: [] })
+          }
+        } else if (poRec.peo_text) {
+          for (const tok of extractCodes(poRec.peo_text, 'PEO')) {
+            const rec = datasetsRef.peos.find((p) => normalizeCode(p.code) === normalizeCode(tok))
+            pushChild(rec
+              ? { id: `peo-${rec.id}`, code: rec.code, title: rec.title || rec.code, kind: 'peo', placeholder: false, children: [] }
+              : { id: `peo-missing-${tok}`, code: tok, title: 'PEO not found or archived', kind: 'peo', placeholder: true, children: [] })
+          }
+        }
+
+        // Strategic Goal: id-first, then text-code fallback.
+        if (poRec.sg_id) {
+          const rec = datasetsRef.sgs.find((s) => s.id === poRec.sg_id)
+          if (rec) pushChild({ id: `sg-${rec.id}`, code: rec.code, title: rec.title || rec.description || rec.code, kind: 'sg', placeholder: false, children: [] })
+          else {
+            const tok = poRec.sg_text ? extractCodes(poRec.sg_text, 'SG')[0] : ''
+            pushChild({ id: `sg-missing-${poRec.sg_id}`, code: tok || 'SG', title: 'Strategic Goal not found or archived', kind: 'sg', placeholder: true, children: [] })
+          }
+        } else if (poRec.sg_text) {
+          for (const tok of extractCodes(poRec.sg_text, 'SG')) {
+            const rec = datasetsRef.sgs.find((s) => normalizeCode(s.code) === normalizeCode(tok))
+            pushChild(rec
+              ? { id: `sg-${rec.id}`, code: rec.code, title: rec.title || rec.description || rec.code, kind: 'sg', placeholder: false, children: [] }
+              : { id: `sg-missing-${tok}`, code: tok, title: 'Strategic Goal not found or archived', kind: 'sg', placeholder: true, children: [] })
+          }
+        }
+
+        // CHED Memorandum Order: id-first, then description/title text fallback.
+        if (poRec.cmo_id) {
+          const rec = datasetsRef.cmos.find((c) => c.id === poRec.cmo_id)
+          if (rec) pushChild({ id: `cmo-${rec.id}`, code: rec.code, title: rec.title || rec.code, kind: 'cmo', placeholder: false, children: [] })
+          else pushChild({ id: `cmo-missing-${poRec.cmo_id}`, code: 'CMO', title: 'CHED Memorandum Order not found or archived', kind: 'cmo', placeholder: true, children: [] })
+        } else {
+          const hay = normalizeCode(`${poRec.description || ''} ${poRec.title || ''}`)
+          for (const rec of datasetsRef.cmos) {
+            const key = normalizeCode(rec.code)
+            if (key && hay.includes(key)) {
+              pushChild({ id: `cmo-${rec.id}`, code: rec.code, title: rec.title || rec.code, kind: 'cmo', placeholder: false, children: [] })
+              break
+            }
+          }
+        }
+      }
+
+      for (const clo of subjectClos) {
+        const cloNode: GraphNodeData = {
+          id: `clo-${clo.id}`,
+          code: clo.code,
+          title: clo.description || clo.code,
+          kind: 'clo',
+          placeholder: false,
+          children: [],
+        }
+        const poTokens = extractCodes(clo.title || '', 'PO')
+        for (const tok of poTokens) {
+          const key = normalizeCode(tok)
+          let poNode = poMap.get(key)
+          if (!poNode) {
+            const poRec = datasetsRef.pos.find((p) => normalizeCode(p.code) === key)
+            poNode = {
+              id: poRec ? `po-${poRec.id}` : `po-missing-${tok}`,
+              code: tok,
+              title: poRec ? (poRec.description || poRec.title || tok) : 'PO not found or archived',
+              kind: 'po',
+              placeholder: !poRec,
+              children: [],
+            }
+            if (poRec) addLeaves(poNode, poRec)
+            poMap.set(key, poNode)
+          }
+          if (!cloNode.children.some((c) => c.id === poNode!.id)) cloNode.children.push(poNode!)
+        }
+        subjectNode.children.push(cloNode)
+      }
+
+      // Curriculum root.
+      const cidOpt = subject.curriculum_id
+      const cid = cidOpt && typeof cidOpt === 'object' ? cidOpt.id : cidOpt
+      const curRec = cid ? datasetsRef.resources.find((r) => r.id === cid) : undefined
+      const curriculumNode: GraphNodeData = curRec
+        ? {
+            id: `cur-${curRec.id}`,
+            code: (curRec.code || curRec.title),
+            title: curRec.title,
+            kind: 'curriculum',
+            placeholder: false,
+            children: [subjectNode],
+          }
+        : {
+            id: `cur-none-${cid || 'x'}`,
+            code: 'No curriculum',
+            title: cid ? 'Curriculum not found or archived' : 'This subject has no curriculum assigned',
+            kind: 'curriculum',
+            placeholder: true,
+            children: [subjectNode],
+          }
+
+      return curriculumNode
+    },
+    [programCourses],
+  )
+
+  // ── D3 tree render ─────────────────────────────────────────────────────────
+  const renderGraph = useCallback(() => {
+    const svgEl = svgRef.current
+    const tip = tooltipRef.current
+    if (!svgEl || !tip || !selectedCourse || !datasets) return () => {}
+
+    const svg = d3.select(svgEl)
     svg.selectAll('*').remove()
 
-    if (nodes.length === 0) return
+    const width = containerSize.w || svgEl.clientWidth || 600
+    const height = containerSize.h || svgEl.clientHeight || 400
+    const margin = 60
 
-    const width = svgRef.current.clientWidth || 600
-    const height = svgRef.current.clientHeight || 400
+    const data = buildGraphModel(datasets, selectedCourse)
+    const hierarchyRoot = d3.hierarchy<GraphNodeData>(data, (d) => d.children)
 
-    const simulation = d3.forceSimulation<GraphNodeDatum>(nodes)
-      .force('link', d3.forceLink<GraphNodeDatum, GraphLinkDatum>(links).id((d) => d.id).distance(120))
-      .force('charge', d3.forceManyBody().strength(-300))
-      .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collision', d3.forceCollide(40))
+    // Left-to-right tidy tree.
+    const tree = d3.tree<GraphNodeData>().nodeSize([54, 150])
+    const nodes = tree(hierarchyRoot).descendants()
 
-    const link = svg.append('g').selectAll<SVGLineElement, GraphLinkDatum>('line')
-      .data(links)
-      .join('line')
-      .attr('class', 'link')
-      .attr('stroke', '#999')
+    // Plot: x grows with depth (right), y spreads by column (vertical).
+    const xMin = Math.min(...nodes.map((n) => n.y))
+    const xMax = Math.max(...nodes.map((n) => n.y))
+    const yMin = Math.min(...nodes.map((n) => n.x))
+    const yMax = Math.max(...nodes.map((n) => n.x))
 
-    const dragBehavior = d3.drag<SVGGElement, GraphNodeDatum>()
-      .on('start', (event, d) => { if (!event.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y })
-      .on('drag', (event, d) => { d.fx = event.x; d.fy = event.y })
-      .on('end', (event, d) => { if (!event.active) simulation.alphaTarget(0); d.fx = null; d.fy = null })
+    const plotX = (n: d3.HierarchyPointNode<GraphNodeData>) => margin + n.y
+    const plotY = (n: d3.HierarchyPointNode<GraphNodeData>) => margin + n.x
 
-    const node = svg.append('g').selectAll<SVGGElement, GraphNodeDatum>('g')
+    // Arrow marker.
+    svg.append('defs').append('marker')
+      .attr('id', 'arrow')
+      .attr('viewBox', '0 -5 10 10')
+      .attr('refX', 22)
+      .attr('refY', 0)
+      .attr('markerWidth', 7)
+      .attr('markerHeight', 7)
+      .attr('orient', 'auto')
+      .append('path')
+      .attr('d', 'M0,-5L10,0L0,5')
+      .attr('fill', '#64748b')
+
+    const zoomGroup = svg.append('g')
+
+    // ── Links ───────────────────────────────────────────────────────────
+    zoomGroup.append('g')
+      .selectAll('path')
+      .data(nodes.slice(1))
+      .join('path')
+      .attr('fill', 'none')
+      .attr('stroke', (d) => d.data.kind === 'corequisite' ? '#94a3b8' : '#64748b')
+      .attr('stroke-width', 2)
+      .attr('stroke-dasharray', (d) => d.data.kind === 'corequisite' ? '6 4' : 'none')
+      .attr('marker-end', (d) => d.data.kind === 'corequisite' ? 'none' : 'url(#arrow)')
+      .attr('d', (d) => {
+        const p = plotX(d.parent!), q = plotY(d.parent!)
+        const x = plotX(d), y = plotY(d)
+        const mid = p + (x - p) / 2
+        return `M ${p} ${q} C ${mid} ${q}, ${mid} ${y}, ${x} ${y}`
+      })
+
+    // Edge labels for prerequisite/corequisite.
+    zoomGroup.append('g')
+      .selectAll('text')
+      .data(nodes.slice(1).filter((n) => n.data.kind === 'prerequisite' || n.data.kind === 'corequisite'))
+      .join('text')
+      .attr('text-anchor', 'middle')
+      .attr('fill', '#94a3b8')
+      .attr('font-size', '10px')
+      .attr('x', (d) => (plotX(d.parent!) + plotX(d)) / 2)
+      .attr('y', (d) => (plotY(d.parent!) + plotY(d)) / 2 - 8)
+      .text((d) => (d.data.kind === 'prerequisite' ? 'pre-req' : 'co-req'))
+
+    // ── Nodes ───────────────────────────────────────────────────────────
+    const node = zoomGroup.append('g')
+      .selectAll<SVGGElement, d3.HierarchyPointNode<GraphNodeData>>('g')
       .data(nodes)
       .join('g')
-      .attr('class', 'node')
-      .attr('cursor', 'grab')
-      .on('mouseover', (_, d) => highlightConnected(d))
-      .on('mouseout', resetHighlight)
-      .call(dragBehavior as unknown as (selection: d3.Selection<SVGGElement, GraphNodeDatum, SVGGElement, unknown>) => void)
+      .attr('transform', (d) => `translate(${plotX(d)},${plotY(d)})`)
 
-    node.append('circle').attr('r', 14).attr('fill', '#007bff')
+    const radius = (d: d3.HierarchyPointNode<GraphNodeData>) =>
+      d.data.kind === 'subject' ? 30 : d.data.kind === 'curriculum' ? 26 : 22
+
+    // Double ring for the selected subject.
+    node.filter((d) => d.data.kind === 'subject').append('circle')
+      .attr('r', radius)
+      .attr('fill', 'rgba(37, 99, 235, 0.22)')
+      .attr('stroke', '#2563eb')
+      .attr('stroke-width', 2)
+    node.filter((d) => d.data.kind === 'subject').append('circle')
+      .attr('r', (d) => radius(d) - 6)
+      .attr('fill', colorMap.subject)
+      .attr('stroke', '#fff')
+      .attr('stroke-width', 2)
+
+    node.filter((d) => d.data.kind !== 'subject').append('circle')
+      .attr('r', radius)
+      .attr('fill', (d) => d.data.placeholder ? '#f8fafc' : colorMap[d.data.kind])
+      .attr('stroke', (d) => d.data.placeholder ? '#94a3b8' : colorMap[d.data.kind])
+      .attr('stroke-dasharray', (d) => d.data.placeholder ? '5 3' : 'none')
+      .attr('stroke-width', 2)
 
     node.append('text')
-      .attr('dx', 18).attr('dy', 4)
-      .attr('fill', '#0f172a')
-      .attr('font-size', '12px')
-      .attr('font-weight', '600')
-      .text((d) => d.code)
+      .attr('text-anchor', 'middle')
+      .attr('dy', 4)
+      .attr('fill', (d) => (d.data.placeholder ? '#64748b' : '#fff'))
+      .attr('font-size', (d) => (d.data.kind === 'subject' ? 13 : 11))
+      .attr('font-weight', 'bold')
+      .attr('pointer-events', 'none')
+      .text((d) => (d.data.code.length > 14 ? d.data.code.slice(0, 12) + '…' : d.data.code) + (d.data.placeholder && d.data.kind !== 'curriculum' ? '?' : ''))
 
-    link
-      .on('mouseover', function (event, d) {
-        d3.select(this).classed('highlight', true)
-        const ids = new Set<string>([nodeId(d.source), nodeId(d.target)])
-        d3.selectAll<SVGCircleElement, GraphNodeDatum>('.node').classed('highlight-node', (n) => ids.has(n.id))
+    // Hover tooltip.
+    node
+      .on('mouseenter', (event, d) => {
+        tip.style.opacity = '1'
+        tip.style.left = `${event.offsetX + 12}px`
+        tip.style.top = `${event.offsetY - 28}px`
+        tip.innerHTML = `<strong>${d.data.code}</strong><br/>${d.data.title}`
       })
-      .on('mouseout', resetHighlight)
+      .on('mousemove', (event) => {
+        tip.style.left = `${event.offsetX + 12}px`
+        tip.style.top = `${event.offsetY - 28}px`
+      })
+      .on('mouseleave', () => { tip.style.opacity = '0' })
 
-    simulation.on('tick', () => {
-      link
-        .attr('x1', (d) => (d.source as GraphNodeDatum).x!)
-        .attr('y1', (d) => (d.source as GraphNodeDatum).y!)
-        .attr('x2', (d) => (d.target as GraphNodeDatum).x!)
-        .attr('y2', (d) => (d.target as GraphNodeDatum).y!)
-      node.attr('transform', (d) => `translate(${d.x},${d.y})`)
+    // Click a resolved course node to select it in the left dropdown.
+    node.on('click', (event, d) => {
+      if (d.data.courseId) { setSelectedCourseId(d.data.courseId); setShowGraph(false) }
     })
 
-    return () => { simulation.stop() }
-  }, [nodes, links])
+    // ── Zoom / pan ──────────────────────────────────────────────────────
+    const zoom = d3.zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.2, 3])
+      .on('zoom', (event) => zoomGroup.attr('transform', event.transform))
 
-  const highlightConnected = (d: GraphNodeDatum) => {
-    const ids = new Set<string>([d.id])
-    links.forEach((l) => {
-      if (nodeId(l.source) === d.id) ids.add(nodeId(l.target))
-      if (nodeId(l.target) === d.id) ids.add(nodeId(l.source))
+    svg.call(zoom)
+
+    const contentW = xMax - xMin + margin * 2
+    const contentH = Math.max(yMax - yMin + margin * 2, 120)
+    const scale = Math.min(width / contentW, height / contentH, 1.5)
+    const tx = width / 2 - (margin + (xMin + xMax) / 2) * scale
+    const ty = height / 2 - (margin + (yMin + yMax) / 2) * scale
+
+    svg.call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale))
+
+    const simulationHalt = () => {
+      svg.on('.zoom', null)
+    }
+    return simulationHalt
+  }, [selectedCourse, datasets, containerSize, buildGraphModel, programCourses, setSelectedCourseId])
+
+  // ResizeObserver keeps the SVG sized responsively.
+  useEffect(() => {
+    const el = svgRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => {
+      setContainerSize((prev) => {
+        const w = el.clientWidth
+        const h = el.clientHeight
+        return prev.w === w && prev.h === h ? prev : { w, h }
+      })
     })
-    d3.selectAll<SVGCircleElement, GraphNodeDatum>('.node').classed('highlight-node', (n) => ids.has(n.id))
-    d3.selectAll<SVGLineElement, GraphLinkDatum>('.link').classed('highlight', (l) =>
-      nodeId(l.source) === d.id || nodeId(l.target) === d.id)
-  }
+    ro.observe(el)
+    setContainerSize({ w: el.clientWidth, h: el.clientHeight })
+    return () => ro.disconnect()
+  }, [showGraph, datasets])
 
-  const resetHighlight = () => {
-    d3.selectAll('.node').classed('highlight-node', false)
-    d3.selectAll('.link').classed('highlight', false)
+  // Render the graph once everything is ready.
+  useEffect(() => {
+    if (!showGraph || !selectedCourse || !datasets) return
+    return renderGraph()
+  }, [showGraph, selectedCourse, datasets, containerSize, renderGraph])
+
+  const handleView = async () => {
+    if (!selectedCourse) return
+    setShowGraph(true)
+    setGraphError('')
+    await loadDatasets()
   }
 
   if (loading) return <p>Loading subjects...</p>
+
+  const graphBlockVisible = showGraph && selectedCourse && datasets
 
   return (
     <div className="subject-view">
       {error && <p className="msg msg--error">{error}</p>}
 
       <div className="subject-view__panels">
-        {/* ── Left panel ─────────────────────────────────────────────────── */}
+        {/* ── Left panel: program + subject selection ───────────────────── */}
         <div className="panel subject-view__left">
+          <h3>Programs</h3>
           <label className="field">
-            <span className="field__label">Program</span>
+            <span className="sr-only">Select program</span>
             <select className="input input--sm" value={selectedProgramId}
-              onChange={(e) => handleProgramChange(e.target.value)}>
+              onChange={(e) => { setSelectedProgramId(e.target.value); setSelectedCourseId(null); setShowGraph(false) }}>
               {programs.map((p) => (
                 <option key={p.id} value={p.id}>{p.name || p.code}</option>
               ))}
             </select>
           </label>
 
-          <label className="field" style={{ marginTop: 12 }}>
-            <span className="field__label">Subject Code</span>
-            <select className="input input--sm" value={selectedCourseId}
-              onChange={(e) => { setSelectedCourseId(e.target.value); setLinkToId('') }}>
-              <option value="">— Select —</option>
+          <h3 className="subject-view__course-heading">Subject Code</h3>
+          <label className="field">
+            <span className="sr-only">Select course</span>
+            <select className="input input--sm" value={selectedCourseId ?? ''}
+              onChange={(e) => { setSelectedCourseId(e.target.value || null); setShowGraph(false) }}>
+              <option value="">— Select a course —</option>
               {programCourses.map((c) => (
                 <option key={c.id} value={c.id}>{c.code} — {c.title}</option>
               ))}
             </select>
           </label>
-
-          <label className="field" style={{ marginTop: 12 }}>
-            <span className="field__label">Link to (optional)</span>
-            <select className="input input--sm" value={linkToId}
-              onChange={(e) => setLinkToId(e.target.value)}>
-              <option value="">— None —</option>
-              {graphCourses
-                .filter((c) => c.id !== selectedCourseId)
-                .map((c) => (
-                  <option key={c.id} value={c.id}>{c.code} — {c.title}</option>
-                ))}
-            </select>
-          </label>
-
-          <div className="subject-view__actions">
-            <button className="btn btn--sm subject-view__btn--start" onClick={startGraph}
-              disabled={!selectedCourse || loading}>
-              Start
-            </button>
-            <button className="btn btn--sm subject-view__btn--add" onClick={addNode}
-              disabled={!selectedCourse || loading || nodeIds.has(selectedCourse.id)}>
-              Add Node
-            </button>
-            <button className="btn btn--sm btn--danger" onClick={undoLast} disabled={nodes.length === 0}>
-              Undo
-            </button>
-          </div>
-
-          <h4 className="subject-view__list-heading">Active Nodes ({nodes.length})</h4>
-          <ul className="subject-view__node-list">
-            {nodes.length === 0 && (
-              <li className="subject-view__empty">Select a course and press Start</li>
-            )}
-            {graphCourses.map((c) => (
-              <li key={c.id} className="subject-view__node-item">
-                <span className="subject-view__node-item__code">{c.code}</span>
-                <span className="subject-view__node-item__title">{c.title}</span>
-                <button className="btn btn--sm btn--danger" onClick={() => deleteNode(c.id)}>Delete</button>
-              </li>
-            ))}
-          </ul>
+          <button className="btn btn--sm subject-view__view-btn" disabled={!selectedCourse || loading}
+            onClick={handleView}>
+            View
+          </button>
         </div>
 
-        {/* ── Right panel ────────────────────────────────────────────────── */}
-        <div className="panel subject-view__right">
-          <svg ref={svgRef} className="subject-view__svg" />
+        {/* ── Right panel: D3 hierarchy graph ───────────────────────────── */}
+        <div className="panel subject-view__right" style={{ position: 'relative' }}>
+          {!showGraph ? (
+            <div className="subject-view__placeholder">
+              <p>Select a subject on the left, then press View.</p>
+            </div>
+          ) : graphError ? (
+            <p className="msg msg--error">{graphError}</p>
+          ) : spinner || !datasets ? (
+            <p className="subject-view__loading">Loading relationships...</p>
+          ) : !selectedCourse ? (
+            <div className="subject-view__placeholder">
+              <p>Select a subject on the left, then press View.</p>
+            </div>
+          ) : (
+            <>
+              <h3 className="subject-view__graph-title">
+                {selectedCourse.code} — {selectedCourse.title}
+              </h3>
+              <div className="subject-view__legend">
+                <span><span className="subject-view__dot subject-view__dot--curriculum" /> Curriculum</span>
+                <span><span className="subject-view__dot subject-view__dot--subject" /> Subject</span>
+                <span><span className="subject-view__dot subject-view__dot--prereq" /> Pre-req</span>
+                <span><span className="subject-view__dot subject-view__dot--coreq" /> Co-req</span>
+                <span><span className="subject-view__dot subject-view__dot--clo" /> CLO</span>
+                <span><span className="subject-view__dot subject-view__dot--po" /> PO</span>
+                <span><span className="subject-view__dot subject-view__dot--peo" /> PEO</span>
+                <span><span className="subject-view__dot subject-view__dot--sg" /> SG</span>
+                <span><span className="subject-view__dot subject-view__dot--cmo" /> CMO</span>
+                <span><span className="subject-view__dot subject-view__dot--placeholder" /> Unresolved</span>
+              </div>
+              <div ref={tooltipRef} className="subject-view__tooltip" />
+              <svg ref={svgRef} className="subject-view__svg" />
+            </>
+          )}
         </div>
       </div>
     </div>

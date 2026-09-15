@@ -2875,45 +2875,15 @@ textarea.input {
   min-height: calc(100vh - 200px);
 }
 
-.subject-view__left {
+.subject-view__left,
+.subject-view__right {
   padding: 20px;
   overflow-y: auto;
 }
 
-.subject-view__right {
-  padding: 12px;
-}
-
-.subject-view__actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.subject-view__actions .btn {
-  border: none;
-  color: #fff;
-}
-
-.subject-view__btn--start {
-  background: #007bff;
-}
-
-.subject-view__btn--start:hover:not(:disabled) {
-  background: #0069d9;
-}
-
-.subject-view__btn--add {
-  background: #28a745;
-}
-
-.subject-view__btn--add:hover:not(:disabled) {
-  background: #218838;
-}
-
-.subject-view__list-heading {
+.subject-view__course-heading {
   margin-top: 20px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   font-size: 14px;
   font-weight: 600;
   color: var(--text-muted);
@@ -2921,79 +2891,91 @@ textarea.input {
   letter-spacing: 0.03em;
 }
 
-.subject-view__node-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.subject-view__view-btn {
+  margin-top: 12px;
+  width: 100%;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
 }
 
-.subject-view__empty {
+.subject-view__view-btn:hover:not(:disabled) {
+  background: var(--primary-dark);
+}
+
+.subject-view__view-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.subject-view__graph-title {
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.subject-view__legend {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+  font-size: 12px;
   color: var(--text-muted);
-  font-size: 13px;
-  padding: 8px 0;
+  flex-wrap: wrap;
 }
 
-.subject-view__node-item {
-  display: flex;
+.subject-view__legend span {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 6px;
+}
+
+.subject-view__dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.subject-view__dot--curriculum   { background: #9333ea; }
+.subject-view__dot--subject      { background: #2563eb; }
+.subject-view__dot--prereq       { background: #f97316; }
+.subject-view__dot--coreq        { background: #22c55e; }
+.subject-view__dot--clo          { background: #06b6d4; }
+.subject-view__dot--po           { background: #7c3aed; }
+.subject-view__dot--peo          { background: #db2777; }
+.subject-view__dot--sg           { background: #d97706; }
+.subject-view__dot--cmo          { background: #0891b2; }
+.subject-view__dot--placeholder  { background: #94a3b8; }
+
+.subject-view__loading {
+  padding: 24px;
+  color: var(--text-muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.subject-view__svg {
+  width: 100%;
+  height: calc(100% - 60px);
+  min-height: 360px;
   background: #f8fafc;
   border-radius: var(--radius);
   border: 1px solid #e2e8f0;
 }
 
-.subject-view__node-item__code {
-  font-weight: 700;
-  font-size: 13px;
-  white-space: nowrap;
-}
-
-.subject-view__node-item__title {
-  flex: 1;
-  font-size: 12px;
+.subject-view__placeholder {
+  height: 100%;
+  min-height: 360px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.subject-view__node-item .btn {
-  flex-shrink: 0;
-}
-
-.subject-view__svg {
-  width: 100%;
-  height: calc(100vh - 200px);
-  min-height: 500px;
-  background: #fff;
-  border-radius: var(--radius);
-  border: 1px solid #ddd;
-}
-
-/* D3 graph highlights — mirroring the reference site */
-
-.subject-view__svg .link {
-  stroke: #999;
-  stroke-width: 1.5;
-  transition: stroke 0.15s, stroke-width 0.15s;
-}
-
-.subject-view__svg .highlight {
-  stroke: rgb(0, 174, 255) !important;
-  stroke-width: 3px !important;
-}
-
-.subject-view__svg .node circle {
-  fill: #007bff;
-  transition: fill 0.15s;
-}
-
-.subject-view__svg .highlight-node circle {
-  fill: rgb(0, 174, 255) !important;
+  font-size: 14px;
 }
 
 @media (max-width: 1000px) {
@@ -3002,8 +2984,25 @@ textarea.input {
     min-height: auto;
   }
 
-  .subject-view__svg {
+.subject-view__tooltip {
+  position: absolute;
+  z-index: 10;
+  background: rgba(15, 23, 42, 0.92);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  max-width: 240px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.subject-view__svg {
     min-height: 300px;
-    height: 400px;
   }
 }
