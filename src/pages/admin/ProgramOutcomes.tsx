@@ -14,8 +14,8 @@ import type { SuggestionOption } from '../../components/SuggestionInput'
 
 const FIXED_OPTIONS = [
   'Common to all programs in all types of schools',
-  'Bachelor of Science in Computer Science Program Outcomes',
-  'College defined program outcome',
+  'Bachelor of Science in Information Technology Program Outcomes (CMO 25 s. 2015)',
+  'SPECIFIC TO A SUB-DISCIPLINE AND A MAJOR (CMO 25 s. 2015)',
 ]
 
 const toSuggestion = (i: { code: string; title: string | null }): SuggestionOption => ({

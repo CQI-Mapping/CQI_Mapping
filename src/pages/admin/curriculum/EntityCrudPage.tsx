@@ -148,6 +148,26 @@ alignments,
     }
   }, [form, draftKey])
 
+  // For Program Outcome: PEO/SG only apply when CMO is BSIT or Specific sub-discipline.
+  // If CMO switches to a non-applicable value, clear stale PEO/SG so they don't get saved
+  // and don't show suggestions.
+  useEffect(() => {
+    if (title !== 'Program Outcome') return
+    const cmo = (form.align['cmo_id'] || '').toLowerCase()
+    const allowed = cmo.includes('bachelor of science in information technology') || cmo.includes('specific to a sub-discipline') || cmo.includes('bachelor of science in computer science')
+    if (!allowed && (form.align['peo_text'] || form.align['sg_text'])) {
+      setForm((prev) => ({ ...prev, align: { ...prev.align, peo_text: '', sg_text: '' } }))
+    }
+  }, [form.align['cmo_id']]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (title !== 'Program Outcome') return
+    const cmo = (editForm.align['cmo_id'] || '').toLowerCase()
+    const allowed = cmo.includes('bachelor of science in information technology') || cmo.includes('specific to a sub-discipline') || cmo.includes('bachelor of science in computer science')
+    if (!allowed && (editForm.align['peo_text'] || editForm.align['sg_text'])) {
+      setEditForm((prev) => ({ ...prev, align: { ...prev.align, peo_text: '', sg_text: '' } }))
+    }
+  }, [editForm.align['cmo_id']]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const optionId = (o: AlignmentOption) => o.relationId ?? o.cmo_id ?? null
 
   const payload = (f: FormState) => {
@@ -219,14 +239,30 @@ alignments,
     return field.options.find((o) => optionId(o) === relVal)?.value || '—'
   }
 
-  const alignmentSelect = (field: AlignmentField, value: string, onChange: (v: string) => void) => {
+  const isPeoSgDisabled = (align: Record<string, string>, field: AlignmentField) => {
+    if (title !== 'Program Outcome') return false
+    if (field.relationField !== 'peo_text' && field.relationField !== 'sg_text') return false
+    const cmo = (align['cmo_id'] || '').toLowerCase()
+    if (!cmo) return true
+    // Only these CMO categories have PEO/SG alignments per spec
+    const allowed = cmo.includes('bachelor of science in information technology') || cmo.includes('specific to a sub-discipline')
+    // Keep legacy CS variant allowed for backward compat if present in DB
+    const legacyAllowed = cmo.includes('bachelor of science in computer science')
+    return !(allowed || legacyAllowed)
+  }
+
+  const alignmentSelect = (field: AlignmentField, value: string, onChange: (v: string) => void, disabled = false) => {
     if (field.type === 'suggest') {
+      // No suggestions at all when disabled or when user hasn't typed 2 letters — handled inside SuggestionInput
+      const opts = disabled ? [] : (field.suggestionOptions ?? [])
+      const ph = disabled ? 'Select CMO first' : (field.placeholder || `Enter ${field.label.toLowerCase()}`)
       return (
         <SuggestionInput
           value={value}
           onChange={onChange}
-          options={field.suggestionOptions ?? []}
-          placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+          options={opts}
+          placeholder={ph}
+          disabled={disabled}
         />
       )
     }
@@ -235,14 +271,15 @@ alignments,
         <input
           className="input input--sm"
           type="text"
-          placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+          placeholder={disabled ? 'Select CMO first' : (field.placeholder || `Enter ${field.label.toLowerCase()}`)}
           value={value}
+          disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
         />
       )
     }
     return (
-      <select className="input input--sm" value={value} onChange={(e) => onChange(e.target.value)}>
+      <select className="input input--sm" value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
         <option value="">None</option>
         {field.options.map((o) => (
           <option key={o.value} value={o.value}>{o.value}</option>
@@ -292,7 +329,7 @@ alignments,
               <label className="field" key={a.relationField}>
                 <span>{a.label}</span>
                 {alignmentSelect(a, form.align[a.relationField] || '', (v) =>
-                  setForm({ ...form, align: { ...form.align, [a.relationField]: v } }))}
+                  setForm({ ...form, align: { ...form.align, [a.relationField]: v } }), isPeoSgDisabled(form.align, a))}
               </label>
             )) : showDescription && (
               <label className="field">
@@ -323,7 +360,7 @@ alignments,
           <label className="field" key={a.relationField}>
             <span>{a.label}</span>
             {alignmentSelect(a, form.align[a.relationField] || '', (v) =>
-              setForm({ ...form, align: { ...form.align, [a.relationField]: v } }))}
+              setForm({ ...form, align: { ...form.align, [a.relationField]: v } }), isPeoSgDisabled(form.align, a))}
           </label>
         ))}
         {!inlineForm && (alignments
@@ -331,7 +368,7 @@ alignments,
             <label className="field" key={a.relationField}>
               <span>{a.label}</span>
               {alignmentSelect(a, form.align[a.relationField] || '', (v) =>
-                setForm({ ...form, align: { ...form.align, [a.relationField]: v } }))}
+                setForm({ ...form, align: { ...form.align, [a.relationField]: v } }), isPeoSgDisabled(form.align, a))}
             </label>
           ))
         : showDescription && (
@@ -393,7 +430,7 @@ alignments,
                       {(tableAlignments ?? alignments ?? []).map((a) => (
                         <td key={a.relationField}>
                           {alignmentSelect(a, editForm.align[a.relationField] || '', (v) =>
-                            setEditForm({ ...editForm, align: { ...editForm.align, [a.relationField]: v } }))}
+                            setEditForm({ ...editForm, align: { ...editForm.align, [a.relationField]: v } }), isPeoSgDisabled(editForm.align, a))}
                         </td>
                       ))}
                       {!alignments && showDescription && (
