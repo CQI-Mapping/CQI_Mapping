@@ -28,6 +28,7 @@ export default function SubjectView() {
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [showGraph, setShowGraph] = useState(false)
   const svgRef = useRef<SVGSVGElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
   const simRef = useRef<d3.Simulation<GraphNode, GraphLink> | null>(null)
@@ -213,10 +214,9 @@ export default function SubjectView() {
 
     // Click on a node to select that course in the left list
     node.on('click', (event, d) => {
-      if (d.kind === 'selected') return
-      if (d.kind === 'missing') return
+      if (d.kind === 'selected' || d.kind === 'missing') return
       const match = programCourses.find((c) => c.id === d.id)
-      if (match) setSelectedCourseId(match.id)
+      if (match) { setSelectedCourseId(match.id); setShowGraph(false) }
     })
 
     // Circle
@@ -261,9 +261,6 @@ export default function SubjectView() {
     })
   }, [selectedCourse, findCourseByCode, programCourses, setSelectedCourseId])
 
-  // Render graph when selectedCourse changes (not on every React render)
-  useEffect(() => { renderGraph() }, [renderGraph])
-
   if (loading) return <p>Loading subjects...</p>
 
   return (
@@ -277,7 +274,7 @@ export default function SubjectView() {
           <label className="field">
             <span className="sr-only">Select program</span>
             <select className="input input--sm" value={selectedProgramId}
-              onChange={(e) => { setSelectedProgramId(e.target.value); setSelectedCourseId(null) }}>
+              onChange={(e) => { setSelectedProgramId(e.target.value); setSelectedCourseId(null); setShowGraph(false) }}>
               {programs.map((p) => (
                 <option key={p.id} value={p.id}>{p.name || p.code}</option>
               ))}
@@ -288,7 +285,7 @@ export default function SubjectView() {
           <label className="field">
             <span className="sr-only">Select course</span>
             <select className="input input--sm" value={selectedCourseId ?? ''}
-              onChange={(e) => setSelectedCourseId(e.target.value || null)}>
+              onChange={(e) => { setSelectedCourseId(e.target.value || null); setShowGraph(false) }}>
               <option value="">— Select a course —</option>
               {programCourses.map((c) => (
                 <option key={c.id} value={c.id}>{c.code} — {c.title}</option>
@@ -296,14 +293,14 @@ export default function SubjectView() {
             </select>
           </label>
           <button className="btn btn--sm subject-view__view-btn" disabled={!selectedCourse || loading}
-            onClick={renderGraph}>
+            onClick={() => { if (selectedCourse) setShowGraph(true); renderGraph() }}>
             View
           </button>
         </div>
 
         {/* ── Right panel: D3 graph ─────────────────────────────────────── */}
         <div className="panel subject-view__right" style={{ position: 'relative' }}>
-          {selectedCourse ? (
+          {selectedCourse && showGraph ? (
             <>
               <h3 className="subject-view__graph-title">
                 {selectedCourse.code} — {selectedCourse.title}
@@ -319,7 +316,7 @@ export default function SubjectView() {
             </>
           ) : (
             <div className="subject-view__placeholder">
-              <p>Select a course on the left to view its relationships.</p>
+              <p>Select a course on the left, then press View.</p>
             </div>
           )}
         </div>
