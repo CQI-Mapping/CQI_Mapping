@@ -171,27 +171,22 @@ CREATE TABLE public.admin_program_outcomes (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
--- Same Code is allowed if any of the 5 fields differs:
--- Code, Description (title), CMO Alignment (cmo_id+description), PEO Alignment (peo_text/peo_id), SG Alignment (sg_text/sg_id).
--- Only an exact duplicate across ALL five is rejected.
--- Drop legacy constraints/indexes then create the broad unique index.
+-- Same code is allowed with a different CMO Alignment, and same code+same CMO
+-- is allowed when the Description differs (title). So uniqueness is on
+-- (code, cmo_id, title) — e.g. PO-1+CMO-A+"Desc A" vs PO-1+CMO-A+"Desc B" are distinct.
+-- Postgres UNIQUE treats NULL as distinct, so COALESCE cmo_id to treat NULL as equal.
+DROP INDEX IF EXISTS admin_program_outcomes_code_cmo_unique;
+DROP INDEX IF EXISTS admin_program_outcomes_code_cmo_title_unique;
+DROP INDEX IF EXISTS admin_program_outcomes_code_cmo_nulls_equal;
+CREATE UNIQUE INDEX admin_program_outcomes_code_cmo_title_unique
+    ON public.admin_program_outcomes (code, COALESCE(cmo_id, '00000000-0000-0000-0000-000000000000'::uuid), title);
+-- Drop the legacy single-column uniqueness if it exists (fresh DBs won't have it, but
+-- existing DBs migrated from the old schema will).
 DO $$ BEGIN
     IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'admin_program_outcomes_code_key') THEN
         ALTER TABLE public.admin_program_outcomes DROP CONSTRAINT admin_program_outcomes_code_key;
     END IF;
-    DROP INDEX IF EXISTS public.admin_program_outcomes_code_cmo_unique;
 END $$;
-CREATE UNIQUE INDEX IF NOT EXISTS admin_program_outcomes_all5_unique
-    ON public.admin_program_outcomes (
-        code,
-        title,
-        COALESCE(description, ''),
-        COALESCE(cmo_id, '00000000-0000-0000-0000-000000000000'::uuid),
-        COALESCE(peo_text, ''),
-        COALESCE(peo_id::text, ''),
-        COALESCE(sg_text, ''),
-        COALESCE(sg_id::text, '')
-    );
 
 -- Backfill for existing rows after adding cmo_id:
 -- UPDATE public.admin_program_outcomes a

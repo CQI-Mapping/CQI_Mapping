@@ -18,13 +18,15 @@ interface UseEntityCrudParams<T> {
 function friendlyError(raw: string): string {
   if (/duplicate key.*violates unique constraint/.test(raw)) {
     const keyName = raw.match(/violates unique constraint "(\w+)"/)?.[1] ?? ''
-    // All-5 composite for Program Outcomes: code+title+description+cmo+peo+sg
-    if (keyName === 'admin_program_outcomes_all5_unique' || keyName === 'admin_program_outcomes_code_cmo_unique') {
-      return 'An identical Program Outcome already exists (same Code, Description, CMO Alignment, PEO Alignment and SG Alignment). Change at least one of those five to add a new one — same Code with a different CMO/PEO/SG/Description is allowed.'
-    }
     const parts = keyName.replace(/_key$/, '').split('_').filter(Boolean)
-    const columnWords = ['code', 'title', 'name', 'email', 'id', 'cmo', 'peo', 'sg', 'description']
+    const columnWords = ['code', 'title', 'name', 'email', 'id', 'cmo', 'peo', 'sg']
     const columns = parts.filter((p) => columnWords.includes(p))
+    // Composite (code, cmo, title) for Program Outcomes: same code+same CMO
+    // is allowed when the Description (title) differs — uniqueness is on
+    // (code, COALESCE(cmo_id), title). Same code+same CMO+same Description is duplicate.
+    if (columns.includes('code') && columns.includes('cmo') && columns.includes('title')) {
+      return 'This combination of Code, CMO Alignment and Description already exists. Same code with the same CMO but a different Description is allowed — change the Description or pick a different CMO/Code.'
+    }
     if (columns.includes('code') && columns.includes('cmo')) {
       return 'This code already exists for the selected CMO Alignment. Same code with a different CMO Alignment is allowed — pick a different CMO or a different code.'
     }
