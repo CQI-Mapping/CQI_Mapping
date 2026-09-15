@@ -159,7 +159,7 @@ CREATE TABLE public.program_educational_objectives (
 
 CREATE TABLE public.admin_program_outcomes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    code TEXT UNIQUE NOT NULL,
+    code TEXT NOT NULL,
     title TEXT NOT NULL,
     description TEXT,
     cmo_id UUID REFERENCES public.ched_memorandum_orders(id) ON DELETE SET NULL,
@@ -171,6 +171,19 @@ CREATE TABLE public.admin_program_outcomes (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Same code is allowed with a different CMO Alignment (e.g. PO-1 + CMO-A vs PO-1 + CMO-B).
+-- Enforce uniqueness on (code, cmo_id) where NULL is treated as equal so two PO-1
+-- with no CMO are still duplicates. Postgres UNIQUE treats NULLs as distinct, so
+-- we use a COALESCE-based unique index instead of a plain UNIQUE constraint.
+CREATE UNIQUE INDEX IF NOT EXISTS admin_program_outcomes_code_cmo_unique
+    ON public.admin_program_outcomes (code, COALESCE(cmo_id, '00000000-0000-0000-0000-000000000000'::uuid));
+-- Drop the legacy single-column uniqueness if it exists (fresh DBs won't have it, but
+-- existing DBs migrated from the old schema will).
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'admin_program_outcomes_code_key') THEN
+        ALTER TABLE public.admin_program_outcomes DROP CONSTRAINT admin_program_outcomes_code_key;
+    END IF;
+END $$;
 
 -- Backfill for existing rows after adding cmo_id:
 -- UPDATE public.admin_program_outcomes a

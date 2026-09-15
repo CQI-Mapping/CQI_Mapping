@@ -19,8 +19,13 @@ function friendlyError(raw: string): string {
   if (/duplicate key.*violates unique constraint/.test(raw)) {
     const keyName = raw.match(/violates unique constraint "(\w+)"/)?.[1] ?? ''
     const parts = keyName.replace(/_key$/, '').split('_').filter(Boolean)
-    const columnWords = ['code', 'title', 'name', 'email', 'id']
+    const columnWords = ['code', 'title', 'name', 'email', 'id', 'cmo', 'peo', 'sg']
     const columns = parts.filter((p) => columnWords.includes(p))
+    // Composite code+cmo case: same PO code with same CMO is truly duplicate,
+    // but same code with different CMO is allowed (UNIQUE(code,cmo_id)).
+    if (columns.includes('code') && columns.includes('cmo')) {
+      return 'This code already exists for the selected CMO Alignment. Same code with a different CMO Alignment is allowed — pick a different CMO or a different code.'
+    }
     if (columns.length >= 2)
       return `A ${columns.join(' and ')} combination already exists. Please use a different code or title.`
     if (columns.length === 1)
