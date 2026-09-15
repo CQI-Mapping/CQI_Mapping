@@ -90,7 +90,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
       <form className="panel create-resource" onSubmit={submit}>
         <h3>New Course Learning Outcome</h3>
         <label className="field">
-          <span>Course</span>
+          <span>Course (Subject Code)</span>
           <input className="input input--sm" type="text" placeholder="e.g. CS-101" value={form.course}
             onChange={(e) => setForm({ ...form, course: e.target.value })} required />
         </label>
@@ -130,7 +130,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             </button>
           </div>
           <table className="table">
-            <thead><tr><th>Course</th><th>Code</th><th>Description</th><th>Program Outcomes</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Course (Subject Code)</th><th>Code</th><th>Description</th><th>Program Outcomes</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {visible.length === 0 && <tr><td colSpan={6}>No course learning outcomes yet.</td></tr>}
               {visible.map((item) => (
