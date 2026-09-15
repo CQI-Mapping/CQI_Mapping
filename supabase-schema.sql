@@ -119,23 +119,6 @@ CREATE TABLE public.course_learning_outcomes (
     UNIQUE (course_id, code)
 );
 
-CREATE TABLE public.activity_logs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_email TEXT,
-    action TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE public.resources (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    title TEXT NOT NULL,
-    description TEXT,
-    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
-    created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
 CREATE TABLE public.strategic_goals (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code TEXT UNIQUE NOT NULL,
