@@ -18,11 +18,13 @@ interface UseEntityCrudParams<T> {
 function friendlyError(raw: string): string {
   if (/duplicate key.*violates unique constraint/.test(raw)) {
     const keyName = raw.match(/violates unique constraint "(\w+)"/)?.[1] ?? ''
+    // All-5 composite for Program Outcomes: code+title+description+cmo+peo+sg
+    if (keyName === 'admin_program_outcomes_all5_unique' || keyName === 'admin_program_outcomes_code_cmo_unique') {
+      return 'An identical Program Outcome already exists (same Code, Description, CMO Alignment, PEO Alignment and SG Alignment). Change at least one of those five to add a new one — same Code with a different CMO/PEO/SG/Description is allowed.'
+    }
     const parts = keyName.replace(/_key$/, '').split('_').filter(Boolean)
-    const columnWords = ['code', 'title', 'name', 'email', 'id', 'cmo', 'peo', 'sg']
+    const columnWords = ['code', 'title', 'name', 'email', 'id', 'cmo', 'peo', 'sg', 'description']
     const columns = parts.filter((p) => columnWords.includes(p))
-    // Composite code+cmo case: same PO code with same CMO is truly duplicate,
-    // but same code with different CMO is allowed (UNIQUE(code,cmo_id)).
     if (columns.includes('code') && columns.includes('cmo')) {
       return 'This code already exists for the selected CMO Alignment. Same code with a different CMO Alignment is allowed — pick a different CMO or a different code.'
     }
