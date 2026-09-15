@@ -285,19 +285,16 @@ export default function SubjectView() {
           </label>
 
           <h3 className="subject-view__course-heading">Courses</h3>
-          <ul className="subject-view__course-list">
-            {programCourses.length === 0 && <li className="subject-view__empty">No courses in this program</li>}
-            {programCourses.map((c) => (
-              <li key={c.id}>
-                <button
-                  className={`btn btn--sm subject-view__course-btn ${selectedCourseId === c.id ? 'subject-view__course-btn--active' : ''}`}
-                  onClick={() => setSelectedCourseId(c.id)}
-                >
-                  {c.code} — {c.title}
-                </button>
-              </li>
-            ))}
-          </ul>
+          <label className="field">
+            <span className="sr-only">Select course</span>
+            <select className="input input--sm" value={selectedCourseId ?? ''}
+              onChange={(e) => setSelectedCourseId(e.target.value || null)}>
+              <option value="">— Select a course —</option>
+              {programCourses.map((c) => (
+                <option key={c.id} value={c.id}>{c.code} — {c.title}</option>
+              ))}
+            </select>
+          </label>
           <button className="btn btn--sm subject-view__view-btn" disabled={!selectedCourse || loading}
             onClick={renderGraph}>
             View

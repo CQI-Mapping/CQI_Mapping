@@ -2891,48 +2891,6 @@ textarea.input {
   letter-spacing: 0.03em;
 }
 
-.subject-view__course-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.subject-view__empty {
-  color: var(--text-muted);
-  font-size: 13px;
-  padding: 8px 0;
-}
-
-.subject-view__course-btn {
-  width: 100%;
-  text-align: left;
-  padding: 8px 12px;
-  font-size: 13px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-panel);
-  color: var(--text);
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
-}
-
-.subject-view__course-btn:hover {
-  background: #f1f5f9;
-}
-
-.subject-view__course-btn--active {
-  background: var(--primary);
-  color: #fff;
-  border-color: var(--primary);
-}
-
-.subject-view__course-btn--active:hover {
-  background: var(--primary-dark);
-}
-
 .subject-view__view-btn {
   margin-top: 12px;
   width: 100%;
