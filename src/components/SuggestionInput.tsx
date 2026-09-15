@@ -34,7 +34,7 @@ export default function SuggestionInput({ value, onChange, options, placeholder 
   useEffect(() => setActive(0), [query])
 
   const q = query.trim().toLowerCase()
-  const visibleOptions = q.length >= 3
+  const visibleOptions = q.length >= 2
     ? options.filter((o) => (o.label ?? o.value).toLowerCase().includes(q))
     : []
 
@@ -76,8 +76,8 @@ export default function SuggestionInput({ value, onChange, options, placeholder 
         type="text"
         placeholder={placeholder}
         value={query}
-        onChange={(e) => { setQuery(e.target.value); setOpen(e.target.value.trim().length >= 3); }}
-        onFocus={() => { if (query.trim().length >= 3) setOpen(true) }}
+        onChange={(e) => { setQuery(e.target.value); setOpen(e.target.value.trim().length >= 2); }}
+        onFocus={() => { if (query.trim().length >= 2) setOpen(true) }}
         onKeyDown={onKeyDown}
       />
       {open && (
