@@ -111,8 +111,12 @@ export default function SubjectView() {
   const [graphError, setGraphError] = useState('')
   const [datasets, setDatasets] = useState<OutcomeDatasets | null>(null)
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 })
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set())
   const svgRef = useRef<SVGSVGElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
+
+  // Reset expand/collapse when subject changes — like branch-visualizer fresh state.
+  useEffect(() => { setCollapsedIds(new Set()) }, [selectedCourseId])
 
   useEffect(() => {
     let cancelled = false
@@ -379,6 +383,8 @@ export default function SubjectView() {
       courseId?: string
       depth: number
       ring: number
+      expandable: boolean
+      collapsed: boolean
     }
     interface MindLink extends d3.SimulationLinkDatum<MindNode> {
       label: string | null
@@ -396,6 +402,8 @@ export default function SubjectView() {
     const links: MindLink[] = []
 
     const walk = (d: GraphNodeData, depth: number, parent: MindNode | null, angle: number) => {
+      const collapsed = collapsedIds.has(d.id)
+      const expandable = (d.children?.length ?? 0) > 0
       const ring = ringOf(depth)
       const node: MindNode = {
         id: d.id,
@@ -406,6 +414,8 @@ export default function SubjectView() {
         courseId: d.courseId,
         depth,
         ring,
+        expandable,
+        collapsed,
         x: cx + Math.cos(angle) * ring,
         y: cy + Math.sin(angle) * ring,
         fx: depth === 0 ? cx : undefined,
@@ -427,6 +437,7 @@ export default function SubjectView() {
           stroke: d.placeholder ? '#94a3b8' : '#64748b',
         })
       }
+      if (collapsed) return
       const kids = d.children ?? []
       kids.forEach((c, i) => {
         // First ring spreads evenly around the center; deeper levels fan out
@@ -522,7 +533,7 @@ export default function SubjectView() {
       .attr('fill', (d) => (d.placeholder ? '#f8fafc' : colorMap[d.kind]))
       .attr('stroke', (d) => (d.placeholder ? '#94a3b8' : colorMap[d.kind]))
       .attr('stroke-dasharray', (d) => (d.placeholder ? '5 3' : 'none'))
-      .attr('stroke-width', 2)
+      .attr('stroke-width', (d) => (d.expandable && d.collapsed ? 3 : 2))
 
     node.append('text')
       .attr('text-anchor', 'middle')
@@ -532,6 +543,26 @@ export default function SubjectView() {
       .attr('font-weight', 'bold')
       .attr('pointer-events', 'none')
       .text((d) => (d.code.length > 14 ? d.code.slice(0, 12) + '…' : d.code) + (d.placeholder && d.kind !== 'curriculum' ? '?' : ''))
+
+    // Expand/collapse indicator (branch-visualizer style): + / − badge on expandable nodes.
+    const badge = node.filter((d) => d.expandable && d.depth !== 0)
+    badge.append('circle')
+      .attr('r', 7)
+      .attr('cx', (d) => radiusOf(d) - 2)
+      .attr('cy', (d) => -radiusOf(d) + 2)
+      .attr('fill', '#fff')
+      .attr('stroke', (d) => colorMap[d.kind])
+      .attr('stroke-width', 1.5)
+      .attr('pointer-events', 'none')
+    badge.append('text')
+      .attr('x', (d) => radiusOf(d) - 2)
+      .attr('y', (d) => -radiusOf(d) + 6.5)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', '10px')
+      .attr('font-weight', '700')
+      .attr('fill', (d) => colorMap[d.kind])
+      .attr('pointer-events', 'none')
+      .text((d) => (d.collapsed ? '+' : '−'))
 
     // Hover: highlight connected nodes + links (from branch visualizer).
     const highlightConnections = (d: MindNode) => {
@@ -565,9 +596,21 @@ export default function SubjectView() {
         tip.style.opacity = '0'
       })
 
-    // Click a resolved course node to select it in the left dropdown.
+    // Click: expand/collapse subtree if expandable, otherwise drill into course.
+    // This makes the branch visualizer expandable — same pattern as D3 collapsible trees.
     node.on('click', (event, d) => {
-      if (d.courseId) { setSelectedCourseId(d.courseId); setShowGraph(false) }
+      event.stopPropagation()
+      if (d.courseId && !d.expandable) { setSelectedCourseId(d.courseId); setShowGraph(false); return }
+      if (d.expandable) {
+        setCollapsedIds((prev) => {
+          const next = new Set(prev)
+          if (next.has(d.id)) next.delete(d.id)
+          else next.add(d.id)
+          return next
+        })
+      } else if (d.courseId) {
+        setSelectedCourseId(d.courseId); setShowGraph(false)
+      }
     })
 
     sim.on('tick', () => {
@@ -593,7 +636,7 @@ export default function SubjectView() {
       sim.stop()
       svg.on('.zoom', null)
     }
-  }, [selectedCourse, datasets, containerSize, buildGraphModel, setSelectedCourseId])
+  }, [selectedCourse, datasets, containerSize, collapsedIds, buildGraphModel, setSelectedCourseId])
 
   // ResizeObserver keeps the SVG sized responsively.
   useEffect(() => {
@@ -684,9 +727,27 @@ export default function SubjectView() {
             </div>
           ) : (
             <>
-              <h3 className="subject-view__graph-title">
-                {selectedCourse.code} — {selectedCourse.title}
-              </h3>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                <h3 className="subject-view__graph-title" style={{ margin: 0 }}>
+                  {selectedCourse.code} — {selectedCourse.title}
+                </h3>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button className="btn btn--ghost btn--sm" onClick={() => setCollapsedIds(new Set())} title="Expand all branches">Expand all</button>
+                  <button className="btn btn--ghost btn--sm" onClick={() => {
+                    // Collapse every expandable node except the center subject
+                    const data = buildGraphModel(datasets!, selectedCourse!)
+                    const ids = new Set<string>()
+                    const collect = (n: GraphNodeData) => { if (n.children?.length) { ids.add(n.id); n.children.forEach(collect) } }
+                    // collect from subject level (skip curriculum wrapper)
+                    const subj = data.children[0]
+                    if (subj) collect(subj)
+                    // don't collapse the subject itself so the first ring stays visible
+                    ids.delete(subj.id)
+                    setCollapsedIds(ids)
+                  }} title="Collapse to first ring">Collapse all</button>
+                </div>
+              </div>
+              <p style={{ fontSize: 12, color: '#64748b', margin: '6px 0 8px' }}>Click a branch node to expand / collapse — like the branch-visualizer.</p>
               <div className="subject-view__legend">
                 <span><span className="subject-view__dot subject-view__dot--curriculum" /> Curriculum</span>
                 <span><span className="subject-view__dot subject-view__dot--subject" /> Subject</span>
