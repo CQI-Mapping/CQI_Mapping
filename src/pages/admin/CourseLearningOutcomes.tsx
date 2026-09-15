@@ -10,6 +10,7 @@ import {
   updateCourseLearningOutcomeStandalone,
   deleteCourseLearningOutcomeStandalone,
   fetchProgramOutcomesStandalone,
+  fetchChedMemoOrders,
 } from '../../services/database'
 import type { CourseLearningOutcomeStandalone } from '../../services/database'
 import SuggestionInput, { type SuggestionOption } from '../../components/SuggestionInput'
@@ -52,7 +53,32 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
     let cancelled = false
     ;(async () => {
       try {
-        const pos = (await fetchProgramOutcomesStandalone()).filter((p) => !p.status || p.status === 'active')
+        const [posRaw, cmos] = await Promise.all([
+          fetchProgramOutcomesStandalone(),
+          fetchChedMemoOrders().catch(() => [] as Awaited<ReturnType<typeof fetchChedMemoOrders>>),
+        ])
+        let pos = posRaw.filter((p) => !p.status || p.status === 'active')
+        // Only BSIT Program Outcomes that actually have PEO/SG linkage:
+        // "Bachelor of Science in Information Technology Program Outcomes (CMO 25 s. 2015)"
+        // and "SPECIFIC TO A SUB-DISCIPLINE AND A MAJOR (CMO 25 s. 2015)" are the ones
+        // that have Program Educational Objectives / Strategic Goals attached.
+        const cmoById = new Map(cmos.map((c) => [c.id, c]))
+        const isTargetCmo = (p: typeof pos[number]) => {
+          const desc = (p.description || '').toUpperCase()
+          const cmo = p.cmo_id ? cmoById.get(p.cmo_id) : null
+          const cmoTitle = `${cmo?.title ?? ''} ${cmo?.code ?? ''}`.toUpperCase()
+          const hay = `${desc} ${cmoTitle}`.trim()
+          if (!hay) return false
+          const isBSIT = hay.includes('INFORMATION TECHNOLOGY') && hay.includes('CMO 25')
+          const isSubDisc = hay.includes('SUB-DISCIPLINE') && hay.includes('CMO 25')
+          return isBSIT || isSubDisc
+        }
+        const hasPEOSG = (p: typeof pos[number]) =>
+          !!(p.peo_id || (p.peo_text && p.peo_text.trim()) || p.sg_id || (p.sg_text && p.sg_text.trim()))
+        const filtered = pos.filter((p) => isTargetCmo(p) && hasPEOSG(p))
+        // Fallback to PEO/SG filter alone if CMO titles differ across environments
+        const useList = filtered.length > 0 ? filtered : pos.filter(hasPEOSG)
+        pos = useList.length > 0 ? useList : pos
         // Numeric PO order PO-1…PO-27 for the suggest dropdown
         pos.sort((a, b) => {
           const n = (s: string) => { const m = s.match(/PO\D*(\d+)/i); return m ? parseInt(m[1], 10) : 9999 }
