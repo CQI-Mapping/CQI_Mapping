@@ -429,7 +429,7 @@ export default function Course({ profile }: CourseProps) {
             <table className="table">
               <thead>
                 <tr>
-                  <th>Course</th>
+                  <th>Subject Code</th>
                   <th>Title</th>
                   <th>Curriculum</th>
                   <th>Pre-req</th>
