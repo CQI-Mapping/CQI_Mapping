@@ -597,8 +597,13 @@ export default function SubjectView() {
   // Render the graph once everything is ready.
   useEffect(() => {
     if (!showGraph || !selectedCourse || !datasets) return
-    return renderGraph()
-  }, [showGraph, selectedCourse, datasets, containerSize, renderGraph])
+    try {
+      return renderGraph()
+    } catch (e) {
+      setGraphError(e instanceof Error ? e.message : 'Failed to render graph.')
+      return undefined
+    }
+  }, [showGraph, selectedCourse, datasets, containerSize, renderGraph, setGraphError])
 
   const handleView = async () => {
     if (!selectedCourse) return
