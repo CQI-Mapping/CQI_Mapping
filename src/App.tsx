@@ -10,7 +10,7 @@
 //   Curriculum, Course, Course Learning Outcomes, Strategic Goals,
 //   CHED Memorandum Orders, Users & Accounts, Activity Logs, Profile
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Sidebar from './components/Sidebar'
 import Login from './pages/Login'
 import Profile from './pages/Profile'
@@ -114,7 +114,7 @@ function App() {
   const [profileLoaded, setProfileLoaded] = useState(false)
   const [activePage, setActivePage] = useState('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [subjectCourseId, setSubjectCourseId] = useState<string | null>(null)
+  const profileUserIdRef = useRef<string | null>(null)
 
   // On first render: restore an existing session from localStorage and subscribe to
   // auth changes (sign-in / sign-out) so the UI updates automatically.
@@ -124,7 +124,12 @@ function App() {
       if (!session) setLoading(false)
     })
 
-    const { data: { subscription } } = supabase!.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase!.auth.onAuthStateChange((event, session) => {
+      // TOKEN_REFRESHED fires when the tab regains focus (auto token refresh).
+      // Ignoring it here keeps the session object identity stable, so the app
+      // doesn't briefly mount the Loading screen and unmount the active page
+      // (which would wipe any in-progress form input).
+      if (event === 'TOKEN_REFRESHED') return
       setSession(session)
       if (!session) {
         setProfile(null)
@@ -144,6 +149,12 @@ function App() {
   // dashboard even after roles were wiped by a schema re-run.
   useEffect(() => {
     if (!session?.user) return
+    // Token refreshes may hand us a new session object for the same user.
+    // If the profile is already loaded for this user, don't re-enter the
+    // loading state (that would unmount the page and lose form input).
+    if (profileUserIdRef.current === session.user.id && profileLoaded) return
+    profileUserIdRef.current = session.user.id
+    setProfileLoaded(false)
     setLoading(true)
     let cancelled = false
 
@@ -206,16 +217,6 @@ function App() {
     if (page === 'profile') return <Page profile={profile} onSaved={setProfile} />
     if (page === 'users') return <Page />
     if (page === 'curriculum' && role !== 'user') return <Page userEmail={profile?.email} />
-    if (page === 'course') return (
-      <Page
-        profile={profile}
-        onViewSubject={(courseId: string) => {
-          setSubjectCourseId(courseId)
-          setActivePage('subject-view')
-        }}
-      />
-    )
-    if (page === 'subject-view') return <Page key={subjectCourseId ?? 'all'} preselectCourseId={subjectCourseId} />
     return <Page profile={profile} />
   }
 
