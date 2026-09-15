@@ -538,9 +538,23 @@ export default function SubjectView() {
       .attr('pointer-events', 'none')
       .text((d) => (d.code.length > 14 ? d.code.slice(0, 12) + '…' : d.code) + (d.placeholder && d.kind !== 'curriculum' ? '?' : ''))
 
-    // Hover tooltip.
+    // Hover: highlight connected nodes + links (from branch visualizer).
+    const highlightConnections = (d: MindNode) => {
+      const connectedIds = new Set<string>()
+      const connectedLinks: MindLink[] = []
+      links.forEach(l => {
+        const srcId = (l.source as MindNode).id
+        const tgtId = (l.target as MindNode).id
+        if (srcId === d.id) { connectedIds.add(tgtId); connectedLinks.push(l) }
+        else if (tgtId === d.id) { connectedIds.add(srcId); connectedLinks.push(l) }
+      })
+      node.classed('subject-view__node--highlight', (n: MindNode) => connectedIds.has(n.id))
+      link.classed('subject-view__link--highlight', (l: MindLink) => connectedLinks.includes(l))
+    }
+
     node
       .on('mouseenter', (event, d) => {
+        highlightConnections(d)
         tip.style.opacity = '1'
         tip.style.left = `${event.offsetX + 12}px`
         tip.style.top = `${event.offsetY - 28}px`
@@ -550,7 +564,11 @@ export default function SubjectView() {
         tip.style.left = `${event.offsetX + 12}px`
         tip.style.top = `${event.offsetY - 28}px`
       })
-      .on('mouseleave', () => { tip.style.opacity = '0' })
+      .on('mouseleave', () => {
+        node.classed('subject-view__node--highlight', false)
+        link.classed('subject-view__link--highlight', false)
+        tip.style.opacity = '0'
+      })
 
     // Click a resolved course node to select it in the left dropdown.
     node.on('click', (event, d) => {

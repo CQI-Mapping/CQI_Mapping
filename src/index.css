@@ -2983,6 +2983,7 @@ textarea.input {
     grid-template-columns: 1fr;
     min-height: auto;
   }
+}
 
 .subject-view__tooltip {
   position: absolute;
@@ -3002,7 +3003,17 @@ textarea.input {
   text-overflow: ellipsis;
 }
 
-.subject-view__svg {
-    min-height: 300px;
-  }
+ /* Hover highlight: connected node + link (from branch visualizer). */
+.subject-view__node--highlight {
+   stroke: rgb(0, 174, 255) !important;
+   stroke-width: 3px !important;
+}
+.subject-view__node--highlight circle {
+   stroke: rgb(0, 174, 255) !important;
+   stroke-width: 3px !important;
+}
+.subject-view__link--highlight {
+   stroke: rgb(0, 174, 255) !important;
+   stroke-width: 3px !important;
+   stroke-opacity: 1 !important;
 }
