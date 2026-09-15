@@ -610,6 +610,7 @@ export async function deleteProgramOutcomeStandalone(id: string): Promise<void> 
 export interface CourseLearningOutcomeStandalone {
   id: string
   code: string
+  course: string
   title: string
   description: string | null
   status: string

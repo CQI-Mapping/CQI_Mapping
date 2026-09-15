@@ -198,6 +198,7 @@ CREATE TABLE public.admin_program_outcomes (
 CREATE TABLE public.admin_course_learning_outcomes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code TEXT UNIQUE NOT NULL,
+    course TEXT NOT NULL DEFAULT '',
     title TEXT NOT NULL,
     description TEXT,
     status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),

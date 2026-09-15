@@ -14,7 +14,7 @@ import {
 import type { CourseLearningOutcomeStandalone } from '../../services/database'
 import SuggestionInput, { type SuggestionOption } from '../../components/SuggestionInput'
 
-const EMPTY = { code: '', description: '', programOutcomes: '' }
+const EMPTY = { code: '', course: '', description: '', programOutcomes: '' }
 
 const toSuggestion = (i: { code: string; title: string }): SuggestionOption => ({
   value: `${i.code} - ${i.title}`.trim(),
@@ -63,6 +63,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
 
   const outPayload = (f: typeof EMPTY) => ({
     code: f.code.trim(),
+    course: f.course.trim(),
     title: f.programOutcomes.trim(),
     description: f.description.trim() || null,
   })
@@ -74,7 +75,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
 
   const startEdit = (i: CourseLearningOutcomeStandalone) => {
     setEditingId(i.id)
-    setEditForm({ code: i.code, description: i.description || '', programOutcomes: i.title || '' })
+    setEditForm({ code: i.code, course: i.course || '', description: i.description || '', programOutcomes: i.title || '' })
   }
 
   const saveEdit = async () => {
@@ -88,6 +89,11 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
 
       <form className="panel create-resource" onSubmit={submit}>
         <h3>New Course Learning Outcome</h3>
+        <label className="field">
+          <span>Course</span>
+          <input className="input input--sm" type="text" placeholder="e.g. CS-101" value={form.course}
+            onChange={(e) => setForm({ ...form, course: e.target.value })} required />
+        </label>
         <label className="field">
           <span>CLO Number</span>
           <input className="input input--sm" type="text" placeholder="e.g. CLO-1" value={form.code}
@@ -124,13 +130,14 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             </button>
           </div>
           <table className="table">
-            <thead><tr><th>Code</th><th>Description</th><th>Program Outcomes</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Course</th><th>Code</th><th>Description</th><th>Program Outcomes</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
-              {visible.length === 0 && <tr><td colSpan={5}>No course learning outcomes yet.</td></tr>}
+              {visible.length === 0 && <tr><td colSpan={6}>No course learning outcomes yet.</td></tr>}
               {visible.map((item) => (
                 <tr key={item.id} className={!isActive(item) ? 'sd-archived' : ''}>
                   {editingId === item.id ? (
                     <>
+                      <td><input className="input input--sm" value={editForm.course} onChange={(e) => setEditForm({ ...editForm, course: e.target.value })} /></td>
                       <td><input className="input input--sm" value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} /></td>
                       <td><textarea className="input input--sm" rows={2} ref={autoResize} value={editForm.description}
                         onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} /></td>
@@ -150,6 +157,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                     </>
                   ) : (
                     <>
+                      <td><strong>{item.course || '—'}</strong></td>
                       <td><strong>{item.code}</strong></td>
                       <td>{item.description || '—'}</td>
                       <td>{item.title || '—'}</td>
