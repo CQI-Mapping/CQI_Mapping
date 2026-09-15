@@ -30,6 +30,7 @@ import AdminCourseLearningOutcomes from './pages/admin/CourseLearningOutcomes'
 import AdminUsers from './pages/admin/Users'
 import AdminProgram from './pages/admin/Program'
 import AdminCourse from './pages/admin/Course'
+import AdminSubjectView from './pages/admin/SubjectView'
 import { supabase } from './utils/supabaseClient'
 import { ensureProfile, syncDemoRole } from './services/database'
 import type { Profile as ProfileType, UserRole, NavItem } from './services/database'
@@ -47,6 +48,7 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'curriculum', label: 'Curriculum' },
     { id: 'course', label: 'Course' },
     { id: 'clo', label: 'Course Learning Outcomes' },
+    { id: 'subject-view', label: 'Subject View' },
     { id: 'users', label: 'Users & Accounts' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
@@ -55,6 +57,7 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'curriculum', label: 'Curriculum' },
     { id: 'program-outcomes', label: 'Program Outcomes' },
+    { id: 'subject-view', label: 'Subject View' },
     { id: 'users', label: 'Faculty' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
@@ -62,6 +65,7 @@ const NAV: Record<UserRole, NavItem[]> = {
   user: [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'curriculum', label: 'Curriculum' },
+    { id: 'subject-view', label: 'Subject View' },
     { id: 'clo', label: 'Course Learning Outcomes' },
     { id: 'profile', label: 'Profile' },
   ],
@@ -78,6 +82,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     curriculum: ManagerCurriculum,
     course: AdminCourse,
     clo: AdminCourseLearningOutcomes,
+    'subject-view': AdminSubjectView,
     'strategic-goals': AdminStrategicGoals,
     'ched-memo': AdminChedMemoOrders,
     users: AdminUsers,
@@ -88,6 +93,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     dashboard: ManagerDashboard,
     curriculum: ManagerCurriculum,
     'program-outcomes': AdminProgramOutcomes,
+    'subject-view': AdminSubjectView,
     users: ManagerUsers,
     'activity-logs': ManagerActivityLogs,
     profile: Profile,
@@ -95,6 +101,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
   user: {
     dashboard: UserDashboard,
     curriculum: UserCurriculum,
+    'subject-view': AdminSubjectView,
     clo: AdminCourseLearningOutcomes,
     profile: Profile,
   },
