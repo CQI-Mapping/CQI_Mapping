@@ -3013,7 +3013,25 @@ textarea.input {
     min-height: auto;
   }
 
-  .subject-view__svg {
+.subject-view__tooltip {
+  position: absolute;
+  z-index: 10;
+  background: rgba(15, 23, 42, 0.92);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  max-width: 240px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.subject-view__svg {
     min-height: 300px;
   }
 }

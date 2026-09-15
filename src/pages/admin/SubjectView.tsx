@@ -2,24 +2,23 @@
 // course buttons; right panel renders a D3.js prerequisite/corequisite graph
 // for the selected course.
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import * as d3 from 'd3'
-import { fetchPrograms, fetchResources, fetchCourses } from '../../services/database'
-import type { Program, Resource, Course } from '../../services/database'
+import { fetchPrograms, fetchCourses } from '../../services/database'
+import type { Program, Course } from '../../services/database'
 
 interface GraphNode extends d3.SimulationNodeDatum {
   id: string
   code: string
   title: string
   kind: 'selected' | 'prerequisite' | 'corequisite' | 'missing'
-  x?: number
-  y?: number
 }
 
 interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
   source: string | GraphNode
   target: string | GraphNode
   label: string
+  directed: boolean
 }
 
 export default function SubjectView() {
@@ -30,12 +29,14 @@ export default function SubjectView() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const svgRef = useRef<SVGSVGElement>(null)
+  const tooltipRef = useRef<HTMLDivElement>(null)
+  const simRef = useRef<d3.Simulation<GraphNode, GraphLink> | null>(null)
 
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
-        const [p, , c] = await Promise.all([fetchPrograms(), fetchResources(), fetchCourses()])
+        const [p, c] = await Promise.all([fetchPrograms(), fetchCourses()])
         if (!cancelled) {
           setPrograms(p)
           setCourses(c.filter((co) => !co.status || co.status === 'active'))
@@ -50,12 +51,18 @@ export default function SubjectView() {
     return () => { cancelled = true }
   }, [])
 
-  const programCourses = courses.filter((c) => {
-    const pid = typeof c.program_id === 'object' ? c.program_id.id : c.program_id
-    return pid === selectedProgramId
-  })
+  const programCourses = useMemo(
+    () => courses.filter((c) => {
+      const pid = typeof c.program_id === 'object' ? c.program_id.id : c.program_id
+      return pid === selectedProgramId
+    }),
+    [courses, selectedProgramId],
+  )
 
-  const selectedCourse = programCourses.find((c) => c.id === selectedCourseId) ?? null
+  const selectedCourse = useMemo(
+    () => programCourses.find((c) => c.id === selectedCourseId) ?? null,
+    [programCourses, selectedCourseId],
+  )
 
   const findCourseByCode = useCallback(
     (code: string) => programCourses.find((c) => c.code.toUpperCase() === code.toUpperCase()),
@@ -66,13 +73,16 @@ export default function SubjectView() {
   const renderGraph = useCallback(() => {
     if (!selectedCourse || !svgRef.current) return
 
+    // Stop any previous simulation
+    if (simRef.current) { simRef.current.stop(); simRef.current = null }
+
     const svg = d3.select(svgRef.current)
     svg.selectAll('*').remove()
 
     const width = svgRef.current.clientWidth || 600
     const height = svgRef.current.clientHeight || 400
 
-    // Build nodes + links
+    // ── Build nodes + links ─────────────────────────────────────────────
     const nodes: GraphNode[] = []
     const links: GraphLink[] = []
 
@@ -83,21 +93,24 @@ export default function SubjectView() {
       kind: 'selected',
     })
 
-    const addRelated = (code: string, kind: GraphNode['kind'], label: string) => {
-      if (!code) return
-      const target = findCourseByCode(code)
-      const node: GraphNode = {
-        id: target ? target.id : `missing-${code}`,
-        code,
-        title: target ? target.title : 'Not found',
-        kind,
+    const addRelated = (raw: string, kind: GraphNode['kind'], label: string, directed: boolean) => {
+      if (!raw) return
+      const parts = raw.split(',').map((s) => s.trim()).filter(Boolean)
+      for (const code of parts) {
+        const target = findCourseByCode(code)
+        const node: GraphNode = {
+          id: target ? target.id : `missing-${code}`,
+          code,
+          title: target ? target.title : 'Not found',
+          kind,
+        }
+        if (!nodes.some((n) => n.id === node.id)) nodes.push(node)
+        links.push({ source: selectedCourse.id, target: node.id, label, directed })
       }
-      if (!nodes.some((n) => n.id === node.id)) nodes.push(node)
-      links.push({ source: selectedCourse.id, target: node.id, label })
     }
 
-    addRelated(selectedCourse.prerequisite, 'prerequisite', 'pre-req')
-    addRelated(selectedCourse.corequisite, 'corequisite', 'co-req')
+    addRelated(selectedCourse.prerequisite, 'prerequisite', 'pre-req', true)
+    addRelated(selectedCourse.corequisite, 'corequisite', 'co-req', false)
 
     if (nodes.length <= 1) {
       svg.append('text')
@@ -117,22 +130,37 @@ export default function SubjectView() {
       missing: '#ef4444',
     }
 
+    // ── Simulation ──────────────────────────────────────────────────────
     const simulation = d3.forceSimulation<GraphNode>(nodes)
-      .force('link', d3.forceLink<GraphNode, GraphLink>(links).id((d) => d.id).distance(160))
+      .force('link', d3.forceLink<GraphNode, GraphLink>(links).id((d) => d.id).distance(180))
       .force('charge', d3.forceManyBody().strength(-500))
       .force('center', d3.forceCenter(width / 2, height / 2))
       .force('collision', d3.forceCollide(60))
+    simRef.current = simulation
 
-    // Links
+    // ── Arrow marker (for directed links only) ──────────────────────────
+    svg.append('defs').append('marker')
+      .attr('id', 'arrow')
+      .attr('viewBox', '0 -5 10 10')
+      .attr('refX', 30)
+      .attr('refY', 0)
+      .attr('markerWidth', 8)
+      .attr('markerHeight', 8)
+      .attr('orient', 'auto')
+      .append('path')
+      .attr('d', 'M0,-5L10,0L0,5')
+      .attr('fill', '#64748b')
+
+    // ── Links ───────────────────────────────────────────────────────────
     const linkGroup = svg.append('g')
     const link = linkGroup.selectAll('line')
       .data(links)
       .join('line')
       .attr('stroke', '#64748b')
       .attr('stroke-width', 2)
-      .attr('marker-end', 'url(#arrow)')
+      .attr('stroke-dasharray', (d) => d.directed ? '0' : '6 4')
+      .attr('marker-end', (d) => d.directed ? 'url(#arrow)' : 'none')
 
-    // Link labels
     const linkLabel = linkGroup.selectAll('text')
       .data(links)
       .join('text')
@@ -142,54 +170,63 @@ export default function SubjectView() {
       .attr('dy', -6)
       .text((d) => d.label)
 
-    // Arrow marker
-    svg.append('defs').append('marker')
-      .attr('id', 'arrow')
-      .attr('viewBox', '0 -5 10 10')
-      .attr('refX', 28)
-      .attr('refY', 0)
-      .attr('markerWidth', 8)
-      .attr('markerHeight', 8)
-      .attr('orient', 'auto')
-      .append('path')
-      .attr('d', 'M0,-5L10,0L0,5')
-      .attr('fill', '#64748b')
-
-    // Nodes
+    // ── Nodes ───────────────────────────────────────────────────────────
     const nodeGroup = svg.append('g')
-    const node = nodeGroup.selectAll('g')
+    const node = nodeGroup.selectAll<SVGGElement, GraphNode>('g')
       .data(nodes)
       .join('g')
       .attr('cursor', 'grab')
 
-    const dragBehavior = d3.drag<SVGGElement, GraphNode>()
+    // Drag
+    const drag = d3.drag<SVGGElement, GraphNode>()
       .on('start', (event, d) => {
         if (!event.active) simulation.alphaTarget(0.3).restart()
         d.fx = d.x
         d.fy = d.y
       })
-      .on('drag', (event, d) => {
-        d.fx = event.x
-        d.fy = event.y
-      })
+      .on('drag', (event, d) => { d.fx = event.x; d.fy = event.y })
       .on('end', (event, d) => {
         if (!event.active) simulation.alphaTarget(0)
         d.fx = null
         d.fy = null
       })
 
-    node.each(function (d) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ;(d3 as any).select(this).call(dragBehavior)
+    node.call(drag as unknown as (selection: d3.Selection<SVGGElement, GraphNode, SVGGElement, unknown>) => void)
+
+    // Hover tooltip
+    node
+      .on('mouseenter', (event, d) => {
+        if (!tooltipRef.current) return
+        tooltipRef.current.style.opacity = '1'
+        tooltipRef.current.style.left = `${event.offsetX + 12}px`
+        tooltipRef.current.style.top = `${event.offsetY - 28}px`
+        tooltipRef.current.innerHTML = `<strong>${d.code}</strong><br/>${d.title}`
+      })
+      .on('mousemove', (event) => {
+        if (!tooltipRef.current) return
+        tooltipRef.current.style.left = `${event.offsetX + 12}px`
+        tooltipRef.current.style.top = `${event.offsetY - 28}px`
+      })
+      .on('mouseleave', () => {
+        if (tooltipRef.current) tooltipRef.current.style.opacity = '0'
+      })
+
+    // Click on a node to select that course in the left list
+    node.on('click', (event, d) => {
+      if (d.kind === 'selected') return
+      if (d.kind === 'missing') return
+      const match = programCourses.find((c) => c.id === d.id)
+      if (match) setSelectedCourseId(match.id)
     })
 
+    // Circle
     node.append('circle')
       .attr('r', (d) => d.kind === 'selected' ? 28 : 22)
       .attr('fill', (d) => colorMap[d.kind])
       .attr('stroke', '#fff')
       .attr('stroke-width', 2)
-      .attr('cursor', 'grab')
 
+    // Code label
     node.append('text')
       .attr('text-anchor', 'middle')
       .attr('dy', -8)
@@ -199,6 +236,7 @@ export default function SubjectView() {
       .attr('pointer-events', 'none')
       .text((d) => d.code)
 
+    // Title label
     node.append('text')
       .attr('text-anchor', 'middle')
       .attr('dy', 8)
@@ -207,6 +245,7 @@ export default function SubjectView() {
       .attr('pointer-events', 'none')
       .text((d) => d.title.length > 18 ? d.title.slice(0, 16) + '…' : d.title)
 
+    // ── Tick ────────────────────────────────────────────────────────────
     simulation.on('tick', () => {
       link
         .attr('x1', (d) => (d.source as GraphNode).x!)
@@ -220,8 +259,9 @@ export default function SubjectView() {
 
       node.attr('transform', (d) => `translate(${d.x},${d.y})`)
     })
-  }, [selectedCourse, findCourseByCode])
+  }, [selectedCourse, findCourseByCode, programCourses, setSelectedCourseId])
 
+  // Render graph when selectedCourse changes (not on every React render)
   useEffect(() => { renderGraph() }, [renderGraph])
 
   if (loading) return <p>Loading subjects...</p>
@@ -265,7 +305,7 @@ export default function SubjectView() {
         </div>
 
         {/* ── Right panel: D3 graph ─────────────────────────────────────── */}
-        <div className="panel subject-view__right">
+        <div className="panel subject-view__right" style={{ position: 'relative' }}>
           {selectedCourse ? (
             <>
               <h3 className="subject-view__graph-title">
@@ -277,6 +317,7 @@ export default function SubjectView() {
                 <span><span className="subject-view__dot subject-view__dot--coreq" /> Corequisite</span>
                 <span><span className="subject-view__dot subject-view__dot--missing" /> Missing</span>
               </div>
+              <div ref={tooltipRef} className="subject-view__tooltip" />
               <svg ref={svgRef} className="subject-view__svg" />
             </>
           ) : (
