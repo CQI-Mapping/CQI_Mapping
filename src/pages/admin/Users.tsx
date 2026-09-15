@@ -1,14 +1,19 @@
 // Admin Users page: create new manager accounts and list all users.
 
 import { useState, useEffect } from 'react'
+import { useDraft } from '../../hooks/useDraft'
 import { adminCreateUser, addActivityLog, fetchAllProfiles } from '../../services/database'
 import type { Profile } from '../../services/database'
 
 export default function Users() {
-  const [email, setEmail] = useState('')
+  // Draft persists email + name across page navigation. The password is
+  // deliberately kept in memory-only state and never written to storage.
+  const [draft, setDraft, clearDraft] = useDraft('cqi.draft.Users', { email: '', fullName: '' })
+  const { email, fullName } = draft
+  const setEmail = (v: string) => setDraft((d) => ({ ...d, email: v }))
+  const setFullName = (v: string) => setDraft((d) => ({ ...d, fullName: v }))
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [fullName, setFullName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -34,7 +39,8 @@ export default function Users() {
       await adminCreateUser(email.trim(), password, fullName.trim(), 'manager')
       await addActivityLog(email.trim(), 'user.created')
       setSuccess(`Manager ${email} created.`)
-      setEmail(''); setPassword(''); setFullName('')
+      clearDraft()
+      setPassword('')
       loadUsers()
     } catch (e) {
       setError('Failed to create manager: ' + (e instanceof Error ? e.message : String(e)))

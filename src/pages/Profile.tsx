@@ -3,6 +3,7 @@
 // the updated profile back to App.tsx.
 
 import { useState } from 'react'
+import { useDraft } from '../hooks/useDraft'
 import { updateProfile, addActivityLog } from '../services/database'
 import type { Profile as ProfileType } from '../services/database'
 
@@ -12,7 +13,10 @@ interface ProfileProps {
 }
 
 function Profile({ profile, onSaved }: ProfileProps) {
-  const [fullName, setFullName] = useState(profile?.full_name || '')
+  // Draft survives page navigation; cleared on successful save.
+  const [draft, setDraft] = useDraft('cqi.draft.Profile', { fullName: profile?.full_name || '' })
+  const { fullName } = draft
+  const setFullName = (v: string) => setDraft((d) => ({ ...d, fullName: v }))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -27,6 +31,7 @@ function Profile({ profile, onSaved }: ProfileProps) {
       const updated = await updateProfile(profile!.id, { full_name: fullName.trim() })
       await addActivityLog('profile.updated')
       onSaved(updated)
+      setDraft({ fullName: updated.full_name || '' })
       setMessage('Profile saved.')
     } catch (err) {
       setError('Failed to save profile: ' + (err instanceof Error ? err.message : String(err)))

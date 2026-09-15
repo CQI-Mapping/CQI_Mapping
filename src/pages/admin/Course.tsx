@@ -4,6 +4,7 @@
 // are split into lecture + laboratory (total is computed automatically).
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useDraft } from '../../hooks/useDraft'
 import {
   fetchPrograms,
   fetchResources,
@@ -115,9 +116,16 @@ export default function Course({ profile, onViewSubject }: CourseProps) {
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
 
-  const [form, setForm] = useState<CourseForm>(blank)
-  const [editId, setEditId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState<CourseForm>(blank)
+  // Create + edit forms persist to sessionStorage so typed text survives
+  // page navigation (the page unmounts when switching sidebar pages).
+  const [form, setForm, clearForm] = useDraft<CourseForm>('cqi.draft.Course.create', blank)
+  const [editState, setEditState, clearEdit] = useDraft('cqi.draft.Course.edit', {
+    editId: null as string | null,
+    editForm: blank,
+  })
+  const { editId, editForm } = editState
+  const setEditId = (id: string | null) => setEditState((s) => ({ ...s, editId: id }))
+  const setEditForm = (f: CourseForm) => setEditState((s) => ({ ...s, editForm: f }))
   const [archived, setArchived] = useState(false)
 
   const errMsg = (e: unknown) => {
@@ -203,7 +211,7 @@ export default function Course({ profile, onViewSubject }: CourseProps) {
       await createCourse({ program_id: programId, ...buildPayload(form) })
       await addActivityLog('course.created')
       setMessage('Course created.')
-      setForm(blank)
+      clearForm()
       load()
     } catch (err) {
       setError('Failed to create course: ' + errMsg(err))
@@ -213,20 +221,22 @@ export default function Course({ profile, onViewSubject }: CourseProps) {
   }
 
   const startEdit = (item: Course) => {
-    setEditId(item.id)
     const pid = typeof item.program_id === 'object' ? item.program_id.id : item.program_id
     setProgramId(pid)
-    setEditForm({
-      code: item.code,
-      title: item.title,
-      curriculum: relId(item.curriculum_id),
-      prereq: item.prerequisite || '',
-      prereqNA: !item.prerequisite,
-      coreq: item.corequisite || '',
-      coreqNA: !item.corequisite,
-      creditLecture: String(item.credit_lecture ?? 0),
-      creditLaboratory: String(item.credit_laboratory ?? 0),
-      description: item.description || '',
+    setEditState({
+      editId: item.id,
+      editForm: {
+        code: item.code,
+        title: item.title,
+        curriculum: relId(item.curriculum_id),
+        prereq: item.prerequisite || '',
+        prereqNA: !item.prerequisite,
+        coreq: item.corequisite || '',
+        coreqNA: !item.corequisite,
+        creditLecture: String(item.credit_lecture ?? 0),
+        creditLaboratory: String(item.credit_laboratory ?? 0),
+        description: item.description || '',
+      },
     })
   }
 
@@ -239,8 +249,7 @@ export default function Course({ profile, onViewSubject }: CourseProps) {
       await updateCourse(editId, buildPayload(editForm))
       await addActivityLog('course.updated')
       setMessage('Course updated.')
-      setEditId(null)
-      setEditForm(blank)
+      clearEdit()
       load()
     } catch (err) {
       setError('Failed to update course: ' + errMsg(err))
@@ -250,8 +259,7 @@ export default function Course({ profile, onViewSubject }: CourseProps) {
   }
 
   const cancelEdit = () => {
-    setEditId(null)
-    setEditForm(blank)
+    clearEdit()
   }
 
   const handleDelete = async (id: string) => {
