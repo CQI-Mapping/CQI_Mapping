@@ -2927,7 +2927,7 @@ textarea.input {
 
 .subject-view__summary {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
   margin-top: 14px;
 }
@@ -3078,6 +3078,7 @@ textarea.input {
 .subject-view__dot--subject      { background: #2563eb; }
 .subject-view__dot--prereq       { background: #f97316; }
 .subject-view__dot--coreq        { background: #22c55e; }
+.subject-view__dot--dependent    { background: #eab308; }
 .subject-view__dot--clo          { background: #06b6d4; }
 .subject-view__dot--po           { background: #7c3aed; }
 .subject-view__dot--peo          { background: #db2777; }

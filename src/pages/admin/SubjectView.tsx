@@ -5,6 +5,7 @@
 //     ├─ Curriculum (oval)
 //     ├─ Prerequisite(s)
 //     ├─ Corequisite(s)
+//     ├─ Next / Dependent(s)  (subjects that list this subject as pre/co-req)
 //     └─ CLO(s)
 //        └─ PO(s)
 //           ├─ PEO
@@ -44,6 +45,7 @@ type NodeKind =
   | 'subject'
   | 'prerequisite'
   | 'corequisite'
+  | 'dependent'
   | 'clo'
   | 'po'
   | 'peo'
@@ -74,6 +76,7 @@ const colorMap: Record<NodeKind, string> = {
   subject: '#2563eb',
   prerequisite: '#f97316',
   corequisite: '#22c55e',
+  dependent: '#eab308',
   clo: '#06b6d4',
   po: '#7c3aed',
   peo: '#db2777',
@@ -136,6 +139,7 @@ const dotClass = (k: NodeKind) => {
     case 'subject': return 'subject-view__dot--subject'
     case 'prerequisite': return 'subject-view__dot--prereq'
     case 'corequisite': return 'subject-view__dot--coreq'
+    case 'dependent': return 'subject-view__dot--dependent'
     case 'clo': return 'subject-view__dot--clo'
     case 'po': return 'subject-view__dot--po'
     case 'peo': return 'subject-view__dot--peo'
@@ -150,6 +154,7 @@ const legendDefs: Array<{ kind: NodeKind; label: string; tip: string }> = [
   { kind: 'subject', label: 'Subject', tip: 'The selected subject (double ring)' },
   { kind: 'prerequisite', label: 'Pre-req', tip: 'Prerequisite subject(s) for this subject' },
   { kind: 'corequisite', label: 'Co-req', tip: 'Corequisite subject(s) for this subject' },
+  { kind: 'dependent', label: 'Next', tip: 'Subject(s) that require this subject as pre-req / co-req' },
   { kind: 'clo', label: 'CLO', tip: 'Course Learning Outcome(s) of this subject' },
   { kind: 'po', label: 'PO', tip: 'Program Outcome(s) the CLOs target' },
   { kind: 'peo', label: 'PEO', tip: 'Program Educational Objective(s)' },
@@ -212,18 +217,25 @@ export default function SubjectView() {
     [programCourses, selectedCourseId],
   )
 
-  // Quick pre-req / co-req / CLO tallies shown in the left panel before View.
+  // Quick pre-req / co-req / dependent / CLO tallies shown in the left panel before View.
   const leftCounts = useMemo(() => {
     if (!selectedCourse) return null
     const pre = (selectedCourse.prerequisite || '').split(',').map((s) => s.trim()).filter(Boolean).length
     const core = (selectedCourse.corequisite || '').split(',').map((s) => s.trim()).filter(Boolean).length
+    const norm = normalizeCode(selectedCourse.code)
+    const next = programCourses.filter((c) => {
+      if (c.id === selectedCourse.id) return false
+      const preCodes = (c.prerequisite || '').split(',').map((s) => normalizeCode(s.trim())).filter(Boolean)
+      const coCodes = (c.corequisite || '').split(',').map((s) => normalizeCode(s.trim())).filter(Boolean)
+      return preCodes.includes(norm) || coCodes.includes(norm)
+    }).length
     let clos = -1
     if (datasets) {
       const key = normalizeCode(selectedCourse.code)
       clos = datasets.clos.filter((clo) => cloMatchesSubject(clo.course || '', key)).length
     }
-    return { pre, core, clos }
-  }, [selectedCourse, datasets])
+    return { pre, core, next, clos }
+  }, [selectedCourse, datasets, programCourses])
 
   // ── Load + cache outcome datasets on first View ────────────────────────────
   const loadDatasets = async (force = false) => {
@@ -311,6 +323,27 @@ export default function SubjectView() {
       }
       addSat(subject.prerequisite, 'prerequisite')
       addSat(subject.corequisite, 'corequisite')
+
+      // Subjects that require this subject (reverse pre-req / co-req) — e.g. IT12 lists IT10.
+      const subjectCodeNorm = normalizeCode(subject.code)
+      for (const c of programCourses) {
+        if (c.id === subject.id) continue
+        const preCodes = (c.prerequisite || '').split(',').map((s) => normalizeCode(s.trim())).filter(Boolean)
+        const coCodes = (c.corequisite || '').split(',').map((s) => normalizeCode(s.trim())).filter(Boolean)
+        if (preCodes.includes(subjectCodeNorm) || coCodes.includes(subjectCodeNorm)) {
+          // Avoid duplicate if already added as a satellite (circular prereq)
+          if (subjectNode.children.some((ch) => ch.courseId === c.id)) continue
+          subjectNode.children.push({
+            id: `dependent-${c.id}`,
+            code: c.code,
+            title: c.title,
+            kind: 'dependent',
+            placeholder: false,
+            courseId: c.id,
+            children: [],
+          })
+        }
+      }
 
       // CLOs whose course matches the selected subject code.
       const subjectClos = datasetsRef.clos.filter((clo) =>
@@ -498,7 +531,9 @@ export default function SubjectView() {
     const root = d3.hierarchy<GraphNodeData>(data, (d) =>
       collapsedIds.has(d.id) ? undefined : d.children
     )
-    const treeLayout = d3.tree<GraphNodeData>().nodeSize([170, 128])
+    const treeLayout = d3.tree<GraphNodeData>()
+      .nodeSize([190, 135])
+      .separation((a, b) => (a.parent === b.parent ? 1 : 1.55))
     treeLayout(root)
 
     // Center horizontally, keep a comfortable top margin.
@@ -843,6 +878,10 @@ export default function SubjectView() {
                 <span className="subject-view__summary-value" style={{ color: '#22c55e' }}>{leftCounts.core}</span>
               </div>
               <div className="subject-view__summary-item">
+                <span className="subject-view__summary-label">Next</span>
+                <span className="subject-view__summary-value" style={{ color: '#eab308' }}>{leftCounts.next}</span>
+              </div>
+              <div className="subject-view__summary-item">
                 <span className="subject-view__summary-label">CLOs</span>
                 <span className="subject-view__summary-value" style={{ color: '#06b6d4' }}>{leftCounts.clos >= 0 ? leftCounts.clos : '–'}</span>
               </div>
@@ -915,7 +954,7 @@ export default function SubjectView() {
                   <button className="btn btn--ghost btn--sm" onClick={handleRefresh} disabled={spinner} title="Reload relationship data">Refresh</button>
                 </div>
               </div>
-              <p className="subject-view__graph-hint">Click a branch node to expand or collapse. Click a pre-req or co-req to jump to that subject. Drag nodes to reposition. Scroll to zoom.</p>
+              <p className="subject-view__graph-hint">Click a branch node to expand or collapse. Click a pre-req, co-req or next subject to jump to that subject. Drag nodes to reposition. Scroll to zoom.</p>
               <div className="subject-view__legend">
                 {legendDefs.map((l) => {
                   const n = graphStats?.counts[l.kind] ?? 0
