@@ -510,6 +510,7 @@ export default function SubjectView() {
     // ── Build hierarchy + flatten with expand/collapse ───────────────
     interface TreeNode {
       id: string
+      rId: string
       code: string
       title: string
       kind: NodeKind
@@ -525,6 +526,16 @@ export default function SubjectView() {
       source: TreeNode
       target: TreeNode
       dashed: boolean
+    }
+
+    // Nodes can share a model id (a PO aligned to several CLOs, or the same
+    // PEO/SG/CMO aligned to several POs). Position is only unique via the full
+    // ancestor chain, so join D3 data and resolve link endpoints by that.
+    const pathKey = (d: d3.HierarchyNode<GraphNodeData>): string => {
+      const parts: string[] = []
+      let cur: d3.HierarchyNode<GraphNodeData> | null = d
+      while (cur) { parts.unshift(cur.data.id); cur = cur.parent }
+      return parts.join('>')
     }
 
     const data = buildGraphModel(datasets, selectedCourse)
@@ -545,6 +556,7 @@ export default function SubjectView() {
 
     const nodes: TreeNode[] = root.descendants().map((d) => ({
       id: d.data.id,
+      rId: pathKey(d),
       code: d.data.code,
       title: d.data.title,
       kind: d.data.kind,
@@ -556,10 +568,10 @@ export default function SubjectView() {
       expandable: !!(d.data.children && d.data.children.length > 0),
       collapsed: collapsedIds.has(d.data.id),
     }))
-    const nodeById = new Map(nodes.map((n) => [n.id, n]))
+    const nodeById = new Map(nodes.map((n) => [n.rId, n]))
     const links: TreeLink[] = root.links().map((l) => ({
-      source: nodeById.get(l.source.data.id)!,
-      target: nodeById.get(l.target.data.id)!,
+      source: nodeById.get(pathKey(l.source))!,
+      target: nodeById.get(pathKey(l.target))!,
       dashed: l.target.data.kind === 'corequisite' || l.target.data.placeholder,
     }))
 
@@ -586,7 +598,7 @@ export default function SubjectView() {
     const link = zoomGroup.append('g')
       .attr('class', 'subject-view__links')
       .selectAll<SVGPathElement, TreeLink>('path.subject-view__link')
-      .data(links, (l) => l.target.id)
+      .data(links, (l) => l.target.rId)
       .join(
         (enter) => enter
           .append('path')
@@ -610,7 +622,7 @@ export default function SubjectView() {
     const node = zoomGroup.append('g')
       .attr('class', 'subject-view__nodes')
       .selectAll<SVGGElement, TreeNode>('g.subject-view__node')
-      .data(nodes, (d) => d.id)
+      .data(nodes, (d) => d.rId)
       .join(
         (enter) => {
           const g = enter.append('g')
@@ -732,10 +744,10 @@ export default function SubjectView() {
       const connectedIds = new Set<string>()
       const connectedLinks: TreeLink[] = []
       links.forEach((l) => {
-        if (l.source.id === d.id) { connectedIds.add(l.target.id); connectedLinks.push(l) }
-        else if (l.target.id === d.id) { connectedIds.add(l.source.id); connectedLinks.push(l) }
+        if (l.source.rId === d.rId) { connectedIds.add(l.target.rId); connectedLinks.push(l) }
+        else if (l.target.rId === d.rId) { connectedIds.add(l.source.rId); connectedLinks.push(l) }
       })
-      node.classed('subject-view__node--highlight', (n: TreeNode) => connectedIds.has(n.id))
+      node.classed('subject-view__node--highlight', (n: TreeNode) => connectedIds.has(n.rId))
       link.classed('subject-view__link--highlight', (l: TreeLink) => connectedLinks.includes(l))
     }
 
