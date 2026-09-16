@@ -314,16 +314,30 @@ export default function SubjectView() {
           const key = normalizeCode(tok)
           let poNode = poMap.get(key)
           if (!poNode) {
-            const poRec = datasetsRef.pos.find((p) => normalizeCode(p.code) === key)
-            poNode = {
-              id: poRec ? `po-${poRec.id}` : `po-missing-${tok}`,
-              code: tok,
-              title: poRec ? (poRec.description || poRec.title || tok) : 'PO not found or archived',
-              kind: 'po',
-              placeholder: !poRec,
-              children: [],
+            const matchingPos = datasetsRef.pos.filter((p) => normalizeCode(p.code) === key)
+            if (matchingPos.length === 0) {
+              poNode = {
+                id: `po-missing-${tok}`,
+                code: tok,
+                title: 'PO not found or archived',
+                kind: 'po',
+                placeholder: true,
+                children: [],
+              }
+            } else {
+              // Aggregate leaves from all PO records sharing the same code
+              // (e.g. duplicate PO 1 with different CMO/PEO/SG) — union branching
+              const primary = matchingPos[0]
+              poNode = {
+                id: `po-${key}`,
+                code: tok,
+                title: primary.description || primary.title || tok,
+                kind: 'po',
+                placeholder: false,
+                children: [],
+              }
+              for (const poRec of matchingPos) addLeaves(poNode, poRec)
             }
-            if (poRec) addLeaves(poNode, poRec)
             poMap.set(key, poNode)
           }
           if (!cloNode.children.some((c) => c.id === poNode!.id)) cloNode.children.push(poNode!)
@@ -397,19 +411,22 @@ export default function SubjectView() {
     }
 
     // d3 tree: top-down, hide collapsed children like expandable branch visualizer
+    // Improved branching: wider nodeSize and separation so PO -> PEO/SG/CMO leaves don't overlap
     const root = d3.hierarchy<GraphNodeData>(data, (d) =>
       collapsedIds.has(d.id) ? undefined : d.children
     )
-    const treeLayout = d3.tree<GraphNodeData>().nodeSize([150, 110])
+    const treeLayout = d3.tree<GraphNodeData>()
+      .nodeSize([175, 135])
+      .separation((a, b) => (a.parent === b.parent ? 1.15 : 1.45))
     treeLayout(root)
 
-    // Center the tree horizontally in the SVG
+    // Center the tree horizontally and give top padding so curriculum isn't clipped
     const xs = root.descendants().map((d) => d.x ?? 0)
     const minX = Math.min(...xs)
     const maxX = Math.max(...xs)
     const treeWidth = maxX - minX || 1
     const offsetX = width / 2 - (minX + treeWidth / 2)
-    const offsetY = 50
+    const offsetY = 60
 
     const nodes: TreeNode[] = root.descendants().map((d) => ({
       id: d.data.id,
