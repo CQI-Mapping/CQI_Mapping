@@ -12,7 +12,7 @@ import {
   fetchProgramOutcomesStandalone,
   fetchCourses,
 } from '../../services/database'
-import type { Course, CourseLearningOutcomeStandalone } from '../../services/database'
+import type { CourseLearningOutcomeStandalone, Course } from '../../services/database'
 import SuggestionInput, { type SuggestionOption } from '../../components/SuggestionInput'
 
 const EMPTY = { code: '', course: '', description: '', programOutcomes: '' }
@@ -59,17 +59,17 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
           fetchProgramOutcomesStandalone(),
           fetchCourses(),
         ])
-        const activePOs = pos.filter((p) => !p.status || p.status === 'active')
-        activePOs.sort((a, b) => {
+        const activePos = pos.filter((p) => !p.status || p.status === 'active')
+        // Numeric PO order PO-1…PO-27 for the suggest dropdown
+        activePos.sort((a, b) => {
           const n = (s: string) => { const m = s.match(/PO\D*(\d+)/i); return m ? parseInt(m[1], 10) : 9999 }
           const na = n(a.code || ''); const nb = n(b.code || '')
           return na !== nb ? na - nb : String(a.code).localeCompare(String(b.code))
         })
-        // Only active courses for the dropdown, sorted by code
         const activeCourses = crs.filter((c) => !c.status || c.status === 'active')
         activeCourses.sort((a, b) => String(a.code).localeCompare(String(b.code)))
         if (!cancelled) {
-          setPoSuggestions(activePOs.map(toSuggestion))
+          setPoSuggestions(activePos.map(toSuggestion))
           setCourses(activeCourses)
         }
       } catch {
@@ -161,8 +161,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                   {editingId === item.id ? (
                     <>
                       <td>
-                        <select className="input input--sm" value={editForm.course}
-                          onChange={(e) => setEditForm({ ...editForm, course: e.target.value })}>
+                        <select className="input input--sm" value={editForm.course} onChange={(e) => setEditForm({ ...editForm, course: e.target.value })}>
                           <option value="">— Select course —</option>
                           {courses.map((c) => (
                             <option key={c.id} value={c.code}>{c.code} — {c.title}</option>

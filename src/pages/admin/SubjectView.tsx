@@ -345,9 +345,8 @@ export default function SubjectView() {
     [programCourses],
   )
 
-  // ── D3 vertical tree render (matches e9b5b3f5 sketch) ──────────────────
-  // Top-down: curriculum → IT10 (subject) → CLO1/CLO2 → PO1/PO2 → CMO/PEO/SG
-  // Straight <line> like branch-visualizer, expandable branches.
+  // ── D3 tree render matching hand sketch e9b5b3f5: curriculum → IT10 → CLO1/CLO2 → PO1/PO2/PO11 … → CMO/PEO/SG
+  // Vertical top-down tree, straight lines like branch-visualizer.
   const renderGraph = useCallback(() => {
     const svgEl = svgRef.current
     const tip = tooltipRef.current
@@ -357,142 +356,230 @@ export default function SubjectView() {
     svg.on('.zoom', null)
     svg.selectAll('*').remove()
 
-    const width = containerSize.w || svgEl.clientWidth || 700
-    const height = containerSize.h || svgEl.clientHeight || 560
+    const width = containerSize.w || svgEl.clientWidth || 760
+    const height = Math.max(containerSize.h || svgEl.clientHeight || 560, 560)
 
-    const rawData = buildGraphModel(datasets, selectedCourse)
+    // Keep the original hierarchy (curriculum at top) — matches the sketch:
+    // curriculum → subject (IT10) → CLO1/CLO2 → PO… → PEO/SG/CMO
+    const data = buildGraphModel(datasets, selectedCourse)
 
-    // Hide collapsed subtrees (branch-visualizer expandable)
-    const prune = (n: GraphNodeData): GraphNodeData => {
-      if (collapsedIds.has(n.id)) return { ...n, children: [] }
-      return { ...n, children: (n.children ?? []).map(prune) }
+    interface TreeNode {
+      id: string
+      code: string
+      title: string
+      kind: NodeKind
+      placeholder: boolean
+      courseId?: string
+      depth: number
+      x: number
+      y: number
+      expandable: boolean
+      collapsed: boolean
     }
-    const data = prune(rawData)
+    interface TreeLink {
+      source: TreeNode
+      target: TreeNode
+      dashed: boolean
+      stroke: string
+    }
 
-    const root = d3.hierarchy<GraphNodeData>(data)
-    const treeLayout = d3.tree<GraphNodeData>().nodeSize([150, 110]).separation((a,b)=> a.parent===b.parent?1:1.3)
+    // d3 tree: top-down, hide collapsed children like expandable branch visualizer
+    const root = d3.hierarchy<GraphNodeData>(data, (d) =>
+      collapsedIds.has(d.id) ? undefined : d.children
+    )
+    const treeLayout = d3.tree<GraphNodeData>().nodeSize([150, 110])
     treeLayout(root)
 
-    let minX = Infinity, maxX = -Infinity
-    root.each((d: any) => { if (d.x < minX) minX = d.x; if (d.x > maxX) maxX = d.x })
-    const treeWidth = maxX - minX
-    const offsetX = width/2 - (minX + treeWidth/2)
-    const offsetY = 60
-    root.each((d: any) => { d.x += offsetX; d.y += offsetY })
+    // Center the tree horizontally in the SVG
+    const xs = root.descendants().map((d) => d.x ?? 0)
+    const minX = Math.min(...xs)
+    const maxX = Math.max(...xs)
+    const treeWidth = maxX - minX || 1
+    const offsetX = width / 2 - (minX + treeWidth / 2)
+    const offsetY = 50
 
-    type TreeNode = d3.HierarchyPointNode<GraphNodeData> & { expandable: boolean; collapsed: boolean }
-    type TreeLink = d3.HierarchyPointLink<GraphNodeData>
-
-    const nodes: TreeNode[] = root.descendants().map((d: any) => Object.assign(d, {
-      expandable: !!(d.data.children && d.data.children.length>0) || collapsedIds.has(d.data.id),
+    const nodes: TreeNode[] = root.descendants().map((d) => ({
+      id: d.data.id,
+      code: d.data.code,
+      title: d.data.title,
+      kind: d.data.kind,
+      placeholder: d.data.placeholder,
+      courseId: d.data.courseId,
+      depth: d.depth,
+      x: (d.x ?? 0) + offsetX,
+      y: (d.y ?? 0) + offsetY,
+      expandable: !!(d.data.children && d.data.children.length > 0),
       collapsed: collapsedIds.has(d.data.id),
     }))
-    const links: TreeLink[] = root.links() as TreeLink[]
+    const nodeById = new Map(nodes.map((n) => [n.id, n]))
+    const links: TreeLink[] = root.links().map((l) => {
+      const s = nodeById.get(l.source.data.id)!
+      const t = nodeById.get(l.target.data.id)!
+      return {
+        source: s,
+        target: t,
+        dashed: l.target.data.kind === 'corequisite' || l.target.data.placeholder,
+        stroke: l.target.data.placeholder ? '#94a3b8' : '#64748b',
+      }
+    })
 
-    const radiusOf = (d: TreeNode) => {
-      const k = d.data.kind
-      if (k==='curriculum') return 28
-      if (k==='subject') return 30
-      if (k==='clo') return 22
-      if (k==='po') return 18
-      return 16
-    }
+    const radiusOf = (d: TreeNode) =>
+      d.depth === 0 ? 28 : d.depth === 1 ? 30 : d.depth === 2 ? 26 : d.depth === 3 ? 22 : 18
 
     const zoomGroup = svg.append('g')
 
-    // Links — straight <line> like branch-visualizer
+    // ── Links as straight <line> like branch-visualizer ─────
     const link = zoomGroup.append('g')
       .selectAll('line')
       .data(links)
       .join('line')
-      .attr('class','link')
-      .attr('stroke', (l: any) => {
-        const kind = (l.target as any).data.kind
-        const ph = (l.target as any).data.placeholder
-        if (ph) return '#94a3b8'
-        if (kind==='curriculum') return '#9333ea'
-        if (kind==='clo') return '#06b6d4'
-        if (kind==='po') return '#7c3aed'
-        return '#64748b'
-      })
-      .attr('stroke-width',2)
-      .attr('stroke-dasharray', (l: any) => (l.target as any).data.placeholder ? '6 4' : 'none')
-      .attr('x1', (d: any)=> d.source.x)
-      .attr('y1', (d: any)=> d.source.y)
-      .attr('x2', (d: any)=> d.target.x)
-      .attr('y2', (d: any)=> d.target.y)
+      .attr('class', 'link')
+      .attr('stroke', (l) => l.stroke)
+      .attr('stroke-width', 2)
+      .attr('stroke-dasharray', (l) => (l.dashed ? '6 4' : 'none'))
+      .attr('x1', (l) => l.source.x)
+      .attr('y1', (l) => l.source.y)
+      .attr('x2', (l) => l.target.x)
+      .attr('y2', (l) => l.target.y)
 
-    // Nodes
+    // ── Nodes ───────────────────────────────────────────────────────────
     const node = zoomGroup.append('g')
-      .selectAll('g')
+      .selectAll<SVGGElement, TreeNode>('g')
       .data(nodes)
       .join('g')
-      .attr('transform', (d: any)=> `translate(${d.x},${d.y})`)
-      .attr('cursor', (d: any)=> d.data.kind==='curriculum'?'default':'pointer')
+      .attr('transform', (d) => `translate(${d.x},${d.y})`)
+      .attr('cursor', (d) => (d.expandable ? 'pointer' : d.courseId ? 'pointer' : 'default'))
 
-    // Double ring for subject (IT10)
-    node.filter((d: any)=> d.data.kind==='subject').append('circle').attr('r',37).attr('fill','rgba(37,99,235,0.22)').attr('stroke','#2563eb').attr('stroke-width',2)
-    node.filter((d: any)=> d.data.kind==='subject').append('circle').attr('r',30).attr('fill', colorMap.subject).attr('stroke','#fff').attr('stroke-width',2)
+    const drag = d3.drag<SVGGElement, TreeNode>()
+      .on('drag', (event, d) => {
+        d.x = event.x
+        d.y = event.y
+        d3.select(event.sourceEvent.target.parentNode as Element).attr('transform', `translate(${d.x},${d.y})`)
+        link
+          .attr('x1', (l) => l.source.x)
+          .attr('y1', (l) => l.source.y)
+          .attr('x2', (l) => l.target.x)
+          .attr('y2', (l) => l.target.y)
+      })
 
-    node.filter((d: any)=> d.data.kind!=='subject').append('circle')
-      .attr('r', (d: any)=> radiusOf(d))
-      .attr('fill', (d: any)=> d.data.placeholder ? '#f8fafc' : colorMap[d.data.kind as NodeKind])
-      .attr('stroke', (d: any)=> d.data.placeholder ? '#94a3b8' : colorMap[d.data.kind as NodeKind])
-      .attr('stroke-dasharray', (d: any)=> d.data.placeholder ? '5 3' : 'none')
-      .attr('stroke-width', (d: any)=> d.collapsed?3:2)
+    node.each(function () {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(d3 as any).select(this).call(drag)
+    })
+
+    // Subject (IT10 in sketch) is double-ring; curriculum (top oval) is single.
+    node.filter((d) => d.depth === 1 && d.kind === 'subject').append('circle')
+      .attr('r', 37)
+      .attr('fill', 'rgba(37, 99, 235, 0.22)')
+      .attr('stroke', '#2563eb')
+      .attr('stroke-width', 2)
+    node.filter((d) => d.depth === 1 && d.kind === 'subject').append('circle')
+      .attr('r', 30)
+      .attr('fill', colorMap.subject)
+      .attr('stroke', '#fff')
+      .attr('stroke-width', 2)
+
+    // Curriculum oval (top) — matches hand sketch: wide oval, not circle
+    node.filter((d) => d.depth === 0).append('ellipse')
+      .attr('rx', 52)
+      .attr('ry', 22)
+      .attr('fill', (d) => (d.placeholder ? '#f8fafc' : colorMap.curriculum))
+      .attr('stroke', (d) => (d.placeholder ? '#94a3b8' : colorMap.curriculum))
+      .attr('stroke-dasharray', (d) => (d.placeholder ? '5 3' : 'none'))
+      .attr('stroke-width', (d) => (d.expandable && d.collapsed ? 3 : 2))
+
+    node.filter((d) => d.depth !== 0 && !(d.depth === 1 && d.kind === 'subject')).append('circle')
+      .attr('r', (d) => radiusOf(d))
+      .attr('fill', (d) => (d.placeholder ? '#f8fafc' : colorMap[d.kind]))
+      .attr('stroke', (d) => (d.placeholder ? '#94a3b8' : colorMap[d.kind]))
+      .attr('stroke-dasharray', (d) => (d.placeholder ? '5 3' : 'none'))
+      .attr('stroke-width', (d) => (d.expandable && d.collapsed ? 3 : 2))
 
     node.append('text')
-      .attr('text-anchor','middle').attr('dy',4)
-      .attr('fill', (d: any)=> d.data.placeholder ? '#64748b':'#fff')
-      .attr('font-size', (d: any)=> d.data.code.length>10?9:11)
-      .attr('font-weight','bold').attr('pointer-events','none')
-      .text((d: any)=> (d.data.code.length>14? d.data.code.slice(0,12)+'…': d.data.code) + (d.data.placeholder && d.data.kind!=='curriculum'?'?':''))
+      .attr('text-anchor', 'middle')
+      .attr('dy', 4)
+      .attr('fill', (d) => (d.placeholder ? '#64748b' : '#fff'))
+      .attr('font-size', (d) => (d.depth <= 1 ? 13 : d.code.length > 10 ? 9 : 11))
+      .attr('font-weight', 'bold')
+      .attr('pointer-events', 'none')
+      .text((d) => (d.code.length > 14 ? d.code.slice(0, 12) + '…' : d.code) + (d.placeholder && d.kind !== 'curriculum' ? '?' : ''))
 
-    const badge = node.filter((d: any)=> d.expandable && d.data.kind!=='curriculum')
-    badge.append('circle').attr('r',7).attr('cx', (d: any)=> radiusOf(d)-2).attr('cy', (d: any)=> -radiusOf(d)+2).attr('fill','#fff').attr('stroke', (d: any)=> colorMap[d.data.kind as NodeKind]).attr('stroke-width',1.5).attr('pointer-events','none')
-    badge.append('text').attr('x', (d: any)=> radiusOf(d)-2).attr('y', (d: any)=> -radiusOf(d)+6.5).attr('text-anchor','middle').attr('font-size','10px').attr('font-weight','700').attr('fill',(d: any)=> colorMap[d.data.kind as NodeKind]).attr('pointer-events','none').text((d: any)=> d.collapsed?'+':'−')
+    // Expand/collapse badge — exactly like branch-visualizer expandable
+    const badge = node.filter((d) => d.expandable && d.depth !== 0)
+    badge.append('circle')
+      .attr('r', 7)
+      .attr('cx', (d) => (d.kind === 'curriculum' ? 52 : radiusOf(d)) - 2)
+      .attr('cy', (d) => (d.kind === 'curriculum' ? 0 : -radiusOf(d)) + 2)
+      .attr('fill', '#fff')
+      .attr('stroke', (d) => colorMap[d.kind])
+      .attr('stroke-width', 1.5)
+      .attr('pointer-events', 'none')
+    badge.append('text')
+      .attr('x', (d) => (d.kind === 'curriculum' ? 52 : radiusOf(d)) - 2)
+      .attr('y', (d) => (d.kind === 'curriculum' ? 4 : -radiusOf(d)) + 6.5)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', '10px')
+      .attr('font-weight', '700')
+      .attr('fill', (d) => colorMap[d.kind])
+      .attr('pointer-events', 'none')
+      .text((d) => (d.collapsed ? '+' : '−'))
 
+    // Hover: highlight connected (branch-visualizer style)
     const highlightConnections = (d: TreeNode) => {
       const connectedIds = new Set<string>()
       const connectedLinks: TreeLink[] = []
-      links.forEach(l=>{
-        const s = (l.source as any).data.id, t=(l.target as any).data.id
-        if (s===d.data.id){ connectedIds.add(t); connectedLinks.push(l) }
-        else if (t===d.data.id){ connectedIds.add(s); connectedLinks.push(l) }
+      links.forEach((l) => {
+        if (l.source.id === d.id) { connectedIds.add(l.target.id); connectedLinks.push(l) }
+        else if (l.target.id === d.id) { connectedIds.add(l.source.id); connectedLinks.push(l) }
       })
-      node.classed('subject-view__node--highlight', (n: any)=> connectedIds.has(n.data.id))
-      link.classed('subject-view__link--highlight', (l: any)=> connectedLinks.includes(l))
+      node.classed('subject-view__node--highlight', (n: TreeNode) => connectedIds.has(n.id))
+      link.classed('subject-view__link--highlight', (l: TreeLink) => connectedLinks.includes(l))
     }
 
-    node.on('mouseenter', (event: any, d: any)=>{
-      highlightConnections(d)
-      tip.style.opacity='1'
-      tip.style.left=`${event.offsetX+12}px`
-      tip.style.top=`${event.offsetY-28}px`
-      tip.innerHTML=`<strong>${d.data.code}</strong><br/>${d.data.title}`
-    }).on('mousemove', (event: any)=>{
-      tip.style.left=`${event.offsetX+12}px`
-      tip.style.top=`${event.offsetY-28}px`
-    }).on('mouseleave', ()=>{
-      node.classed('subject-view__node--highlight', false)
-      link.classed('subject-view__link--highlight', false)
-      tip.style.opacity='0'
-    }).on('click', (event: any, d: any)=>{
+    node
+      .on('mouseenter', (event, d) => {
+        highlightConnections(d)
+        tip.style.opacity = '1'
+        tip.style.left = `${event.offsetX + 12}px`
+        tip.style.top = `${event.offsetY - 28}px`
+        tip.innerHTML = `<strong>${d.code}</strong><br/>${d.title}`
+      })
+      .on('mousemove', (event) => {
+        tip.style.left = `${event.offsetX + 12}px`
+        tip.style.top = `${event.offsetY - 28}px`
+      })
+      .on('mouseleave', () => {
+        node.classed('subject-view__node--highlight', false)
+        link.classed('subject-view__link--highlight', false)
+        tip.style.opacity = '0'
+      })
+
+    // Click: expand/collapse if expandable, else drill into course
+    node.on('click', (event, d) => {
       event.stopPropagation()
-      if (d.data.courseId && !d.expandable){ setSelectedCourseId(d.data.courseId); setShowGraph(false); return }
-      if (d.expandable){
-        setCollapsedIds(prev=>{
-          const next=new Set(prev)
-          if (next.has(d.data.id)) next.delete(d.data.id); else next.add(d.data.id)
+      if (d.courseId && !d.expandable) { setSelectedCourseId(d.courseId); setShowGraph(false); return }
+      if (d.expandable) {
+        setCollapsedIds((prev) => {
+          const next = new Set(prev)
+          if (next.has(d.id)) next.delete(d.id)
+          else next.add(d.id)
           return next
         })
-      } else if (d.data.courseId){ setSelectedCourseId(d.data.courseId); setShowGraph(false) }
+      } else if (d.courseId) {
+        setSelectedCourseId(d.courseId); setShowGraph(false)
+      }
     })
 
-    const zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([0.2,3]).on('zoom', (event)=> zoomGroup.attr('transform', event.transform))
+    // ── Zoom / pan ──────────────────────────────────────────────────────
+    const zoom = d3.zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.2, 3])
+      .on('zoom', (event) => zoomGroup.attr('transform', event.transform))
+
     svg.call(zoom)
 
-    return ()=> { svg.on('.zoom', null) }
+    return () => {
+      svg.on('.zoom', null)
+    }
   }, [selectedCourse, datasets, containerSize, collapsedIds, buildGraphModel, setSelectedCourseId])
 
   // ResizeObserver keeps the SVG sized responsively.
