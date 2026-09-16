@@ -345,8 +345,9 @@ export default function SubjectView() {
     [programCourses],
   )
 
-  // ── D3 force-directed graph render ────────────────────────────────────────
-  // Flatten hierarchy into nodes/links, run force simulation, drag, zoom.
+  // ── D3 tree render (branching visualization style) ────────────────────────
+  // Vertical top-down tree: curriculum → subject → CLO → PO → PEO/SG/CMO
+  // Straight lines, expand/collapse badges, hover highlight, drag, zoom.
   const renderGraph = useCallback(() => {
     const svgEl = svgRef.current
     const tip = tooltipRef.current
@@ -356,143 +357,183 @@ export default function SubjectView() {
     svg.on('.zoom', null)
     svg.selectAll('*').remove()
 
-    const width = containerSize.w || svgEl.clientWidth || 928
-    const height = containerSize.h || svgEl.clientHeight || 680
+    const width = containerSize.w || svgEl.clientWidth || 760
+    const height = Math.max(containerSize.h || svgEl.clientHeight || 560, 560)
 
-    // ── Flatten hierarchy into nodes + links ──────────────────────────
-    interface ForceNode {
+    // ── Build hierarchy + flatten with expand/collapse ───────────────
+    interface TreeNode {
       id: string
       code: string
       title: string
       kind: NodeKind
       placeholder: boolean
       courseId?: string
-      expandable: boolean
-      collapsed: boolean
-      // d3 mutates these during simulation
+      depth: number
       x: number
       y: number
+      expandable: boolean
+      collapsed: boolean
     }
-    interface ForceLink {
-      source: string | ForceNode
-      target: string | ForceNode
+    interface TreeLink {
+      source: TreeNode
+      target: TreeNode
       dashed: boolean
     }
 
-    const fNodes: ForceNode[] = []
-    const fLinks: ForceLink[] = []
-
-    const walk = (d: GraphNodeData, parent: ForceNode | null, depth = 0) => {
-      const collapsed = collapsedIds.has(d.id)
-      const expandable = (d.children?.length ?? 0) > 0
-      const node: ForceNode = {
-        id: d.id, code: d.code, title: d.title, kind: d.kind,
-        placeholder: d.placeholder, courseId: d.courseId,
-        expandable, collapsed,
-        x: d.kind === 'subject' ? 0 : (Math.random() - 0.5) * 300,
-        y: d.kind === 'subject' ? 0 : (Math.random() - 0.5) * 300,
-      }
-      fNodes.push(node)
-      if (parent) {
-        fLinks.push({
-          source: parent.id, target: node.id,
-          dashed: d.kind === 'corequisite' || d.placeholder,
-        })
-      }
-      // Root's direct children (depth 1) are always visible —
-      // so subject/prereq/coreq/clo stay on screen when curriculum is minimized.
-      if (!collapsed || depth === 0) {
-        for (const child of d.children) walk(child, node, depth + 1)
-      }
-    }
-
     const data = buildGraphModel(datasets, selectedCourse)
-    walk(data, null)
 
-    // ── Force simulation ─────────────────────────────────────────────
-    const simulation = d3.forceSimulation(fNodes)
-      .force('link', d3.forceLink(fLinks).id((d) => (d as ForceNode).id).distance(100))
-      .force('charge', d3.forceManyBody().strength(-300))
-      .force('center', d3.forceCenter(0, 0))
-      .force('x', d3.forceX())
-      .force('y', d3.forceY())
+    const root = d3.hierarchy<GraphNodeData>(data, (d) =>
+      collapsedIds.has(d.id) ? undefined : d.children
+    )
+    const treeLayout = d3.tree<GraphNodeData>().nodeSize([150, 110])
+    treeLayout(root)
 
-    // ── SVG container (viewBox centered at origin) ───────────────────
-    const g = svg
-      .attr('viewBox', `${-width / 2} ${-height / 2} ${width} ${height}`)
-      .attr('style', 'max-width: 100%; height: auto;')
-      .append('g')
+    // Center horizontally
+    const xs = root.descendants().map((d) => d.x ?? 0)
+    const minX = Math.min(...xs)
+    const maxX = Math.max(...xs)
+    const treeWidth = maxX - minX || 1
+    const offsetX = width / 2 - (minX + treeWidth / 2)
+    const offsetY = 50
 
-    // ── Links ────────────────────────────────────────────────────────
-    const link = g.append('g')
-      .attr('stroke', '#999')
-      .attr('stroke-opacity', 0.6)
+    const nodes: TreeNode[] = root.descendants().map((d) => ({
+      id: d.data.id,
+      code: d.data.code,
+      title: d.data.title,
+      kind: d.data.kind,
+      placeholder: d.data.placeholder,
+      courseId: d.data.courseId,
+      depth: d.depth,
+      x: (d.x ?? 0) + offsetX,
+      y: (d.y ?? 0) + offsetY,
+      expandable: !!(d.data.children && d.data.children.length > 0),
+      collapsed: collapsedIds.has(d.data.id),
+    }))
+    const nodeById = new Map(nodes.map((n) => [n.id, n]))
+    const links: TreeLink[] = root.links().map((l) => ({
+      source: nodeById.get(l.source.data.id)!,
+      target: nodeById.get(l.target.data.id)!,
+      dashed: l.target.data.kind === 'corequisite' || l.target.data.placeholder,
+    }))
+
+    const radiusOf = (d: TreeNode) =>
+      d.depth === 0 ? 28 : d.depth === 1 ? 30 : d.depth === 2 ? 26 : d.depth === 3 ? 22 : 18
+
+    const zoomGroup = svg.append('g')
+
+    // ── Links: straight lines (branch-visualizer style) ─────────────
+    const link = zoomGroup.append('g')
       .selectAll('line')
-      .data(fLinks)
+      .data(links)
       .join('line')
+      .attr('stroke', (l) => l.target.placeholder ? '#94a3b8' : '#64748b')
       .attr('stroke-width', 2)
-      .attr('stroke-dasharray', (d) => d.dashed ? '6 4' : 'none')
+      .attr('stroke-dasharray', (l) => (l.dashed ? '6 4' : 'none'))
+      .attr('x1', (l) => l.source.x)
+      .attr('y1', (l) => l.source.y)
+      .attr('x2', (l) => l.target.x)
+      .attr('y2', (l) => l.target.y)
 
-    // ── Nodes ────────────────────────────────────────────────────────
-    const node = g.append('g')
-      .attr('stroke', '#fff')
-      .attr('stroke-width', 1.5)
-      .selectAll<SVGGElement, ForceNode>('circle')
-      .data(fNodes)
-      .join('circle')
-      .attr('r', (d) => {
-        if (d.kind === 'subject') return 28
-        if (d.kind === 'curriculum') return 24
-        if (d.kind === 'clo') return 22
-        if (d.kind === 'po') return 20
-        return 16
+    // ── Nodes as <g> groups ─────────────────────────────────────────
+    const node = zoomGroup.append('g')
+      .selectAll<SVGGElement, TreeNode>('g')
+      .data(nodes)
+      .join('g')
+      .attr('transform', (d) => `translate(${d.x},${d.y})`)
+      .attr('cursor', (d) => (d.expandable ? 'pointer' : d.courseId ? 'pointer' : 'default'))
+
+    // ── Drag: fix position on drag, release on end ──────────────────
+    const drag = d3.drag<SVGGElement, TreeNode>()
+      .on('start', (event, d) => { d.x = event.x; d.y = event.y })
+      .on('drag', (event, d) => {
+        d.x = event.x
+        d.y = event.y
+        d3.select(event.sourceEvent.target.parentNode as Element)
+          .attr('transform', `translate(${d.x},${d.y})`)
+        link
+          .attr('x1', (l) => l.source.x).attr('y1', (l) => l.source.y)
+          .attr('x2', (l) => l.target.x).attr('y2', (l) => l.target.y)
       })
-      .attr('fill', (d) => d.placeholder ? '#f8fafc' : colorMap[d.kind])
-      .attr('stroke', (d) => d.placeholder ? '#94a3b8' : colorMap[d.kind])
-      .attr('stroke-dasharray', (d) => d.placeholder ? '5 3' : 'none')
-      .attr('stroke-width', 1.5)
-      .attr('cursor', (d) => d.expandable ? 'pointer' : d.courseId ? 'pointer' : 'default')
 
-    // ── Labels (on top of circles) ───────────────────────────────────
-    const label = g.append('g')
-      .selectAll<SVGTextElement, ForceNode>('text')
-      .data(fNodes)
-      .join('text')
+    node.each(function () {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(d3 as any).select(this).call(drag)
+    })
+
+    // ── Subject double-ring ─────────────────────────────────────────
+    node.filter((d) => d.kind === 'subject').append('circle')
+      .attr('r', 37)
+      .attr('fill', 'rgba(37, 99, 235, 0.22)')
+      .attr('stroke', '#2563eb')
+      .attr('stroke-width', 2)
+    node.filter((d) => d.kind === 'subject').append('circle')
+      .attr('r', 30)
+      .attr('fill', colorMap.subject)
+      .attr('stroke', '#fff')
+      .attr('stroke-width', 2)
+
+    // ── Curriculum oval (top) ───────────────────────────────────────
+    node.filter((d) => d.depth === 0).append('ellipse')
+      .attr('rx', 52)
+      .attr('ry', 22)
+      .attr('fill', (d) => (d.placeholder ? '#f8fafc' : colorMap.curriculum))
+      .attr('stroke', (d) => (d.placeholder ? '#94a3b8' : colorMap.curriculum))
+      .attr('stroke-dasharray', (d) => (d.placeholder ? '5 3' : 'none'))
+      .attr('stroke-width', (d) => (d.expandable && d.collapsed ? 3 : 2))
+
+    // ── All other nodes as circles ──────────────────────────────────
+    node.filter((d) => d.depth !== 0 && d.kind !== 'subject').append('circle')
+      .attr('r', (d) => radiusOf(d))
+      .attr('fill', (d) => (d.placeholder ? '#f8fafc' : colorMap[d.kind]))
+      .attr('stroke', (d) => (d.placeholder ? '#94a3b8' : colorMap[d.kind]))
+      .attr('stroke-dasharray', (d) => (d.placeholder ? '5 3' : 'none'))
+      .attr('stroke-width', (d) => (d.expandable && d.collapsed ? 3 : 2))
+
+    // ── Code labels inside nodes ────────────────────────────────────
+    node.append('text')
       .attr('text-anchor', 'middle')
       .attr('dy', 4)
-      .attr('fill', (d) => d.placeholder ? '#64748b' : '#fff')
-      .attr('font-size', (d) => (d.kind === 'subject' || d.kind === 'curriculum') ? 13 : d.code.length > 10 ? 9 : 11)
+      .attr('fill', (d) => (d.placeholder ? '#64748b' : '#fff'))
+      .attr('font-size', (d) => (d.depth <= 1 ? 13 : d.code.length > 10 ? 9 : 11))
       .attr('font-weight', 'bold')
       .attr('pointer-events', 'none')
-      .text((d) => (d.code.length > 14 ? d.code.slice(0, 12) + '\u2026' : d.code) + (d.placeholder && d.kind !== 'curriculum' ? '?' : ''))
+      .text((d) => (d.code.length > 14 ? d.code.slice(0, 12) + '…' : d.code) + (d.placeholder && d.kind !== 'curriculum' ? '?' : ''))
 
-    // ── Expand/collapse badge ────────────────────────────────────────
-    const badgeRadius = (d: ForceNode) => d.kind === 'subject' ? 28 : d.kind === 'curriculum' ? 24 : d.kind === 'clo' ? 22 : d.kind === 'po' ? 20 : 16
-    const badge = g.append('g')
-      .selectAll<SVGGElement, ForceNode>('g')
-      .data(fNodes.filter((d) => d.expandable))
-      .join('g')
+    // ── Expand / collapse badge ─────────────────────────────────────
+    const badge = node.filter((d) => d.expandable && d.depth !== 0)
     badge.append('circle')
       .attr('r', 7)
-      .attr('cx', (d) => badgeRadius(d) - 2)
-      .attr('cy', (d) => -badgeRadius(d) + 2)
+      .attr('cx', (d) => (d.kind === 'curriculum' ? 52 : radiusOf(d)) - 2)
+      .attr('cy', (d) => (d.kind === 'curriculum' ? 0 : -radiusOf(d)) + 2)
       .attr('fill', '#fff')
       .attr('stroke', (d) => colorMap[d.kind])
       .attr('stroke-width', 1.5)
       .attr('pointer-events', 'none')
     badge.append('text')
-      .attr('x', (d) => badgeRadius(d) - 2)
-      .attr('y', (d) => -badgeRadius(d) + 6.5)
+      .attr('x', (d) => (d.kind === 'curriculum' ? 52 : radiusOf(d)) - 2)
+      .attr('y', (d) => (d.kind === 'curriculum' ? 4 : -radiusOf(d)) + 6.5)
       .attr('text-anchor', 'middle')
       .attr('font-size', '10px')
       .attr('font-weight', '700')
       .attr('fill', (d) => colorMap[d.kind])
       .attr('pointer-events', 'none')
-      .text((d) => d.collapsed ? '+' : '\u2212')
+      .text((d) => (d.collapsed ? '+' : '−'))
 
-    // ── Tooltip ──────────────────────────────────────────────────────
+    // ── Hover: highlight connected nodes + links ────────────────────
+    const highlightConnections = (d: TreeNode) => {
+      const connectedIds = new Set<string>()
+      const connectedLinks: TreeLink[] = []
+      links.forEach((l) => {
+        if (l.source.id === d.id) { connectedIds.add(l.target.id); connectedLinks.push(l) }
+        else if (l.target.id === d.id) { connectedIds.add(l.source.id); connectedLinks.push(l) }
+      })
+      node.classed('subject-view__node--highlight', (n: TreeNode) => connectedIds.has(n.id))
+      link.classed('subject-view__link--highlight', (l: TreeLink) => connectedLinks.includes(l))
+    }
+
     node
       .on('mouseenter', (event, d) => {
+        highlightConnections(d)
         tip.style.opacity = '1'
         tip.style.left = `${event.offsetX + 12}px`
         tip.style.top = `${event.offsetY - 28}px`
@@ -502,7 +543,11 @@ export default function SubjectView() {
         tip.style.left = `${event.offsetX + 12}px`
         tip.style.top = `${event.offsetY - 28}px`
       })
-      .on('mouseleave', () => { tip.style.opacity = '0' })
+      .on('mouseleave', () => {
+        node.classed('subject-view__node--highlight', false)
+        link.classed('subject-view__link--highlight', false)
+        tip.style.opacity = '0'
+      })
 
     // ── Click: expand/collapse or drill into course ──────────────────
     node.on('click', (event, d) => {
@@ -520,44 +565,13 @@ export default function SubjectView() {
       }
     })
 
-    // ── Drag (reference: dragstarted / dragged / dragended) ──────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const drag = d3.drag<SVGCircleElement, ForceNode>()
-      .on('start', (event) => {
-        if (!event.active) simulation.alphaTarget(0.3).restart()
-        event.subject.fx = event.subject.x
-        event.subject.fy = event.subject.y
-      })
-      .on('drag', (event) => {
-        event.subject.fx = event.x
-        event.subject.fy = event.y
-      })
-      .on('end', (event) => {
-        if (!event.active) simulation.alphaTarget(0)
-        event.subject.fx = null
-        event.subject.fy = null
-      })
+    // ── Zoom / pan ──────────────────────────────────────────────────
+    const zoom = d3.zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.2, 3])
+      .on('zoom', (event) => zoomGroup.attr('transform', event.transform))
+    svg.call(zoom)
 
-    node.call(drag)
-
-    // ── Tick: update positions each frame ────────────────────────────
-    simulation.on('tick', () => {
-      link
-        .attr('x1', (d) => (d.source as ForceNode).x)
-        .attr('y1', (d) => (d.source as ForceNode).y)
-        .attr('x2', (d) => (d.target as ForceNode).x)
-        .attr('y2', (d) => (d.target as ForceNode).y)
-      node
-        .attr('cx', (d) => d.x)
-        .attr('cy', (d) => d.y)
-      label
-        .attr('x', (d) => d.x)
-        .attr('y', (d) => d.y)
-      badge
-        .attr('transform', (d) => `translate(${d.x},${d.y})`)
-    })
-
-    return () => { simulation.stop() }
+    return () => { svg.on('.zoom', null) }
   }, [selectedCourse, datasets, containerSize, collapsedIds, buildGraphModel, setSelectedCourseId])
 
   // ResizeObserver keeps the SVG sized responsively.
