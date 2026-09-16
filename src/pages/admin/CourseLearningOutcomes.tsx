@@ -120,7 +120,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             onChange={(e) => setForm({ ...form, course: e.target.value })} required>
             <option value="">Select course</option>
             {courses.map((c) => (
-              <option key={c.id} value={c.code}>{c.code}{c.title ? ` — ${c.title}` : ''}</option>
+              <option key={c.id} value={c.code}>{c.code}</option>
             ))}
             {courses.length === 0 && <option value="" disabled>No courses available — create one in Course page first</option>}
             {/* Preserve legacy/manual value if not in list so editing old rows doesn't blank out */}
@@ -176,7 +176,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                         <select className="input input--sm" value={editForm.course} onChange={(e) => setEditForm({ ...editForm, course: e.target.value })}>
                           <option value="">Select course</option>
                           {courses.map((c) => (
-                            <option key={c.id} value={c.code}>{c.code}{c.title ? ` — ${c.title}` : ''}</option>
+                            <option key={c.id} value={c.code}>{c.code}</option>
                           ))}
                           {editForm.course && !courses.some((c) => c.code === editForm.course) && (
                             <option value={editForm.course}>{editForm.course} (legacy)</option>
