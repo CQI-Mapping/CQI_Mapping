@@ -170,6 +170,7 @@ export default function SubjectView() {
   const [datasets, setDatasets] = useState<OutcomeDatasets | null>(null)
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 })
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set())
+  const [navStack, setNavStack] = useState<string[]>([])
   const svgRef = useRef<SVGSVGElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null)
@@ -446,6 +447,17 @@ export default function SubjectView() {
     await loadDatasets(true)
   }
 
+  // Jump back to a subject earlier in the navigation trail.
+  const handleCrumb = useCallback((i: number) => {
+    if (!selectedCourseId || navStack.length === 0) return
+    const trail = [...navStack, selectedCourseId]
+    if (i >= trail.length - 1) return
+    setSelectedCourseId(trail[i])
+    setNavStack(navStack.slice(0, i))
+    setShowGraph(true)
+    setGraphError('')
+  }, [selectedCourseId, navStack])
+
   // ── D3 tree render (advanced branching visualization) ─────────────────────
   // Vertical top-down tree: Subject (root) → Curriculum / CLO / Pre-req / Co-req → PO → PEO/SG/CMO
   // Smooth curved links (d3.linkVertical with the default bumpY curve),
@@ -711,10 +723,19 @@ export default function SubjectView() {
         tip.style.opacity = '0'
       })
 
-    // ── Click: expand/collapse or drill into course ──────────────────
+    // ── Click: expand/collapse, jump to a linked subject, or drill ──
     node.on('click', (event, d) => {
       event.stopPropagation()
-      if (d.courseId && !d.expandable) { setSelectedCourseId(d.courseId); setShowGraph(false); return }
+      if (d.courseId && !d.expandable) {
+        const target = programCourses.find((c) => c.id === d.courseId)
+        if (target && selectedCourseId && target.id !== selectedCourseId) {
+          // Connected subject: jump straight to its graph and remember the trail.
+          setNavStack((prev) => [...prev, selectedCourseId])
+          setSelectedCourseId(target.id)
+          setShowGraph(true)
+        }
+        return
+      }
       if (d.expandable) {
         setCollapsedIds((prev) => {
           const next = new Set(prev)
@@ -722,8 +743,6 @@ export default function SubjectView() {
           else next.add(d.id)
           return next
         })
-      } else if (d.courseId) {
-        setSelectedCourseId(d.courseId); setShowGraph(false)
       }
     })
 
@@ -735,7 +754,7 @@ export default function SubjectView() {
     zoomRef.current = zoom
 
     return () => { svg.on('.zoom', null); zoomRef.current = null }
-  }, [selectedCourse, datasets, containerSize, collapsedIds, buildGraphModel, setSelectedCourseId])
+  }, [selectedCourse, datasets, containerSize, collapsedIds, buildGraphModel, programCourses, selectedCourseId, setSelectedCourseId])
 
   // ResizeObserver keeps the SVG sized responsively.
   useEffect(() => {
@@ -785,7 +804,7 @@ export default function SubjectView() {
             <span className="sr-only">Select program</span>
             <select className="input input--sm" value={selectedProgramId}
               disabled={programs.length === 0}
-              onChange={(e) => { setSelectedProgramId(e.target.value); setSelectedCourseId(null); setShowGraph(false) }}>
+              onChange={(e) => { setSelectedProgramId(e.target.value); setSelectedCourseId(null); setShowGraph(false); setNavStack([]) }}>
               {programs.length === 0 && <option value="">No programs available</option>}
               {programs.map((p) => (
                 <option key={p.id} value={p.id}>{p.name || p.code}</option>
@@ -799,7 +818,7 @@ export default function SubjectView() {
             <span className="sr-only">Select course</span>
             <select className="input input--sm" value={selectedCourseId ?? ''}
               disabled={programs.length === 0 || programCourses.length === 0}
-              onChange={(e) => { setSelectedCourseId(e.target.value || null); setShowGraph(false) }}>
+              onChange={(e) => { setSelectedCourseId(e.target.value || null); setShowGraph(false); setNavStack([]) }}>
               {programCourses.length === 0 ? (
                 <option value="">No subjects in this program</option>
               ) : (
@@ -866,6 +885,27 @@ export default function SubjectView() {
             </div>
           ) : (
             <div className="subject-view__graph-area">
+              {navStack.length > 0 && (
+                <nav className="subject-view__crumbs" aria-label="Subject trail">
+                  {[...navStack, selectedCourse.id].map((id, i) => {
+                    const crumb = programCourses.find((c) => c.id === id)
+                    const isLast = i === navStack.length
+                    return (
+                      <span className="subject-view__crumb-node" key={`${id}-${i}`}>
+                        {i > 0 && <span className="subject-view__crumb-sep" aria-hidden>→</span>}
+                        <button
+                          type="button"
+                          className={`subject-view__crumb${isLast ? ' subject-view__crumb--current' : ''}`}
+                          disabled={isLast}
+                          title={crumb ? `${crumb.code} — ${crumb.title}` : 'Unknown subject'}
+                          onClick={() => handleCrumb(i)}>
+                          {crumb?.code ?? '…'}
+                        </button>
+                      </span>
+                    )
+                  })}
+                </nav>
+              )}
               <div className="subject-view__graph-toolbar">
                 <h3 className="subject-view__graph-title">{selectedCourse.code} — {selectedCourse.title}</h3>
                 <div className="subject-view__graph-actions">
@@ -875,7 +915,7 @@ export default function SubjectView() {
                   <button className="btn btn--ghost btn--sm" onClick={handleRefresh} disabled={spinner} title="Reload relationship data">Refresh</button>
                 </div>
               </div>
-              <p className="subject-view__graph-hint">Click a branch node to expand or collapse. Drag nodes to reposition. Scroll to zoom.</p>
+              <p className="subject-view__graph-hint">Click a branch node to expand or collapse. Click a pre-req or co-req to jump to that subject. Drag nodes to reposition. Scroll to zoom.</p>
               <div className="subject-view__legend">
                 {legendDefs.map((l) => {
                   const n = graphStats?.counts[l.kind] ?? 0
