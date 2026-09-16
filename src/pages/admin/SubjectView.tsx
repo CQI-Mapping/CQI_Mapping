@@ -382,7 +382,7 @@ export default function SubjectView() {
     const fNodes: ForceNode[] = []
     const fLinks: ForceLink[] = []
 
-    const walk = (d: GraphNodeData, parent: ForceNode | null) => {
+    const walk = (d: GraphNodeData, parent: ForceNode | null, depth = 0) => {
       const collapsed = collapsedIds.has(d.id)
       const expandable = (d.children?.length ?? 0) > 0
       const node: ForceNode = {
@@ -399,8 +399,10 @@ export default function SubjectView() {
           dashed: d.kind === 'corequisite' || d.placeholder,
         })
       }
-      if (!collapsed) {
-        for (const child of d.children) walk(child, node)
+      // Root's direct children (depth 1) are always visible —
+      // so subject/prereq/coreq/clo stay on screen when curriculum is minimized.
+      if (!collapsed || depth === 0) {
+        for (const child of d.children) walk(child, node, depth + 1)
       }
     }
 
