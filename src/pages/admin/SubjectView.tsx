@@ -239,8 +239,9 @@ export default function SubjectView() {
         return false
       })
 
-      const poMap = new Map<string, GraphNodeData>()
-
+      // PO branching fix: no global sharing. Each CLO gets its own PO node objects so the D3 tree
+      // stays a pure tree (no DAG sharing) and duplicate PO codes (same "PO 1" with different
+      // CMO/description) each get their own branch instead of colliding on one shared node.
       const addLeaves = (poNode: GraphNodeData, poRec: ProgramOutcomeStandalone) => {
         const pushChild = (child: GraphNodeData) => {
           if (!poNode.children.some((c) => c.id === child.id)) poNode.children.push(child)
@@ -309,38 +310,37 @@ export default function SubjectView() {
           placeholder: false,
           children: [],
         }
-        const poTokens = extractCodes(clo.title || '', 'PO')
+        // Dedup tokens within a single CLO so the same PO code referenced twice doesn't duplicate a branch
+        const poTokens = Array.from(new Set(extractCodes(clo.title || '', 'PO')))
         for (const tok of poTokens) {
           const key = normalizeCode(tok)
-          let poNode = poMap.get(key)
-          if (!poNode) {
-            const matchingPos = datasetsRef.pos.filter((p) => normalizeCode(p.code) === key)
-            if (matchingPos.length === 0) {
-              poNode = {
-                id: `po-missing-${tok}`,
-                code: tok,
-                title: 'PO not found or archived',
-                kind: 'po',
-                placeholder: true,
-                children: [],
-              }
-            } else {
-              // Aggregate leaves from all PO records sharing the same code
-              // (e.g. duplicate PO 1 with different CMO/PEO/SG) — union branching
-              const primary = matchingPos[0]
-              poNode = {
-                id: `po-${key}`,
-                code: tok,
-                title: primary.description || primary.title || tok,
+          const matchingPos = datasetsRef.pos.filter((p) => normalizeCode(p.code) === key)
+          if (matchingPos.length === 0) {
+            const poNode: GraphNodeData = {
+              id: `po-missing-${tok}-clo-${clo.id}`,
+              code: tok,
+              title: 'PO not found or archived',
+              kind: 'po',
+              placeholder: true,
+              children: [],
+            }
+            cloNode.children.push(poNode)
+          } else {
+            for (const poRec of matchingPos) {
+              // Unique per (PO record, CLO) so two CLOs referencing the same PO don't share the same object (DAG -> tree)
+              // and duplicate PO codes with different CMO/descriptions each get their own branch instead of colliding.
+              const poNode: GraphNodeData = {
+                id: `po-${poRec.id}-clo-${clo.id}`,
+                code: poRec.code,
+                title: poRec.description || poRec.title || tok,
                 kind: 'po',
                 placeholder: false,
                 children: [],
               }
-              for (const poRec of matchingPos) addLeaves(poNode, poRec)
+              addLeaves(poNode, poRec)
+              cloNode.children.push(poNode)
             }
-            poMap.set(key, poNode)
           }
-          if (!cloNode.children.some((c) => c.id === poNode!.id)) cloNode.children.push(poNode!)
         }
         subjectNode.children.push(cloNode)
       }
@@ -411,7 +411,7 @@ export default function SubjectView() {
     }
 
     // d3 tree: top-down, hide collapsed children like expandable branch visualizer
-    // Improved branching: wider nodeSize and separation so PO -> PEO/SG/CMO leaves don't overlap
+    // Fix branching conflicts: wider spacing so PO -> PEO/SG/CMO leaves never overlap
     const root = d3.hierarchy<GraphNodeData>(data, (d) =>
       collapsedIds.has(d.id) ? undefined : d.children
     )
@@ -420,6 +420,7 @@ export default function SubjectView() {
       .separation((a, b) => (a.parent === b.parent ? 1.15 : 1.45))
     treeLayout(root)
 
+    // Center the tree horizontally in the SVG
     // Center the tree horizontally and give top padding so curriculum isn't clipped
     const xs = root.descendants().map((d) => d.x ?? 0)
     const minX = Math.min(...xs)
