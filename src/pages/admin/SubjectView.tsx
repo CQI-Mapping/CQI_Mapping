@@ -1,15 +1,15 @@
 // Admin Subject View: two-panel layout — left panel has program dropdown +
 // subject dropdown; right panel renders a D3.js outcome hierarchy graph:
 //
-//   Curriculum
-//     └─ Subject
-//        ├─ Prerequisite(s)
-//        ├─ Corequisite(s)
-//        └─ CLO(s)
-//           └─ PO(s)
-//              ├─ PEO
-//              ├─ Strategic Goal
-//              └─ CHED Memorandum Order
+//   Subject (double-ring, root)
+//     ├─ Curriculum (oval)
+//     ├─ Prerequisite(s)
+//     ├─ Corequisite(s)
+//     └─ CLO(s)
+//        └─ PO(s)
+//           ├─ PEO
+//           ├─ Strategic Goal
+//           └─ CHED Memorandum Order
 //
 // The graph only renders after the user presses View. Relationships are built
 // from the standalone admn tables (admin_course_learning_outcomes,
@@ -194,6 +194,30 @@ export default function SubjectView() {
         children: [],
       }
 
+      // Curriculum as a child of subject
+      const cidOpt = subject.curriculum_id
+      const cid = cidOpt && typeof cidOpt === 'object' ? cidOpt.id : cidOpt
+      const curRec = cid ? datasetsRef.resources.find((r) => r.id === cid) : undefined
+      subjectNode.children.push(
+        curRec
+          ? {
+              id: `cur-${curRec.id}`,
+              code: (curRec.code || curRec.title),
+              title: curRec.title,
+              kind: 'curriculum',
+              placeholder: false,
+              children: [],
+            }
+          : {
+              id: `cur-none-${cid || 'x'}`,
+              code: 'No curriculum',
+              title: cid ? 'Curriculum not found or archived' : 'This subject has no curriculum assigned',
+              kind: 'curriculum',
+              placeholder: true,
+              children: [],
+            },
+      )
+
       // Prerequisite + corequisite satellites attach to the subject.
       const addSat = (raw: string, kind: NodeKind) => {
         if (!raw) return
@@ -214,16 +238,13 @@ export default function SubjectView() {
       addSat(subject.corequisite, 'corequisite')
 
       // CLOs whose course matches the selected subject code.
-      // Lenient: handles "IT 21", "IT21", "IT 21 - OOP", "IT21-OOP", "IT-21" etc.
       const subjectClos = datasetsRef.clos.filter((clo) => {
         const raw = (clo.course || '').trim()
         if (!raw) return false
         const norm = normalizeCode(raw)
         if (norm === subjectKey) return true
         if (normalizeCode(firstToken(raw)) === subjectKey) return true
-        // contains check for "IT 21 - OOP" -> "IT21OOP" contains "IT21"
         if (norm.includes(subjectKey)) return true
-        // token-wise check: split raw into tokens and see if any token normalizes to subject
         const tokens = raw.split(/[\s,;|]+/).map((s) => normalizeCode(s)).filter(Boolean)
         if (tokens.includes(subjectKey)) return true
         return false
@@ -318,35 +339,13 @@ export default function SubjectView() {
         subjectNode.children.push(cloNode)
       }
 
-      // Curriculum root.
-      const cidOpt = subject.curriculum_id
-      const cid = cidOpt && typeof cidOpt === 'object' ? cidOpt.id : cidOpt
-      const curRec = cid ? datasetsRef.resources.find((r) => r.id === cid) : undefined
-      const curriculumNode: GraphNodeData = curRec
-        ? {
-            id: `cur-${curRec.id}`,
-            code: (curRec.code || curRec.title),
-            title: curRec.title,
-            kind: 'curriculum',
-            placeholder: false,
-            children: [subjectNode],
-          }
-        : {
-            id: `cur-none-${cid || 'x'}`,
-            code: 'No curriculum',
-            title: cid ? 'Curriculum not found or archived' : 'This subject has no curriculum assigned',
-            kind: 'curriculum',
-            placeholder: true,
-            children: [subjectNode],
-          }
-
-      return curriculumNode
+      return subjectNode
     },
     [programCourses],
   )
 
   // ── D3 tree render (branching visualization style) ────────────────────────
-  // Vertical top-down tree: curriculum → subject → CLO → PO → PEO/SG/CMO
+  // Vertical top-down tree: Subject (root) → Curriculum / CLO / Pre-req / Co-req → PO → PEO/SG/CMO
   // Straight lines, expand/collapse badges, hover highlight, drag, zoom.
   const renderGraph = useCallback(() => {
     const svgEl = svgRef.current
@@ -417,7 +416,7 @@ export default function SubjectView() {
     }))
 
     const radiusOf = (d: TreeNode) =>
-      d.depth === 0 ? 28 : d.depth === 1 ? 30 : d.depth === 2 ? 26 : d.depth === 3 ? 22 : 18
+      d.depth === 0 ? 30 : d.depth === 1 ? 26 : d.depth === 2 ? 22 : 18
 
     const zoomGroup = svg.append('g')
 
@@ -674,16 +673,14 @@ export default function SubjectView() {
                     const data = buildGraphModel(datasets!, selectedCourse!)
                     const ids = new Set<string>()
                     const collect = (n: GraphNodeData) => { if (n.children?.length) { ids.add(n.id); n.children.forEach(collect) } }
-                    // collect from subject level (skip curriculum wrapper)
-                    const subj = data.children[0]
-                    if (subj) collect(subj)
+                    collect(data)
                     // don't collapse the subject itself so the first ring stays visible
-                    ids.delete(subj.id)
+                    ids.delete(data.id)
                     setCollapsedIds(ids)
                   }} title="Collapse to first ring">Collapse all</button>
                 </div>
               </div>
-              <p style={{ fontSize: 12, color: '#64748b', margin: '6px 0 8px' }}>Click a branch node to expand / collapse — like the branch-visualizer.</p>
+              <p style={{ fontSize: 12, color: '#64748b', margin: '6px 0 8px' }}>Click a branch node to expand / collapse. Drag nodes to reposition. Scroll to zoom.</p>
               <div className="subject-view__legend">
                 <span><span className="subject-view__dot subject-view__dot--curriculum" /> Curriculum</span>
                 <span><span className="subject-view__dot subject-view__dot--subject" /> Subject</span>
