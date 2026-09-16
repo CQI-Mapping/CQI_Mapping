@@ -446,9 +446,10 @@ export default function SubjectView() {
     await loadDatasets(true)
   }
 
-  // ── D3 tree render (branching visualization style) ────────────────────────
+  // ── D3 tree render (advanced branching visualization) ─────────────────────
   // Vertical top-down tree: Subject (root) → Curriculum / CLO / Pre-req / Co-req → PO → PEO/SG/CMO
-  // Straight lines, expand/collapse badges, hover highlight, drag, zoom.
+  // Smooth curved links (d3.linkVertical with the default bumpY curve),
+  // drop-shadow nodes, keyed enter/update/exit transitions, hover, drag, zoom.
   const renderGraph = useCallback(() => {
     const svgEl = svgRef.current
     const tip = tooltipRef.current
@@ -459,7 +460,6 @@ export default function SubjectView() {
     svg.selectAll('*').remove()
 
     const width = containerSize.w || svgEl.clientWidth || 760
-    const height = Math.max(containerSize.h || svgEl.clientHeight || 560, 560)
 
     // ── Build hierarchy + flatten with expand/collapse ───────────────
     interface TreeNode {
@@ -486,16 +486,16 @@ export default function SubjectView() {
     const root = d3.hierarchy<GraphNodeData>(data, (d) =>
       collapsedIds.has(d.id) ? undefined : d.children
     )
-    const treeLayout = d3.tree<GraphNodeData>().nodeSize([150, 110])
+    const treeLayout = d3.tree<GraphNodeData>().nodeSize([170, 128])
     treeLayout(root)
 
-    // Center horizontally
+    // Center horizontally, keep a comfortable top margin.
     const xs = root.descendants().map((d) => d.x ?? 0)
     const minX = Math.min(...xs)
     const maxX = Math.max(...xs)
     const treeWidth = maxX - minX || 1
     const offsetX = width / 2 - (minX + treeWidth / 2)
-    const offsetY = 50
+    const offsetY = 62
 
     const nodes: TreeNode[] = root.descendants().map((d) => ({
       id: d.data.id,
@@ -518,109 +518,170 @@ export default function SubjectView() {
     }))
 
     const radiusOf = (d: TreeNode) =>
-      d.depth === 0 ? 30 : d.depth === 1 ? 26 : d.depth === 2 ? 22 : 18
+      d.depth === 1 ? 27 : d.depth === 2 ? 23 : 18
+
+    // ── Defs: drop shadow + glow for nodes ──────────────────────────
+    const defs = svg.append('defs')
+    defs.append('filter')
+      .attr('id', 'subject-view-shadow')
+      .attr('x', '-60%').attr('y', '-60%')
+      .attr('width', '220%').attr('height', '220%')
+      .append('feDropShadow')
+      .attr('dx', 0).attr('dy', 2).attr('stdDeviation', 2.5)
+      .attr('flood-color', 'rgba(15, 23, 42, 0.28)')
 
     const zoomGroup = svg.append('g')
 
-    // ── Links: straight lines (branch-visualizer style) ─────────────
-    const link = zoomGroup.append('g')
-      .selectAll('line')
-      .data(links)
-      .join('line')
-      .attr('stroke', (l) => l.target.placeholder ? '#94a3b8' : '#64748b')
-      .attr('stroke-width', 2)
-      .attr('stroke-dasharray', (l) => (l.dashed ? '6 4' : 'none'))
-      .attr('x1', (l) => l.source.x)
-      .attr('y1', (l) => l.source.y)
-      .attr('x2', (l) => l.target.x)
-      .attr('y2', (l) => l.target.y)
+    // ── Links: smooth vertical S-curves ─────────────────────────────
+    const linkPath = d3.linkVertical<TreeLink, TreeNode>()
+      .x((d) => d.x)
+      .y((d) => d.y)
 
-    // ── Nodes as <g> groups ─────────────────────────────────────────
+    const link = zoomGroup.append('g')
+      .attr('class', 'subject-view__links')
+      .selectAll<SVGPathElement, TreeLink>('path.subject-view__link')
+      .data(links, (l) => l.target.id)
+      .join(
+        (enter) => enter
+          .append('path')
+          .attr('class', 'subject-view__link')
+          .attr('fill', 'none')
+          .attr('stroke', (l) => (l.target.placeholder ? '#a5b4c8' : '#7c8ba1'))
+          .attr('stroke-width', 2)
+          .attr('stroke-linecap', 'round')
+          .attr('stroke-dasharray', (l) => (l.dashed ? '6 4' : 'none'))
+          .attr('d', (l) => linkPath(l))
+          .style('opacity', 0)
+          .call((s) => s.transition().duration(500).delay(160).style('opacity', 1)),
+        (update) => update
+          .attr('stroke', (l) => (l.target.placeholder ? '#a5b4c8' : '#7c8ba1'))
+          .attr('stroke-dasharray', (l) => (l.dashed ? '6 4' : 'none'))
+          .call((s) => s.transition().duration(450).ease(d3.easeCubicInOut).attr('d', (l) => linkPath(l))),
+        (exit) => exit.call((s) => s.transition().duration(200).style('opacity', 0).remove()),
+      )
+
+    // ── Nodes: keyed <g> groups with animated transitions ───────────
     const node = zoomGroup.append('g')
-      .selectAll<SVGGElement, TreeNode>('g')
-      .data(nodes)
-      .join('g')
-      .attr('transform', (d) => `translate(${d.x},${d.y})`)
-      .attr('cursor', (d) => (d.expandable ? 'pointer' : d.courseId ? 'pointer' : 'default'))
+      .attr('class', 'subject-view__nodes')
+      .selectAll<SVGGElement, TreeNode>('g.subject-view__node')
+      .data(nodes, (d) => d.id)
+      .join(
+        (enter) => {
+          const g = enter.append('g')
+            .attr('class', 'subject-view__node')
+            .attr('transform', (d) => `translate(${d.x},${d.y + 16})`)
+            .style('opacity', 0)
+            .style('filter', 'url(#subject-view-shadow)')
+            .attr('cursor', (d) => (d.expandable || d.courseId ? 'pointer' : 'default'))
+
+          // Subject double-ring (root)
+          g.filter((d) => d.kind === 'subject')
+            .append('circle').attr('class', 'subject-view__ring')
+            .attr('r', 42)
+            .attr('fill', 'rgba(37, 99, 235, 0.16)')
+            .attr('stroke', '#2563eb')
+            .attr('stroke-width', 1.5)
+          g.filter((d) => d.kind === 'subject')
+            .append('circle').attr('class', 'subject-view__core')
+            .attr('r', 34)
+            .attr('fill', colorMap.subject)
+            .attr('stroke', '#fff')
+            .attr('stroke-width', 2.5)
+
+          // Curriculum ellipse
+          g.filter((d) => d.kind === 'curriculum')
+            .append('ellipse').attr('class', 'subject-view__shape')
+            .attr('rx', 58).attr('ry', 25)
+            .attr('fill', (d) => (d.placeholder ? '#f8fafc' : colorMap.curriculum))
+            .attr('stroke', (d) => (d.placeholder ? '#94a3b8' : colorMap.curriculum))
+            .attr('stroke-dasharray', (d) => (d.placeholder ? '5 3' : 'none'))
+            .attr('stroke-width', '2')
+
+          // All other nodes as circles
+          g.filter((d) => d.kind !== 'subject' && d.kind !== 'curriculum')
+            .append('circle').attr('class', 'subject-view__shape')
+            .attr('r', radiusOf)
+            .attr('fill', (d) => (d.placeholder ? '#f8fafc' : colorMap[d.kind]))
+            .attr('stroke', (d) => (d.placeholder ? '#94a3b8' : colorMap[d.kind]))
+            .attr('stroke-dasharray', (d) => (d.placeholder ? '5 3' : 'none'))
+            .attr('stroke-width', '2')
+
+          // Code label inside the node
+          g.append('text').attr('class', 'subject-view__label')
+            .attr('text-anchor', 'middle')
+            .attr('dy', '0.35em')
+            .attr('fill', (d) => (d.placeholder ? '#64748b' : '#fff'))
+            .attr('font-size', (d) => (d.depth <= 1 ? 13.5 : d.depth === 2 ? 11 : 9.5))
+            .attr('font-weight', 'bold')
+            .attr('pointer-events', 'none')
+            .text((d) => {
+              const max = d.depth <= 1 ? 16 : d.depth === 2 ? 9 : 7
+              const code = d.code.length > max ? d.code.slice(0, max - 1) + '…' : d.code
+              return code + (d.placeholder && d.kind !== 'curriculum' ? '?' : '')
+            })
+
+          // Expand / collapse badge
+          g.filter((d) => d.expandable && d.depth !== 0)
+            .each(function (d) {
+              const sel = d3.select(this)
+              const bx = d.kind === 'curriculum' ? 58 : radiusOf(d)
+              const by = d.kind === 'curriculum' ? 0 : -radiusOf(d)
+              sel.append('circle').attr('class', 'subject-view__badge')
+                .attr('r', 9).attr('cx', bx).attr('cy', by)
+                .attr('fill', '#fff')
+                .attr('stroke', '#cbd5e1')
+                .attr('stroke-width', 1.5)
+              sel.append('text').attr('class', 'subject-view__badge-text')
+                .attr('x', bx).attr('y', by)
+                .attr('dy', '0.32em').attr('text-anchor', 'middle')
+                .attr('font-size', '12px').attr('font-weight', '700')
+                .attr('fill', '#334155').attr('pointer-events', 'none')
+                .text(d.collapsed ? '+' : '−')
+            })
+
+          // Entrance: rise up and fade in, staggered by depth.
+          g.transition()
+            .duration(450)
+            .delay((d) => d.depth * 60)
+            .ease(d3.easeCubicOut)
+            .style('opacity', 1)
+            .attr('transform', (d) => `translate(${d.x},${d.y})`)
+
+          return g
+        },
+        (update) => {
+          update
+            .attr('cursor', (d) => (d.expandable || d.courseId ? 'pointer' : 'default'))
+            .select('.subject-view__badge-text')
+            .text((d) => (d.collapsed ? '+' : '−'))
+          update.transition()
+            .duration(450).ease(d3.easeCubicInOut)
+            .attr('transform', (d) => `translate(${d.x},${d.y})`)
+          return update
+        },
+        (exit) => exit.call((s) => s.transition().duration(200).style('opacity', 0).remove()),
+      )
 
     // ── Drag: fix position on drag, release on end ──────────────────
     const drag = d3.drag<SVGGElement, TreeNode>()
-      .on('start', (event, d) => { d.x = event.x; d.y = event.y })
+      .on('start', (event, d) => {
+        node.interrupt()
+        link.interrupt()
+        d.x = event.x
+        d.y = event.y
+      })
       .on('drag', (event, d) => {
         d.x = event.x
         d.y = event.y
         d3.select(event.sourceEvent.target.parentNode as Element)
           .attr('transform', `translate(${d.x},${d.y})`)
-        link
-          .attr('x1', (l) => l.source.x).attr('y1', (l) => l.source.y)
-          .attr('x2', (l) => l.target.x).attr('y2', (l) => l.target.y)
+        link.attr('d', (l) => linkPath(l))
       })
 
-    node.each(function () {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ;(d3 as any).select(this).call(drag)
-    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    node.each(function () { (d3 as any).select(this).call(drag) })
 
-    // ── Subject double-ring ─────────────────────────────────────────
-    node.filter((d) => d.kind === 'subject').append('circle')
-      .attr('r', 37)
-      .attr('fill', 'rgba(37, 99, 235, 0.22)')
-      .attr('stroke', '#2563eb')
-      .attr('stroke-width', 2)
-    node.filter((d) => d.kind === 'subject').append('circle')
-      .attr('r', 30)
-      .attr('fill', colorMap.subject)
-      .attr('stroke', '#fff')
-      .attr('stroke-width', 2)
-
-    // ── Curriculum oval (depth 1 under subject) ────────────────────────
-    node.filter((d) => d.kind === 'curriculum').append('ellipse')
-      .attr('rx', 52)
-      .attr('ry', 22)
-      .attr('fill', (d) => (d.placeholder ? '#f8fafc' : colorMap.curriculum))
-      .attr('stroke', (d) => (d.placeholder ? '#94a3b8' : colorMap.curriculum))
-      .attr('stroke-dasharray', (d) => (d.placeholder ? '5 3' : 'none'))
-      .attr('stroke-width', (d) => (d.expandable && d.collapsed ? 3 : 2))
-
-    // ── All other nodes as circles ──────────────────────────────────
-    node.filter((d) => d.kind !== 'subject' && d.kind !== 'curriculum').append('circle')
-      .attr('r', (d) => radiusOf(d))
-      .attr('fill', (d) => (d.placeholder ? '#f8fafc' : colorMap[d.kind]))
-      .attr('stroke', (d) => (d.placeholder ? '#94a3b8' : colorMap[d.kind]))
-      .attr('stroke-dasharray', (d) => (d.placeholder ? '5 3' : 'none'))
-      .attr('stroke-width', (d) => (d.expandable && d.collapsed ? 3 : 2))
-
-    // ── Code labels inside nodes ────────────────────────────────────
-    node.append('text')
-      .attr('text-anchor', 'middle')
-      .attr('dy', 4)
-      .attr('fill', (d) => (d.placeholder ? '#64748b' : '#fff'))
-      .attr('font-size', (d) => (d.depth <= 1 ? 13 : d.code.length > 10 ? 9 : 11))
-      .attr('font-weight', 'bold')
-      .attr('pointer-events', 'none')
-      .text((d) => (d.code.length > 14 ? d.code.slice(0, 12) + '…' : d.code) + (d.placeholder && d.kind !== 'curriculum' ? '?' : ''))
-
-    // ── Expand / collapse badge ─────────────────────────────────────
-    const badge = node.filter((d) => d.expandable && d.depth !== 0)
-    badge.append('circle')
-      .attr('r', 7)
-      .attr('cx', (d) => (d.kind === 'curriculum' ? 52 : radiusOf(d)) - 2)
-      .attr('cy', (d) => (d.kind === 'curriculum' ? 0 : -radiusOf(d)) + 2)
-      .attr('fill', '#fff')
-      .attr('stroke', (d) => colorMap[d.kind])
-      .attr('stroke-width', 1.5)
-      .attr('pointer-events', 'none')
-    badge.append('text')
-      .attr('x', (d) => (d.kind === 'curriculum' ? 52 : radiusOf(d)) - 2)
-      .attr('y', (d) => (d.kind === 'curriculum' ? 4 : -radiusOf(d)) + 6.5)
-      .attr('text-anchor', 'middle')
-      .attr('font-size', '10px')
-      .attr('font-weight', '700')
-      .attr('fill', (d) => colorMap[d.kind])
-      .attr('pointer-events', 'none')
-      .text((d) => (d.collapsed ? '+' : '−'))
-
-    // ── Hover: highlight connected nodes + links ────────────────────
+    // ── Hover: highlight connected nodes + links, show tooltip ──────
     const highlightConnections = (d: TreeNode) => {
       const connectedIds = new Set<string>()
       const connectedLinks: TreeLink[] = []

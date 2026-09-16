@@ -3157,7 +3157,8 @@ textarea.input {
    stroke: rgb(0, 174, 255) !important;
    stroke-width: 3px !important;
 }
-.subject-view__node--highlight circle {
+.subject-view__node--highlight circle,
+.subject-view__node--highlight ellipse {
    stroke: rgb(0, 174, 255) !important;
    stroke-width: 3px !important;
 }
@@ -3165,4 +3166,13 @@ textarea.input {
    stroke: rgb(0, 174, 255) !important;
    stroke-width: 3px !important;
    stroke-opacity: 1 !important;
+}
+
+ /* Subtle grow feedback when hovering a node. */
+.subject-view__node:hover .subject-view__shape,
+.subject-view__node:hover .subject-view__core {
+   transform-box: fill-box;
+   transform-origin: center;
+   transform: scale(1.08);
+   transition: transform 0.18s ease;
 }
