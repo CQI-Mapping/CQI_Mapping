@@ -99,6 +99,16 @@ const extractCodes = (text: string, prefix: 'PO' | 'PEO' | 'SG'): string[] => {
   return out
 }
 
+// Strategic Goals in DB use code "Goal N" (e.g. "Goal 1") not "SG-N". Accept both prefixes
+// and normalize to "Goal-N" for matching against strategic_goals.code.
+const extractSgCodes = (text: string): string[] => {
+  const out: string[] = []
+  const re = /(?:SG|Goal)\s*-?\s*(\d+)/gi
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) out.push(`Goal-${m[1]}`)
+  return Array.from(new Set(out))
+}
+
 export default function SubjectView() {
   const [programs, setPrograms] = useState<Program[]>([])
   const [courses, setCourses] = useState<Course[]>([])
@@ -254,18 +264,21 @@ export default function SubjectView() {
         }
 
         // Strategic Goal: id-first, then text-code fallback.
+        // DB strategic_goals use code "Goal N" (e.g. "Goal 1") — accept both "SG-N" and "Goal N" forms.
         if (poRec.sg_id) {
           const rec = datasetsRef.sgs.find((s) => s.id === poRec.sg_id)
-          if (rec) pushChild({ id: `sg-${rec.id}`, code: rec.code, title: rec.title || rec.description || rec.code, kind: 'sg', placeholder: false, children: [] })
+          if (rec) pushChild({ id: `sg-${rec.id}`, code: rec.code, title: rec.description || rec.title || rec.code, kind: 'sg', placeholder: false, children: [] })
           else {
-            const tok = poRec.sg_text ? extractCodes(poRec.sg_text, 'SG')[0] : ''
+            const tok = poRec.sg_text ? (extractSgCodes(poRec.sg_text)[0] || extractCodes(poRec.sg_text, 'SG')[0]) : ''
             pushChild({ id: `sg-missing-${poRec.sg_id}`, code: tok || 'SG', title: 'Strategic Goal not found or archived', kind: 'sg', placeholder: true, children: [] })
           }
         } else if (poRec.sg_text) {
-          for (const tok of extractCodes(poRec.sg_text, 'SG')) {
+          for (const tok of extractSgCodes(poRec.sg_text)) {
+            // Match by normalized code ("Goal-1" vs "Goal 1" => "GOAL1") or by numeric fallback
             const rec = datasetsRef.sgs.find((s) => normalizeCode(s.code) === normalizeCode(tok))
+              ?? datasetsRef.sgs.find((s) => (s.code.match(/\d+/)?.[0] ?? '') === (tok.match(/\d+/)?.[0] ?? ''))
             pushChild(rec
-              ? { id: `sg-${rec.id}`, code: rec.code, title: rec.title || rec.description || rec.code, kind: 'sg', placeholder: false, children: [] }
+              ? { id: `sg-${rec.id}`, code: rec.code, title: rec.description || rec.title || rec.code, kind: 'sg', placeholder: false, children: [] }
               : { id: `sg-missing-${tok}`, code: tok, title: 'Strategic Goal not found or archived', kind: 'sg', placeholder: true, children: [] })
           }
         }
