@@ -55,25 +55,32 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
     let cancelled = false
     ;(async () => {
       try {
-        const [pos, crs] = await Promise.all([
-          fetchProgramOutcomesStandalone(),
-          fetchCourses(),
-        ])
-        const activePos = pos.filter((p) => !p.status || p.status === 'active')
+        const pos = (await fetchProgramOutcomesStandalone()).filter((p) => !p.status || p.status === 'active')
         // Numeric PO order PO-1…PO-27 for the suggest dropdown
-        activePos.sort((a, b) => {
+        pos.sort((a, b) => {
           const n = (s: string) => { const m = s.match(/PO\D*(\d+)/i); return m ? parseInt(m[1], 10) : 9999 }
           const na = n(a.code || ''); const nb = n(b.code || '')
           return na !== nb ? na - nb : String(a.code).localeCompare(String(b.code))
         })
-        const activeCourses = crs.filter((c) => !c.status || c.status === 'active')
-        activeCourses.sort((a, b) => String(a.code).localeCompare(String(b.code)))
-        if (!cancelled) {
-          setPoSuggestions(activePos.map(toSuggestion))
-          setCourses(activeCourses)
-        }
+        if (!cancelled) setPoSuggestions(pos.map(toSuggestion))
       } catch {
         // suggestions are optional; leave the list empty on failure
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const cs = await fetchCourses()
+        // Only active courses, sorted by code for dropdown
+        const active = cs.filter((c) => !c.status || c.status === 'active')
+        active.sort((a, b) => String(a.code).localeCompare(String(b.code)))
+        if (!cancelled) setCourses(active)
+      } catch {
+        // course list optional; leave empty on failure
       }
     })()
     return () => { cancelled = true }
@@ -111,10 +118,15 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
           <span>Course (Subject Code)</span>
           <select className="input input--sm" value={form.course}
             onChange={(e) => setForm({ ...form, course: e.target.value })} required>
-            <option value="">— Select course —</option>
+            <option value="">Select course</option>
             {courses.map((c) => (
-              <option key={c.id} value={c.code}>{c.code} — {c.title}</option>
+              <option key={c.id} value={c.code}>{c.code}{c.title ? ` — ${c.title}` : ''}</option>
             ))}
+            {courses.length === 0 && <option value="" disabled>No courses available — create one in Course page first</option>}
+            {/* Preserve legacy/manual value if not in list so editing old rows doesn't blank out */}
+            {form.course && !courses.some((c) => c.code === form.course) && (
+              <option value={form.course}>{form.course} (legacy)</option>
+            )}
           </select>
         </label>
         <label className="field">
@@ -162,10 +174,13 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                     <>
                       <td>
                         <select className="input input--sm" value={editForm.course} onChange={(e) => setEditForm({ ...editForm, course: e.target.value })}>
-                          <option value="">— Select course —</option>
+                          <option value="">Select course</option>
                           {courses.map((c) => (
-                            <option key={c.id} value={c.code}>{c.code} — {c.title}</option>
+                            <option key={c.id} value={c.code}>{c.code}{c.title ? ` — ${c.title}` : ''}</option>
                           ))}
+                          {editForm.course && !courses.some((c) => c.code === editForm.course) && (
+                            <option value={editForm.course}>{editForm.course} (legacy)</option>
+                          )}
                         </select>
                       </td>
                       <td><input className="input input--sm" value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} /></td>
