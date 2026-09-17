@@ -1,5 +1,7 @@
 // Google-style autocomplete input: as the user types, a dropdown of
-// matching options appears. Selecting one fills the input. Single-select only.
+// matching options appears. Supports comma-separated multi-values (e.g. PEO
+// Alignment "PEO-1, PEO-2") — the keyword is "," and suggestions follow the
+// last token after the last comma.
 
 import { useEffect, useRef, useState } from 'react'
 
@@ -33,15 +35,40 @@ export default function SuggestionInput({ value, onChange, options, placeholder 
 
   useEffect(() => setActive(0), [query])
 
-  const q = query.trim().toLowerCase()
-  const visibleOptions = q.length >= 3
-    ? options.filter((o) => (o.label ?? o.value).toLowerCase().includes(q))
+  // Follow the active item when user navigates with arrows (keyboard) — keeps it visible.
+  useEffect(() => {
+    if (!open) return
+    const el = ref.current?.querySelector('.suggestion__item--active') as HTMLElement | null
+    el?.scrollIntoView({ block: 'nearest' })
+  }, [active, open])
+
+  // Multi-value support: keyword is "," — filter on the last comma-separated token.
+  const lastToken = query.split(',').pop()?.trim() ?? ''
+  const lastTokenLower = lastToken.toLowerCase()
+  // Exclude already-selected tokens from suggestions
+  const selectedSet = new Set(
+    query.split(',').map((s) => s.trim().toLowerCase()).filter((s) => s && s !== lastTokenLower)
+  )
+  const visibleOptions = lastTokenLower.length >= 2
+    ? options.filter((o) => {
+        const key = (o.label ?? o.value).toLowerCase()
+        if (selectedSet.has(o.value.toLowerCase())) return false
+        return key.includes(lastTokenLower)
+      })
     : []
 
   const select = (o: SuggestionOption) => {
-    onChange(o.value)
-    setQuery(o.value)
+    const parts = query.split(',')
+    parts[parts.length - 1] = ` ${o.value}` // keep comma separation
+    const next = parts.map((s) => s.trim()).filter(Boolean).join(', ')
+    onChange(next)
+    setQuery(next)
     setOpen(false)
+  }
+
+  const shouldOpen = (v: string) => {
+    const tok = v.split(',').pop()?.trim() ?? ''
+    return tok.length >= 2
   }
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -76,8 +103,8 @@ export default function SuggestionInput({ value, onChange, options, placeholder 
         type="text"
         placeholder={placeholder}
         value={query}
-        onChange={(e) => { setQuery(e.target.value); setOpen(e.target.value.trim().length >= 3); }}
-        onFocus={() => { if (query.trim().length >= 3) setOpen(true) }}
+        onChange={(e) => { setQuery(e.target.value); setOpen(shouldOpen(e.target.value)); }}
+        onFocus={() => { if (shouldOpen(query)) setOpen(true) }}
         onKeyDown={onKeyDown}
       />
       {open && (

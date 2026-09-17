@@ -10,7 +10,7 @@
 //   Curriculum, Course, Course Learning Outcomes, Strategic Goals,
 //   CHED Memorandum Orders, Users & Accounts, Activity Logs, Profile
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Sidebar from './components/Sidebar'
 import Login from './pages/Login'
 import Profile from './pages/Profile'
@@ -30,6 +30,7 @@ import AdminCourseLearningOutcomes from './pages/admin/CourseLearningOutcomes'
 import AdminUsers from './pages/admin/Users'
 import AdminProgram from './pages/admin/Program'
 import AdminCourse from './pages/admin/Course'
+import AdminSubjectView from './pages/admin/SubjectView'
 import { supabase } from './utils/supabaseClient'
 import { ensureProfile, syncDemoRole } from './services/database'
 import type { Profile as ProfileType, UserRole, NavItem } from './services/database'
@@ -47,6 +48,7 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'curriculum', label: 'Curriculum' },
     { id: 'course', label: 'Course' },
     { id: 'clo', label: 'Course Learning Outcomes' },
+    { id: 'subject-view', label: 'Subject Graph' },
     { id: 'users', label: 'Users & Accounts' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
@@ -55,6 +57,7 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'curriculum', label: 'Curriculum' },
     { id: 'program-outcomes', label: 'Program Outcomes' },
+    { id: 'subject-view', label: 'Subject Graph' },
     { id: 'users', label: 'Faculty' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
@@ -62,6 +65,7 @@ const NAV: Record<UserRole, NavItem[]> = {
   user: [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'curriculum', label: 'Curriculum' },
+    { id: 'subject-view', label: 'Subject Graph' },
     { id: 'clo', label: 'Course Learning Outcomes' },
     { id: 'profile', label: 'Profile' },
   ],
@@ -78,6 +82,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     curriculum: ManagerCurriculum,
     course: AdminCourse,
     clo: AdminCourseLearningOutcomes,
+    'subject-view': AdminSubjectView,
     'strategic-goals': AdminStrategicGoals,
     'ched-memo': AdminChedMemoOrders,
     users: AdminUsers,
@@ -88,6 +93,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     dashboard: ManagerDashboard,
     curriculum: ManagerCurriculum,
     'program-outcomes': AdminProgramOutcomes,
+    'subject-view': AdminSubjectView,
     users: ManagerUsers,
     'activity-logs': ManagerActivityLogs,
     profile: Profile,
@@ -95,6 +101,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
   user: {
     dashboard: UserDashboard,
     curriculum: UserCurriculum,
+    'subject-view': AdminSubjectView,
     clo: AdminCourseLearningOutcomes,
     profile: Profile,
   },
@@ -107,6 +114,7 @@ function App() {
   const [profileLoaded, setProfileLoaded] = useState(false)
   const [activePage, setActivePage] = useState('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const profileUserIdRef = useRef<string | null>(null)
 
   // On first render: restore an existing session from localStorage and subscribe to
   // auth changes (sign-in / sign-out) so the UI updates automatically.
@@ -116,7 +124,12 @@ function App() {
       if (!session) setLoading(false)
     })
 
-    const { data: { subscription } } = supabase!.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase!.auth.onAuthStateChange((event, session) => {
+      // TOKEN_REFRESHED fires when the tab regains focus (auto token refresh).
+      // Ignoring it here keeps the session object identity stable, so the app
+      // doesn't briefly mount the Loading screen and unmount the active page
+      // (which would wipe any in-progress form input).
+      if (event === 'TOKEN_REFRESHED') return
       setSession(session)
       if (!session) {
         setProfile(null)
@@ -136,6 +149,12 @@ function App() {
   // dashboard even after roles were wiped by a schema re-run.
   useEffect(() => {
     if (!session?.user) return
+    // Token refreshes may hand us a new session object for the same user.
+    // If the profile is already loaded for this user, don't re-enter the
+    // loading state (that would unmount the page and lose form input).
+    if (profileUserIdRef.current === session.user.id && profileLoaded) return
+    profileUserIdRef.current = session.user.id
+    setProfileLoaded(false)
     setLoading(true)
     let cancelled = false
 

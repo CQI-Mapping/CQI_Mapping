@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useDraft } from '../../hooks/useDraft'
 import { fetchAllProfiles, adminCreateUser, adminDeleteUser, addActivityLog } from '../../services/database'
 import type { Profile } from '../../services/database'
 
@@ -12,9 +13,13 @@ function Users({ userEmail }: UsersProps) {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  const [newEmail, setNewEmail] = useState('')
+  // Draft persists email + name across page navigation. The password stays
+  // in memory-only state and is never written to storage.
+  const [draft, setDraft, clearDraft] = useDraft('cqi.draft.Faculty', { email: '', name: '' })
+  const { email: newEmail, name: newName } = draft
+  const setNewEmail = (v: string) => setDraft((d) => ({ ...d, email: v }))
+  const setNewName = (v: string) => setDraft((d) => ({ ...d, name: v }))
   const [newPassword, setNewPassword] = useState('')
-  const [newName, setNewName] = useState('')
   const [creating, setCreating] = useState(false)
 
   const load = async () => {
@@ -44,9 +49,8 @@ function Users({ userEmail }: UsersProps) {
       await adminCreateUser(newEmail.trim(), newPassword, newName.trim(), 'user')
       setSuccess(`Faculty member ${newEmail} created.`)
       addActivityLog('user.created')
-      setNewEmail('')
+      clearDraft()
       setNewPassword('')
-      setNewName('')
       load()
     } catch (e) {
       setError('Failed to create user: ' + (e instanceof Error ? e.message : String(e)))

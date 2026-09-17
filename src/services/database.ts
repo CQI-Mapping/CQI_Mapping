@@ -60,6 +60,7 @@ export interface Course {
     curriculum_id: string | { id: string; code: string } | null
     prerequisite: string
     corequisite: string
+    status: string
     created_at: string
     updated_at: string
   }
@@ -610,6 +611,7 @@ export async function deleteProgramOutcomeStandalone(id: string): Promise<void> 
 export interface CourseLearningOutcomeStandalone {
   id: string
   code: string
+  course: string
   title: string
   description: string | null
   status: string

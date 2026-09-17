@@ -95,6 +95,7 @@ CREATE TABLE public.courses (
       credit_laboratory INTEGER NOT NULL DEFAULT 0 CHECK (credit_laboratory >= 0 AND credit_laboratory <= 3),
       units INTEGER NOT NULL DEFAULT 0 CHECK (units >= 0),
       description TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       UNIQUE (program_id, code)
@@ -116,23 +117,6 @@ CREATE TABLE public.course_learning_outcomes (
     description TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (course_id, code)
-);
-
-CREATE TABLE public.activity_logs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_email TEXT,
-    action TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE public.resources (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    title TEXT NOT NULL,
-    description TEXT,
-    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
-    created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE public.strategic_goals (
@@ -175,7 +159,7 @@ CREATE TABLE public.program_educational_objectives (
 
 CREATE TABLE public.admin_program_outcomes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    code TEXT UNIQUE NOT NULL,
+    code TEXT NOT NULL,
     title TEXT NOT NULL,
     description TEXT,
     cmo_id UUID REFERENCES public.ched_memorandum_orders(id) ON DELETE SET NULL,
@@ -187,6 +171,15 @@ CREATE TABLE public.admin_program_outcomes (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Per requirement, same code with same CMO Alignment is also allowed (no unique
+-- constraint on code at all) — duplicates are permitted. Drop any legacy uniqueness.
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'admin_program_outcomes_code_key') THEN
+        ALTER TABLE public.admin_program_outcomes DROP CONSTRAINT admin_program_outcomes_code_key;
+    END IF;
+END $$;
+DROP INDEX IF EXISTS public.admin_program_outcomes_code_cmo_unique;
+DROP INDEX IF EXISTS public.admin_program_outcomes_code_cmo_nulls_equal;
 
 -- Backfill for existing rows after adding cmo_id:
 -- UPDATE public.admin_program_outcomes a
@@ -195,15 +188,24 @@ CREATE TABLE public.admin_program_outcomes (
 -- WHERE a.cmo_id IS NULL AND a.description ILIKE '%' || c.code || '%';
 
 -- COURSE LEARNING OUTCOMES (standalone admin list)
+-- Same CLO code is allowed in different courses (e.g. CLO-1 for CS-101 and CLO-1 for IT21)
 CREATE TABLE public.admin_course_learning_outcomes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    code TEXT UNIQUE NOT NULL,
+    code TEXT NOT NULL,
+    course TEXT NOT NULL DEFAULT '',
     title TEXT NOT NULL,
     description TEXT,
     status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE UNIQUE INDEX IF NOT EXISTS admin_course_learning_outcomes_code_course_unique
+    ON public.admin_course_learning_outcomes (code, course);
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'admin_course_learning_outcomes_code_key') THEN
+        ALTER TABLE public.admin_course_learning_outcomes DROP CONSTRAINT admin_course_learning_outcomes_code_key;
+    END IF;
+END $$;
 
 -- CHED MEMORANDUM ORDERS
 -- (definition is above, before admin_program_outcomes)

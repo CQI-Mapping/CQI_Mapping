@@ -14,8 +14,8 @@ import type { SuggestionOption } from '../../components/SuggestionInput'
 
 const FIXED_OPTIONS = [
   'Common to all programs in all types of schools',
-  'Bachelor of Science in Computer Science Program Outcomes',
-  'College defined program outcome',
+  'Bachelor of Science in Information Technology Program Outcomes (CMO 25 s. 2015)',
+  'SPECIFIC TO A SUB-DISCIPLINE AND A MAJOR (CMO 25 s. 2015)',
 ]
 
 const toSuggestion = (i: { code: string; title: string | null }): SuggestionOption => ({
@@ -99,8 +99,16 @@ export default function ProgramOutcomes() {
       inlineForm
       stackedAlignments={[alignments[2]]}
       sort={(a, b) => {
-        const n = (s: string) => parseInt(s.replace(/\D/g, ''), 10)
-        return (n((a as { code?: string }).code || '') || 0) - (n((b as { code?: string }).code || '') || 0)
+        // Numeric PO order: PO-1 … PO-27 (fixes lexicographic PO-1, PO-10, PO-2)
+        const n = (s: string) => {
+          const m = s.match(/PO\D*(\d+)/i)
+          return m ? parseInt(m[1], 10) : 9999
+        }
+        const ca = String((a as { code?: string }).code || '')
+        const cb = String((b as { code?: string }).code || '')
+        const na = n(ca); const nb = n(cb)
+        if (na !== nb) return na - nb
+        return ca.localeCompare(cb)
       }}
     />
   )
