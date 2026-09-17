@@ -162,23 +162,6 @@ CREATE TABLE public.ched_memorandum_orders (
 -- PROGRAM OUTCOMES (standalone admin list)
 -- cmo_id: optional link to a CHED Memorandum Order, set when the outcome's
 -- alignment references a CMO that exists.
-CREATE TABLE public.admin_program_outcomes (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    code TEXT UNIQUE NOT NULL,
-    title TEXT NOT NULL,
-    description TEXT,
-    cmo_id UUID REFERENCES public.ched_memorandum_orders(id) ON DELETE SET NULL,
-    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
--- Backfill for existing rows after adding cmo_id:
--- UPDATE public.admin_program_outcomes a
--- SET cmo_id = c.id
--- FROM public.ched_memorandum_orders c
--- WHERE a.cmo_id IS NULL AND a.description ILIKE '%' || c.code || '%';
-
 -- PROGRAM EDUCATIONAL OBJECTIVES
 CREATE TABLE public.program_educational_objectives (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -190,6 +173,28 @@ CREATE TABLE public.program_educational_objectives (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE public.admin_program_outcomes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code TEXT UNIQUE NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    cmo_id UUID REFERENCES public.ched_memorandum_orders(id) ON DELETE SET NULL,
+    peo_id UUID REFERENCES public.program_educational_objectives(id) ON DELETE SET NULL,
+    peo_text TEXT,
+    sg_id UUID REFERENCES public.strategic_goals(id) ON DELETE SET NULL,
+    sg_text TEXT,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Backfill for existing rows after adding cmo_id:
+-- UPDATE public.admin_program_outcomes a
+-- SET cmo_id = c.id
+-- FROM public.ched_memorandum_orders c
+-- WHERE a.cmo_id IS NULL AND a.description ILIKE '%' || c.code || '%';
+
+-- COURSE LEARNING OUTCOMES (standalone admin list)
 CREATE TABLE public.admin_course_learning_outcomes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code TEXT UNIQUE NOT NULL,

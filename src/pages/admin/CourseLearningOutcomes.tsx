@@ -9,10 +9,16 @@ import {
   createCourseLearningOutcomeStandalone,
   updateCourseLearningOutcomeStandalone,
   deleteCourseLearningOutcomeStandalone,
+  fetchProgramOutcomesStandalone,
 } from '../../services/database'
 import type { CourseLearningOutcomeStandalone } from '../../services/database'
+import SuggestionInput, { type SuggestionOption } from '../../components/SuggestionInput'
 
 const EMPTY = { code: '', description: '', programOutcomes: '' }
+
+const toSuggestion = (i: { code: string; title: string }): SuggestionOption => ({
+  value: `${i.code} - ${i.title}`.trim(),
+})
 
 export default function CourseLearningOutcomes({ userEmail }: { userEmail: string }) {
   const crud = useEntityCrud<CourseLearningOutcomeStandalone>({
@@ -24,6 +30,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   })
   const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete, handleToggleStatus } = crud
 
+  const [poSuggestions, setPoSuggestions] = useState<SuggestionOption[]>([])
   const [form, setForm] = useState(EMPTY)
   const [editForm, setEditForm] = useState(EMPTY)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -40,6 +47,19 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   const archivedCount = items.filter((i) => !isActive(i)).length
 
   useEffect(() => { crud.load() }, [crud.load])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const pos = (await fetchProgramOutcomesStandalone()).filter((p) => !p.status || p.status === 'active')
+        if (!cancelled) setPoSuggestions(pos.map(toSuggestion))
+      } catch {
+        // suggestions are optional; leave the list empty on failure
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
 
   const outPayload = (f: typeof EMPTY) => ({
     code: f.code.trim(),
@@ -81,8 +101,12 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
         </label>
         <label className="field">
           <span>Program Outcomes</span>
-          <input className="input input--sm" type="text" placeholder="e.g. PLO 1, PLO 3, & PLO 10" value={form.programOutcomes}
-            onChange={(e) => setForm({ ...form, programOutcomes: e.target.value })} />
+          <SuggestionInput
+            value={form.programOutcomes}
+            onChange={(v) => setForm({ ...form, programOutcomes: v })}
+            options={poSuggestions}
+            placeholder="Type to search POs"
+          />
         </label>
         <div className="create-resource__submit">
           <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>{busy ? 'Saving...' : 'Add'}</button>
@@ -110,8 +134,14 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                       <td><input className="input input--sm" value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} /></td>
                       <td><textarea className="input input--sm" rows={2} ref={autoResize} value={editForm.description}
                         onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} /></td>
-                      <td><input className="input input--sm" placeholder="e.g. PO1, PO3" value={editForm.programOutcomes}
-                        onChange={(e) => setEditForm({ ...editForm, programOutcomes: e.target.value })} /></td>
+                      <td>
+                        <SuggestionInput
+                          value={editForm.programOutcomes}
+                          onChange={(v) => setEditForm({ ...editForm, programOutcomes: v })}
+                          options={poSuggestions}
+                          placeholder="Type to search POs"
+                        />
+                      </td>
                       <td></td>
                       <td>
                         <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>Save</button>{' '}

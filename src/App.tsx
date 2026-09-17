@@ -213,15 +213,7 @@ function App() {
         onToggle={() => setSidebarOpen((v) => !v)}
       />
 
-      <div className="main-content" onClick={() => { if (sidebarOpen) setSidebarOpen(false) }}>
-        <header className="topbar">
-          <div className="topbar__title">CQI Monitoring System</div>
-          <div className="topbar__user">
-            <span>{profile?.full_name || profile?.email}</span>
-            <span className={`role-badge role-badge--${role}`}>{role}</span>
-          </div>
-        </header>
-
+      <div className="main-content">
         <main className="content-area">
           <div className="page-container">{renderPage()}</div>
         </main>
