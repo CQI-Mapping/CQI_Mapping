@@ -63,7 +63,7 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
 
         <div className="hero-modern__content">
           <header className="hero-modern__header">
-            <span className="hero-modern__time">{getTimeGreeting()} · NBSC Institute of Computer Studies</span>
+            <span className="hero-modern__time">{getTimeGreeting()}</span>
             <time className="hero-modern__date" dateTime={new Date().toISOString().split('T')[0]}>
               {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
             </time>
@@ -71,52 +71,15 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
 
           <div className="hero-modern__main" id="hero-title">
             <div className="hero-modern__identity">
-              <div className="hero-modern__avatar-wrap">
-                <div className="hero-modern__avatar-ring" />
-                <div className="hero-modern__avatar">{(profile?.full_name || profile?.email || 'U').slice(0, 2).toUpperCase()}</div>
-              </div>
               <div className="hero-modern__intro">
                 <h1 className="hero-modern__name">Welcome back, {profile?.full_name || profile?.email?.split('@')[0]}</h1>
-                <p className="hero-modern__role"><span className="hero-modern__role-dot" /> <span className="hero-modern__roleBadge">{profile?.role ?? 'user'}</span> · {totalRecords} total records · Faculty workspace</p>
               </div>
             </div>
-            <div className="hero-modern__stats">
-              <div className="hero-modern__stat">
-                <span className="hero-modern__stat-val">{totalRecords}</span>
-                <span className="hero-modern__stat-label">Total records</span>
-              </div>
-              <div className="hero-modern__stat-sep" />
-              <div className="hero-modern__stat">
-                <span className="hero-modern__stat-val hero-modern__val--active">{stats.find(s => s.label === 'Courses')?.value ?? '—'}</span>
-                <span className="hero-modern__stat-label">Courses</span>
-              </div>
-              <div className="hero-modern__stat-sep" />
-              <div className="hero-modern__stat">
-                <span className="hero-modern__stat-val">{stats.find(s => s.label === 'Curriculum Records')?.value ?? '—'}</span>
-                <span className="hero-modern__stat-label">Curriculum</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="hero-modern__actions">
-            <span className="hero-modern__hint">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z" /></svg>
-              Read-only access · Browse curriculum & outcomes
-            </span>
           </div>
         </div>
       </section>
 
       <div className="stat-grid stat-grid--2026">
-        <div className="stat-card stat-card--2026 stat-card--role">
-          <div className="stat-card__accent" style={{ background: 'linear-gradient(135deg,#3b82f6,#6366f1)' }} />
-          <div className="stat-card__icon" style={{ background: 'linear-gradient(135deg,#3b82f6,#2563eb)' }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" /><path d="M6 20a6 6 0 0 1 12 0" /></svg>
-          </div>
-          <span className="stat-card__label">Your role</span>
-          <span className="stat-card__value stat-card__value--role">user</span>
-          <span className="stat-card__sub">Browse maps & update your profile</span>
-        </div>
 
         {stats.map((s) => (
           <div className="stat-card stat-card--2026 card-enter" key={s.label}>
