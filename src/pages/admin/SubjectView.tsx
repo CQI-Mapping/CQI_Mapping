@@ -594,11 +594,18 @@ export default function SubjectView() {
       value: l.value,
     }))
 
-    // Force simulation mutates nodes/links — same as the example, lifted to the right
+    // Subject fixed on the left, branches flow to the right (as requested)
+    const subjectSim = simNodes.find((n) => n.kind === 'subject')
+    if (subjectSim) {
+      subjectSim.fx = -width / 2 + 80
+      subjectSim.fy = 0
+    }
+
+    // Force simulation — same as the example, but lifted/right-shifted
     const simulation = d3.forceSimulation<ForceNode>(simNodes)
-      .force('link', d3.forceLink<ForceNode, ForceLink>(simLinks).id((d) => d.rId).distance(90).strength(0.9))
-      .force('charge', d3.forceManyBody().strength(-400))
-      .force('x', d3.forceX(90))
+      .force('link', d3.forceLink<ForceNode, ForceLink>(simLinks).id((d) => d.rId).distance(110).strength(0.9))
+      .force('charge', d3.forceManyBody().strength(-380))
+      .force('x', d3.forceX(60))
       .force('y', d3.forceY(0))
 
     // SVG container as per the example
@@ -725,8 +732,13 @@ export default function SubjectView() {
     }
     function dragended(event: d3.D3DragEvent<SVGCircleElement, ForceNode, ForceNode>, d: ForceNode) {
       if (!event.active) simulation.alphaTarget(0)
-      d.fx = null
-      d.fy = null
+      if (d.kind === 'subject') {
+        d.fx = -width / 2 + 80
+        d.fy = 0
+      } else {
+        d.fx = null
+        d.fy = null
+      }
     }
 
     node.call(
