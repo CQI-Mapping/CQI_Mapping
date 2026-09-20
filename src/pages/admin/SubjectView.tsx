@@ -648,7 +648,7 @@ export default function SubjectView() {
       })
       .attr('fill', (d) => (d.placeholder ? '#f8fafc' : (colorMap[d.kind] as string) || color(String(d.group))))
       .attr('stroke', (d) => (d.placeholder ? '#94a3b8' : '#fff'))
-      .attr('cursor', (d) => (d.expandable || d.courseId ? 'pointer' : 'grab'))
+      .attr('cursor', (d) => (d.expandable || d.courseId ? 'pointer' : 'default'))
       .attr('filter', 'url(#subject-view-shadow)')
 
     node.append('title').text((d) => `${d.code} — ${d.title}`)
@@ -693,48 +693,34 @@ export default function SubjectView() {
       .attr('fill', '#334155')
       .text((d) => (d.collapsed ? '+' : '−'))
 
-    // Tick — keep links, circles, labels, badges in sync (core of the example)
-    simulation.on('tick', () => {
-      link
-        .attr('x1', (d) => (d.source as ForceNode).x ?? 0)
-        .attr('y1', (d) => (d.source as ForceNode).y ?? 0)
-        .attr('x2', (d) => (d.target as ForceNode).x ?? 0)
-        .attr('y2', (d) => (d.target as ForceNode).y ?? 0)
+    // Static layout — run simulation synchronously then freeze (no movement)
+    // This keeps the force-directed placement but prevents drifting/dragging.
+    simulation.tick(300)
+    simulation.stop()
 
-      node
-        .attr('cx', (d) => d.x ?? 0)
-        .attr('cy', (d) => d.y ?? 0)
+    // Apply final positions once (no tick listener, no drag)
+    link
+      .attr('x1', (d) => (d.source as ForceNode).x ?? 0)
+      .attr('y1', (d) => (d.source as ForceNode).y ?? 0)
+      .attr('x2', (d) => (d.target as ForceNode).x ?? 0)
+      .attr('y2', (d) => (d.target as ForceNode).y ?? 0)
 
-      label
-        .attr('x', (d) => d.x ?? 0)
-        .attr('y', (d) => d.y ?? 0)
+    node
+      .attr('cx', (d) => d.x ?? 0)
+      .attr('cy', (d) => d.y ?? 0)
 
-      badge
-        .attr('transform', (d) => `translate(${(d.x ?? 0) + 10},${(d.y ?? 0) - 10})`)
-    })
+    label
+      .attr('x', (d) => d.x ?? 0)
+      .attr('y', (d) => d.y ?? 0)
 
-    // Drag behavior exactly as in the example (reheat, fix fx/fy, release)
-    function dragstarted(event: d3.D3DragEvent<SVGCircleElement, ForceNode, ForceNode>, d: ForceNode) {
-      if (!event.active) simulation.alphaTarget(0.3).restart()
-      d.fx = d.x
-      d.fy = d.y
+    badge
+      .attr('transform', (d) => `translate(${(d.x ?? 0) + 10},${(d.y ?? 0) - 10})`)
+
+    // Freeze nodes so they can't be dragged or drift
+    for (const n of simNodes) {
+      n.fx = n.x
+      n.fy = n.y
     }
-    function dragged(event: d3.D3DragEvent<SVGCircleElement, ForceNode, ForceNode>, d: ForceNode) {
-      d.fx = event.x
-      d.fy = event.y
-    }
-    function dragended(event: d3.D3DragEvent<SVGCircleElement, ForceNode, ForceNode>, d: ForceNode) {
-      if (!event.active) simulation.alphaTarget(0)
-      d.fx = null
-      d.fy = null
-    }
-
-    node.call(
-      d3.drag<SVGCircleElement, ForceNode>()
-        .on('start', dragstarted)
-        .on('drag', dragged)
-        .on('end', dragended) as unknown as d3.DragBehavior<SVGCircleElement, ForceNode, unknown>
-    )
 
     // Hover — keep the custom tooltip + highlight
     const highlightConnections = (d: ForceNode) => {
@@ -965,7 +951,7 @@ export default function SubjectView() {
                   <button className="btn btn--ghost btn--sm" onClick={handleRefresh} disabled={spinner} title="Reload relationship data">Refresh</button>
                 </div>
               </div>
-              <p className="subject-view__graph-hint">Click a branch node to expand or collapse. Click a pre-req or co-req to jump to that subject. Drag nodes to reposition. Scroll to zoom.</p>
+              <p className="subject-view__graph-hint">Static layout — scroll to zoom. Click a branch to expand/collapse; click a pre-req/co-req to jump.</p>
               <div className="subject-view__legend">
                 {legendDefs.map((l) => {
                   const n = graphStats?.counts[l.kind] ?? 0
