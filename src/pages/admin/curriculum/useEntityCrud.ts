@@ -146,5 +146,5 @@ export function useEntityCrud<T extends { id: string }>({
     }
   }
 
-  return { items, loading, error, message, busy, load, setError, handleCreate, handleUpdate, handleDelete, handleToggleStatus }
+  return { items, loading, error, message, busy, load, setError, setMessage, handleCreate, handleUpdate, handleDelete, handleToggleStatus }
 }

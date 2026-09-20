@@ -598,16 +598,42 @@ code {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  max-width: 380px;
+  max-width: 420px;
   pointer-events: none;
 }
 
 .toast-stack .msg {
   pointer-events: auto;
   margin: 0;
-  min-width: 300px;
+  min-width: 320px;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.14), 0 2px 10px rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+}
+
+.msg__close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.55;
+  padding: 0 2px;
+  flex-shrink: 0;
+}
+
+.msg__close:hover { opacity: 1; }
+
+.msg--toast {
+  animation: toastIn 0.36s var(--ease-spring, cubic-bezier(0.16,1,0.3,1)) both;
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(-10px) translateX(6px) scale(0.98); }
+  to { opacity: 1; transform: none; }
 }
 
 .role-badge {
