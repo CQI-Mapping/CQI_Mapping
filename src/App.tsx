@@ -31,12 +31,15 @@ import AdminUsers from './pages/admin/Users'
 import AdminProgram from './pages/admin/Program'
 import AdminCourse from './pages/admin/Course'
 import AdminSubjectView from './pages/admin/SubjectView'
+import AdminAssessments from './pages/admin/Assessments'
+import AdminAttainment from './pages/admin/Attainment'
 import { supabase } from './utils/supabaseClient'
 import { ensureProfile, syncDemoRole } from './services/database'
 import type { Profile as ProfileType, UserRole, NavItem } from './services/database'
 import type { Session } from '@supabase/supabase-js'
 
 // NAV map: which sidebar items each role can see.
+// Assessment monitoring (Option C, flat pills) — 1.3 Objectives: assessments + attainment
 const NAV: Record<UserRole, NavItem[]> = {
   admin: [
     { id: 'dashboard', label: 'Dashboard' },
@@ -49,6 +52,8 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'course', label: 'Course' },
     { id: 'clo', label: 'Course Learning Outcomes' },
     { id: 'subject-view', label: 'Subject Graph' },
+    { id: 'assessments', label: 'Assessments' },
+    { id: 'attainment', label: 'Attainment' },
     { id: 'users', label: 'Users & Accounts' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
@@ -58,6 +63,8 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'curriculum', label: 'Curriculum' },
     { id: 'program-outcomes', label: 'Program Outcomes' },
     { id: 'subject-view', label: 'Subject Graph' },
+    { id: 'assessments', label: 'Assessments' },
+    { id: 'attainment', label: 'Attainment' },
     { id: 'users', label: 'Faculty' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
@@ -67,6 +74,7 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'curriculum', label: 'Curriculum' },
     { id: 'subject-view', label: 'Subject Graph' },
     { id: 'clo', label: 'Course Learning Outcomes' },
+    { id: 'attainment', label: 'Attainment' },
     { id: 'profile', label: 'Profile' },
   ],
 }
@@ -83,6 +91,8 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     course: AdminCourse,
     clo: AdminCourseLearningOutcomes,
     'subject-view': AdminSubjectView,
+    assessments: AdminAssessments,
+    attainment: AdminAttainment,
     'strategic-goals': AdminStrategicGoals,
     'ched-memo': AdminChedMemoOrders,
     users: AdminUsers,
@@ -94,6 +104,8 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     curriculum: ManagerCurriculum,
     'program-outcomes': AdminProgramOutcomes,
     'subject-view': AdminSubjectView,
+    assessments: AdminAssessments,
+    attainment: AdminAttainment,
     users: ManagerUsers,
     'activity-logs': ManagerActivityLogs,
     profile: Profile,
@@ -103,6 +115,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     curriculum: UserCurriculum,
     'subject-view': AdminSubjectView,
     clo: AdminCourseLearningOutcomes,
+    attainment: AdminAttainment,
     profile: Profile,
   },
 }
