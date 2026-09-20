@@ -44,6 +44,8 @@ export default function Program() {
   }, [])
 
   const isActive = (p: Program) => !p.status || p.status === 'active'
+  const totalCount = items.length
+  const activeCount = items.filter(isActive).length
   const archivedCount = items.filter((p) => !isActive(p)).length
   const q = query.trim().toLowerCase()
   const visible = items
@@ -96,12 +98,38 @@ export default function Program() {
   }
 
   return (
-    <div className="curriculum-view">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <h2 style={{ margin: 0, fontSize: 18 }}>Programs</h2>
-        <button className="btn btn--primary btn--sm" onClick={openAdd}>
-          Add New
-        </button>
+    <div className="programs-page">
+      <div className="program-hero">
+        <div className="program-hero__left">
+          <div className="program-hero__icon">P</div>
+          <div className="program-hero__titles">
+            <h2>Programs</h2>
+            <p>Manage academic programs — add, edit, archive and organize offerings.</p>
+          </div>
+        </div>
+        <div className="program-hero__action">
+          <button className="btn btn--primary" onClick={openAdd}>
+            + Add New
+          </button>
+        </div>
+      </div>
+
+      <div className="program-stats">
+        <div className="program-stat">
+          <div className="program-stat__label">Total</div>
+          <div className="program-stat__value">{totalCount}</div>
+          <div className="program-stat__sub">All programs</div>
+        </div>
+        <div className="program-stat">
+          <div className="program-stat__label">Active</div>
+          <div className="program-stat__value" style={{ color: '#16a34a' }}>{activeCount}</div>
+          <div className="program-stat__sub">Currently offered</div>
+        </div>
+        <div className="program-stat">
+          <div className="program-stat__label">Archived</div>
+          <div className="program-stat__value" style={{ color: '#64748b' }}>{archivedCount}</div>
+          <div className="program-stat__sub">Hidden from lists</div>
+        </div>
       </div>
 
       {error && <p className="msg msg--error">{error}</p>}
@@ -167,76 +195,81 @@ export default function Program() {
         </div>
       )}
 
-      {loading ? (
-        <p>Loading programs...</p>
-      ) : (
-        <div className="panel table-wrap">
-          <div className="sd-tabs">
+      <div className="program-panel">
+        <div className="program-toolbar">
+          <div className="sd-tabs" style={{ marginBottom: 0, flex: 1 }}>
             <button className={`sd-tab ${!archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(false)}>
               Active
             </button>
             <button className={`sd-tab ${archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(true)}>
               Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
             </button>
+          </div>
+          <label className="program-search" aria-label="Search programs">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M20 20L15.5 15.5" />
+            </svg>
             <input
-              className="input input--sm sd-tabs__search"
+              className="input input--sm"
               type="search"
               placeholder="Search programs..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
-          </div>
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Code</th>
-                <th>Title</th>
-                <th>Description</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visible.length === 0 && (
-                <tr>
-                  <td colSpan={5}>No {archived ? 'archived' : 'active'} programs yet.</td>
-                </tr>
-              )}
-              {visible.map((item) => (
-                <tr key={item.id} className={!isActive(item) ? 'sd-archived' : ''}>
-                  <td>
-                    <strong>{item.code}</strong>
-                  </td>
-                  <td>{item.name}</td>
-                  <td>{item.description || '—'}</td>
-                  <td>
-                    <span className={`sd-status-badge ${isActive(item) ? 'sd-status-badge--active' : 'sd-status-badge--archived'}`}>
-                      {isActive(item) ? 'active' : 'archived'}
-                    </span>
-                  </td>
-                  <td>
-                    <button className="btn btn--ghost btn--sm" onClick={() => openEdit(item)} disabled={busy}>
-                      Edit
-                    </button>{' '}
-                    <button
-                      className={`btn btn--sm ${isActive(item) ? 'btn--danger' : 'btn--ghost'}`}
-                      onClick={() => handleArchive(item)}
-                      disabled={busy}
-                    >
-                      {isActive(item) ? 'Archive' : 'Restore'}
-                    </button>{' '}
-                    {!isActive(item) && (
-                      <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'program.deleted')} disabled={busy}>
-                        Delete
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          </label>
         </div>
-      )}
+
+        {loading ? (
+          <div className="program-grid" style={{ marginTop: 14 }}>
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="program-card--2026" style={{ opacity: 0.6 }}>
+                <div style={{ height: 12, background: '#f1f5f9', borderRadius: 6, width: '40%' }} />
+                <div style={{ height: 16, background: '#f1f5f9', borderRadius: 6 }} />
+                <div style={{ height: 40, background: '#f8fafc', borderRadius: 6 }} />
+              </div>
+            ))}
+          </div>
+        ) : visible.length === 0 ? (
+          <div className="program-empty" style={{ marginTop: 14 }}>
+            <strong>No {archived ? 'archived' : 'active'} programs yet.</strong>
+            <span>{q ? `No results for "${query}"` : archived ? 'Archived programs will appear here.' : 'Click "Add New" to create your first program.'}</span>
+          </div>
+        ) : (
+          <div className="program-grid" style={{ marginTop: 14 }}>
+            {visible.map((item) => (
+              <div key={item.id} className="program-card--2026" data-status={isActive(item) ? 'active' : 'archived'}>
+                <div className="program-card__top">
+                  <span className="program-card__code">{item.code}</span>
+                  <span className={`program-card__status ${isActive(item) ? 'program-card__status--active' : 'program-card__status--archived'}`}>
+                    <span className="program-card__status-dot" />
+                    {isActive(item) ? 'Active' : 'Archived'}
+                  </span>
+                </div>
+                <h3 className="program-card__name">{item.name}</h3>
+                <p className="program-card__desc">{item.description || 'No description provided.'}</p>
+                <div className="program-card__actions">
+                  <button className="btn btn--ghost btn--sm" onClick={() => openEdit(item)} disabled={busy}>
+                    Edit
+                  </button>
+                  <button
+                    className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`}
+                    onClick={() => handleArchive(item)}
+                    disabled={busy}
+                  >
+                    {isActive(item) ? 'Archive' : 'Restore'}
+                  </button>
+                  {!isActive(item) && (
+                    <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'program.deleted')} disabled={busy} style={{ marginLeft: 'auto' }}>
+                      Delete
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
