@@ -460,61 +460,58 @@ export default function Course({ profile, onViewSubject }: CourseProps) {
             </div>
           </form>
 
-          <div className="panel table-wrap">
-            <div className="sd-tabs">
-              <button className={`sd-tab ${!archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(false)}>Active</button>
-              <button className={`sd-tab ${archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(true)}>
-                Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
-              </button>
-              <input className="input input--sm sd-tabs__search" type="search" placeholder="Search courses..." value={query} onChange={(e) => setQuery(e.target.value)} />
+          <div className="program-panel">
+            <div className="program-toolbar">
+              <div className="sd-tabs" style={{ marginBottom: 0, flex: 1 }}>
+                <button className={`sd-tab ${!archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(false)}>Active</button>
+                <button className={`sd-tab ${archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(true)}>
+                  Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
+                </button>
+              </div>
+              <label className="program-search" aria-label="Search courses">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="M20 20L15.5 15.5"/></svg>
+                <input className="input input--sm" type="search" placeholder="Search courses..." value={query} onChange={(e) => setQuery(e.target.value)} />
+              </label>
             </div>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Subject Code</th>
-                  <th>Title</th>
-                  <th>Curriculum</th>
-                  <th>Pre-req</th>
-                  <th>Co-req</th>
-                  <th>Credits (Lec / Lab / Total)</th>
-                  <th>Description</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visible.length === 0 && (
-                  <tr><td colSpan={9}>No {archived ? 'archived' : 'active'} courses in this program yet.</td></tr>
-                )}
+            {visible.length === 0 ? (
+              <div className="program-empty" style={{ marginTop: 14 }}>
+                <strong>No {archived ? 'archived' : 'active'} courses yet.</strong>
+                <span>{query ? `No results for "${query}"` : `Add your first course for ${programs.find(p=>p.id===programId)?.code || 'this program'}.`}</span>
+              </div>
+            ) : (
+              <div className="program-grid" style={{ marginTop: 14 }}>
                 {visible.map((c) => (
-                  <tr key={c.id} className={!isActive(c) ? 'sd-archived' : ''}>
-                    <td><strong>{c.code}</strong></td>
-                    <td>{c.title}</td>
-                    <td>{curriculumLabel(c.curriculum_id)}</td>
-                    <td>{c.prerequisite || 'N/A'}</td>
-                    <td>{c.corequisite || 'N/A'}</td>
-                    <td>{c.credit_lecture ?? 0} / {c.credit_laboratory ?? 0} / {c.units ?? 0}</td>
-                    <td>{c.description || '-'}</td>
-                    <td>
-                      <span className={`sd-status-badge ${isActive(c) ? 'sd-status-badge--active' : 'sd-status-badge--archived'}`}>
-                        {isActive(c) ? 'active' : 'archived'}
+                  <div key={c.id} className="program-card--2026 card-enter" data-status={isActive(c) ? 'active' : 'archived'}>
+                    <div className="program-card__top">
+                      <span className="program-card__code">{c.code}</span>
+                      <span className={`program-card__status ${isActive(c) ? 'program-card__status--active' : 'program-card__status--archived'}`}>
+                        <span className="program-card__status-dot" />{isActive(c) ? 'Active' : 'Archived'}
                       </span>
-                    </td>
-                    <td>
-                      <button className="btn btn--ghost btn--sm" onClick={() => onViewSubject?.(c.id)} disabled={!!editId}>View</button>{' '}
-                      <button className="btn btn--ghost btn--sm" onClick={() => startEdit(c)} disabled={busy || !!editId}>Edit</button>{' '}
-                      <button className={`btn btn--sm ${isActive(c) ? 'btn--danger' : 'btn--ghost'}`}
-                        onClick={() => handleToggleStatus(c)} disabled={busy || !!editId}>
+                    </div>
+                    <h3 className="program-card__name">{c.title}</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12.5 }}>
+                      <div style={{ display: 'flex', gap: 6 }}><span style={{ fontWeight: 700, color: '#64748b' }}>Curriculum:</span><span style={{ color: '#0f172a' }}>{curriculumLabel(c.curriculum_id)}</span></div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        <span style={{ color: '#475569' }}><strong style={{ color: '#64748b' }}>Pre-req:</strong> {c.prerequisite || 'N/A'}</span>
+                        <span style={{ color: '#475569' }}><strong style={{ color: '#64748b' }}>Co-req:</strong> {c.corequisite || 'N/A'}</span>
+                      </div>
+                      <div style={{ color: '#475569' }}><strong style={{ color: '#64748b' }}>Credits:</strong> {c.credit_lecture ?? 0} lec / {c.credit_laboratory ?? 0} lab / {c.units ?? 0} total</div>
+                    </div>
+                    <p className="program-card__desc">{c.description || 'No description.'}</p>
+                    <div className="program-card__actions">
+                      <button className="btn btn--ghost btn--sm" onClick={() => onViewSubject?.(c.id)} disabled={!!editId}>View</button>
+                      <button className="btn btn--ghost btn--sm" onClick={() => startEdit(c)} disabled={busy || !!editId}>Edit</button>
+                      <button className={`btn btn--sm ${isActive(c) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleToggleStatus(c)} disabled={busy || !!editId}>
                         {isActive(c) ? 'Archive' : 'Restore'}
-                      </button>{' '}
+                      </button>
                       {!isActive(c) && (
-                        <button className="btn btn--danger btn--sm" onClick={() => handleDelete(c.id)} disabled={busy || !!editId}>Delete</button>
+                        <button className="btn btn--danger btn--sm" onClick={() => handleDelete(c.id)} disabled={busy || !!editId} style={{ marginLeft: 'auto' }}>Delete</button>
                       )}
-                    </td>
-                  </tr>
+                    </div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
+              </div>
+            )}
           </div>
         </>
       )}

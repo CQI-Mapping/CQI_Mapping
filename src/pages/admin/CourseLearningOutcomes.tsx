@@ -190,25 +190,41 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
       </form>
 
       {loading ? (
-        <p>Loading course learning outcomes...</p>
+        <div className="program-grid" style={{ marginTop: 8 }}>
+          {[0,1,2].map((i)=> (
+            <div key={i} className="program-card--2026" style={{ opacity: 0.6 }}>
+              <div style={{ height: 12, background: '#f1f5f9', borderRadius: 6, width: '40%' }} />
+              <div style={{ height: 16, background: '#f1f5f9', borderRadius: 6 }} />
+              <div style={{ height: 40, background: '#f8fafc', borderRadius: 6 }} />
+            </div>
+          ))}
+        </div>
       ) : (
-        <div className="panel table-wrap">
-          <div className="sd-tabs">
-            <button className={`sd-tab ${!archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(false)}>Active</button>
-            <button className={`sd-tab ${archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(true)}>
-              Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
-            </button>
-            <input className="input input--sm sd-tabs__search" type="search" placeholder="Search CLOs..." value={query} onChange={(e) => setQuery(e.target.value)} />
+        <div className="program-panel">
+          <div className="program-toolbar">
+            <div className="sd-tabs" style={{ marginBottom: 0, flex: 1 }}>
+              <button className={`sd-tab ${!archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(false)}>Active</button>
+              <button className={`sd-tab ${archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(true)}>
+                Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
+              </button>
+            </div>
+            <label className="program-search" aria-label="Search CLOs">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="M20 20L15.5 15.5"/></svg>
+              <input className="input input--sm" type="search" placeholder="Search CLOs..." value={query} onChange={(e) => setQuery(e.target.value)} />
+            </label>
           </div>
-          <table className="table">
-            <thead><tr><th>Course (Subject Code)</th><th>Code</th><th>Description</th><th>Program Outcomes</th><th>Status</th><th>Actions</th></tr></thead>
-            <tbody>
-              {visible.length === 0 && <tr><td colSpan={6}>No course learning outcomes yet.</td></tr>}
+          {visible.length === 0 ? (
+            <div className="program-empty" style={{ marginTop: 14 }}>
+              <strong>No course learning outcomes yet.</strong>
+              <span>{query ? `No results for "${query}"` : 'Add your first CLO above.'}</span>
+            </div>
+          ) : (
+            <div className="program-grid" style={{ marginTop: 14 }}>
               {visible.map((item) => (
-                <tr key={item.id} className={!isActive(item) ? 'sd-archived' : ''}>
+                <div key={item.id} className="program-card--2026 card-enter" data-status={isActive(item) ? 'active' : 'archived'}>
                   {editingId === item.id ? (
                     <>
-                      <td>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                         <select className="input input--sm" value={editForm.course} onChange={(e) => setEditForm({ ...editForm, course: e.target.value })}>
                           <option value="">Select course</option>
                           {courses.map((c) => (
@@ -218,51 +234,43 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                             <option value={editForm.course}>{editForm.course} (legacy)</option>
                           )}
                         </select>
-                      </td>
-                      <td><input className="input input--sm" value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} /></td>
-                      <td><textarea className="input input--sm" rows={2} ref={autoResize} value={editForm.description}
-                        onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} /></td>
-                      <td>
-                        <SuggestionInput
-                          value={editForm.programOutcomes}
-                          onChange={(v) => setEditForm({ ...editForm, programOutcomes: v })}
-                          options={poSuggestions}
-                          placeholder="Type to search POs"
-                        />
-                      </td>
-                      <td></td>
-                      <td>
-                        <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>Save</button>{' '}
+                        <input className="input input--sm" value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} placeholder="CLO Code" />
+                      </div>
+                      <textarea className="input input--sm" rows={2} ref={autoResize} value={editForm.description} onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} placeholder="Description" />
+                      <SuggestionInput value={editForm.programOutcomes} onChange={(v) => setEditForm({ ...editForm, programOutcomes: v })} options={poSuggestions} placeholder="Type to search POs" />
+                      <div className="program-card__actions">
+                        <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>Save</button>
                         <button className="btn btn--ghost btn--sm" onClick={() => setEditingId(null)}>Cancel</button>
-                      </td>
+                      </div>
                     </>
                   ) : (
                     <>
-                      <td><strong>{item.course || '—'}</strong></td>
-                      <td><strong>{item.code}</strong></td>
-                      <td>{item.description || '—'}</td>
-                      <td>{item.title || '—'}</td>
-                      <td>
-                        <span className={`sd-status-badge ${isActive(item) ? 'sd-status-badge--active' : 'sd-status-badge--archived'}`}>
-                          {isActive(item) ? 'active' : 'archived'}
+                      <div className="program-card__top">
+                        <span className="program-card__code">{item.code}</span>
+                        <span className="program-card__status" style={{ background: '#f1f5f9', color: '#64748b', fontSize: 11, padding: '3px 8px', borderRadius: 999 }}>{item.course || '—'}</span>
+                        <span className={`program-card__status ${isActive(item) ? 'program-card__status--active' : 'program-card__status--archived'}`}>
+                          <span className="program-card__status-dot" />{isActive(item) ? 'Active' : 'Archived'}
                         </span>
-                      </td>
-                      <td>
-                        <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} disabled={busy || !!editingId}>Edit</button>{' '}
-                        <button className={`btn btn--sm ${isActive(item) ? 'btn--danger' : 'btn--ghost'}`}
-                          onClick={() => handleUpdate(item.id, { status: isActive(item) ? 'archived' : 'active' }, 'clo.updated')} disabled={busy || !!editingId}>
+                      </div>
+                      <p className="program-card__desc">{item.description || 'No description.'}</p>
+                      <div style={{ fontSize: 12.5, background: '#f8fafc', border: '1px solid #f1f5f9', borderRadius: 8, padding: '8px 10px', color: '#475569' }}>
+                        <strong style={{ color: '#64748b' }}>POs:</strong> {item.title || '—'}
+                      </div>
+                      <div className="program-card__actions">
+                        <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} disabled={busy || !!editingId}>Edit</button>
+                        <button className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleUpdate(item.id, { status: isActive(item) ? 'archived' : 'active' }, 'clo.updated')} disabled={busy || !!editingId}>
                           {isActive(item) ? 'Archive' : 'Restore'}
                         </button>
                         {!isActive(item) && (
-                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'clo.deleted')} disabled={busy || !!editingId}>Delete</button>
+                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'clo.deleted')} disabled={busy || !!editingId} style={{ marginLeft: 'auto' }}>Delete</button>
                         )}
-                      </td>
+                      </div>
                     </>
                   )}
-                </tr>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+          )}
         </div>
       )}
     </div>

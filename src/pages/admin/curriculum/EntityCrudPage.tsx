@@ -434,98 +434,105 @@ alignments,
       </form>
 
       {loading ? (
-        <p>Loading {title.toLowerCase()}...</p>
+        <div className="program-grid" style={{ marginTop: 8 }}>
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="program-card--2026" style={{ opacity: 0.6 }}>
+              <div style={{ height: 12, background: '#f1f5f9', borderRadius: 6, width: '40%' }} />
+              <div style={{ height: 16, background: '#f1f5f9', borderRadius: 6 }} />
+              <div style={{ height: 40, background: '#f8fafc', borderRadius: 6 }} />
+            </div>
+          ))}
+        </div>
       ) : (
-        <div className="panel table-wrap">
-          <div className="sd-tabs">
-            <button className={`sd-tab ${!archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(false)}>Active</button>
-            <button className={`sd-tab ${archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(true)}>
-              Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
-            </button>
-            <input className="input input--sm sd-tabs__search" type="search" placeholder={`Search ${title.toLowerCase()}...`} value={query} onChange={(e) => setQuery(e.target.value)} />
+        <div className="program-panel">
+          <div className="program-toolbar">
+            <div className="sd-tabs" style={{ marginBottom: 0, flex: 1 }}>
+              <button className={`sd-tab ${!archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(false)}>Active</button>
+              <button className={`sd-tab ${archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(true)}>
+                Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
+              </button>
+            </div>
+            <label className="program-search" aria-label={`Search ${title.toLowerCase()}`}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="M20 20L15.5 15.5"/></svg>
+              <input className="input input--sm" type="search" placeholder={`Search ${title.toLowerCase()}...`} value={query} onChange={(e) => setQuery(e.target.value)} />
+            </label>
           </div>
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Code</th>
-                {showTitle && <th>{titleLabel}</th>}
-                {(tableAlignments ?? alignments ?? []).map((a) => <th key={a.relationField}>{a.label}</th>)}
-                {!alignments && showDescription && <th>{descriptionLabel}</th>}
-                {counts && <th>{countLabel}</th>}
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visible.length === 0 && (
-                <tr>
-                  <td colSpan={3 + (showTitle ? 1 : 0) + ((alignments ?? []).length || (showDescription ? 1 : 0)) + (counts ? 1 : 0)}>
-                    No {title.toLowerCase()} yet.
-                  </td>
-                </tr>
-              )}
+          {visible.length === 0 ? (
+            <div className="program-empty" style={{ marginTop: 14 }}>
+              <strong>No {title.toLowerCase()} yet.</strong>
+              <span>{query ? `No results for "${query}"` : `Create your first ${title.toLowerCase()} above.`}</span>
+            </div>
+          ) : (
+            <div className="program-grid" style={{ marginTop: 14 }}>
               {visible.map((item) => (
-                <tr key={item.id} className={!isActive(item) ? 'sd-archived' : ''}>
+                <div key={item.id} className="program-card--2026 card-enter" data-status={isActive(item) ? 'active' : 'archived'}>
                   {editingId === item.id ? (
                     <>
-                      <td><input className="input input--sm" style={codeWidth ? { width: codeWidth } : undefined} value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} /></td>
+                      <div className="program-card__top">
+                        <input className="input input--sm" style={codeWidth ? { width: codeWidth, flex: 1 } : { flex: 1 }} value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} placeholder={codeLabel} />
+                      </div>
                       {showTitle && (
-                        <td>{titleMultiline ? (
-                          <textarea className="input input--sm" rows={3} ref={autoResize} value={editForm.title}
-                            onChange={(e) => { setEditForm({ ...editForm, title: e.target.value }); autoResize(e.target) }} />
-                        ) : (
-                          <input className="input input--sm" value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} />
-                        )}</td>
+                        <div>
+                          {titleMultiline ? (
+                            <textarea className="input input--sm" rows={2} ref={autoResize} value={editForm.title} onChange={(e) => { setEditForm({ ...editForm, title: e.target.value }); autoResize(e.target) }} placeholder={titleLabel} />
+                          ) : (
+                            <input className="input input--sm" value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} placeholder={titleLabel} />
+                          )}
+                        </div>
                       )}
                       {(tableAlignments ?? alignments ?? []).map((a) => (
-                        <td key={a.relationField}>
-                          {alignmentSelect(a, editForm.align[a.relationField] || '', (v) =>
-                            setEditForm({ ...editForm, align: { ...editForm.align, [a.relationField]: v } }), isPeoSgDisabled(editForm.align, a))}
-                        </td>
+                        <div key={a.relationField}>
+                          <label className="field" style={{ marginBottom: 0 }}>
+                            <span>{a.label}</span>
+                            {alignmentSelect(a, editForm.align[a.relationField] || '', (v) =>
+                              setEditForm({ ...editForm, align: { ...editForm.align, [a.relationField]: v } }), isPeoSgDisabled(editForm.align, a))}
+                          </label>
+                        </div>
                       ))}
                       {!alignments && showDescription && (
-                        <td>
-                          <textarea className="input input--sm" rows={3} ref={autoResize} value={editForm.description}
-                            onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} />
-                        </td>
+                        <textarea className="input input--sm" rows={2} ref={autoResize} value={editForm.description} onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} placeholder={descriptionLabel} />
                       )}
-                      {counts && <td></td>}
-                      <td></td>
-                      <td>
-                        <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>Save</button>{' '}
+                      <div className="program-card__actions">
+                        <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>Save</button>
                         <button className="btn btn--ghost btn--sm" onClick={() => setEditingId(null)}>Cancel</button>
-                      </td>
+                      </div>
                     </>
                   ) : (
                     <>
-                      <td><strong>{formatCode(codeOf(item))}</strong></td>
-                      {showTitle && <td>{titleOf(item)}</td>}
-                      {(tableAlignments ?? alignments ?? []).map((a) => (
-                        <td key={a.relationField}>{alignLabelOf(item, a)}</td>
-                      ))}
-                      {!alignments && showDescription && <td>{descOf(item) || '—'}</td>}
-                      {counts && <td>{counts[item.id] ?? 0}</td>}
-                      <td>
-                        <span className={`sd-status-badge ${isActive(item) ? 'sd-status-badge--active' : 'sd-status-badge--archived'}`}>
-                          {isActive(item) ? 'active' : 'archived'}
+                      <div className="program-card__top">
+                        <span className="program-card__code">{formatCode(codeOf(item))}</span>
+                        <span className={`program-card__status ${isActive(item) ? 'program-card__status--active' : 'program-card__status--archived'}`}>
+                          <span className="program-card__status-dot" />{isActive(item) ? 'Active' : 'Archived'}
                         </span>
-                      </td>
-                      <td>
-                        <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} disabled={busy || !!editingId}>Edit</button>{' '}
-                        <button className={`btn btn--sm ${isActive(item) ? 'btn--danger' : 'btn--ghost'}`}
-                          onClick={() => handleUpdate(item.id, { status: isActive(item) ? 'archived' : 'active' }, updateAction)} disabled={busy || !!editingId}>
+                      </div>
+                      {showTitle && <h3 className="program-card__name">{titleOf(item)}</h3>}
+                      {(tableAlignments ?? alignments ?? []).length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {(tableAlignments ?? alignments ?? []).map((a) => (
+                            <div key={a.relationField} style={{ fontSize: 12.5, color: '#475569', display: 'flex', gap: 6 }}>
+                              <span style={{ fontWeight: 700, color: '#64748b', whiteSpace: 'nowrap' }}>{a.label}:</span>
+                              <span style={{ color: '#0f172a' }}>{alignLabelOf(item, a)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {!alignments && showDescription && <p className="program-card__desc">{descOf(item) || '—'}</p>}
+                      {counts && <div style={{ fontSize: 12, color: '#64748b' }}>{countLabel}: <strong style={{ color: '#0f172a' }}>{counts[item.id] ?? 0}</strong></div>}
+                      <div className="program-card__actions">
+                        <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} disabled={busy || !!editingId}>Edit</button>
+                        <button className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleUpdate(item.id, { status: isActive(item) ? 'archived' : 'active' }, updateAction)} disabled={busy || !!editingId}>
                           {isActive(item) ? 'Archive' : 'Restore'}
                         </button>
                         {!isActive(item) && allowDelete && (
-                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, deleteAction)} disabled={busy || !!editingId}>Delete</button>
+                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, deleteAction)} disabled={busy || !!editingId} style={{ marginLeft: 'auto' }}>Delete</button>
                         )}
-                      </td>
+                      </div>
                     </>
                   )}
-                </tr>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+          )}
         </div>
       )}
     </div>
