@@ -47,8 +47,6 @@ const ICONS: Record<string, string> = {
   peos: 'path M4 19.5A2.5 2.5 0 0 1 6.5 17H20|path M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z',
   'program-outcomes': 'path M3 3v18h18|path M7 16l3-3 3 3 5-8',
   analytics: 'path M3 3v18h18|rect 7 12 3 6 1|rect 12 7 3 11 1|rect 17 10 3 8 1',
-  assessments: 'path M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z|polyline 14 2 14 8 20 8|line 16 13 8 13|line 16 17 8 17',
-  attainment: 'path M3 3v18h18|rect 7 12 3 6 1|rect 12 7 3 11 1|rect 17 10 3 8 1',
   'activity-logs': 'path M12 20h9|path M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z',
   profile: 'circle 12 8 4|path M4 21c0-4.418 3.582-7 8-7s8 2.582 8 7',
 }
@@ -76,9 +74,6 @@ const ACADEMICS_META: Record<string, { desc: string }> = {
   clo: { desc: 'Course learning outcomes' },
 }
 
-// Assessment monitoring (Option C, flat pills) — separate from Academics
-const ASSESSMENT_IDS = new Set(['assessments', 'attainment'])
-
 function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onToggle }: SidebarProps) {
   const [ddOpen, setDdOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
@@ -87,14 +82,13 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
   const navRef = useRef<HTMLDivElement>(null)
   const leaveTimer = useRef<number | null>(null)
 
-  // Separate dashboard, academics, assessment (flat pills, Option C), and other items — profile is handled in avatar dropdown
+  // Separate dashboard, academics, and other items — profile is handled in avatar dropdown (Awwwards-style)
   const academics = navItems.filter((n) => ACADEMICS_IDS.has(n.id))
-  const assessmentItems = navItems.filter((n) => ASSESSMENT_IDS.has(n.id))
   const hasAcademics = academics.length > 2
   const dashboardItem = navItems.find((n) => n.id === 'dashboard')
   const otherItems = hasAcademics
-    ? navItems.filter((n) => n.id !== 'dashboard' && !ACADEMICS_IDS.has(n.id) && !ASSESSMENT_IDS.has(n.id) && n.id !== 'profile')
-    : navItems.filter((n) => n.id !== 'dashboard' && !ASSESSMENT_IDS.has(n.id) && n.id !== 'profile')
+    ? navItems.filter((n) => n.id !== 'dashboard' && !ACADEMICS_IDS.has(n.id) && n.id !== 'profile')
+    : navItems.filter((n) => n.id !== 'dashboard' && n.id !== 'profile')
 
   const isAcademicsActive = academics.some((n) => n.id === activePage)
 
@@ -258,19 +252,6 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
                 onClick={() => navigate(id)}
               >
                 <Icon d={ICONS[id] || ICONS.dashboard} className="hdr__icon" />
-                <span>{label}</span>
-              </button>
-            ))}
-
-            {/* Assessment monitoring — flat pills (Option C) */}
-            {assessmentItems.map(({ id, label }) => (
-              <button
-                key={id}
-                type="button"
-                className={`hdr__item ${activePage === id ? 'hdr__item--active' : ''}`}
-                onClick={() => navigate(id)}
-              >
-                <Icon d={ICONS[id] || ICONS.analytics} className="hdr__icon" />
                 <span>{label}</span>
               </button>
             ))}
