@@ -926,6 +926,47 @@ export default function SubjectView() {
             </select>
           </label>
 
+          {/* Inside the selected subject — shown directly below the code */}
+          {selectedCourse && (
+            <div className="subject-view__inside">
+              <h4 className="subject-view__inside-title">Inside {selectedCourse.code}</h4>
+              <p className="subject-view__inside-subtitle">{selectedCourse.title}</p>
+              {selectedCourse.description && (
+                <p className="subject-view__inside-desc">{selectedCourse.description}</p>
+              )}
+              <div className="subject-view__inside-grid">
+                <span><strong>Units:</strong> {selectedCourse.units ?? 0} ({selectedCourse.credit_lecture ?? 0} lec / {selectedCourse.credit_laboratory ?? 0} lab)</span>
+                <span><strong>Status:</strong> <span className={`status-badge status-badge--${selectedCourse.status}`}>{selectedCourse.status}</span></span>
+                <span><strong>Prerequisite:</strong> {selectedCourse.prerequisite?.trim() || '—'}</span>
+                <span><strong>Corequisite:</strong> {selectedCourse.corequisite?.trim() || '—'}</span>
+                {(() => {
+                  const cid = typeof selectedCourse.curriculum_id === 'object' ? (selectedCourse.curriculum_id as any)?.code ?? (selectedCourse.curriculum_id as any)?.id : selectedCourse.curriculum_id
+                  const curLabel = typeof selectedCourse.curriculum_id === 'object' ? (selectedCourse.curriculum_id as any)?.code : cid
+                  return <span><strong>Curriculum:</strong> {curLabel || '—'}</span>
+                })()}
+              </div>
+              {(() => {
+                if (!datasets) return <p className="subject-view__inside-hint">Press <strong>View Graph</strong> to load CLOs / POs inside this subject.</p>
+                const key = normalizeCode(selectedCourse.code)
+                const insideClos = datasets.clos.filter((c) => cloMatchesSubject(c.course || '', key))
+                if (insideClos.length === 0) return <p className="subject-view__inside-empty">No CLOs linked to this subject yet.</p>
+                return (
+                  <div className="subject-view__inside-list">
+                    <strong className="subject-view__inside-list-title">CLOs inside ({insideClos.length}):</strong>
+                    <ul>
+                      {insideClos.slice(0, 6).map((clo) => (
+                        <li key={clo.id} title={clo.description || clo.title}>
+                          <span className="subject-view__inside-code">{clo.code}</span> — {clo.description || clo.title}
+                        </li>
+                      ))}
+                      {insideClos.length > 6 && <li className="subject-view__inside-more">+ {insideClos.length - 6} more — see graph</li>}
+                    </ul>
+                  </div>
+                )
+              })()}
+            </div>
+          )}
+
           {leftCounts && (
             <div className="subject-view__summary">
               <div className="subject-view__summary-item">
@@ -1002,12 +1043,6 @@ export default function SubjectView() {
               )}
               <div className="subject-view__graph-toolbar">
                 <h3 className="subject-view__graph-title">{selectedCourse.code} — {selectedCourse.title}</h3>
-                <div className="subject-view__graph-actions">
-                  <button className="btn btn--ghost btn--sm" onClick={() => setCollapsedIds(new Set())} title="Expand every branch">Expand all</button>
-                  <button className="btn btn--ghost btn--sm" onClick={collapseAll} title="Collapse to the first ring">Collapse all</button>
-                  <button className="btn btn--ghost btn--sm" onClick={resetZoom} title="Center the graph and reset zoom">Reset view</button>
-                  <button className="btn btn--ghost btn--sm" onClick={handleRefresh} disabled={spinner} title="Reload relationship data">Refresh</button>
-                </div>
               </div>
               <p className="subject-view__graph-hint">Click a branch node to expand or collapse. Click a pre-req or co-req to jump to that subject. Drag nodes to reposition. Scroll to zoom.</p>
               <div className="subject-view__legend">
