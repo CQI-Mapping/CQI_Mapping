@@ -926,47 +926,6 @@ export default function SubjectView() {
             </select>
           </label>
 
-          {/* Inside the selected subject — shown directly below the code */}
-          {selectedCourse && (
-            <div className="subject-view__inside">
-              <h4 className="subject-view__inside-title">Inside {selectedCourse.code}</h4>
-              <p className="subject-view__inside-subtitle">{selectedCourse.title}</p>
-              {selectedCourse.description && (
-                <p className="subject-view__inside-desc">{selectedCourse.description}</p>
-              )}
-              <div className="subject-view__inside-grid">
-                <span><strong>Units:</strong> {selectedCourse.units ?? 0} ({selectedCourse.credit_lecture ?? 0} lec / {selectedCourse.credit_laboratory ?? 0} lab)</span>
-                <span><strong>Status:</strong> <span className={`status-badge status-badge--${selectedCourse.status}`}>{selectedCourse.status}</span></span>
-                <span><strong>Prerequisite:</strong> {selectedCourse.prerequisite?.trim() || '—'}</span>
-                <span><strong>Corequisite:</strong> {selectedCourse.corequisite?.trim() || '—'}</span>
-                {(() => {
-                  const cid = typeof selectedCourse.curriculum_id === 'object' ? (selectedCourse.curriculum_id as any)?.code ?? (selectedCourse.curriculum_id as any)?.id : selectedCourse.curriculum_id
-                  const curLabel = typeof selectedCourse.curriculum_id === 'object' ? (selectedCourse.curriculum_id as any)?.code : cid
-                  return <span><strong>Curriculum:</strong> {curLabel || '—'}</span>
-                })()}
-              </div>
-              {(() => {
-                if (!datasets) return <p className="subject-view__inside-hint">Press <strong>View Graph</strong> to load CLOs / POs inside this subject.</p>
-                const key = normalizeCode(selectedCourse.code)
-                const insideClos = datasets.clos.filter((c) => cloMatchesSubject(c.course || '', key))
-                if (insideClos.length === 0) return <p className="subject-view__inside-empty">No CLOs linked to this subject yet.</p>
-                return (
-                  <div className="subject-view__inside-list">
-                    <strong className="subject-view__inside-list-title">CLOs inside ({insideClos.length}):</strong>
-                    <ul>
-                      {insideClos.slice(0, 6).map((clo) => (
-                        <li key={clo.id} title={clo.description || clo.title}>
-                          <span className="subject-view__inside-code">{clo.code}</span> — {clo.description || clo.title}
-                        </li>
-                      ))}
-                      {insideClos.length > 6 && <li className="subject-view__inside-more">+ {insideClos.length - 6} more — see graph</li>}
-                    </ul>
-                  </div>
-                )
-              })()}
-            </div>
-          )}
-
           {leftCounts && (
             <div className="subject-view__summary">
               <div className="subject-view__summary-item">
@@ -1065,8 +1024,9 @@ export default function SubjectView() {
             </div>
           )}
         </div>
+      </div>
 
-      {/* Below Program + Visualization — padded About card */}
+      {/* Below Program + Visualization — padded About card (full-width, outside grid) */}
       {selectedCourse && (
         <div className="panel subject-view__about" style={{ marginTop: 16, padding: 20 }}>
           <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800, letterSpacing: '-0.02em' }}>
@@ -1118,7 +1078,6 @@ export default function SubjectView() {
           </p>
         </div>
       )}
-      </div>
     </div>
   )
 }
