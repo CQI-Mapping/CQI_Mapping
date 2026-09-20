@@ -236,11 +236,6 @@ function App() {
         <main className="content-area">
           <div className="page-container">{renderPage()}</div>
         </main>
-        <footer className="app-footer">
-          <div className="app-footer__inner">
-            <span>© 2026 NBSC · Institute of Computer Studies</span>
-          </div>
-        </footer>
       </div>
     </div>
   )
