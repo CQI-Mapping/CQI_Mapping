@@ -239,8 +239,6 @@ function App() {
         <footer className="app-footer">
           <div className="app-footer__inner">
             <span>© 2026 NBSC · Institute of Computer Studies</span>
-            <span className="app-footer__dot">•</span>
-            <span>CQI Monitoring — Accreditation • Curriculum Mapping • Outcomes Analytics</span>
           </div>
         </footer>
       </div>
