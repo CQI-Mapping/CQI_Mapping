@@ -1,20 +1,12 @@
-// Admin Subject View: two-panel layout — left panel has program dropdown +
-// subject dropdown; right panel renders a D3.js outcome hierarchy graph:
+// Admin Subject View — force-directed outcome hierarchy graph (Observable style).
+// Left panel: program + subject selection; Right panel: D3 force simulation:
 //
-//   Subject (double-ring, root)
-//     ├─ Curriculum (oval)
-//     ├─ Prerequisite(s)
-//     ├─ Corequisite(s)
-//     └─ CLO(s)
-//        └─ PO(s)
-//           ├─ PEO
-//           ├─ Strategic Goal
-//           └─ CHED Memorandum Order
+//   Subject (root) → Curriculum / Prerequisite / Corequisite / CLO → PO → PEO/SG/CMO
 //
-// The graph only renders after the user presses View. Relationships are built
-// from the standalone admn tables (admin_course_learning_outcomes,
-// admin_program_outcomes, program_educational_objectives, strategic_goals,
-// ched_memorandum_orders, resources) — not clo_po_matrix.
+// Rewritten to match the Observable example you provided:
+//   width 928, height 680, color = d3.scaleOrdinal(d3.schemeCategory10),
+//   forceSimulation with link/charge/x/y, centered viewBox, line + circle,
+//   title tooltip, drag (alphaTarget 0.3), tick updates.
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import * as d3 from 'd3'
@@ -69,18 +61,6 @@ interface OutcomeDatasets {
   cmos: ChedMemoOrder[]
 }
 
-const colorMap: Record<NodeKind, string> = {
-  curriculum: '#9333ea',
-  subject: '#2563eb',
-  prerequisite: '#f97316',
-  corequisite: '#22c55e',
-  clo: '#06b6d4',
-  po: '#7c3aed',
-  peo: '#db2777',
-  sg: '#d97706',
-  cmo: '#0891b2',
-}
-
 const isActive = <T extends { status?: string }>(x: T) => !x.status || x.status === 'active'
 
 const normalizeCode = (code: string) =>
@@ -99,8 +79,6 @@ const extractCodes = (text: string, prefix: 'PO' | 'PEO' | 'SG'): string[] => {
   return out
 }
 
-// Strategic Goals in DB use code "Goal N" (e.g. "Goal 1") not "SG-N". Accept both
-// prefixes and normalize tokens to "Goal N" so they match strategic_goals.code.
 const extractSgCodes = (text: string): string[] => {
   const re = /(?:SG|Goal)\s*-?\s*(\d+)/gi
   const out: string[] = []
@@ -109,8 +87,6 @@ const extractSgCodes = (text: string): string[] => {
   return out
 }
 
-// Resolve an SG token against the strategic goals list by normalized code first,
-// then by numeric fallback (so "Goal 1" ↔ "SG-1" both match "Goal 1" or "SG-1").
 const findSgByToken = (sgs: StrategicGoal[], tok: string): StrategicGoal | undefined => {
   const key = normalizeCode(tok)
   return (
@@ -122,8 +98,6 @@ const findSgByToken = (sgs: StrategicGoal[], tok: string): StrategicGoal | undef
   )
 }
 
-// True when a CLO record's `course` field refers to the given subject code.
-// Lenient: handles "IT 21", "IT21", "IT 21 - OOP", "IT21-OOP", "IT-21" etc.
 const cloMatchesSubject = (cloCourse: string, subjectKey: string) => {
   const raw = (cloCourse || '').trim()
   if (!raw) return false
@@ -135,7 +109,6 @@ const cloMatchesSubject = (cloCourse: string, subjectKey: string) => {
   return tokens.includes(subjectKey)
 }
 
-// Count unique nodes per kind plus unresolved placeholders across the tree.
 const countKinds = (root: GraphNodeData): { counts: Record<NodeKind, number>; unresolved: number } => {
   const seen = new Map<NodeKind, Set<string>>()
   let unresolved = 0
@@ -152,7 +125,6 @@ const countKinds = (root: GraphNodeData): { counts: Record<NodeKind, number>; un
   return { counts, unresolved }
 }
 
-// Legend dot class for each node kind.
 const dotClass = (k: NodeKind) => {
   switch (k) {
     case 'curriculum': return 'subject-view__dot--curriculum'
@@ -167,10 +139,9 @@ const dotClass = (k: NodeKind) => {
   }
 }
 
-// Legend rows shown above the graph, in tree order.
 const legendDefs: Array<{ kind: NodeKind; label: string; tip: string }> = [
   { kind: 'curriculum', label: 'Curriculum', tip: 'Program curriculum the subject belongs to' },
-  { kind: 'subject', label: 'Subject', tip: 'The selected subject (double ring)' },
+  { kind: 'subject', label: 'Subject', tip: 'The selected subject' },
   { kind: 'prerequisite', label: 'Pre-req', tip: 'Prerequisite subject(s) for this subject' },
   { kind: 'corequisite', label: 'Co-req', tip: 'Corequisite subject(s) for this subject' },
   { kind: 'clo', label: 'CLO', tip: 'Course Learning Outcome(s) of this subject' },
@@ -179,6 +150,19 @@ const legendDefs: Array<{ kind: NodeKind; label: string; tip: string }> = [
   { kind: 'sg', label: 'SG', tip: 'Strategic Goal(s)' },
   { kind: 'cmo', label: 'CMO', tip: 'CHED Memorandum Order(s)' },
 ]
+
+// group index for color scale (schemeCategory10)
+const kindToGroup: Record<NodeKind, number> = {
+  curriculum: 0,
+  subject: 1,
+  prerequisite: 2,
+  corequisite: 3,
+  clo: 4,
+  po: 5,
+  peo: 6,
+  sg: 7,
+  cmo: 8,
+}
 
 export default function SubjectView() {
   const [programs, setPrograms] = useState<Program[]>([])
@@ -198,7 +182,6 @@ export default function SubjectView() {
   const tooltipRef = useRef<HTMLDivElement>(null)
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null)
 
-  // Reset expand/collapse when subject changes — like branch-visualizer fresh state.
   useEffect(() => { setCollapsedIds(new Set()) }, [selectedCourseId])
 
   useEffect(() => {
@@ -235,7 +218,6 @@ export default function SubjectView() {
     [programCourses, selectedCourseId],
   )
 
-  // Quick pre-req / co-req / CLO tallies shown in the left panel before View.
   const leftCounts = useMemo(() => {
     if (!selectedCourse) return null
     const pre = (selectedCourse.prerequisite || '').split(',').map((s) => s.trim()).filter(Boolean).length
@@ -248,7 +230,6 @@ export default function SubjectView() {
     return { pre, core, clos }
   }, [selectedCourse, datasets])
 
-  // ── Load + cache outcome datasets on first View ────────────────────────────
   const loadDatasets = async (force = false) => {
     if (datasets && !force) return
     setSpinner(true)
@@ -277,7 +258,6 @@ export default function SubjectView() {
     }
   }
 
-  // ── Build the graph model ──────────────────────────────────────────────────
   const buildGraphModel = useCallback(
     (datasetsRef: OutcomeDatasets, subject: Course): GraphNodeData => {
       const subjectKey = normalizeCode(subject.code)
@@ -292,7 +272,6 @@ export default function SubjectView() {
         children: [],
       }
 
-      // Curriculum as a child of subject
       const cidOpt = subject.curriculum_id
       const cid = cidOpt && typeof cidOpt === 'object' ? cidOpt.id : cidOpt
       const curRec = cid ? datasetsRef.resources.find((r) => r.id === cid) : undefined
@@ -316,7 +295,6 @@ export default function SubjectView() {
             },
       )
 
-      // Prerequisite + corequisite satellites attach to the subject.
       const addSat = (raw: string, kind: NodeKind) => {
         if (!raw) return
         for (const code of raw.split(',').map((s) => s.trim()).filter(Boolean)) {
@@ -335,7 +313,6 @@ export default function SubjectView() {
       addSat(subject.prerequisite, 'prerequisite')
       addSat(subject.corequisite, 'corequisite')
 
-      // CLOs whose course matches the selected subject code.
       const subjectClos = datasetsRef.clos.filter((clo) =>
         cloMatchesSubject(clo.course || '', subjectKey)
       )
@@ -347,7 +324,6 @@ export default function SubjectView() {
           if (!poNode.children.some((c) => c.id === child.id)) poNode.children.push(child)
         }
 
-        // PEO: id-first, then text-code fallback.
         if (poRec.peo_id) {
           const rec = datasetsRef.peos.find((p) => p.id === poRec.peo_id)
           if (rec) pushChild({ id: `peo-${rec.id}`, code: rec.code, title: rec.title || rec.code, kind: 'peo', placeholder: false, children: [] })
@@ -364,7 +340,6 @@ export default function SubjectView() {
           }
         }
 
-        // Strategic Goal: id-first, then text-code fallback.
         if (poRec.sg_id) {
           const rec = datasetsRef.sgs.find((s) => s.id === poRec.sg_id)
           if (rec) pushChild({ id: `sg-${rec.id}`, code: rec.code, title: rec.title || rec.description || rec.code, kind: 'sg', placeholder: false, children: [] })
@@ -381,7 +356,6 @@ export default function SubjectView() {
           }
         }
 
-        // CHED Memorandum Order: id-first, then description/title text fallback.
         if (poRec.cmo_id) {
           const rec = datasetsRef.cmos.find((c) => c.id === poRec.cmo_id)
           if (rec) pushChild({ id: `cmo-${rec.id}`, code: rec.code, title: rec.title || rec.code, kind: 'cmo', placeholder: false, children: [] })
@@ -401,9 +375,6 @@ export default function SubjectView() {
           if (cmoMatch) {
             pushChild({ id: `cmo-${cmoMatch.id}`, code: cmoMatch.code, title: cmoMatch.title || cmoMatch.code, kind: 'cmo', placeholder: false, children: [] })
           } else if (text) {
-            // Fixed CMO statements (e.g. "Common to all programs in all types of
-            // schools") are stored as text only, with cmo_id NULL — surface them
-            // as a resolved CMO leaf instead of dropping the alignment.
             pushChild({ id: `cmo-text-${normalizeCode(text).slice(0, 48) || 'x'}`, code: 'CMO', title: text, kind: 'cmo', placeholder: false, children: [] })
           }
         }
@@ -445,7 +416,6 @@ export default function SubjectView() {
     [programCourses],
   )
 
-  // Unique node counts per kind once a graph is on screen (used in the legend).
   const graphStats = useMemo(() => {
     if (!selectedCourse || !datasets) return null
     try {
@@ -455,7 +425,6 @@ export default function SubjectView() {
     }
   }, [selectedCourse, datasets, buildGraphModel])
 
-  // Collapse every expandable node except the center subject.
   const collapseAll = useCallback(() => {
     if (!datasets || !selectedCourse) return
     const data = buildGraphModel(datasets, selectedCourse)
@@ -464,11 +433,10 @@ export default function SubjectView() {
       if (n.children?.length) { ids.add(n.id); n.children.forEach(collect) }
     }
     collect(data)
-    ids.delete(data.id) // keep the subject ring visible
+    ids.delete(data.id)
     setCollapsedIds(ids)
   }, [datasets, selectedCourse, buildGraphModel])
 
-  // Reset the SVG zoom/pan transform to its default framed view.
   const resetZoom = useCallback(() => {
     if (svgRef.current && zoomRef.current) {
       d3.select(svgRef.current).call(zoomRef.current.transform, d3.zoomIdentity)
@@ -481,7 +449,6 @@ export default function SubjectView() {
     await loadDatasets(true)
   }
 
-  // Jump back to a subject earlier in the navigation trail.
   const handleCrumb = useCallback((i: number) => {
     if (!selectedCourseId || navStack.length === 0) return
     const trail = [...navStack, selectedCourseId]
@@ -492,10 +459,9 @@ export default function SubjectView() {
     setGraphError('')
   }, [selectedCourseId, navStack])
 
-  // ── D3 tree render (advanced branching visualization) ─────────────────────
-  // Vertical top-down tree: Subject (root) → Curriculum / CLO / Pre-req / Co-req → PO → PEO/SG/CMO
-  // Smooth curved links (d3.linkVertical with the default bumpY curve),
-  // drop-shadow nodes, keyed enter/update/exit transitions, hover, drag, zoom.
+  // ── D3 force graph (Observable example) ─────────────────────────────────
+  // width 928, height 680, color = scaleOrdinal(schemeCategory10), forceSimulation
+  // with link/charge/x/y, centered viewBox, lines + circles, drag + tick.
   const renderGraph = useCallback(() => {
     const svgEl = svgRef.current
     const tip = tooltipRef.current
@@ -505,32 +471,14 @@ export default function SubjectView() {
     svg.on('.zoom', null)
     svg.selectAll('*').remove()
 
-    const width = containerSize.w || svgEl.clientWidth || 760
+    // Dimensions from example — keep responsive
+    const width = 928
+    const height = 680
 
-    // ── Build hierarchy + flatten with expand/collapse ───────────────
-    interface TreeNode {
-      id: string
-      rId: string
-      code: string
-      title: string
-      kind: NodeKind
-      placeholder: boolean
-      courseId?: string
-      depth: number
-      x: number
-      y: number
-      expandable: boolean
-      collapsed: boolean
-    }
-    interface TreeLink {
-      source: TreeNode
-      target: TreeNode
-      dashed: boolean
-    }
+    // Color scale exactly as in example
+    const color = d3.scaleOrdinal(d3.schemeCategory10)
 
-    // Nodes can share a model id (a PO aligned to several CLOs, or the same
-    // PEO/SG/CMO aligned to several POs). Position is only unique via the full
-    // ancestor chain, so join D3 data and resolve link endpoints by that.
+    // Build hierarchy respecting collapsedIds, then flatten to nodes/links with pathKey for uniqueness
     const pathKey = (d: d3.HierarchyNode<GraphNodeData>): string => {
       const parts: string[] = []
       let cur: d3.HierarchyNode<GraphNodeData> | null = d
@@ -543,42 +491,86 @@ export default function SubjectView() {
     const root = d3.hierarchy<GraphNodeData>(data, (d) =>
       collapsedIds.has(d.id) ? undefined : d.children
     )
-    const treeLayout = d3.tree<GraphNodeData>().nodeSize([170, 128])
-    treeLayout(root)
 
-    // Center horizontally, keep a comfortable top margin.
-    const xs = root.descendants().map((d) => d.x ?? 0)
-    const minX = Math.min(...xs)
-    const maxX = Math.max(...xs)
-    const treeWidth = maxX - minX || 1
-    const offsetX = width / 2 - (minX + treeWidth / 2)
-    const offsetY = 62
+    // Flatten hierarchy to unique nodes via pathKey, and collect links
+    type ForceNode = {
+      id: string
+      rId: string
+      code: string
+      title: string
+      kind: NodeKind
+      group: number
+      placeholder: boolean
+      courseId?: string
+      expandable: boolean
+      collapsed: boolean
+      x?: number
+      y?: number
+      fx?: number | null
+      fy?: number | null
+    }
+    type ForceLink = { source: string; target: string; value: number; dashed: boolean; placeholder: boolean }
 
-    const nodes: TreeNode[] = root.descendants().map((d) => ({
-      id: d.data.id,
-      rId: pathKey(d),
-      code: d.data.code,
-      title: d.data.title,
-      kind: d.data.kind,
-      placeholder: d.data.placeholder,
-      courseId: d.data.courseId,
-      depth: d.depth,
-      x: (d.x ?? 0) + offsetX,
-      y: (d.y ?? 0) + offsetY,
-      expandable: !!(d.data.children && d.data.children.length > 0),
-      collapsed: collapsedIds.has(d.data.id),
-    }))
-    const nodeById = new Map(nodes.map((n) => [n.rId, n]))
-    const links: TreeLink[] = root.links().map((l) => ({
-      source: nodeById.get(pathKey(l.source))!,
-      target: nodeById.get(pathKey(l.target))!,
-      dashed: l.target.data.kind === 'corequisite' || l.target.data.placeholder,
-    }))
+    const forceNodes: ForceNode[] = []
+    const forceLinks: ForceLink[] = []
+    const seen = new Map<string, ForceNode>()
 
-    const radiusOf = (d: TreeNode) =>
-      d.depth === 1 ? 27 : d.depth === 2 ? 23 : 18
+    root.each((d) => {
+      const rId = pathKey(d)
+      const n: ForceNode = {
+        id: rId,
+        rId,
+        code: d.data.code,
+        title: d.data.title,
+        kind: d.data.kind,
+        group: kindToGroup[d.data.kind],
+        placeholder: d.data.placeholder,
+        courseId: d.data.courseId,
+        expandable: !!(d.data.children && d.data.children.length > 0),
+        collapsed: collapsedIds.has(d.data.id),
+      }
+      seen.set(rId, n)
+      forceNodes.push(n)
+    })
+    root.links().forEach((l) => {
+      const s = pathKey(l.source)
+      const t = pathKey(l.target)
+      forceLinks.push({
+        source: s,
+        target: t,
+        value: 1,
+        dashed: l.target.data.kind === 'corequisite' || l.target.data.placeholder,
+        placeholder: l.target.data.placeholder,
+      })
+    })
 
-    // ── Defs: drop shadow + glow for nodes ──────────────────────────
+    // Copy for simulation (as in example)
+    const links = forceLinks.map(d => ({ ...d })) as unknown as d3.SimulationLinkDatum<ForceNode> & { dashed: boolean; placeholder: boolean }[]
+    const nodes = forceNodes.map(d => ({ ...d })) as ForceNode[]
+
+    // Radius helper — subject larger
+    const radiusOf = (d: ForceNode) => {
+      if (d.kind === 'subject') return 12
+      if (d.kind === 'curriculum') return 10
+      if (d.kind === 'clo' || d.kind === 'po') return 7
+      return 5
+    }
+
+    // Simulation exactly as in example, with named forces
+    const simulation = d3.forceSimulation<ForceNode>(nodes)
+      .force("link", d3.forceLink<ForceNode, typeof links[0]>(links).id((d: any) => d.id).distance(90).strength(0.6))
+      .force("charge", d3.forceManyBody().strength(-260))
+      .force("x", d3.forceX().strength(0.05))
+      .force("y", d3.forceY().strength(0.05))
+
+    // SVG container — viewBox centered, responsive
+    svg
+      .attr("width", width)
+      .attr("height", height)
+      .attr("viewBox", [-width / 2, -height / 2, width, height] as any)
+      .attr("style", "max-width: 100%; height: auto; display: block; background: transparent;")
+
+    // Defs: subtle shadow
     const defs = svg.append('defs')
     defs.append('filter')
       .attr('id', 'subject-view-shadow')
@@ -586,182 +578,173 @@ export default function SubjectView() {
       .attr('width', '220%').attr('height', '220%')
       .append('feDropShadow')
       .attr('dx', 0).attr('dy', 2).attr('stdDeviation', 2.5)
-      .attr('flood-color', 'rgba(15, 23, 42, 0.28)')
+      .attr('flood-color', 'rgba(15, 23, 42, 0.18)')
 
     const zoomGroup = svg.append('g')
 
-    // ── Links: smooth vertical S-curves ─────────────────────────────
-    const linkPath = d3.linkVertical<TreeLink, TreeNode>()
-      .x((d) => d.x)
-      .y((d) => d.y)
+    // Links
+    const link = zoomGroup.append("g")
+      .attr("stroke", "#999")
+      .attr("stroke-opacity", 0.6)
+      .selectAll("line")
+      .data(links)
+      .join("line")
+      .attr("stroke-width", d => Math.sqrt((d as any).value || 1) * 1.5)
+      .attr("stroke", d => (d as any).placeholder ? '#a5b4c8' : '#999')
+      .attr("stroke-dasharray", d => (d as any).dashed ? '6 4' : 'none')
 
-    const link = zoomGroup.append('g')
-      .attr('class', 'subject-view__links')
-      .selectAll<SVGPathElement, TreeLink>('path.subject-view__link')
-      .data(links, (l) => l.target.rId)
-      .join(
-        (enter) => enter
-          .append('path')
-          .attr('class', 'subject-view__link')
-          .attr('fill', 'none')
-          .attr('stroke', (l) => (l.target.placeholder ? '#a5b4c8' : '#7c8ba1'))
-          .attr('stroke-width', 2)
-          .attr('stroke-linecap', 'round')
-          .attr('stroke-dasharray', (l) => (l.dashed ? '6 4' : 'none'))
-          .attr('d', (l) => linkPath(l))
-          .style('opacity', 0)
-          .call((s) => s.transition().duration(500).delay(160).style('opacity', 1)),
-        (update) => update
-          .attr('stroke', (l) => (l.target.placeholder ? '#a5b4c8' : '#7c8ba1'))
-          .attr('stroke-dasharray', (l) => (l.dashed ? '6 4' : 'none'))
-          .call((s) => s.transition().duration(450).ease(d3.easeCubicInOut).attr('d', (l) => linkPath(l))),
-        (exit) => exit.call((s) => s.transition().duration(200).style('opacity', 0).remove()),
-      )
+    // Nodes
+    const node = zoomGroup.append("g")
+      .attr("stroke", "#fff")
+      .attr("stroke-width", 1.5)
+      .selectAll("circle")
+      .data(nodes)
+      .join("circle")
+      .attr("r", d => radiusOf(d as ForceNode))
+      .attr("fill", d => d.placeholder ? '#f8fafc' : color(String((d as ForceNode).group)) as string)
+      .attr("stroke", d => d.placeholder ? '#94a3b8' : '#fff')
+      .attr("stroke-dasharray", d => d.placeholder ? '4 2' : 'none')
+      .style('filter', 'url(#subject-view-shadow)')
+      .attr('cursor', d => (d.expandable || d.courseId ? 'pointer' : 'default'))
 
-    // ── Nodes: keyed <g> groups with animated transitions ───────────
-    const node = zoomGroup.append('g')
-      .attr('class', 'subject-view__nodes')
-      .selectAll<SVGGElement, TreeNode>('g.subject-view__node')
-      .data(nodes, (d) => d.rId)
-      .join(
-        (enter) => {
-          const g = enter.append('g')
-            .attr('class', 'subject-view__node')
-            .attr('transform', (d) => `translate(${d.x},${d.y + 16})`)
-            .style('opacity', 0)
-            .style('filter', 'url(#subject-view-shadow)')
-            .attr('cursor', (d) => (d.expandable || d.courseId ? 'pointer' : 'default'))
+    // Subject double-ring extra
+    const subjectExtra = zoomGroup.append('g')
+      .selectAll('circle')
+      .data(nodes.filter(n => n.kind === 'subject'))
+      .join('circle')
+      .attr('r', 18)
+      .attr('fill', 'none')
+      .attr('stroke', d => color(String(d.group)) as string)
+      .attr('stroke-width', 1.2)
+      .attr('stroke-opacity', 0.5)
+      .attr('pointer-events', 'none')
 
-          // Subject double-ring (root)
-          g.filter((d) => d.kind === 'subject')
-            .append('circle').attr('class', 'subject-view__ring')
-            .attr('r', 42)
-            .attr('fill', 'rgba(37, 99, 235, 0.16)')
-            .attr('stroke', '#2563eb')
-            .attr('stroke-width', 1.5)
-          g.filter((d) => d.kind === 'subject')
-            .append('circle').attr('class', 'subject-view__core')
-            .attr('r', 34)
-            .attr('fill', colorMap.subject)
-            .attr('stroke', '#fff')
-            .attr('stroke-width', 2.5)
-
-          // Curriculum ellipse
-          g.filter((d) => d.kind === 'curriculum')
-            .append('ellipse').attr('class', 'subject-view__shape')
-            .attr('rx', 58).attr('ry', 25)
-            .attr('fill', (d) => (d.placeholder ? '#f8fafc' : colorMap.curriculum))
-            .attr('stroke', (d) => (d.placeholder ? '#94a3b8' : colorMap.curriculum))
-            .attr('stroke-dasharray', (d) => (d.placeholder ? '5 3' : 'none'))
-            .attr('stroke-width', '2')
-
-          // All other nodes as circles
-          g.filter((d) => d.kind !== 'subject' && d.kind !== 'curriculum')
-            .append('circle').attr('class', 'subject-view__shape')
-            .attr('r', radiusOf)
-            .attr('fill', (d) => (d.placeholder ? '#f8fafc' : colorMap[d.kind]))
-            .attr('stroke', (d) => (d.placeholder ? '#94a3b8' : colorMap[d.kind]))
-            .attr('stroke-dasharray', (d) => (d.placeholder ? '5 3' : 'none'))
-            .attr('stroke-width', '2')
-
-          // Code label inside the node
-          g.append('text').attr('class', 'subject-view__label')
-            .attr('text-anchor', 'middle')
-            .attr('dy', '0.35em')
-            .attr('fill', (d) => (d.placeholder ? '#64748b' : '#fff'))
-            .attr('font-size', (d) => (d.depth <= 1 ? 13.5 : d.depth === 2 ? 11 : 9.5))
-            .attr('font-weight', 'bold')
-            .attr('pointer-events', 'none')
-            .text((d) => {
-              const max = d.depth <= 1 ? 16 : d.depth === 2 ? 9 : 7
-              const code = d.code.length > max ? d.code.slice(0, max - 1) + '…' : d.code
-              return code + (d.placeholder && d.kind !== 'curriculum' ? '?' : '')
-            })
-
-          // Expand / collapse badge
-          g.filter((d) => d.expandable && d.depth !== 0)
-            .each(function (d) {
-              const sel = d3.select(this)
-              const bx = d.kind === 'curriculum' ? 58 : radiusOf(d)
-              const by = d.kind === 'curriculum' ? 0 : -radiusOf(d)
-              sel.append('circle').attr('class', 'subject-view__badge')
-                .attr('r', 9).attr('cx', bx).attr('cy', by)
-                .attr('fill', '#fff')
-                .attr('stroke', '#cbd5e1')
-                .attr('stroke-width', 1.5)
-              sel.append('text').attr('class', 'subject-view__badge-text')
-                .attr('x', bx).attr('y', by)
-                .attr('dy', '0.32em').attr('text-anchor', 'middle')
-                .attr('font-size', '12px').attr('font-weight', '700')
-                .attr('fill', '#334155').attr('pointer-events', 'none')
-                .text(d.collapsed ? '+' : '−')
-            })
-
-          // Entrance: rise up and fade in, staggered by depth.
-          g.transition()
-            .duration(450)
-            .delay((d) => d.depth * 60)
-            .ease(d3.easeCubicOut)
-            .style('opacity', 1)
-            .attr('transform', (d) => `translate(${d.x},${d.y})`)
-
-          return g
-        },
-        (update) => {
-          update
-            .attr('cursor', (d) => (d.expandable || d.courseId ? 'pointer' : 'default'))
-            .select('.subject-view__badge-text')
-            .text((d) => (d.collapsed ? '+' : '−'))
-          update.transition()
-            .duration(450).ease(d3.easeCubicInOut)
-            .attr('transform', (d) => `translate(${d.x},${d.y})`)
-          return update
-        },
-        (exit) => exit.call((s) => s.transition().duration(200).style('opacity', 0).remove()),
-      )
-
-    // ── Drag: fix position on drag, release on end ──────────────────
-    const drag = d3.drag<SVGGElement, TreeNode>()
-      .on('start', (event, d) => {
-        node.interrupt()
-        link.interrupt()
-        d.x = event.x
-        d.y = event.y
-      })
-      .on('drag', (event, d) => {
-        d.x = event.x
-        d.y = event.y
-        d3.select(event.sourceEvent.target.parentNode as Element)
-          .attr('transform', `translate(${d.x},${d.y})`)
-        link.attr('d', (l) => linkPath(l))
+    // Labels — code inside or next to node
+    const label = zoomGroup.append('g')
+      .selectAll('text')
+      .data(nodes)
+      .join('text')
+      .attr('text-anchor', 'middle')
+      .attr('dy', '0.32em')
+      .attr('font-size', d => d.kind === 'subject' ? '8px' : d.kind === 'curriculum' ? '7px' : '6.5px')
+      .attr('font-weight', '700')
+      .attr('fill', d => d.placeholder ? '#64748b' : d.kind === 'subject' ? '#fff' : '#fff')
+      .attr('pointer-events', 'none')
+      .attr('paint-order', 'stroke')
+      .attr('stroke', 'rgba(0,0,0,0.18)')
+      .attr('stroke-width', 2)
+      .text(d => {
+        const max = d.kind === 'subject' ? 10 : d.kind === 'curriculum' ? 12 : 8
+        const c = d.code.length > max ? d.code.slice(0, max - 1) + '…' : d.code
+        return c
       })
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    node.each(function () { (d3 as any).select(this).call(drag) })
+    // Expand/collapse badge
+    const badge = zoomGroup.append('g')
+      .selectAll('g')
+      .data(nodes.filter(n => n.expandable && n.kind !== 'subject'))
+      .join('g')
+      .attr('pointer-events', 'none')
+    badge.append('circle')
+      .attr('r', 7)
+      .attr('fill', '#fff')
+      .attr('stroke', '#cbd5e1')
+      .attr('stroke-width', 1.2)
+    badge.append('text')
+      .attr('text-anchor', 'middle')
+      .attr('dy', '0.32em')
+      .attr('font-size', '9px')
+      .attr('font-weight', '700')
+      .attr('fill', '#334155')
+      .text(d => d.collapsed ? '+' : '−')
 
-    // ── Hover: highlight connected nodes + links, show tooltip ──────
-    const highlightConnections = (d: TreeNode) => {
-      const connectedIds = new Set<string>()
-      const connectedLinks: TreeLink[] = []
-      links.forEach((l) => {
-        if (l.source.rId === d.rId) { connectedIds.add(l.target.rId); connectedLinks.push(l) }
-        else if (l.target.rId === d.rId) { connectedIds.add(l.source.rId); connectedLinks.push(l) }
+    node.append("title")
+      .text(d => `${d.code} — ${d.title}${d.placeholder ? ' (unresolved)' : ''}`)
+
+    // Drag as in example
+    const dragstarted = (event: any) => {
+      if (!event.active) simulation.alphaTarget(0.3).restart()
+      event.subject.fx = event.subject.x
+      event.subject.fy = event.subject.y
+    }
+    const dragged = (event: any) => {
+      event.subject.fx = event.x
+      event.subject.fy = event.y
+    }
+    const dragended = (event: any) => {
+      if (!event.active) simulation.alphaTarget(0)
+      event.subject.fx = null
+      event.subject.fy = null
+    }
+
+    node.call(d3.drag<SVGCircleElement, ForceNode>()
+      .on("start", dragstarted)
+      .on("drag", dragged)
+      .on("end", dragended) as any)
+
+    // Also drag subject extra in sync
+    subjectExtra.call(d3.drag<SVGCircleElement, ForceNode>()
+      .on("start", dragstarted)
+      .on("drag", dragged)
+      .on("end", dragended) as any)
+
+    // Tick — update positions
+    simulation.on("tick", () => {
+      link
+        .attr("x1", d => (d as any).source.x)
+        .attr("y1", d => (d as any).source.y)
+        .attr("x2", d => (d as any).target.x)
+        .attr("y2", d => (d as any).target.y)
+
+      node
+        .attr("cx", d => (d as any).x)
+        .attr("cy", d => (d as any).y)
+
+      subjectExtra
+        .attr("cx", d => (d as any).x)
+        .attr("cy", d => (d as any).y)
+
+      label
+        .attr("x", d => (d as any).x)
+        .attr("y", d => (d as any).y)
+
+      badge
+        .attr("transform", d => {
+          const r = radiusOf(d as ForceNode)
+          return `translate(${(d as any).x + r},${(d as any).y - r})`
+        })
+    })
+
+    // Hover — tooltip and highlight
+    const highlightConnections = (d: ForceNode) => {
+      const connected = new Set<string>()
+      links.forEach((l: any) => {
+        const sId = typeof l.source === 'object' ? l.source.id : l.source
+        const tId = typeof l.target === 'object' ? l.target.id : l.target
+        if (sId === d.id) connected.add(tId)
+        if (tId === d.id) connected.add(sId)
       })
-      node.classed('subject-view__node--highlight', (n: TreeNode) => connectedIds.has(n.rId))
-      link.classed('subject-view__link--highlight', (l: TreeLink) => connectedLinks.includes(l))
+      node.classed('subject-view__node--highlight', n => connected.has((n as any).id))
+      link.classed('subject-view__link--highlight', l => {
+        const sId = typeof (l as any).source === 'object' ? (l as any).source.id : (l as any).source
+        const tId = typeof (l as any).target === 'object' ? (l as any).target.id : (l as any).target
+        return sId === d.id || tId === d.id
+      })
     }
 
     node
       .on('mouseenter', (event, d) => {
-        highlightConnections(d)
+        highlightConnections(d as ForceNode)
         tip.style.opacity = '1'
-        tip.style.left = `${event.offsetX + 12}px`
-        tip.style.top = `${event.offsetY - 28}px`
-        tip.innerHTML = `<strong>${d.code}</strong><br/>${d.title}`
+        const rect = svgEl.getBoundingClientRect()
+        tip.style.left = `${event.clientX - rect.left + 12}px`
+        tip.style.top = `${event.clientY - rect.top - 28}px`
+        tip.innerHTML = `<strong>${(d as ForceNode).code}</strong><br/>${(d as ForceNode).title}`
       })
       .on('mousemove', (event) => {
-        tip.style.left = `${event.offsetX + 12}px`
-        tip.style.top = `${event.offsetY - 28}px`
+        const rect = svgEl.getBoundingClientRect()
+        tip.style.left = `${event.clientX - rect.left + 12}px`
+        tip.style.top = `${event.clientY - rect.top - 28}px`
       })
       .on('mouseleave', () => {
         node.classed('subject-view__node--highlight', false)
@@ -769,40 +752,45 @@ export default function SubjectView() {
         tip.style.opacity = '0'
       })
 
-    // ── Click: expand/collapse, jump to a linked subject, or drill ──
     node.on('click', (event, d) => {
       event.stopPropagation()
-      if (d.courseId && !d.expandable) {
-        const target = programCourses.find((c) => c.id === d.courseId)
+      const n = d as ForceNode
+      if (n.courseId && !n.expandable) {
+        const target = programCourses.find((c) => c.id === n.courseId)
         if (target && selectedCourseId && target.id !== selectedCourseId) {
-          // Connected subject: jump straight to its graph and remember the trail.
           setNavStack((prev) => [...prev, selectedCourseId])
           setSelectedCourseId(target.id)
           setShowGraph(true)
         }
         return
       }
-      if (d.expandable) {
+      if (n.expandable) {
+        const baseId = n.id.split('>').pop()!
         setCollapsedIds((prev) => {
           const next = new Set(prev)
-          if (next.has(d.id)) next.delete(d.id)
-          else next.add(d.id)
+          if (next.has(baseId)) next.delete(baseId)
+          else next.add(baseId)
           return next
         })
       }
     })
 
-    // ── Zoom / pan ──────────────────────────────────────────────────
+    // Zoom / pan
     const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.2, 3])
       .on('zoom', (event) => zoomGroup.attr('transform', event.transform))
-    svg.call(zoom)
-    zoomRef.current = zoom
+    svg.call(zoom as any)
+    zoomRef.current = zoom as any
 
-    return () => { svg.on('.zoom', null); zoomRef.current = null }
-  }, [selectedCourse, datasets, containerSize, collapsedIds, buildGraphModel, programCourses, selectedCourseId, setSelectedCourseId])
+    // Cleanup simulation on re-render / unmount (as in example invalidation)
+    return () => {
+      simulation.stop()
+      svg.on('.zoom', null)
+      zoomRef.current = null
+    }
+  }, [selectedCourse, datasets, collapsedIds, buildGraphModel, programCourses, selectedCourseId])
 
-  // ResizeObserver keeps the SVG sized responsively.
+  // Keep containerSize in sync for toolbar responsiveness (not strictly needed for fixed viewBox, but kept)
   useEffect(() => {
     const el = svgRef.current
     if (!el) return
@@ -818,7 +806,6 @@ export default function SubjectView() {
     return () => ro.disconnect()
   }, [showGraph, datasets])
 
-  // Render the graph once everything is ready.
   useEffect(() => {
     if (!showGraph || !selectedCourse || !datasets) return
     try {
@@ -827,7 +814,7 @@ export default function SubjectView() {
       setGraphError(e instanceof Error ? e.message : 'Failed to render graph.')
       return undefined
     }
-  }, [showGraph, selectedCourse, datasets, containerSize, renderGraph, setGraphError])
+  }, [showGraph, selectedCourse, datasets, containerSize, renderGraph])
 
   const handleView = async () => {
     if (!selectedCourse) return
@@ -843,7 +830,6 @@ export default function SubjectView() {
       {error && <p className="msg msg--error">{error}</p>}
 
       <div className="subject-view__panels">
-        {/* ── Left panel: program + subject selection ───────────────────── */}
         <div className="panel subject-view__left">
           <h3>Program</h3>
           <label className="field">
@@ -901,7 +887,6 @@ export default function SubjectView() {
           </button>
         </div>
 
-        {/* ── Right panel: D3 hierarchy graph ───────────────────────────── */}
         <div className="panel subject-view__right" style={{ position: 'relative' }}>
           {!showGraph ? (
             <div className="subject-view__placeholder">
@@ -961,7 +946,7 @@ export default function SubjectView() {
                   <button className="btn btn--ghost btn--sm" onClick={handleRefresh} disabled={spinner} title="Reload relationship data">Refresh</button>
                 </div>
               </div>
-              <p className="subject-view__graph-hint">Click a branch node to expand or collapse. Click a pre-req or co-req to jump to that subject. Drag nodes to reposition. Scroll to zoom.</p>
+              <p className="subject-view__graph-hint">Force layout — drag nodes, scroll to zoom. Click a branch to collapse/expand; click a pre-req/co-req to jump.</p>
               <div className="subject-view__legend">
                 {legendDefs.map((l) => {
                   const n = graphStats?.counts[l.kind] ?? 0
