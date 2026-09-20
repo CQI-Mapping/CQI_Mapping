@@ -214,10 +214,11 @@ function App() {
   const renderPage = () => {
     const Page = PAGES[role]?.[page] ?? PAGES[role]?.[navItems[0]?.id] ?? UserDashboard
 
+    if (page === 'dashboard') return <Page profile={profile} onNavigate={setActivePage} />
     if (page === 'profile') return <Page profile={profile} onSaved={setProfile} />
     if (page === 'users') return <Page />
     if (page === 'curriculum' && role !== 'user') return <Page userEmail={profile?.email} />
-    return <Page profile={profile} />
+    return <Page profile={profile} onNavigate={setActivePage} />
   }
 
   return (

@@ -97,8 +97,8 @@ alignments,
   counts,
   countLabel = 'Linked',
 }: EntityCrudPageProps<T>) {
-  const crud = useEntityCrud<T>({ loadFn: load, createFn: create, updateFn: update, deleteFn: remove, scope })
-  const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete, setMessage, setError } = crud as any
+  const crud = useEntityCrud<T>({ loadFn: load, createFn: create, updateFn: update, deleteFn: remove, userEmail: '', scope })
+  const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete } = crud
 
   const allAlignments = tableAlignments ?? alignments ?? []
 
@@ -309,17 +309,6 @@ alignments,
   }
   const meta = heroMeta[title] || { icon: title.slice(0, 2).toUpperCase(), subtitle: `Manage ${title.toLowerCase()} records — add, edit, archive and organize.` }
 
-  useEffect(() => {
-    if (!message) return
-    const t = setTimeout(() => setMessage(''), 3500)
-    return () => clearTimeout(t)
-  }, [message])
-  useEffect(() => {
-    if (!error) return
-    const t = setTimeout(() => setError(''), 5000)
-    return () => clearTimeout(t)
-  }, [error])
-
   return (
     <div className="programs-page curriculum-view">
       <div className="program-hero">
@@ -350,20 +339,8 @@ alignments,
         </div>
       </div>
 
-      {error && (
-        <div className="msg msg--error" role="alert">
-          <span>{error}</span>
-          <button type="button" className="msg__close" onClick={() => setError('')} aria-label="Dismiss">×</button>
-        </div>
-      )}
-      {message && (
-        <div className="toast-stack" aria-live="polite">
-          <div className="msg msg--success msg--toast" role="status">
-            <span>{message}</span>
-            <button type="button" className="msg__close" onClick={() => setMessage('')} aria-label="Dismiss">×</button>
-          </div>
-        </div>
-      )}
+      {error && <p className="msg msg--error">{error}</p>}
+      {message && <p className="msg msg--success">{message}</p>}
 
       <form className="panel create-resource" onSubmit={submit}>
         <h3>New {title}</h3>

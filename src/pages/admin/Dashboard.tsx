@@ -12,9 +12,10 @@ import type { Profile, ActivityLogEntry } from '../../services/database'
 
 interface DashboardProps {
   profile: Profile | null
+  onNavigate?: (page: string) => void
 }
 
-function Dashboard({ profile }: DashboardProps) {
+function Dashboard({ profile, onNavigate }: DashboardProps) {
   const [stats, setStats] = useState<Array<{ label: string; value: number | null; accent: string; icon: string; sub: string }>>([])
   const [recent, setRecent] = useState<ActivityLogEntry[]>([])
 
@@ -33,6 +34,7 @@ function Dashboard({ profile }: DashboardProps) {
   }, [])
 
   const totalRecords = stats.length > 0 ? stats.reduce((a, s) => a + (s.value ?? 0), 0) : 0
+  const go = (id: string) => onNavigate?.(id)
 
   function getTimeGreeting(): string {
     const h = new Date().getHours()
@@ -129,28 +131,28 @@ function Dashboard({ profile }: DashboardProps) {
             <span>One-click presentable flows</span>
           </div>
           <div className="quick-actions">
-            <button className="quick-action" type="button">
+            <button className="quick-action" type="button" onClick={() => go('program')}>
               <span className="quick-action__icon" style={{ background: 'linear-gradient(135deg,#22c55e,#16a34a)' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg>
               </span>
               <span className="quick-action__text"><strong>Add Program</strong><small>Create degree offering</small></span>
               <svg className="quick-action__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 18l6-6-6-6"/></svg>
             </button>
-            <button className="quick-action" type="button">
+            <button className="quick-action" type="button" onClick={() => go('clo')}>
               <span className="quick-action__icon" style={{ background: 'linear-gradient(135deg,#0ea5e9,#6366f1)' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z"/></svg>
               </span>
               <span className="quick-action__text"><strong>Map CLO → PO</strong><small>Curriculum matrix</small></span>
               <svg className="quick-action__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 18l6-6-6-6"/></svg>
             </button>
-            <button className="quick-action" type="button">
+            <button className="quick-action" type="button" onClick={() => go('program-outcomes')}>
               <span className="quick-action__icon" style={{ background: 'linear-gradient(135deg,#8b5cf6,#ec4899)' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"/></svg>
               </span>
               <span className="quick-action__text"><strong>Review Outcomes</strong><small>PO alignment check</small></span>
               <svg className="quick-action__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 18l6-6-6-6"/></svg>
             </button>
-            <button className="quick-action" type="button">
+            <button className="quick-action" type="button" onClick={() => go('activity-logs')}>
               <span className="quick-action__icon" style={{ background: 'linear-gradient(135deg,#f59e0b,#ef4444)' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
               </span>
