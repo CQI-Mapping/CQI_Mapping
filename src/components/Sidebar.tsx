@@ -46,6 +46,7 @@ const ICONS: Record<string, string> = {
   'strategic-goals': 'path M3 3v18h18|rect 7 12 3 6 1|rect 12 7 3 11 1|rect 17 10 3 8 1',
   peos: 'path M4 19.5A2.5 2.5 0 0 1 6.5 17H20|path M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z',
   'program-outcomes': 'path M3 3v18h18|path M7 16l3-3 3 3 5-8',
+  'subject-view': 'rect 3 3 18 18 2|path M8 12h8|path M12 8v8|circle 12 12 2',
   analytics: 'path M3 3v18h18|rect 7 12 3 6 1|rect 12 7 3 11 1|rect 17 10 3 8 1',
   'activity-logs': 'path M12 20h9|path M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z',
   profile: 'circle 12 8 4|path M4 21c0-4.418 3.582-7 8-7s8 2.582 8 7',
@@ -60,7 +61,7 @@ function initialsOf(role: string): string {
 // Academic-related IDs that get grouped under "Academics" — Awwwards-style mega menu
 const ACADEMICS_IDS = new Set([
   'program', 'ched-memo', 'strategic-goals', 'peos',
-  'program-outcomes', 'curriculum', 'course', 'clo',
+  'program-outcomes', 'curriculum', 'course', 'clo', 'subject-view',
 ])
 
 const ACADEMICS_META: Record<string, { desc: string }> = {
@@ -72,6 +73,7 @@ const ACADEMICS_META: Record<string, { desc: string }> = {
   curriculum: { desc: 'Curriculum structure & maps' },
   course: { desc: 'Course catalog & details' },
   clo: { desc: 'Course learning outcomes' },
+  'subject-view': { desc: 'Subject graph & mapping' },
 }
 
 function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onToggle }: SidebarProps) {
@@ -154,10 +156,13 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
     <>
       <header className={`hdr ${isOpen ? 'hdr--open' : ''}`}>
         <div className="hdr__inner">
-          {/* Brand */}
+          {/* Brand — NBSC 2026 */}
           <div className="hdr__brand">
-            <div className="hdr__mark">CQI</div>
-            <span className="hdr__title">CQI Monitoring</span>
+            <div className="hdr__mark">NB</div>
+            <div className="hdr__brandText">
+              <span className="hdr__title">CQI Monitoring</span>
+              <span className="hdr__subtitle">NBSC · ICS</span>
+            </div>
           </div>
 
           {/* Hamburger */}
