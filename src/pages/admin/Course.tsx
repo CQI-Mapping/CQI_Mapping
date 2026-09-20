@@ -127,6 +127,7 @@ export default function Course({ profile, onViewSubject }: CourseProps) {
   const setEditId = (id: string | null) => setEditState((s) => ({ ...s, editId: id }))
   const setEditForm = (f: CourseForm) => setEditState((s) => ({ ...s, editForm: f }))
   const [archived, setArchived] = useState(false)
+  const [query, setQuery] = useState('')
 
   const errMsg = (e: unknown) => {
     if (e instanceof Error) return e.message
@@ -159,9 +160,12 @@ export default function Course({ profile, onViewSubject }: CourseProps) {
   useEffect(() => { load() }, [load])
 
   const isActive = (c: Course) => !c.status || c.status === 'active'
+  const q = query.trim().toLowerCase()
   const visible = courses.filter((c) =>
     typeof c.program_id === 'object' ? c.program_id.id === programId : c.program_id === programId,
-  ).filter((c) => (archived ? !isActive(c) : isActive(c)))
+  ).filter((c) => (archived ? !isActive(c) : isActive(c))).filter(
+    (c) => !q || [c.code, c.title, c.prerequisite, c.corequisite, c.description].some((v) => (v || '').toLowerCase().includes(q)),
+  )
 
   const archivedCount = courses.filter(
     (c) =>
@@ -434,6 +438,7 @@ export default function Course({ profile, onViewSubject }: CourseProps) {
               <button className={`sd-tab ${archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(true)}>
                 Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
               </button>
+              <input className="input input--sm sd-tabs__search" type="search" placeholder="Search courses..." value={query} onChange={(e) => setQuery(e.target.value)} />
             </div>
             <table className="table">
               <thead>

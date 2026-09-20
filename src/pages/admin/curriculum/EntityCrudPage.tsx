@@ -127,6 +127,7 @@ alignments,
   const [editForm, setEditForm] = useState<FormState>(blank)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [archived, setArchived] = useState(false)
+  const [query, setQuery] = useState('')
 
   const autoResize = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return
@@ -134,8 +135,6 @@ alignments,
     el.style.height = `${el.scrollHeight}px`
   }, [])
 
-  const visible = items.filter((i) => (archived ? !isActive(i) : isActive(i)))
-  if (sort) visible.sort(sort)
   const archivedCount = items.filter((i) => !isActive(i)).length
 
   useEffect(() => { crud.load() }, [crud.load])
@@ -238,6 +237,17 @@ alignments,
     const relVal = (item as Record<string, unknown>)[field.relationField] as string | null
     return field.options.find((o) => optionId(o) === relVal)?.value || '—'
   }
+
+  const q = query.trim().toLowerCase()
+  const visible = items
+    .filter((i) => (archived ? !isActive(i) : isActive(i)))
+    .filter(
+      (i) =>
+        !q ||
+        [codeOf(i), titleOf(i), descOf(i) || '', ...(tableAlignments ?? alignments ?? []).map((a) => alignLabelOf(i, a))]
+          .some((v) => (v || '').toLowerCase().includes(q)),
+    )
+  if (sort) visible.sort(sort)
 
   const isPeoSgDisabled = (align: Record<string, string>, field: AlignmentField) => {
     if (title !== 'Program Outcome') return false
@@ -393,6 +403,7 @@ alignments,
             <button className={`sd-tab ${archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(true)}>
               Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
             </button>
+            <input className="input input--sm sd-tabs__search" type="search" placeholder={`Search ${title.toLowerCase()}...`} value={query} onChange={(e) => setQuery(e.target.value)} />
           </div>
           <table className="table">
             <thead>

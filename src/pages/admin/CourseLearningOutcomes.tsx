@@ -38,6 +38,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   const [editForm, setEditForm] = useState(EMPTY)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [archived, setArchived] = useState(false)
+  const [query, setQuery] = useState('')
 
   const autoResize = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return
@@ -46,7 +47,10 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   }, [])
 
   const isActive = (i: CourseLearningOutcomeStandalone) => !i.status || i.status === 'active'
-  const visible = items.filter((i) => (archived ? !isActive(i) : isActive(i)))
+  const q = query.trim().toLowerCase()
+  const visible = items
+    .filter((i) => (archived ? !isActive(i) : isActive(i)))
+    .filter((i) => !q || [i.course, i.code, i.description, i.title].some((v) => (v || '').toLowerCase().includes(q)))
   const archivedCount = items.filter((i) => !isActive(i)).length
 
   useEffect(() => { crud.load() }, [crud.load])
@@ -163,6 +167,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             <button className={`sd-tab ${archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(true)}>
               Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
             </button>
+            <input className="input input--sm sd-tabs__search" type="search" placeholder="Search CLOs..." value={query} onChange={(e) => setQuery(e.target.value)} />
           </div>
           <table className="table">
             <thead><tr><th>Course (Subject Code)</th><th>Code</th><th>Description</th><th>Program Outcomes</th><th>Status</th><th>Actions</th></tr></thead>

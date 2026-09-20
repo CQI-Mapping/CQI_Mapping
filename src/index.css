@@ -2576,9 +2576,16 @@ textarea.input {
 .sd-tabs {
   display: flex;
   gap: 0;
+  align-items: center;
   margin-bottom: 12px;
   border-bottom: 2px solid #e2e8f0;
-  justify-content: flex-end;
+  justify-content: flex-start;
+}
+
+.sd-tabs__search {
+  margin-left: auto;
+  width: 220px;
+  max-width: 40%;
 }
 
 .sd-tab {
