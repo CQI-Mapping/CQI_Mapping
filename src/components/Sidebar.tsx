@@ -177,75 +177,36 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
             <span className={`hdr__hamburger-line ${isOpen ? 'hdr__hamburger-line--open' : ''}`} />
           </button>
 
-          {/* Nav items — desktop */}
+          {/* Nav — vertical editorial sections */}
           <nav className="hdr__nav" aria-label="Main navigation">
             {dashboardItem && (
-              <button
-                type="button"
-                className={`hdr__item ${activePage === dashboardItem.id ? 'hdr__item--active' : ''}`}
-                onClick={() => navigate(dashboardItem.id)}
-              >
-                <Icon d={ICONS[dashboardItem.id] || ICONS.dashboard} className="hdr__icon" />
-                <span>Dashboard</span>
-              </button>
+              <div className="hdr__section">
+                <span className="hdr__sectionLabel">Overview</span>
+                <button
+                  type="button"
+                  className={`hdr__item ${activePage === dashboardItem.id ? 'hdr__item--active' : ''}`}
+                  onClick={() => navigate(dashboardItem.id)}
+                >
+                  <Icon d={ICONS[dashboardItem.id] || ICONS.dashboard} className="hdr__icon" />
+                  <span>Dashboard</span>
+                </button>
+              </div>
             )}
 
             {hasAcademics && (
-              <div
-                className="hdr__dd"
-                ref={ddRef}
-                onMouseEnter={handleDdEnter}
-                onMouseLeave={handleDdLeave}
-              >
-                <button
-                  type="button"
-                  className={`hdr__item hdr__item--academics ${isAcademicsActive ? 'hdr__item--active' : ''}`}
-                  onClick={() => {
-                    setDdOpen((v) => !v)
-                    setProfileOpen(false)
-                  }}
-                  aria-expanded={ddOpen}
-                  aria-haspopup="menu"
-                >
-                  <Icon d={ICONS.curriculum} className="hdr__icon" />
-                  <span>Academics</span>
-                  <svg className={`hdr__chevron ${ddOpen ? 'hdr__chevron--open' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M6 9l6 6 6-6" />
-                  </svg>
-                </button>
-                {ddOpen && (
-                  <>
-                    <button type="button" className="hdr__dd-overlay" onClick={() => setDdOpen(false)} aria-label="Close academics menu" tabIndex={-1} />
-                    <div className="hdr__dd-menu" role="menu">
-                      <div className="hdr__dd-grid" role="none">
-                        {academics.map(({ id, label }) => (
-                          <button
-                            key={id}
-                            type="button"
-                            role="menuitem"
-                            className={`hdr__dd-item ${activePage === id ? 'hdr__dd-item--active' : ''}`}
-                            onClick={() => navigate(id)}
-                          >
-                            <span className="hdr__dd-iconWrap">
-                              <Icon d={ICONS[id] || ICONS.dashboard} className="hdr__dd-icon" />
-                            </span>
-                            <span className="hdr__dd-text">
-                              <span className="hdr__dd-label">{label}</span>
-                              <span className="hdr__dd-desc">{ACADEMICS_META[id]?.desc ?? ''}</span>
-                            </span>
-                            <svg className="hdr__dd-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                              <path d="M9 18l6-6-6-6" />
-                            </svg>
-                          </button>
-                        ))}
-                      </div>
-                      <div className="hdr__dd-foot">
-                        <span>Quick access to all academic records</span>
-                        <span className="hdr__dd-foot-hint">Press Esc to close</span>
-                      </div>
-                    </div>
-                  </>
-                )}
+              <div className="hdr__section">
+                <span className="hdr__sectionLabel">Academics</span>
+                {academics.map(({ id, label }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className={`hdr__item ${activePage === id ? 'hdr__item--active' : ''}`}
+                    onClick={() => navigate(id)}
+                  >
+                    <Icon d={ICONS[id] || ICONS.dashboard} className="hdr__icon" />
+                    <span>{label}</span>
+                  </button>
+                ))}
               </div>
             )}
 
@@ -261,17 +222,22 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
               </button>
             ))}
 
-            {otherItems.map(({ id, label }) => (
-              <button
-                key={id}
-                type="button"
-                className={`hdr__item ${activePage === id ? 'hdr__item--active' : ''}`}
-                onClick={() => navigate(id)}
-              >
-                <Icon d={ICONS[id] || ICONS.dashboard} className="hdr__icon" />
-                <span>{label}</span>
-              </button>
-            ))}
+            {otherItems.length > 0 && (
+              <div className="hdr__section">
+                <span className="hdr__sectionLabel">System</span>
+                {otherItems.map(({ id, label }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className={`hdr__item ${activePage === id ? 'hdr__item--active' : ''}`}
+                    onClick={() => navigate(id)}
+                  >
+                    <Icon d={ICONS[id] || ICONS.dashboard} className="hdr__icon" />
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </nav>
 
           {/* Profile — Awwwards-style avatar dropdown (logout lives inside) */}
