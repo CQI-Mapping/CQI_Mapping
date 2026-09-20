@@ -559,8 +559,10 @@ export default function SubjectView() {
     )
 
     // Tree layout for initial left-to-right positions (subject on left, branches right)
-    // This gives the hierarchy a clean starting placement before force takes over.
-    const treeLayout = d3.tree<GraphNodeData>().nodeSize([90, 170])
+    // Fixed branching: wider separation so sibling branches don't collapse
+    const treeLayout = d3.tree<GraphNodeData>()
+      .nodeSize([110, 190])
+      .separation((a, b) => (a.parent === b.parent ? 1.2 : 1.9))
     treeLayout(root)
     const initialPos = new Map<string, { x: number; y: number }>()
     root.each((d) => {
@@ -623,12 +625,20 @@ export default function SubjectView() {
       subjectSim.fy = 0
     }
 
-    // Force simulation — same as the example, but lifted/right-shifted
+    // Branching fix: tiered link distances so subject→CLO/PO fan out, PO→leaves stay tight,
+    // plus collide + weaker charge to keep sibling branches from overlapping.
+    const linkDistance = (d: ForceLink) => {
+      const targetKind = (d.target as ForceNode).kind
+      if (targetKind === 'po') return 120
+      if (targetKind === 'clo' || targetKind === 'curriculum' || targetKind === 'prerequisite' || targetKind === 'corequisite') return 95
+      return 75
+    }
     const simulation = d3.forceSimulation<ForceNode>(simNodes)
-      .force('link', d3.forceLink<ForceNode, ForceLink>(simLinks).id((d) => d.rId).distance(110).strength(0.9))
-      .force('charge', d3.forceManyBody().strength(-380))
-      .force('x', d3.forceX(60))
-      .force('y', d3.forceY(0))
+      .force('link', d3.forceLink<ForceNode, ForceLink>(simLinks).id((d) => d.rId).distance((d) => linkDistance(d as ForceLink)).strength(0.85))
+      .force('charge', d3.forceManyBody().strength(-420))
+      .force('x', d3.forceX(60).strength(0.08))
+      .force('y', d3.forceY(0).strength(0.12))
+      .force('collide', d3.forceCollide<ForceNode>().radius((d) => (d.kind === 'subject' ? 22 : d.kind === 'po' || d.kind === 'clo' ? 16 : 12)).strength(0.7))
 
     // SVG container as per the example
     svg
