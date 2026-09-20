@@ -111,12 +111,43 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
     if (await handleUpdate(editingId, outPayload(editForm), 'clo.updated')) setEditingId(null)
   }
 
+  const totalCount = items.length
+  const activeCount = items.filter(isActive).length
+
   return (
-    <div className="curriculum-view">
+    <div className="programs-page curriculum-view">
+      <div className="program-hero">
+        <div className="program-hero__left">
+          <div className="program-hero__icon">CLO</div>
+          <div className="program-hero__titles">
+            <h2>Course Learning Outcomes</h2>
+            <p>Define CLOs per subject code and align them to Program Outcomes.</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="program-stats">
+        <div className="program-stat">
+          <div className="program-stat__label">Total</div>
+          <div className="program-stat__value">{totalCount}</div>
+          <div className="program-stat__sub">All CLOs</div>
+        </div>
+        <div className="program-stat">
+          <div className="program-stat__label">Active</div>
+          <div className="program-stat__value" style={{ color: '#16a34a' }}>{activeCount}</div>
+          <div className="program-stat__sub">Currently mapped</div>
+        </div>
+        <div className="program-stat">
+          <div className="program-stat__label">Archived</div>
+          <div className="program-stat__value" style={{ color: '#64748b' }}>{archivedCount}</div>
+          <div className="program-stat__sub">Hidden</div>
+        </div>
+      </div>
+
       {error && <p className="msg msg--error">{error}</p>}
       {message && <p className="msg msg--success">{message}</p>}
 
-      <form className="panel create-resource" onSubmit={submit}>
+      <form className="panel create-resource" onSubmit={submit} style={{ borderTop: '3px solid #22c55e' }}>
         <h3>New Course Learning Outcome</h3>
         <label className="field">
           <span>Course (Subject Code)</span>

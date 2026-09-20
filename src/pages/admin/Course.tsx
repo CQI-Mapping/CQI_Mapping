@@ -320,14 +320,42 @@ export default function Course({ profile, onViewSubject }: CourseProps) {
   )
 
   return (
-    <div className="curriculum-view">
+    <div className="programs-page curriculum-view">
+      <div className="program-hero">
+        <div className="program-hero__left">
+          <div className="program-hero__icon">C</div>
+          <div className="program-hero__titles">
+            <h2>Courses</h2>
+            <p>Catalog, prerequisites, and credit mapping per program and curriculum.</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="program-stats">
+        <div className="program-stat">
+          <div className="program-stat__label">Total</div>
+          <div className="program-stat__value">{courses.length}</div>
+          <div className="program-stat__sub">{programs.length} programs</div>
+        </div>
+        <div className="program-stat">
+          <div className="program-stat__label">Visible</div>
+          <div className="program-stat__value" style={{ color: '#16a34a' }}>{visible.length}</div>
+          <div className="program-stat__sub">{archived ? 'Archived' : 'Active'} in current program</div>
+        </div>
+        <div className="program-stat">
+          <div className="program-stat__label">Archived</div>
+          <div className="program-stat__value" style={{ color: '#64748b' }}>{archivedCount}</div>
+          <div className="program-stat__sub">Hidden from lists</div>
+        </div>
+      </div>
+
       {error && <p className="msg msg--error">{error}</p>}
       {message && <p className="msg msg--success">{message}</p>}
       {loading ? (
         <p>Loading courses...</p>
       ) : (
         <>
-          <form className="panel create-resource" onSubmit={handleCreate}>
+          <form className="panel create-resource" onSubmit={handleCreate} style={{ borderTop: '3px solid #22c55e' }}>
             <h3>{editing ? `Edit Course — ${editForm.code || 'untitled'}` : 'New Course'}</h3>
             <label className="field">
               <span>Program code</span>

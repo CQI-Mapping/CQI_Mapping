@@ -47,17 +47,43 @@ export default function Users() {
     } finally { setBusy(false) }
   }
 
+  const totalUsers = users.length
+  const activeManagers = users.filter((u) => u.role === 'manager').length
+
   return (
-    <div className="users">
-      <div className="page-heading">
-        <h2>Users &amp; Accounts</h2>
-        <p>Create new manager accounts.</p>
+    <div className="programs-page users">
+      <div className="program-hero">
+        <div className="program-hero__left">
+          <div className="program-hero__icon">U</div>
+          <div className="program-hero__titles">
+            <h2>Users &amp; Accounts</h2>
+            <p>Create manager accounts and audit user roles — admin-only.</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="program-stats">
+        <div className="program-stat">
+          <div className="program-stat__label">Total users</div>
+          <div className="program-stat__value">{totalUsers}</div>
+          <div className="program-stat__sub">All roles</div>
+        </div>
+        <div className="program-stat">
+          <div className="program-stat__label">Managers</div>
+          <div className="program-stat__value" style={{ color: '#16a34a' }}>{activeManagers}</div>
+          <div className="program-stat__sub">Faculty / managers</div>
+        </div>
+        <div className="program-stat">
+          <div className="program-stat__label">Status</div>
+          <div className="program-stat__value" style={{ fontSize: 16, color: '#0f172a' }}>Secure</div>
+          <div className="program-stat__sub">Admin-managed</div>
+        </div>
       </div>
 
       {error && <p className="msg msg--error">{error}</p>}
       {success && <p className="msg msg--success">{success}</p>}
 
-      <div className="panel create-user">
+      <div className="panel create-user" style={{ borderTop: '3px solid #22c55e' }}>
         <h3>Add Manager</h3>
         <form onSubmit={handleSubmit}>
           <div className="create-user__row">
@@ -90,10 +116,18 @@ export default function Users() {
         </form>
       </div>
 
-      <div className="panel table-wrap" style={{ marginTop: 16 }}>
+      <div className="panel table-wrap program-panel" style={{ marginTop: 0 }}>
         <h3>All Users</h3>
         {loading ? (
-          <p>Loading users...</p>
+          <div className="program-grid" style={{ marginTop: 12 }}>
+            {[0,1,2].map((i) => (
+              <div key={i} className="program-card--2026" style={{ opacity: 0.6 }}>
+                <div style={{ height: 12, background: '#f1f5f9', borderRadius: 6, width: '40%' }} />
+                <div style={{ height: 16, background: '#f1f5f9', borderRadius: 6 }} />
+                <div style={{ height: 12, background: '#f8fafc', borderRadius: 6, width: '60%' }} />
+              </div>
+            ))}
+          </div>
         ) : (
           <table className="table">
             <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th></tr></thead>

@@ -41,13 +41,18 @@ function Profile({ profile, onSaved }: ProfileProps) {
   }
 
   return (
-    <div className="profile">
-      <div className="page-heading">
-        <h2>Profile</h2>
-        <p>View and edit your own information.</p>
+    <div className="programs-page profile">
+      <div className="program-hero">
+        <div className="program-hero__left">
+          <div className="program-hero__icon">◐</div>
+          <div className="program-hero__titles">
+            <h2>Profile</h2>
+            <p>Your account — manage display name and review role.</p>
+          </div>
+        </div>
       </div>
 
-      <form className="panel profile-card" onSubmit={handleSubmit}>
+      <form className="panel profile-card program-panel" onSubmit={handleSubmit} style={{ borderTop: '3px solid #22c55e' }}>
         {/* Read-only details pulled from the profile row */}
         <div className="profile-card__row">
           <span className="profile-card__label">Email</span>

@@ -125,16 +125,39 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
   if (loading) return <p>Loading activity logs...</p>
 
   return (
-    <div className="activity-logs">
-      <div className="page-heading">
-        <h2>{title}</h2>
-        <p>{description || `Record of actions taken in the system (latest ${entries.length}).`}</p>
+    <div className="programs-page activity-logs">
+      <div className="program-hero">
+        <div className="program-hero__left">
+          <div className="program-hero__icon">A</div>
+          <div className="program-hero__titles">
+            <h2>{title}</h2>
+            <p>{description || `Audit trail of ${entries.length} actions — searchable and filterable.`}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="program-stats">
+        <div className="program-stat">
+          <div className="program-stat__label">Total</div>
+          <div className="program-stat__value">{entries.length}</div>
+          <div className="program-stat__sub">Latest 100</div>
+        </div>
+        <div className="program-stat">
+          <div className="program-stat__label">Filtered</div>
+          <div className="program-stat__value" style={{ color: '#16a34a' }}>{filtered.length}</div>
+          <div className="program-stat__sub">Matching current view</div>
+        </div>
+        <div className="program-stat">
+          <div className="program-stat__label">Actions</div>
+          <div className="program-stat__value" style={{ color: '#0f172a', fontSize: 16 }}>{actions.length}</div>
+          <div className="program-stat__sub">Distinct types</div>
+        </div>
       </div>
 
       {error && <p className="msg msg--error">{error}</p>}
 
       {/* Filters */}
-      <div className="panel activity-filters">
+      <div className="panel activity-filters program-panel" style={{ borderTop: '3px solid #22c55e' }}>
         <div className="activity-filters__row">
           <label className="activity-filter">
             <span>Search</span>
@@ -194,7 +217,7 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
         )}
       </div>
 
-      <div className="panel table-wrap">
+      <div className="panel table-wrap program-panel">
         <table className="table">
           <thead>
             <tr>

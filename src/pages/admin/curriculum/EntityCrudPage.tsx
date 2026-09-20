@@ -298,8 +298,47 @@ alignments,
     )
   }
 
+  const totalCount = items.length
+  const activeCount = items.filter(isActive).length
+
+  const heroMeta: Record<string, { icon: string; subtitle: string }> = {
+    'Strategic Goal': { icon: 'SG', subtitle: 'Institutional strategic goals aligned to PEOs and program outcomes.' },
+    'Program Educational Objective': { icon: 'PEO', subtitle: 'Long-term career and professional achievements of graduates.' },
+    'Program Outcome': { icon: 'PO', subtitle: 'Competencies and skills graduates attain — mapped to CMO & PEO.' },
+    'CHED Memorandum Order': { icon: 'CMO', subtitle: 'CHED issuances and policies governing program offerings.' },
+  }
+  const meta = heroMeta[title] || { icon: title.slice(0, 2).toUpperCase(), subtitle: `Manage ${title.toLowerCase()} records — add, edit, archive and organize.` }
+
   return (
-    <div className="curriculum-view">
+    <div className="programs-page curriculum-view">
+      <div className="program-hero">
+        <div className="program-hero__left">
+          <div className="program-hero__icon">{meta.icon}</div>
+          <div className="program-hero__titles">
+            <h2>{title}</h2>
+            <p>{meta.subtitle}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="program-stats">
+        <div className="program-stat">
+          <div className="program-stat__label">Total</div>
+          <div className="program-stat__value">{totalCount}</div>
+          <div className="program-stat__sub">All {title.toLowerCase()}s</div>
+        </div>
+        <div className="program-stat">
+          <div className="program-stat__label">Active</div>
+          <div className="program-stat__value" style={{ color: '#16a34a' }}>{activeCount}</div>
+          <div className="program-stat__sub">Currently in use</div>
+        </div>
+        <div className="program-stat">
+          <div className="program-stat__label">Archived</div>
+          <div className="program-stat__value" style={{ color: '#64748b' }}>{archivedCount}</div>
+          <div className="program-stat__sub">Hidden from selection</div>
+        </div>
+      </div>
+
       {error && <p className="msg msg--error">{error}</p>}
       {message && <p className="msg msg--success">{message}</p>}
 
