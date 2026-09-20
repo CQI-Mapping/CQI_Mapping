@@ -1065,6 +1065,59 @@ export default function SubjectView() {
             </div>
           )}
         </div>
+
+      {/* Below Program + Visualization — padded About card */}
+      {selectedCourse && (
+        <div className="panel subject-view__about" style={{ marginTop: 16, padding: 20 }}>
+          <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800, letterSpacing: '-0.02em' }}>
+            About {selectedCourse.code} — {selectedCourse.title}
+          </h3>
+          <p style={{ margin: '0 0 12px', color: '#64748b', fontSize: 13 }}>
+            {(() => {
+              const prog = programs.find((p) => p.id === selectedProgramId)
+              return prog ? `${prog.code} · ${prog.name}` : ''
+            })()}
+          </p>
+          <div className="subject-view__inside" style={{ marginTop: 0, background: '#fff', border: '1px solid #e2e8f0' }}>
+            <h4 className="subject-view__inside-title">Inside {selectedCourse.code}</h4>
+            <p className="subject-view__inside-subtitle">{selectedCourse.title}</p>
+            {selectedCourse.description && <p className="subject-view__inside-desc">{selectedCourse.description}</p>}
+            <div className="subject-view__inside-grid">
+              <span><strong>Units:</strong> {selectedCourse.units ?? 0} ({selectedCourse.credit_lecture ?? 0} lec / {selectedCourse.credit_laboratory ?? 0} lab)</span>
+              <span><strong>Status:</strong> <span className={`status-badge status-badge--${selectedCourse.status}`}>{selectedCourse.status}</span></span>
+              <span><strong>Prerequisite:</strong> {selectedCourse.prerequisite?.trim() || '—'}</span>
+              <span><strong>Corequisite:</strong> {selectedCourse.corequisite?.trim() || '—'}</span>
+              {(() => {
+                const cid = typeof selectedCourse.curriculum_id === 'object' ? (selectedCourse.curriculum_id as any)?.code ?? (selectedCourse.curriculum_id as any)?.id : selectedCourse.curriculum_id
+                const curLabel = typeof selectedCourse.curriculum_id === 'object' ? (selectedCourse.curriculum_id as any)?.code : cid
+                return <span><strong>Curriculum:</strong> {curLabel || '—'}</span>
+              })()}
+            </div>
+            {(() => {
+              if (!datasets) return <p className="subject-view__inside-hint">Press <strong>View Graph</strong> to load CLOs / POs inside this subject.</p>
+              const key = normalizeCode(selectedCourse.code)
+              const insideClos = datasets.clos.filter((c) => cloMatchesSubject(c.course || '', key))
+              if (insideClos.length === 0) return <p className="subject-view__inside-empty">No CLOs linked to this subject yet.</p>
+              return (
+                <div className="subject-view__inside-list">
+                  <strong className="subject-view__inside-list-title">CLOs inside ({insideClos.length}):</strong>
+                  <ul>
+                    {insideClos.slice(0, 6).map((clo) => (
+                      <li key={clo.id} title={clo.description || clo.title}>
+                        <span className="subject-view__inside-code">{clo.code}</span> — {clo.description || clo.title}
+                      </li>
+                    ))}
+                    {insideClos.length > 6 && <li className="subject-view__inside-more">+ {insideClos.length - 6} more — see graph</li>}
+                  </ul>
+                </div>
+              )
+            })()}
+          </div>
+          <p style={{ margin: '12px 0 0', fontSize: 12.5, color: '#64748b' }}>
+            This is what <strong>{selectedCourse.code}</strong> is all about — its description, credits, prerequisites, curriculum, and the CLOs that drive the outcome map above.
+          </p>
+        </div>
+      )}
       </div>
     </div>
   )
