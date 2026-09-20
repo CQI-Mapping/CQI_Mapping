@@ -1,12 +1,20 @@
-// Admin Subject View — force-directed outcome hierarchy graph (Observable style).
-// Left panel: program + subject selection; Right panel: D3 force simulation:
+// Admin Subject View: two-panel layout — left panel has program dropdown +
+// subject dropdown; right panel renders a D3.js outcome hierarchy graph:
 //
-//   Subject (root) → Curriculum / Prerequisite / Corequisite / CLO → PO → PEO/SG/CMO
+//   Subject (double-ring, root)
+//     ├─ Curriculum (oval)
+//     ├─ Prerequisite(s)
+//     ├─ Corequisite(s)
+//     └─ CLO(s)
+//        └─ PO(s)
+//           ├─ PEO
+//           ├─ Strategic Goal
+//           └─ CHED Memorandum Order
 //
-// Rewritten to match the Observable example you provided:
-//   width 928, height 680, color = d3.scaleOrdinal(d3.schemeCategory10),
-//   forceSimulation with link/charge/x/y, centered viewBox, line + circle,
-//   title tooltip, drag (alphaTarget 0.3), tick updates.
+// The graph only renders after the user presses View. Relationships are built
+// from the standalone admn tables (admin_course_learning_outcomes,
+// admin_program_outcomes, program_educational_objectives, strategic_goals,
+// ched_memorandum_orders, resources) — not clo_po_matrix.
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import * as d3 from 'd3'
@@ -61,6 +69,18 @@ interface OutcomeDatasets {
   cmos: ChedMemoOrder[]
 }
 
+const colorMap: Record<NodeKind, string> = {
+  curriculum: '#9333ea',
+  subject: '#2563eb',
+  prerequisite: '#f97316',
+  corequisite: '#22c55e',
+  clo: '#06b6d4',
+  po: '#7c3aed',
+  peo: '#db2777',
+  sg: '#d97706',
+  cmo: '#0891b2',
+}
+
 const isActive = <T extends { status?: string }>(x: T) => !x.status || x.status === 'active'
 
 const normalizeCode = (code: string) =>
@@ -79,6 +99,8 @@ const extractCodes = (text: string, prefix: 'PO' | 'PEO' | 'SG'): string[] => {
   return out
 }
 
+// Strategic Goals in DB use code "Goal N" (e.g. "Goal 1") not "SG-N". Accept both
+// prefixes and normalize tokens to "Goal N" so they match strategic_goals.code.
 const extractSgCodes = (text: string): string[] => {
   const re = /(?:SG|Goal)\s*-?\s*(\d+)/gi
   const out: string[] = []
@@ -87,6 +109,8 @@ const extractSgCodes = (text: string): string[] => {
   return out
 }
 
+// Resolve an SG token against the strategic goals list by normalized code first,
+// then by numeric fallback (so "Goal 1" ↔ "SG-1" both match "Goal 1" or "SG-1").
 const findSgByToken = (sgs: StrategicGoal[], tok: string): StrategicGoal | undefined => {
   const key = normalizeCode(tok)
   return (
@@ -98,6 +122,8 @@ const findSgByToken = (sgs: StrategicGoal[], tok: string): StrategicGoal | undef
   )
 }
 
+// True when a CLO record's `course` field refers to the given subject code.
+// Lenient: handles "IT 21", "IT21", "IT 21 - OOP", "IT21-OOP", "IT-21" etc.
 const cloMatchesSubject = (cloCourse: string, subjectKey: string) => {
   const raw = (cloCourse || '').trim()
   if (!raw) return false
@@ -109,6 +135,7 @@ const cloMatchesSubject = (cloCourse: string, subjectKey: string) => {
   return tokens.includes(subjectKey)
 }
 
+// Count unique nodes per kind plus unresolved placeholders across the tree.
 const countKinds = (root: GraphNodeData): { counts: Record<NodeKind, number>; unresolved: number } => {
   const seen = new Map<NodeKind, Set<string>>()
   let unresolved = 0
@@ -125,6 +152,7 @@ const countKinds = (root: GraphNodeData): { counts: Record<NodeKind, number>; un
   return { counts, unresolved }
 }
 
+// Legend dot class for each node kind.
 const dotClass = (k: NodeKind) => {
   switch (k) {
     case 'curriculum': return 'subject-view__dot--curriculum'
@@ -139,9 +167,10 @@ const dotClass = (k: NodeKind) => {
   }
 }
 
+// Legend rows shown above the graph, in tree order.
 const legendDefs: Array<{ kind: NodeKind; label: string; tip: string }> = [
   { kind: 'curriculum', label: 'Curriculum', tip: 'Program curriculum the subject belongs to' },
-  { kind: 'subject', label: 'Subject', tip: 'The selected subject' },
+  { kind: 'subject', label: 'Subject', tip: 'The selected subject (double ring)' },
   { kind: 'prerequisite', label: 'Pre-req', tip: 'Prerequisite subject(s) for this subject' },
   { kind: 'corequisite', label: 'Co-req', tip: 'Corequisite subject(s) for this subject' },
   { kind: 'clo', label: 'CLO', tip: 'Course Learning Outcome(s) of this subject' },
@@ -150,19 +179,6 @@ const legendDefs: Array<{ kind: NodeKind; label: string; tip: string }> = [
   { kind: 'sg', label: 'SG', tip: 'Strategic Goal(s)' },
   { kind: 'cmo', label: 'CMO', tip: 'CHED Memorandum Order(s)' },
 ]
-
-// group index for color scale (schemeCategory10)
-const kindToGroup: Record<NodeKind, number> = {
-  curriculum: 0,
-  subject: 1,
-  prerequisite: 2,
-  corequisite: 3,
-  clo: 4,
-  po: 5,
-  peo: 6,
-  sg: 7,
-  cmo: 8,
-}
 
 export default function SubjectView() {
   const [programs, setPrograms] = useState<Program[]>([])
@@ -182,6 +198,7 @@ export default function SubjectView() {
   const tooltipRef = useRef<HTMLDivElement>(null)
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null)
 
+  // Reset expand/collapse when subject changes — like branch-visualizer fresh state.
   useEffect(() => { setCollapsedIds(new Set()) }, [selectedCourseId])
 
   useEffect(() => {
@@ -218,6 +235,7 @@ export default function SubjectView() {
     [programCourses, selectedCourseId],
   )
 
+  // Quick pre-req / co-req / CLO tallies shown in the left panel before View.
   const leftCounts = useMemo(() => {
     if (!selectedCourse) return null
     const pre = (selectedCourse.prerequisite || '').split(',').map((s) => s.trim()).filter(Boolean).length
@@ -230,6 +248,7 @@ export default function SubjectView() {
     return { pre, core, clos }
   }, [selectedCourse, datasets])
 
+  // ── Load + cache outcome datasets on first View ────────────────────────────
   const loadDatasets = async (force = false) => {
     if (datasets && !force) return
     setSpinner(true)
@@ -258,6 +277,7 @@ export default function SubjectView() {
     }
   }
 
+  // ── Build the graph model ──────────────────────────────────────────────────
   const buildGraphModel = useCallback(
     (datasetsRef: OutcomeDatasets, subject: Course): GraphNodeData => {
       const subjectKey = normalizeCode(subject.code)
@@ -272,6 +292,7 @@ export default function SubjectView() {
         children: [],
       }
 
+      // Curriculum as a child of subject
       const cidOpt = subject.curriculum_id
       const cid = cidOpt && typeof cidOpt === 'object' ? cidOpt.id : cidOpt
       const curRec = cid ? datasetsRef.resources.find((r) => r.id === cid) : undefined
@@ -295,6 +316,7 @@ export default function SubjectView() {
             },
       )
 
+      // Prerequisite + corequisite satellites attach to the subject.
       const addSat = (raw: string, kind: NodeKind) => {
         if (!raw) return
         for (const code of raw.split(',').map((s) => s.trim()).filter(Boolean)) {
@@ -313,6 +335,7 @@ export default function SubjectView() {
       addSat(subject.prerequisite, 'prerequisite')
       addSat(subject.corequisite, 'corequisite')
 
+      // CLOs whose course matches the selected subject code.
       const subjectClos = datasetsRef.clos.filter((clo) =>
         cloMatchesSubject(clo.course || '', subjectKey)
       )
@@ -324,6 +347,7 @@ export default function SubjectView() {
           if (!poNode.children.some((c) => c.id === child.id)) poNode.children.push(child)
         }
 
+        // PEO: id-first, then text-code fallback.
         if (poRec.peo_id) {
           const rec = datasetsRef.peos.find((p) => p.id === poRec.peo_id)
           if (rec) pushChild({ id: `peo-${rec.id}`, code: rec.code, title: rec.title || rec.code, kind: 'peo', placeholder: false, children: [] })
@@ -340,6 +364,7 @@ export default function SubjectView() {
           }
         }
 
+        // Strategic Goal: id-first, then text-code fallback.
         if (poRec.sg_id) {
           const rec = datasetsRef.sgs.find((s) => s.id === poRec.sg_id)
           if (rec) pushChild({ id: `sg-${rec.id}`, code: rec.code, title: rec.title || rec.description || rec.code, kind: 'sg', placeholder: false, children: [] })
@@ -356,6 +381,7 @@ export default function SubjectView() {
           }
         }
 
+        // CHED Memorandum Order: id-first, then description/title text fallback.
         if (poRec.cmo_id) {
           const rec = datasetsRef.cmos.find((c) => c.id === poRec.cmo_id)
           if (rec) pushChild({ id: `cmo-${rec.id}`, code: rec.code, title: rec.title || rec.code, kind: 'cmo', placeholder: false, children: [] })
@@ -375,6 +401,9 @@ export default function SubjectView() {
           if (cmoMatch) {
             pushChild({ id: `cmo-${cmoMatch.id}`, code: cmoMatch.code, title: cmoMatch.title || cmoMatch.code, kind: 'cmo', placeholder: false, children: [] })
           } else if (text) {
+            // Fixed CMO statements (e.g. "Common to all programs in all types of
+            // schools") are stored as text only, with cmo_id NULL — surface them
+            // as a resolved CMO leaf instead of dropping the alignment.
             pushChild({ id: `cmo-text-${normalizeCode(text).slice(0, 48) || 'x'}`, code: 'CMO', title: text, kind: 'cmo', placeholder: false, children: [] })
           }
         }
@@ -416,6 +445,7 @@ export default function SubjectView() {
     [programCourses],
   )
 
+  // Unique node counts per kind once a graph is on screen (used in the legend).
   const graphStats = useMemo(() => {
     if (!selectedCourse || !datasets) return null
     try {
@@ -425,6 +455,7 @@ export default function SubjectView() {
     }
   }, [selectedCourse, datasets, buildGraphModel])
 
+  // Collapse every expandable node except the center subject.
   const collapseAll = useCallback(() => {
     if (!datasets || !selectedCourse) return
     const data = buildGraphModel(datasets, selectedCourse)
@@ -433,10 +464,11 @@ export default function SubjectView() {
       if (n.children?.length) { ids.add(n.id); n.children.forEach(collect) }
     }
     collect(data)
-    ids.delete(data.id)
+    ids.delete(data.id) // keep the subject ring visible
     setCollapsedIds(ids)
   }, [datasets, selectedCourse, buildGraphModel])
 
+  // Reset the SVG zoom/pan transform to its default framed view.
   const resetZoom = useCallback(() => {
     if (svgRef.current && zoomRef.current) {
       d3.select(svgRef.current).call(zoomRef.current.transform, d3.zoomIdentity)
@@ -449,6 +481,7 @@ export default function SubjectView() {
     await loadDatasets(true)
   }
 
+  // Jump back to a subject earlier in the navigation trail.
   const handleCrumb = useCallback((i: number) => {
     if (!selectedCourseId || navStack.length === 0) return
     const trail = [...navStack, selectedCourseId]
@@ -459,9 +492,10 @@ export default function SubjectView() {
     setGraphError('')
   }, [selectedCourseId, navStack])
 
-  // ── D3 force graph (Observable example) ─────────────────────────────────
-  // width 928, height 680, color = scaleOrdinal(schemeCategory10), forceSimulation
-  // with link/charge/x/y, centered viewBox, lines + circles, drag + tick.
+  // ── D3 force simulation — Observable-style (width 928 / height 680) ───────
+  // Adapted from the requested chart block, but bound to the outcome
+  // hierarchy (subject → curriculum / prereq / coreq / CLO → PO → PEO/SG/CMO)
+  // with the existing collapse/expand and zoom behavior preserved.
   const renderGraph = useCallback(() => {
     const svgEl = svgRef.current
     const tip = tooltipRef.current
@@ -471,14 +505,35 @@ export default function SubjectView() {
     svg.on('.zoom', null)
     svg.selectAll('*').remove()
 
-    // Dimensions from example — keep responsive
+    // Dimensions as per the example — responsive via containerSize
     const width = 928
     const height = 680
+    const viewW = containerSize.w || svgEl.clientWidth || width
+    const viewH = containerSize.h || svgEl.clientHeight || height
 
-    // Color scale exactly as in example
+    // Color scale exactly as in the example (schemeCategory10)
     const color = d3.scaleOrdinal(d3.schemeCategory10)
 
-    // Build hierarchy respecting collapsedIds, then flatten to nodes/links with pathKey for uniqueness
+    // ── Build hierarchy + flatten with expand/collapse (same pathKey trick) ──
+    interface ForceNode extends d3.SimulationNodeDatum {
+      id: string
+      rId: string
+      code: string
+      title: string
+      kind: NodeKind
+      placeholder: boolean
+      courseId?: string
+      group: number
+      expandable: boolean
+      collapsed: boolean
+    }
+    interface ForceLink extends d3.SimulationLinkDatum<ForceNode> {
+      source: ForceNode
+      target: ForceNode
+      dashed: boolean
+      value: number
+    }
+
     const pathKey = (d: d3.HierarchyNode<GraphNodeData>): string => {
       const parts: string[] = []
       let cur: d3.HierarchyNode<GraphNodeData> | null = d
@@ -486,89 +541,72 @@ export default function SubjectView() {
       return parts.join('>')
     }
 
-    const data = buildGraphModel(datasets, selectedCourse)
+    const kindGroup: Record<NodeKind, number> = {
+      curriculum: 0,
+      subject: 1,
+      prerequisite: 2,
+      corequisite: 3,
+      clo: 4,
+      po: 5,
+      peo: 6,
+      sg: 7,
+      cmo: 8,
+    }
 
+    const data = buildGraphModel(datasets, selectedCourse)
     const root = d3.hierarchy<GraphNodeData>(data, (d) =>
       collapsedIds.has(d.id) ? undefined : d.children
     )
 
-    // Flatten hierarchy to unique nodes via pathKey, and collect links
-    type ForceNode = {
-      id: string
-      rId: string
-      code: string
-      title: string
-      kind: NodeKind
-      group: number
-      placeholder: boolean
-      courseId?: string
-      expandable: boolean
-      collapsed: boolean
-      x?: number
-      y?: number
-      fx?: number | null
-      fy?: number | null
-    }
-    type ForceLink = { source: string; target: string; value: number; dashed: boolean; placeholder: boolean }
+    // No tree layout — positions come from the force simulation.
+    const hierarchyNodes = root.descendants()
+    const hierarchyLinks = root.links()
 
-    const forceNodes: ForceNode[] = []
-    const forceLinks: ForceLink[] = []
-    const seen = new Map<string, ForceNode>()
+    const nodes: ForceNode[] = hierarchyNodes.map((d) => ({
+      id: d.data.id,
+      rId: pathKey(d),
+      code: d.data.code,
+      title: d.data.title,
+      kind: d.data.kind,
+      placeholder: d.data.placeholder,
+      courseId: d.data.courseId,
+      group: kindGroup[d.data.kind] ?? 4,
+      expandable: !!(d.data.children && d.data.children.length > 0),
+      collapsed: collapsedIds.has(d.data.id),
+    }))
+    const nodeByRId = new Map(nodes.map((n) => [n.rId, n]))
+    const links: ForceLink[] = hierarchyLinks.map((l) => ({
+      source: nodeByRId.get(pathKey(l.source))!,
+      target: nodeByRId.get(pathKey(l.target))!,
+      dashed: l.target.data.kind === 'corequisite' || l.target.data.placeholder,
+      value: 1,
+    }))
 
-    root.each((d) => {
-      const rId = pathKey(d)
-      const n: ForceNode = {
-        id: rId,
-        rId,
-        code: d.data.code,
-        title: d.data.title,
-        kind: d.data.kind,
-        group: kindToGroup[d.data.kind],
-        placeholder: d.data.placeholder,
-        courseId: d.data.courseId,
-        expandable: !!(d.data.children && d.data.children.length > 0),
-        collapsed: collapsedIds.has(d.data.id),
-      }
-      seen.set(rId, n)
-      forceNodes.push(n)
-    })
-    root.links().forEach((l) => {
-      const s = pathKey(l.source)
-      const t = pathKey(l.target)
-      forceLinks.push({
-        source: s,
-        target: t,
-        value: 1,
-        dashed: l.target.data.kind === 'corequisite' || l.target.data.placeholder,
-        placeholder: l.target.data.placeholder,
-      })
-    })
+    // Create a copy so re-evaluating produces the same result (as per example)
+    const simNodes = nodes.map((d) => ({ ...d })) as ForceNode[]
+    const simNodeByRId = new Map(simNodes.map((n) => [n.rId, n]))
+    const simLinks: ForceLink[] = links.map((l) => ({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      source: simNodeByRId.get((l.source as ForceNode).rId)! as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      target: simNodeByRId.get((l.target as ForceNode).rId)! as any,
+      dashed: l.dashed,
+      value: l.value,
+    }))
 
-    // Copy for simulation (as in example)
-    const links = forceLinks.map(d => ({ ...d })) as unknown as d3.SimulationLinkDatum<ForceNode> & { dashed: boolean; placeholder: boolean }[]
-    const nodes = forceNodes.map(d => ({ ...d })) as ForceNode[]
+    // Force simulation mutates nodes/links — same as the example
+    const simulation = d3.forceSimulation<ForceNode>(simNodes)
+      .force('link', d3.forceLink<ForceNode, ForceLink>(simLinks).id((d) => d.rId).distance(90).strength(0.9))
+      .force('charge', d3.forceManyBody().strength(-400))
+      .force('x', d3.forceX())
+      .force('y', d3.forceY())
 
-    // Radius helper — subject larger
-    const radiusOf = (d: ForceNode) => {
-      if (d.kind === 'subject') return 12
-      if (d.kind === 'curriculum') return 10
-      if (d.kind === 'clo' || d.kind === 'po') return 7
-      return 5
-    }
-
-    // Simulation exactly as in example, with named forces
-    const simulation = d3.forceSimulation<ForceNode>(nodes)
-      .force("link", d3.forceLink<ForceNode, typeof links[0]>(links).id((d: any) => d.id).distance(90).strength(0.6))
-      .force("charge", d3.forceManyBody().strength(-260))
-      .force("x", d3.forceX().strength(0.05))
-      .force("y", d3.forceY().strength(0.05))
-
-    // SVG container — viewBox centered, responsive
+    // SVG container as per the example
     svg
-      .attr("width", width)
-      .attr("height", height)
-      .attr("viewBox", [-width / 2, -height / 2, width, height] as any)
-      .attr("style", "max-width: 100%; height: auto; display: block; background: transparent;")
+      .attr('width', viewW)
+      .attr('height', viewH)
+      .attr('viewBox', [-width / 2, -height / 2, width, height] as unknown as string)
+      .attr('style', 'max-width: 100%; height: auto;')
 
     // Defs: subtle shadow
     const defs = svg.append('defs')
@@ -578,173 +616,153 @@ export default function SubjectView() {
       .attr('width', '220%').attr('height', '220%')
       .append('feDropShadow')
       .attr('dx', 0).attr('dy', 2).attr('stdDeviation', 2.5)
-      .attr('flood-color', 'rgba(15, 23, 42, 0.18)')
+      .attr('flood-color', 'rgba(15, 23, 42, 0.28)')
 
     const zoomGroup = svg.append('g')
 
-    // Links
-    const link = zoomGroup.append("g")
-      .attr("stroke", "#999")
-      .attr("stroke-opacity", 0.6)
-      .selectAll("line")
-      .data(links)
-      .join("line")
-      .attr("stroke-width", d => Math.sqrt((d as any).value || 1) * 1.5)
-      .attr("stroke", d => (d as any).placeholder ? '#a5b4c8' : '#999')
-      .attr("stroke-dasharray", d => (d as any).dashed ? '6 4' : 'none')
+    // Links as <line> (exactly as in the example, with our dashed + color tweaks)
+    const link = zoomGroup.append('g')
+      .attr('stroke', '#999')
+      .attr('stroke-opacity', 0.6)
+      .selectAll<SVGLineElement, ForceLink>('line')
+      .data(simLinks)
+      .join('line')
+      .attr('stroke-width', (d) => Math.sqrt(d.value) * 1.5)
+      .attr('stroke-dasharray', (d) => (d.dashed ? '6 4' : 'none'))
+      .attr('stroke', (d) => ((d.target as ForceNode).placeholder ? '#a5b4c8' : '#999'))
 
-    // Nodes
-    const node = zoomGroup.append("g")
-      .attr("stroke", "#fff")
-      .attr("stroke-width", 1.5)
-      .selectAll("circle")
-      .data(nodes)
-      .join("circle")
-      .attr("r", d => radiusOf(d as ForceNode))
-      .attr("fill", d => d.placeholder ? '#f8fafc' : color(String((d as ForceNode).group)) as string)
-      .attr("stroke", d => d.placeholder ? '#94a3b8' : '#fff')
-      .attr("stroke-dasharray", d => d.placeholder ? '4 2' : 'none')
-      .style('filter', 'url(#subject-view-shadow)')
-      .attr('cursor', d => (d.expandable || d.courseId ? 'pointer' : 'default'))
+    // Nodes as <circle> groups with outer <g> for labels/badges — keeps drag on the circle
+    const nodeGroup = zoomGroup.append('g')
+      .attr('stroke', '#fff')
+      .attr('stroke-width', 1.5)
 
-    // Subject double-ring extra
-    const subjectExtra = zoomGroup.append('g')
-      .selectAll('circle')
-      .data(nodes.filter(n => n.kind === 'subject'))
+    const node = nodeGroup
+      .selectAll<SVGCircleElement, ForceNode>('circle')
+      .data(simNodes, (d) => d.rId)
       .join('circle')
-      .attr('r', 18)
-      .attr('fill', 'none')
-      .attr('stroke', d => color(String(d.group)) as string)
-      .attr('stroke-width', 1.2)
-      .attr('stroke-opacity', 0.5)
-      .attr('pointer-events', 'none')
+      .attr('r', (d) => {
+        if (d.kind === 'subject') return 14
+        if (d.kind === 'curriculum') return 12
+        if (d.kind === 'po' || d.kind === 'clo') return 8
+        return 5
+      })
+      .attr('fill', (d) => (d.placeholder ? '#f8fafc' : (colorMap[d.kind] as string) || color(String(d.group))))
+      .attr('stroke', (d) => (d.placeholder ? '#94a3b8' : '#fff'))
+      .attr('cursor', (d) => (d.expandable || d.courseId ? 'pointer' : 'grab'))
+      .attr('filter', 'url(#subject-view-shadow)')
 
-    // Labels — code inside or next to node
+    node.append('title').text((d) => `${d.code} — ${d.title}`)
+
+    // Text labels beside each node (code) — not in the minimal example, but useful for the outcome map
     const label = zoomGroup.append('g')
-      .selectAll('text')
-      .data(nodes)
+      .selectAll<SVGTextElement, ForceNode>('text')
+      .data(simNodes, (d) => d.rId)
       .join('text')
       .attr('text-anchor', 'middle')
-      .attr('dy', '0.32em')
-      .attr('font-size', d => d.kind === 'subject' ? '8px' : d.kind === 'curriculum' ? '7px' : '6.5px')
+      .attr('dy', (d) => (d.kind === 'subject' ? 26 : d.kind === 'curriculum' ? 22 : 16))
+      .attr('font-size', (d) => (d.kind === 'subject' ? '11px' : '9px'))
       .attr('font-weight', '700')
-      .attr('fill', d => d.placeholder ? '#64748b' : d.kind === 'subject' ? '#fff' : '#fff')
+      .attr('fill', '#0f172a')
       .attr('pointer-events', 'none')
       .attr('paint-order', 'stroke')
-      .attr('stroke', 'rgba(0,0,0,0.18)')
-      .attr('stroke-width', 2)
-      .text(d => {
-        const max = d.kind === 'subject' ? 10 : d.kind === 'curriculum' ? 12 : 8
-        const c = d.code.length > max ? d.code.slice(0, max - 1) + '…' : d.code
-        return c
+      .attr('stroke', 'rgba(255,255,255,0.85)')
+      .attr('stroke-width', '3')
+      .text((d) => {
+        const max = d.kind === 'subject' ? 14 : 10
+        return d.code.length > max ? d.code.slice(0, max - 1) + '…' : d.code
       })
 
-    // Expand/collapse badge
+    // Expand/collapse badge — tiny +/− circle near the node
     const badge = zoomGroup.append('g')
-      .selectAll('g')
-      .data(nodes.filter(n => n.expandable && n.kind !== 'subject'))
+      .selectAll<SVGGElement, ForceNode>('g')
+      .data(simNodes.filter((d) => d.expandable && d.kind !== 'subject'), (d) => d.rId)
       .join('g')
       .attr('pointer-events', 'none')
+
     badge.append('circle')
       .attr('r', 7)
       .attr('fill', '#fff')
       .attr('stroke', '#cbd5e1')
       .attr('stroke-width', 1.2)
+
     badge.append('text')
       .attr('text-anchor', 'middle')
       .attr('dy', '0.32em')
       .attr('font-size', '9px')
       .attr('font-weight', '700')
       .attr('fill', '#334155')
-      .text(d => d.collapsed ? '+' : '−')
+      .text((d) => (d.collapsed ? '+' : '−'))
 
-    node.append("title")
-      .text(d => `${d.code} — ${d.title}${d.placeholder ? ' (unresolved)' : ''}`)
-
-    // Drag as in example
-    const dragstarted = (event: any) => {
-      if (!event.active) simulation.alphaTarget(0.3).restart()
-      event.subject.fx = event.subject.x
-      event.subject.fy = event.subject.y
-    }
-    const dragged = (event: any) => {
-      event.subject.fx = event.x
-      event.subject.fy = event.y
-    }
-    const dragended = (event: any) => {
-      if (!event.active) simulation.alphaTarget(0)
-      event.subject.fx = null
-      event.subject.fy = null
-    }
-
-    node.call(d3.drag<SVGCircleElement, ForceNode>()
-      .on("start", dragstarted)
-      .on("drag", dragged)
-      .on("end", dragended) as any)
-
-    // Also drag subject extra in sync
-    subjectExtra.call(d3.drag<SVGCircleElement, ForceNode>()
-      .on("start", dragstarted)
-      .on("drag", dragged)
-      .on("end", dragended) as any)
-
-    // Tick — update positions
-    simulation.on("tick", () => {
+    // Tick — keep links, circles, labels, badges in sync (core of the example)
+    simulation.on('tick', () => {
       link
-        .attr("x1", d => (d as any).source.x)
-        .attr("y1", d => (d as any).source.y)
-        .attr("x2", d => (d as any).target.x)
-        .attr("y2", d => (d as any).target.y)
+        .attr('x1', (d) => (d.source as ForceNode).x ?? 0)
+        .attr('y1', (d) => (d.source as ForceNode).y ?? 0)
+        .attr('x2', (d) => (d.target as ForceNode).x ?? 0)
+        .attr('y2', (d) => (d.target as ForceNode).y ?? 0)
 
       node
-        .attr("cx", d => (d as any).x)
-        .attr("cy", d => (d as any).y)
-
-      subjectExtra
-        .attr("cx", d => (d as any).x)
-        .attr("cy", d => (d as any).y)
+        .attr('cx', (d) => d.x ?? 0)
+        .attr('cy', (d) => d.y ?? 0)
 
       label
-        .attr("x", d => (d as any).x)
-        .attr("y", d => (d as any).y)
+        .attr('x', (d) => d.x ?? 0)
+        .attr('y', (d) => d.y ?? 0)
 
       badge
-        .attr("transform", d => {
-          const r = radiusOf(d as ForceNode)
-          return `translate(${(d as any).x + r},${(d as any).y - r})`
-        })
+        .attr('transform', (d) => `translate(${(d.x ?? 0) + 10},${(d.y ?? 0) - 10})`)
     })
 
-    // Hover — tooltip and highlight
+    // Drag behavior exactly as in the example (reheat, fix fx/fy, release)
+    function dragstarted(event: d3.D3DragEvent<SVGCircleElement, ForceNode, ForceNode>, d: ForceNode) {
+      if (!event.active) simulation.alphaTarget(0.3).restart()
+      d.fx = d.x
+      d.fy = d.y
+    }
+    function dragged(event: d3.D3DragEvent<SVGCircleElement, ForceNode, ForceNode>, d: ForceNode) {
+      d.fx = event.x
+      d.fy = event.y
+    }
+    function dragended(event: d3.D3DragEvent<SVGCircleElement, ForceNode, ForceNode>, d: ForceNode) {
+      if (!event.active) simulation.alphaTarget(0)
+      d.fx = null
+      d.fy = null
+    }
+
+    node.call(
+      d3.drag<SVGCircleElement, ForceNode>()
+        .on('start', dragstarted)
+        .on('drag', dragged)
+        .on('end', dragended) as unknown as d3.DragBehavior<SVGCircleElement, ForceNode, unknown>
+    )
+
+    // Hover — keep the custom tooltip + highlight
     const highlightConnections = (d: ForceNode) => {
-      const connected = new Set<string>()
-      links.forEach((l: any) => {
-        const sId = typeof l.source === 'object' ? l.source.id : l.source
-        const tId = typeof l.target === 'object' ? l.target.id : l.target
-        if (sId === d.id) connected.add(tId)
-        if (tId === d.id) connected.add(sId)
+      const connectedIds = new Set<string>()
+      simLinks.forEach((l) => {
+        const s = l.source as ForceNode
+        const t = l.target as ForceNode
+        if (s.rId === d.rId) connectedIds.add(t.rId)
+        else if (t.rId === d.rId) connectedIds.add(s.rId)
       })
-      node.classed('subject-view__node--highlight', n => connected.has((n as any).id))
-      link.classed('subject-view__link--highlight', l => {
-        const sId = typeof (l as any).source === 'object' ? (l as any).source.id : (l as any).source
-        const tId = typeof (l as any).target === 'object' ? (l as any).target.id : (l as any).target
-        return sId === d.id || tId === d.id
+      node.classed('subject-view__node--highlight', (n) => connectedIds.has(n.rId))
+      link.classed('subject-view__link--highlight', (l) => {
+        const s = l.source as ForceNode, t = l.target as ForceNode
+        return s.rId === d.rId || t.rId === d.rId
       })
     }
 
     node
       .on('mouseenter', (event, d) => {
-        highlightConnections(d as ForceNode)
+        highlightConnections(d)
         tip.style.opacity = '1'
-        const rect = svgEl.getBoundingClientRect()
-        tip.style.left = `${event.clientX - rect.left + 12}px`
-        tip.style.top = `${event.clientY - rect.top - 28}px`
-        tip.innerHTML = `<strong>${(d as ForceNode).code}</strong><br/>${(d as ForceNode).title}`
+        tip.style.left = `${event.offsetX + 12}px`
+        tip.style.top = `${event.offsetY - 28}px`
+        tip.innerHTML = `<strong>${d.code}</strong><br/>${d.title}`
       })
       .on('mousemove', (event) => {
-        const rect = svgEl.getBoundingClientRect()
-        tip.style.left = `${event.clientX - rect.left + 12}px`
-        tip.style.top = `${event.clientY - rect.top - 28}px`
+        tip.style.left = `${event.offsetX + 12}px`
+        tip.style.top = `${event.offsetY - 28}px`
       })
       .on('mouseleave', () => {
         node.classed('subject-view__node--highlight', false)
@@ -752,11 +770,11 @@ export default function SubjectView() {
         tip.style.opacity = '0'
       })
 
+    // Click — same drill-down + expand/collapse as before, now on force nodes
     node.on('click', (event, d) => {
       event.stopPropagation()
-      const n = d as ForceNode
-      if (n.courseId && !n.expandable) {
-        const target = programCourses.find((c) => c.id === n.courseId)
+      if (d.courseId && !d.expandable) {
+        const target = programCourses.find((c) => c.id === d.courseId)
         if (target && selectedCourseId && target.id !== selectedCourseId) {
           setNavStack((prev) => [...prev, selectedCourseId])
           setSelectedCourseId(target.id)
@@ -764,12 +782,11 @@ export default function SubjectView() {
         }
         return
       }
-      if (n.expandable) {
-        const baseId = n.id.split('>').pop()!
+      if (d.expandable) {
         setCollapsedIds((prev) => {
           const next = new Set(prev)
-          if (next.has(baseId)) next.delete(baseId)
-          else next.add(baseId)
+          if (next.has(d.id)) next.delete(d.id)
+          else next.add(d.id)
           return next
         })
       }
@@ -779,18 +796,17 @@ export default function SubjectView() {
     const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.2, 3])
       .on('zoom', (event) => zoomGroup.attr('transform', event.transform))
-    svg.call(zoom as any)
-    zoomRef.current = zoom as any
+    svg.call(zoom as unknown as d3.ZoomBehavior<SVGSVGElement, unknown>)
+    zoomRef.current = zoom as unknown as d3.ZoomBehavior<SVGSVGElement, unknown>
 
-    // Cleanup simulation on re-render / unmount (as in example invalidation)
     return () => {
       simulation.stop()
       svg.on('.zoom', null)
       zoomRef.current = null
     }
-  }, [selectedCourse, datasets, collapsedIds, buildGraphModel, programCourses, selectedCourseId])
+  }, [selectedCourse, datasets, containerSize, collapsedIds, buildGraphModel, programCourses, selectedCourseId, setSelectedCourseId])
 
-  // Keep containerSize in sync for toolbar responsiveness (not strictly needed for fixed viewBox, but kept)
+  // ResizeObserver keeps the SVG sized responsively.
   useEffect(() => {
     const el = svgRef.current
     if (!el) return
@@ -806,6 +822,7 @@ export default function SubjectView() {
     return () => ro.disconnect()
   }, [showGraph, datasets])
 
+  // Render the graph once everything is ready.
   useEffect(() => {
     if (!showGraph || !selectedCourse || !datasets) return
     try {
@@ -814,7 +831,7 @@ export default function SubjectView() {
       setGraphError(e instanceof Error ? e.message : 'Failed to render graph.')
       return undefined
     }
-  }, [showGraph, selectedCourse, datasets, containerSize, renderGraph])
+  }, [showGraph, selectedCourse, datasets, containerSize, renderGraph, setGraphError])
 
   const handleView = async () => {
     if (!selectedCourse) return
@@ -830,6 +847,7 @@ export default function SubjectView() {
       {error && <p className="msg msg--error">{error}</p>}
 
       <div className="subject-view__panels">
+        {/* ── Left panel: program + subject selection ───────────────────── */}
         <div className="panel subject-view__left">
           <h3>Program</h3>
           <label className="field">
@@ -887,6 +905,7 @@ export default function SubjectView() {
           </button>
         </div>
 
+        {/* ── Right panel: D3 hierarchy graph ───────────────────────────── */}
         <div className="panel subject-view__right" style={{ position: 'relative' }}>
           {!showGraph ? (
             <div className="subject-view__placeholder">
@@ -946,7 +965,7 @@ export default function SubjectView() {
                   <button className="btn btn--ghost btn--sm" onClick={handleRefresh} disabled={spinner} title="Reload relationship data">Refresh</button>
                 </div>
               </div>
-              <p className="subject-view__graph-hint">Force layout — drag nodes, scroll to zoom. Click a branch to collapse/expand; click a pre-req/co-req to jump.</p>
+              <p className="subject-view__graph-hint">Click a branch node to expand or collapse. Click a pre-req or co-req to jump to that subject. Drag nodes to reposition. Scroll to zoom.</p>
               <div className="subject-view__legend">
                 {legendDefs.map((l) => {
                   const n = graphStats?.counts[l.kind] ?? 0
