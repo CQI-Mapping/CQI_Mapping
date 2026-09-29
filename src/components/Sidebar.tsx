@@ -13,6 +13,8 @@ interface SidebarProps {
   role: UserRole
   isOpen: boolean
   onToggle: () => void
+  profileName?: string | null
+  profileEmail?: string | null
 }
 
 // ---- Icons ----
@@ -38,29 +40,31 @@ const ICONS: Record<string, string> = {
   dashboard: 'rect 3 3 7 9 1.5|rect 14 3 7 5 1.5|rect 14 12 7 9 1.5|rect 3 16 7 5 1.5',
   users: 'path M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2|circle 9 7 4|path M23 21v-2a4 4 0 0 0-3-3.87|path M16 3.13a4 4 0 0 1 0 7.75',
   curriculum: 'path M4 19.5A2.5 2.5 0 0 1 6.5 17H20|path M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z',
-  program: 'path M4 19.5A2.5 2.5 0 0 1 6.5 17H20|path M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z|circle 12 9 1.5',
-  course: 'path M4 19.5A2.5 2.5 0 0 1 6.5 17H20|path M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z|circle 12 9 1.5',
+  program: 'path M22 10L12 5 2 10l10 5 10-5z|path M6 12v5c3 3 9 3 12 0v-5|line 22 10 22 16',
+  course: 'path M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z',
   clo: 'rect 3 3 18 18 2|path M3 9h18|path M3 15h18|path M9 3v18|path M15 3v18',
   'clo-po': 'rect 3 3 18 18 2|path M3 9h18|path M3 15h18|path M9 3v18|path M15 3v18',
-  'ched-memo': 'path M4 19.5A2.5 2.5 0 0 1 6.5 17H20|path M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z',
+  'ched-memo': 'path M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z|polyline 14 2 14 8 20 8|line 16 13 8 13|line 16 17 8 17',
   'strategic-goals': 'path M3 3v18h18|rect 7 12 3 6 1|rect 12 7 3 11 1|rect 17 10 3 8 1',
-  peos: 'path M4 19.5A2.5 2.5 0 0 1 6.5 17H20|path M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z',
+  peos: 'circle 12 8 6|path M15.5 13l1.5 8-5-3-5 3 1.5-8',
   'program-outcomes': 'path M3 3v18h18|path M7 16l3-3 3 3 5-8',
+  'subject-view': 'circle 18 5 3|circle 6 12 3|circle 18 19 3|line 8.6 10.5 15.4 6.5|line 8.6 13.5 15.4 17.5',
   analytics: 'path M3 3v18h18|rect 7 12 3 6 1|rect 12 7 3 11 1|rect 17 10 3 8 1',
-  'activity-logs': 'path M12 20h9|path M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z',
+  'activity-logs': 'path M3 12a9 9 0 1 0 3-6.7L3 8|path M3 3v5h5|path M12 7v5l4 2',
   profile: 'circle 12 8 4|path M4 21c0-4.418 3.582-7 8-7s8 2.582 8 7',
 }
 
 const LOGOUT_ICON = 'path M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4|polyline 16 17 21 12 16 7|line 21 12 9 12'
 
-function initialsOf(role: string): string {
-  return role.split(/[\s-]+/).map((w) => w[0] ?? '').filter(Boolean).slice(0, 2).join('').toUpperCase()
+function initialsOf(name: string | null | undefined, fallback: string): string {
+  const src = (name ?? '').trim() || fallback
+  return src.split(/[\s-]+/).map((w) => w[0] ?? '').filter(Boolean).slice(0, 2).join('').toUpperCase() || 'U'
 }
 
-// Academic-related IDs that get grouped under "Academics" — Awwwards-style mega menu
+// Academic-related IDs that get grouped under "Academics" — unified dropdown for all roles
 const ACADEMICS_IDS = new Set([
   'program', 'ched-memo', 'strategic-goals', 'peos',
-  'program-outcomes', 'curriculum', 'course', 'clo',
+  'program-outcomes', 'curriculum', 'course', 'clo', 'subject-view',
 ])
 
 const ACADEMICS_META: Record<string, { desc: string }> = {
@@ -68,13 +72,14 @@ const ACADEMICS_META: Record<string, { desc: string }> = {
   'ched-memo': { desc: 'CHED memorandums & policies' },
   'strategic-goals': { desc: 'Institutional alignment' },
   peos: { desc: 'Graduate attributes & PEOs' },
-  'program-outcomes': { desc: 'PO-1 → PO-27 mapping' },
+  'program-outcomes': { desc: 'Program outcomes mapping' },
   curriculum: { desc: 'Curriculum structure & maps' },
   course: { desc: 'Course catalog & details' },
   clo: { desc: 'Course learning outcomes' },
+  'subject-view': { desc: 'Prerequisite visualization' },
 }
 
-function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onToggle }: SidebarProps) {
+function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onToggle, profileName, profileEmail }: SidebarProps) {
   const [ddOpen, setDdOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const ddRef = useRef<HTMLDivElement>(null)
@@ -82,15 +87,18 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
   const navRef = useRef<HTMLDivElement>(null)
   const leaveTimer = useRef<number | null>(null)
 
-  // Separate dashboard, academics, and other items — profile is handled in avatar dropdown (Awwwards-style)
+  // Separate dashboard, academics, and other items — profile is handled in avatar dropdown
   const academics = navItems.filter((n) => ACADEMICS_IDS.has(n.id))
-  const hasAcademics = academics.length > 2
+  const hasAcademics = academics.length >= 2
   const dashboardItem = navItems.find((n) => n.id === 'dashboard')
   const otherItems = hasAcademics
     ? navItems.filter((n) => n.id !== 'dashboard' && !ACADEMICS_IDS.has(n.id) && n.id !== 'profile')
     : navItems.filter((n) => n.id !== 'dashboard' && n.id !== 'profile')
 
   const isAcademicsActive = academics.some((n) => n.id === activePage)
+  const displayName = (profileName ?? '').trim() || `${role.charAt(0).toUpperCase() + role.slice(1)} User`
+  const displayEmail = (profileEmail ?? '').trim() || `Signed in as ${role}`
+  const avatarInitials = initialsOf(profileName, role)
 
   // Hover helpers — delayed close so you can move from button to menu without it vanishing
   const handleDdEnter = useCallback(() => {
@@ -179,6 +187,7 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
                 type="button"
                 className={`hdr__item ${activePage === dashboardItem.id ? 'hdr__item--active' : ''}`}
                 onClick={() => navigate(dashboardItem.id)}
+                aria-current={activePage === dashboardItem.id ? 'page' : undefined}
               >
                 <Icon d={ICONS[dashboardItem.id] || ICONS.dashboard} className="hdr__icon" />
                 <span>Dashboard</span>
@@ -250,6 +259,7 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
                 type="button"
                 className={`hdr__item ${activePage === id ? 'hdr__item--active' : ''}`}
                 onClick={() => navigate(id)}
+                aria-current={activePage === id ? 'page' : undefined}
               >
                 <Icon d={ICONS[id] || ICONS.dashboard} className="hdr__icon" />
                 <span>{label}</span>
@@ -262,6 +272,7 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
                 type="button"
                 className={`hdr__item ${activePage === id ? 'hdr__item--active' : ''}`}
                 onClick={() => navigate(id)}
+                aria-current={activePage === id ? 'page' : undefined}
               >
                 <Icon d={ICONS[id] || ICONS.dashboard} className="hdr__icon" />
                 <span>{label}</span>
@@ -269,7 +280,7 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
             ))}
           </nav>
 
-          {/* Profile — Awwwards-style avatar dropdown (logout lives inside) */}
+          {/* Profile — avatar dropdown (logout lives inside) */}
           <div className="hdr__right">
             <div className="hdr__profile" ref={profileRef}>
               <button
@@ -283,7 +294,7 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
                 aria-haspopup="menu"
                 aria-label="Profile menu"
               >
-                <div className="hdr__avatar">{initialsOf(role)}</div>
+                <div className="hdr__avatar">{avatarInitials}</div>
                 <span className="hdr__role">{role}</span>
                 <svg className={`hdr__chevron hdr__chevron--sm ${profileOpen ? 'hdr__chevron--open' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M6 9l6 6 6-6" />
@@ -294,10 +305,10 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
                   <button type="button" className="hdr__profile-overlay" onClick={() => setProfileOpen(false)} aria-label="Close profile menu" tabIndex={-1} />
                   <div className="hdr__profile-menu" role="menu">
                     <div className="hdr__profile-head">
-                      <div className="hdr__profile-avatarLg">{initialsOf(role)}</div>
+                      <div className="hdr__profile-avatarLg">{avatarInitials}</div>
                       <div className="hdr__profile-info">
-                        <span className="hdr__profile-name">{role.charAt(0).toUpperCase() + role.slice(1)} User</span>
-                        <span className="hdr__profile-sub">Signed in as {role}</span>
+                        <span className="hdr__profile-name">{displayName}</span>
+                        <span className="hdr__profile-sub">{displayEmail}</span>
                       </div>
                       <span className="hdr__profile-badge">{role}</span>
                     </div>

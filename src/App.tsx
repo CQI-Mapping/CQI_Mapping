@@ -112,7 +112,9 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [profileLoaded, setProfileLoaded] = useState(false)
   const [activePage, setActivePage] = useState('dashboard')
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth > 1024 : true
+  )
   const profileUserIdRef = useRef<string | null>(null)
 
   // On first render: restore an existing session from localStorage and subscribe to
@@ -230,6 +232,8 @@ function App() {
         role={role}
         isOpen={sidebarOpen}
         onToggle={() => setSidebarOpen((v) => !v)}
+        profileName={profile?.full_name}
+        profileEmail={profile?.email}
       />
 
       <div className="main-content">
