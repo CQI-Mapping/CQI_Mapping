@@ -1397,13 +1397,13 @@ code {
   position: relative;
   overflow: hidden;
   border-radius: 24px;
-  background: linear-gradient(135deg, #0f172a, #1e293b);
+  background: linear-gradient(160deg, #0a2a16 0%, #123b20 60%, #0d331b 100%);
   padding: 0;
   color: white;
   box-shadow:
-    0 2px 8px rgba(15, 23, 42, 0.12),
-    0 12px 40px rgba(15, 23, 42, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    0 2px 8px rgba(10, 42, 22, 0.25),
+    0 12px 40px rgba(10, 42, 22, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .hero-modern__bg {
@@ -1412,14 +1412,17 @@ code {
   pointer-events: none;
 }
 
+/* Unstyled orb divs rendered by dashboards — hidden (no-rainbow theme) */
+.hero-modern__orb {
+  display: none;
+}
+
 .hero-modern__mesh {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse 70% 60% at 70% -10%, rgba(34, 197, 94, 0.08), transparent 55%),
-    radial-gradient(ellipse 50% 50% at 20% 110%, rgba(59, 130, 246, 0.06), transparent 50%),
-    radial-gradient(ellipse 40% 40% at 50% 40%, rgba(139, 92, 246, 0.05), transparent 45%),
-    radial-gradient(ellipse 30% 30% at 80% 60%, rgba(236, 72, 153, 0.04), transparent 40%);
+    radial-gradient(ellipse 70% 60% at 70% -10%, rgba(34, 197, 94, 0.16), transparent 55%),
+    radial-gradient(ellipse 40% 40% at 85% 70%, rgba(245, 197, 24, 0.07), transparent 45%);
 }
 
 .hero-modern__noise {
@@ -1510,7 +1513,7 @@ code {
   position: absolute;
   inset: -3px;
   border-radius: 20px;
-  background: conic-gradient(from 0deg, #22c55e, #3b82f6, #8b5cf6, #ec4899, #22c55e);
+  background: conic-gradient(from 0deg, #22c55e, #15803d, #4d7c0f, #22c55e);
   opacity: 0.5;
 }
 
@@ -1557,6 +1560,22 @@ code {
   gap: 6px;
   font-size: 13px;
   color: rgba(255, 255, 255, 0.5);
+}
+
+.hero-modern__rolebadge {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #d8fce4;
+  width: fit-content;
 }
 
 .hero-modern__role-dot {

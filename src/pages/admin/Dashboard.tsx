@@ -23,12 +23,12 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
   useEffect(() => {
     let cancelled = false
     const counters = [
-      { label: 'Users', icon: 'users', sub: 'Registered profiles', accent: 'linear-gradient(135deg,#0ea5e9,#6366f1)', load: () => fetchAllProfiles() },
-      { label: 'Strategic Goals', icon: 'goals', sub: 'Institutional goals', accent: 'linear-gradient(135deg,#10b981,#06b6d4)', load: () => fetchStrategicGoals() },
-      { label: 'Program Educational Objectives', icon: 'peo', sub: 'Graduate PEOs', accent: 'linear-gradient(135deg,#f59e0b,#ef4444)', load: () => fetchProgramEducationalObjectives() },
-      { label: 'Program Outcomes', icon: 'po', sub: 'Program outcomes mapping', accent: 'linear-gradient(135deg,#8b5cf6,#ec4899)', load: () => fetchProgramOutcomesStandalone() },
-      { label: 'Course Learning Outcomes', icon: 'clo', sub: 'CLOs per course', accent: 'linear-gradient(135deg,#06b6d4,#3b82f6)', load: () => fetchCourseLearningOutcomesStandalone() },
-      { label: 'CHED Memo Orders', icon: 'ched', sub: 'CHED policies', accent: 'linear-gradient(135deg,#84cc16,#16a34a)', load: () => fetchChedMemoOrders() },
+      { label: 'Users', icon: 'users', sub: 'Registered profiles', accent: '#64748b', load: () => fetchAllProfiles() },
+      { label: 'Strategic Goals', icon: 'goals', sub: 'Institutional goals', accent: '#4d7c0f', load: () => fetchStrategicGoals() },
+      { label: 'Program Educational Objectives', icon: 'peo', sub: 'Graduate PEOs', accent: '#4d7c0f', load: () => fetchProgramEducationalObjectives() },
+      { label: 'Program Outcomes', icon: 'po', sub: 'Program outcomes mapping', accent: '#15803d', load: () => fetchProgramOutcomesStandalone() },
+      { label: 'Course Learning Outcomes', icon: 'clo', sub: 'CLOs per course', accent: '#15803d', load: () => fetchCourseLearningOutcomesStandalone() },
+      { label: 'CHED Memo Orders', icon: 'ched', sub: 'CHED policies', accent: '#4d7c0f', load: () => fetchChedMemoOrders() },
     ]
     Promise.all(counters.map(async (c) => {
       try {
@@ -75,6 +75,7 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
             <div className="hero-modern__identity">
               <div className="hero-modern__intro">
                 <h1 className="hero-modern__name">Welcome back, {profile?.full_name || profile?.email?.split('@')[0]}</h1>
+                <span className="hero-modern__rolebadge">Administrator</span>
               </div>
             </div>
           </div>
@@ -113,28 +114,28 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
           </div>
           <div className="quick-actions">
             <button className="quick-action" type="button" onClick={() => go('program')}>
-              <span className="quick-action__icon" style={{ background: 'linear-gradient(135deg,#22c55e,#16a34a)' }}>
+              <span className="quick-action__icon" style={{ background: '#16a34a' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg>
               </span>
               <span className="quick-action__text"><strong>Add Program</strong><small>Create degree offering</small></span>
               <svg className="quick-action__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 18l6-6-6-6"/></svg>
             </button>
             <button className="quick-action" type="button" onClick={() => go('clo')}>
-              <span className="quick-action__icon" style={{ background: 'linear-gradient(135deg,#0ea5e9,#6366f1)' }}>
+              <span className="quick-action__icon" style={{ background: '#15803d' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z"/></svg>
               </span>
               <span className="quick-action__text"><strong>Map CLO → PO</strong><small>Curriculum matrix</small></span>
               <svg className="quick-action__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 18l6-6-6-6"/></svg>
             </button>
             <button className="quick-action" type="button" onClick={() => go('program-outcomes')}>
-              <span className="quick-action__icon" style={{ background: 'linear-gradient(135deg,#8b5cf6,#ec4899)' }}>
+              <span className="quick-action__icon" style={{ background: '#15803d' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"/></svg>
               </span>
               <span className="quick-action__text"><strong>Review Outcomes</strong><small>PO alignment check</small></span>
               <svg className="quick-action__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 18l6-6-6-6"/></svg>
             </button>
             <button className="quick-action" type="button" onClick={() => go('activity-logs')}>
-              <span className="quick-action__icon" style={{ background: 'linear-gradient(135deg,#f59e0b,#ef4444)' }}>
+              <span className="quick-action__icon" style={{ background: '#64748b' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
               </span>
               <span className="quick-action__text"><strong>Activity Logs</strong><small>Audit trail</small></span>

@@ -27,12 +27,12 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
   useEffect(() => {
     let cancelled = false
     const counters = [
-      { label: 'Curriculum Records', icon: 'clo', sub: 'Published curriculum', accent: 'linear-gradient(135deg,#0ea5e9,#6366f1)', load: () => fetchResources() },
-      { label: 'Programs', icon: 'program', sub: 'Degree offerings', accent: 'linear-gradient(135deg,#10b981,#06b6d4)', load: () => fetchPrograms() },
-      { label: 'Courses', icon: 'course', sub: 'Across programs', accent: 'linear-gradient(135deg,#8b5cf6,#ec4899)', load: () => fetchCourses() },
-      { label: 'Program Outcomes', icon: 'po', sub: 'PO alignment', accent: 'linear-gradient(135deg,#f59e0b,#ef4444)', load: () => fetchProgramOutcomesStandalone() },
-      { label: 'Course Outcomes', icon: 'clo', sub: 'CLOs per course', accent: 'linear-gradient(135deg,#06b6d4,#3b82f6)', load: () => fetchCourseLearningOutcomesStandalone() },
-      { label: 'Faculty', icon: 'users', sub: 'Registered profiles', accent: 'linear-gradient(135deg,#16a34a,#0ea5e9)', load: () => fetchAllProfiles() },
+      { label: 'Curriculum Records', icon: 'clo', sub: 'Published curriculum', accent: '#16a34a', load: () => fetchResources() },
+      { label: 'Programs', icon: 'program', sub: 'Degree offerings', accent: '#16a34a', load: () => fetchPrograms() },
+      { label: 'Courses', icon: 'course', sub: 'Across programs', accent: '#15803d', load: () => fetchCourses() },
+      { label: 'Program Outcomes', icon: 'po', sub: 'PO alignment', accent: '#15803d', load: () => fetchProgramOutcomesStandalone() },
+      { label: 'Course Outcomes', icon: 'clo', sub: 'CLOs per course', accent: '#15803d', load: () => fetchCourseLearningOutcomesStandalone() },
+      { label: 'Faculty', icon: 'users', sub: 'Registered profiles', accent: '#64748b', load: () => fetchAllProfiles() },
     ]
     Promise.all(counters.map(async (c) => {
       try {
@@ -79,6 +79,7 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
             <div className="hero-modern__identity">
               <div className="hero-modern__intro">
                 <h1 className="hero-modern__name">Welcome back, {profile?.full_name || profile?.email?.split('@')[0]}</h1>
+                <span className="hero-modern__rolebadge">Program Head</span>
               </div>
             </div>
           </div>
@@ -116,35 +117,35 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
           </div>
           <div className="quick-actions">
             <button className="quick-action" type="button" onClick={() => go('curriculum')}>
-              <span className="quick-action__icon" style={{ background: 'linear-gradient(135deg,#0ea5e9,#6366f1)' }}>
+              <span className="quick-action__icon" style={{ background: '#16a34a' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z" /></svg>
               </span>
               <span className="quick-action__text"><strong>Curriculum</strong><small>Create / edit curriculum</small></span>
               <svg className="quick-action__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 18l6-6-6-6" /></svg>
             </button>
             <button className="quick-action" type="button" onClick={() => go('course')}>
-              <span className="quick-action__icon" style={{ background: 'linear-gradient(135deg,#10b981,#06b6d4)' }}>
+              <span className="quick-action__icon" style={{ background: '#15803d' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
               </span>
               <span className="quick-action__text"><strong>Course</strong><small>Create / edit courses</small></span>
               <svg className="quick-action__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 18l6-6-6-6" /></svg>
             </button>
             <button className="quick-action" type="button" onClick={() => go('program-outcomes')}>
-              <span className="quick-action__icon" style={{ background: 'linear-gradient(135deg,#8b5cf6,#ec4899)' }}>
+              <span className="quick-action__icon" style={{ background: '#15803d' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><path d="M3 3v18h18" /><path d="M7 16l3-3 3 3 5-8" /></svg>
               </span>
               <span className="quick-action__text"><strong>Program Outcomes</strong><small>PO review & mapping</small></span>
               <svg className="quick-action__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 18l6-6-6-6" /></svg>
             </button>
             <button className="quick-action" type="button" onClick={() => go('subject-view')}>
-              <span className="quick-action__icon" style={{ background: 'linear-gradient(135deg,#06b6d4,#3b82f6)' }}>
+              <span className="quick-action__icon" style={{ background: '#15803d' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><circle cx="12" cy="12" r="3" /><path d="M19.07 18.93A10 10 0 0 0 21 12M2.93 5.07A10 10 0 0 1 12 3" /><path d="M12 12m-7 0a7 7 0 0 1 14 0" /></svg>
               </span>
               <span className="quick-action__text"><strong>Subject Graph</strong><small>Prerequisite visualization</small></span>
               <svg className="quick-action__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 18l6-6-6-6" /></svg>
             </button>
             <button className="quick-action" type="button" onClick={() => go('activity-logs')}>
-              <span className="quick-action__icon" style={{ background: 'linear-gradient(135deg,#f59e0b,#ef4444)' }}>
+              <span className="quick-action__icon" style={{ background: '#64748b' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
               </span>
               <span className="quick-action__text"><strong>Activity Logs</strong><small>Audit trail</small></span>
