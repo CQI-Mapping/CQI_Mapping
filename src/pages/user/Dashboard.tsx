@@ -15,22 +15,31 @@ interface DashboardProps {
 function Dashboard({ profile, onNavigate }: DashboardProps) {
   const [stats, setStats] = useState<Array<{ label: string; value: number | null; accent: string; icon: string; sub: string }>>([])
   const [recent, setRecent] = useState<CourseLearningOutcomeStandalone[]>([])
+  const loading = stats.length === 0
 
   useEffect(() => {
+    let cancelled = false
     const counters = [
       { label: 'Subjects', icon: 'course', sub: 'Available subjects', accent: 'linear-gradient(135deg,#8b5cf6,#ec4899)', load: () => fetchCourses() },
       { label: 'Course Outcomes', icon: 'clo', sub: 'CLOs per course', accent: 'linear-gradient(135deg,#f59e0b,#ef4444)', load: () => fetchCourseLearningOutcomesStandalone() },
     ]
     Promise.all(
-      counters.map(async (c) => ({ label: c.label, value: (await c.load()).length, accent: c.accent, icon: c.icon, sub: c.sub }))
+      counters.map(async (c) => {
+        try {
+          return { label: c.label, value: (await c.load()).length, accent: c.accent, icon: c.icon, sub: c.sub }
+        } catch {
+          return { label: c.label, value: 0, accent: c.accent, icon: c.icon, sub: c.sub }
+        }
+      })
     )
-      .then(setStats)
+      .then((rows) => { if (!cancelled) setStats(rows) })
       .catch(() => {})
 
     // Recent CLOs as the faculty feed (audit log is manager/admin only)
     fetchCourseLearningOutcomesStandalone()
-      .then((clos) => setRecent([...clos].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)).slice(0, 5)))
+      .then((clos) => { if (!cancelled) setRecent([...clos].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)).slice(0, 5)) })
       .catch(() => {})
+    return () => { cancelled = true }
   }, [])
 
   function getTimeGreeting(): string {
@@ -71,16 +80,24 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
         </div>
       </section>
 
-      <div className="stat-grid stat-grid--2026">
+      <div className="stat-grid stat-grid--2026" aria-busy={loading}>
 
-        {stats.map((s) => (
+        {loading
+          ? ['stat-1', 'stat-2'].map((label) => (
+            <div className="stat-card stat-card--2026 stat-card--skeleton card-enter" key={label} aria-hidden="true">
+              <span className="stat-card__label">Loading</span>
+              <span className="stat-card__value">—</span>
+              <span className="stat-card__sub">Loading</span>
+            </div>
+          ))
+          : stats.map((s) => (
           <div className="stat-card stat-card--2026 card-enter" key={s.label}>
             <div className="stat-card__accent" style={{ background: s.accent }} />
             <div className="stat-card__icon" style={{ background: s.accent, color: '#fff' }}>
               <StatIcon type={s.icon} />
             </div>
             <span className="stat-card__label">{s.label}</span>
-            <span className="stat-card__value">{s.value ?? '...'}</span>
+            <span className="stat-card__value">{s.value ?? '—'}</span>
             <span className="stat-card__sub">{s.sub}</span>
           </div>
         ))}
@@ -131,7 +148,7 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
                   <span className="activity-feed__dot" style={{ background: r.status === 'archived' ? '#94a3b8' : '#22c55e', boxShadow: r.status === 'archived' ? '0 0 0 4px #f1f5f9' : '0 0 0 4px #dcfce7' }} />
                   <span className="activity-feed__action">{r.code || r.title}</span>
                   <span className="activity-feed__user">{[r.course, r.title].filter(Boolean).join(' · ').slice(0, 60) || '—'}</span>
-                  <time className="activity-feed__time">{new Date(r.created_at).toLocaleDateString()}</time>
+                  <time className="activity-feed__time">{new Date(r.created_at).toLocaleString()}</time>
                 </li>
               ))}
             </ul>

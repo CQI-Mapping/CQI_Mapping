@@ -1745,6 +1745,7 @@ code {
 
 .stat-grid--2026 {
   gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 }
 
 .dashboard-panels {
@@ -2043,6 +2044,12 @@ code {
 
 .stat-card--skeleton {
   pointer-events: none;
+  animation: stat-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes stat-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
 .stat-card--skeleton .stat-card__label,

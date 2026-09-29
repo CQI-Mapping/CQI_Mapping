@@ -18,22 +18,31 @@ interface DashboardProps {
 function Dashboard({ profile, onNavigate }: DashboardProps) {
   const [stats, setStats] = useState<Array<{ label: string; value: number | null; accent: string; icon: string; sub: string }>>([])
   const [recent, setRecent] = useState<ActivityLogEntry[]>([])
+  const loading = stats.length === 0
 
   useEffect(() => {
+    let cancelled = false
     const counters = [
       { label: 'Users', icon: 'users', sub: 'Registered profiles', accent: 'linear-gradient(135deg,#0ea5e9,#6366f1)', load: () => fetchAllProfiles() },
       { label: 'Strategic Goals', icon: 'goals', sub: 'Institutional goals', accent: 'linear-gradient(135deg,#10b981,#06b6d4)', load: () => fetchStrategicGoals() },
       { label: 'Program Educational Objectives', icon: 'peo', sub: 'Graduate PEOs', accent: 'linear-gradient(135deg,#f59e0b,#ef4444)', load: () => fetchProgramEducationalObjectives() },
-      { label: 'Program Outcomes', icon: 'po', sub: 'PO-1 → PO-27', accent: 'linear-gradient(135deg,#8b5cf6,#ec4899)', load: () => fetchProgramOutcomesStandalone() },
+      { label: 'Program Outcomes', icon: 'po', sub: 'Program outcomes mapping', accent: 'linear-gradient(135deg,#8b5cf6,#ec4899)', load: () => fetchProgramOutcomesStandalone() },
       { label: 'Course Learning Outcomes', icon: 'clo', sub: 'CLOs per course', accent: 'linear-gradient(135deg,#06b6d4,#3b82f6)', load: () => fetchCourseLearningOutcomesStandalone() },
       { label: 'CHED Memo Orders', icon: 'ched', sub: 'CHED policies', accent: 'linear-gradient(135deg,#84cc16,#16a34a)', load: () => fetchChedMemoOrders() },
     ]
-    Promise.all(counters.map(async (c) => ({ label: c.label, value: (await c.load()).length, accent: c.accent, icon: c.icon, sub: c.sub })))
-      .then(setStats)
-    fetchActivityLogs().then((logs) => setRecent(logs.slice(0, 5))).catch(() => {})
+    Promise.all(counters.map(async (c) => {
+      try {
+        return { label: c.label, value: (await c.load()).length, accent: c.accent, icon: c.icon, sub: c.sub }
+      } catch {
+        return { label: c.label, value: 0, accent: c.accent, icon: c.icon, sub: c.sub }
+      }
+    }))
+      .then((rows) => { if (!cancelled) setStats(rows) })
+      .catch(() => {})
+    fetchActivityLogs().then((logs) => { if (!cancelled) setRecent(logs.slice(0, 5)) }).catch(() => {})
+    return () => { cancelled = true }
   }, [])
 
-  const totalRecords = stats.length > 0 ? stats.reduce((a, s) => a + (s.value ?? 0), 0) : 0
   const go = (id: string) => onNavigate?.(id)
 
   function getTimeGreeting(): string {
@@ -73,16 +82,24 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
         </div>
       </section>
 
-      <div className="stat-grid stat-grid--2026">
+      <div className="stat-grid stat-grid--2026" aria-busy={loading}>
 
-        {stats.map((s) => (
+        {loading
+          ? ['stat-1', 'stat-2', 'stat-3', 'stat-4', 'stat-5', 'stat-6'].map((label) => (
+            <div className="stat-card stat-card--2026 stat-card--skeleton card-enter" key={label} aria-hidden="true">
+              <span className="stat-card__label">Loading</span>
+              <span className="stat-card__value">—</span>
+              <span className="stat-card__sub">Loading</span>
+            </div>
+          ))
+          : stats.map((s) => (
           <div className="stat-card stat-card--2026 card-enter" key={s.label}>
             <div className="stat-card__accent" style={{ background: s.accent }} />
             <div className="stat-card__icon" style={{ background: s.accent, color: '#fff' }}>
               <StatIcon type={s.icon} />
             </div>
             <span className="stat-card__label">{s.label}</span>
-            <span className="stat-card__value">{s.value ?? '...'}</span>
+            <span className="stat-card__value">{s.value ?? '—'}</span>
             <span className="stat-card__sub">{s.sub}</span>
           </div>
         ))}
