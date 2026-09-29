@@ -49,18 +49,23 @@ No CSS framework, no router library — deliberately simple so it's easy to exte
 |---|---|---|---|
 | Sign in | yes | yes | yes |
 | View own dashboard | yes | yes | yes |
-| Browse curriculum records | yes | yes | yes |
+| Browse curriculum records | yes | yes | — |
 | Create curriculum records | yes | yes | — |
 | Edit curriculum records | yes | yes | — |
 | Archive / restore curriculum records | yes | yes | — |
 | Delete curriculum records | yes | — | — |
+| Manage courses (create/edit/archive, no delete for manager) | yes | yes | — |
+| Browse subjects + CLOs | yes | yes | yes |
+| View Subject Graph | yes | yes | yes |
 | View faculty directory (all profiles) | yes | yes | — |
-| Change user roles | yes | — | — |
-| Create user accounts | yes* | — | — |
+| Add / remove faculty (`user` role only) | — | yes | — |
+| Change user roles | yes† | — | — |
+| Create manager accounts | yes* | — | — |
 | View audit log | yes | yes | — |
 | View / edit own profile | yes | yes | yes |
 
-\* Creating user accounts uses the Supabase admin API and therefore requires `VITE_SUPABASE_SERVICE_ROLE_KEY` in `.env`. Without it, the "Create user" form shows an error; role changes and everything else still work.
+\* Creating user accounts uses the Supabase admin API and therefore requires `VITE_SUPABASE_SERVICE_ROLE_KEY` in `.env`. Without it, the "Create user" form shows an error; everything else still works.
+† `updateUserRole()` exists in `src/services/database.ts` but no UI calls it yet — role changes are done via SQL (`UPDATE public.profiles SET role=...`) or the service function from console.
 
 ### 3.1 Test Accounts
 
@@ -109,24 +114,28 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
     │   ├── Login.tsx         # Sign in (login only, no create-account tab)
     │   ├── Profile.tsx       # View/edit own profile (shared by all roles)
     │   ├── admin/
-    │   │   ├── Dashboard.tsx         # Admin overview: role/resources/user counts
-    │   │   ├── Users.tsx             # Manage roles + create users
-    │   │   ├── ChedMemoOrders.tsx    # CHED Memorandum Orders (editable)
-    │   │   ├── StrategicGoals.tsx    # Strategic Goals (editable)
-    │   │   ├── ProgramEducationalObjectives.tsx  # PEOs (editable)
-    │   │   ├── ProgramOutcomes.tsx   # Program Outcomes (editable)
-    │   │   ├── CourseLearningOutcomes.tsx  # CLOs (editable)
+    │   │   ├── Dashboard.tsx         # Admin overview (green hero, skeleton stats, role badge)
+    │   │   ├── Users.tsx             # Manage roles + create managers (manager-only creation)
+    │   │   ├── ChedMemoOrders.tsx    # CHED Memorandum Orders (via shared EntityCrudPage)
+    │   │   ├── StrategicGoals.tsx    # Strategic Goals (via shared EntityCrudPage)
+    │   │   ├── ProgramEducationalObjectives.tsx  # PEOs (via shared EntityCrudPage)
+    │   │   ├── ProgramOutcomes.tsx   # Program Outcomes (via shared EntityCrudPage)
+    │   │   ├── Course.tsx            # Courses: create/edit/archive/delete (`hideDelete` prop hides Delete)
+    │   │   ├── CourseLearningOutcomes.tsx  # CLOs (bespoke page: stats + search + tabs)
+    │   │   ├── SubjectView.tsx       # d3 Subject Graph, green-monochrome theme (all roles share it)
     │   │   ├── View.tsx              # Printable curriculum map / syllabus report
-    │   │   ├── ActivityLogs.tsx      # Filterable activity log table
+    │   │   ├── ActivityLogs.tsx      # Filterable activity log table (shared with manager)
     │   │   └── curriculum/
+    │   │       ├── EntityCrudPage.tsx  # Shared CRUD UI (PO/PEO/SG/CHED) — search, tabs, skeleton, `allowDelete`
     │   │       └── useEntityCrud.ts  # Shared CRUD hook for entity forms
     │   ├── manager/
-    │   │   ├── Dashboard.tsx         # Manager overview + capabilities
-    │   │   ├── Users.tsx             # Read-only faculty directory
-    │   │   └── Curriculum.tsx        # Create/edit/archive (no delete)
+    │   │   ├── Dashboard.tsx         # Manager overview + Course quick-action
+    │   │   ├── Users.tsx             # Faculty directory + add/remove faculty (`user` role only)
+    │   │   ├── Curriculum.tsx        # Create/edit/archive (no delete) + search
+    │   │   └── Course.tsx            # Wraps AdminCourse with `hideDelete` (no delete)
     │   └── user/
-    │       ├── Dashboard.tsx         # User overview + capabilities
-    │       └── Curriculum.tsx        # Read-only browse
+    │       ├── Dashboard.tsx         # Faculty: Subjects + CLO stats, recent CLOs
+    │       └── Curriculum.tsx        # Unrouted legacy read-only browse (faculty nav is CLO + Subject Graph)
     ├── services/
     │   └── database.ts       # ALL Supabase queries used by the app
     ├── styles/
@@ -349,62 +358,73 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 
 ### `Login.tsx`
 - Sign in with email/password (`supabase.auth.signInWithPassword`).
+- Dark-green glass theme with brand header (`CQI Monitoring` + `NBSC · Institute of Computer Studies`).
+- Test accounts live in a collapsible `<details>` ("View test accounts"), plain text.
+- Error has `role="alert"`, clears on typing; submit shows spinner + `aria-busy`; shine animation stops when disabled.
 - Empty-field validation: submitting with a blank email or password shows "Email and password are required." without hitting the API.
 - Failed sign-ins show a generic "Invalid email or password." (never leaks Supabase's raw error, e.g. rate limits or account state).
 - Every attempt is written to `activity_logs` via the `record_login_event` RPC (`auth.login` on success, `auth.login_failed` on failure).
+- Respects `prefers-reduced-motion`; mobile padding at 360px.
 
 ### `admin/Dashboard.tsx`
-- Reads the `profile` prop. Shows stat cards: your role, total resources, and total users. Counts use `head: true` queries.
-- Lists what the admin role can do.
+- Green hero (matches login) + role badge (`Administrator`), skeleton stat cards with per-item error fallback (`0`, never stuck), `aria-busy` grid.
+- 6 flat-green stats: Users, Strategic Goals, PEOs, Program Outcomes, CLOs, CHED Memo Orders. No rainbow gradients.
+- Quick actions: Add Program, Map CLO → PO, Review Outcomes, Activity Logs. Recent activity (latest 5, `toLocaleString`).
 
 ### `manager/Dashboard.tsx` and `user/Dashboard.tsx`
-- Same overview pattern for the manager and user roles, with their own stat cards and capability lists.
+- Same green hero + skeleton pattern; role badges (`Program Head` / `Faculty`).
+- Manager: 6 stats (Curriculum, Programs, Courses, POs, CLOs, Faculty) + Course quick-action.
+- Faculty: 2 stats (Subjects = Courses count, Course Outcomes) + recent CLOs (latest 5 by `created_at`); no Curriculum or PO modules.
 
 ### `admin/Users.tsx`
-- Full account management: table of all users with an inline role `<select>` (calls `updateUserRole`, then writes an audit entry) plus a "Create user" form (calls `adminCreateUser`).
+- Create **manager** accounts only (role hardcoded to `'manager'` in `adminCreateUser` call) plus table of all users with role badges. Needs `VITE_SUPABASE_SERVICE_ROLE_KEY`. No role `<select>` in UI — role changes via SQL or `updateUserRole()`.
+- Password Show/Hide uses light-form `.password-wrapper` override (dark text on white).
 
-### `admin/ChedMemoOrders.tsx`
-- Manage CHED Memorandum Orders: create, edit, archive, and delete records.
+### `admin/Course.tsx` and `manager/Course.tsx`
+- Admin Course: programs + curriculums + courses with prereq/coreq, lecture/lab credits, search, Active/Archive tabs, stats, skeleton cards. Delete renders **only on archived cards**.
+- Optional `hideDelete` prop hides Delete entirely; `manager/Course.tsx` wraps it with `hideDelete` (create/edit/archive/restore, no delete).
 
-### `admin/StrategicGoals.tsx`
-- Manage Strategic Goals: create, edit, archive, and delete records.
-
-### `admin/ProgramEducationalObjectives.tsx`
-- Manage Program Educational Objectives (PEOs): create, edit, archive, and delete records.
-
-### `admin/ProgramOutcomes.tsx`
-- Manage Program Outcomes: create, edit, archive, and delete records.
+### Entity pages (`ProgramOutcomes`, `ProgramEducationalObjectives`, `StrategicGoals`, `ChedMemoOrders` via `curriculum/EntityCrudPage.tsx`)
+- Shared UI: stats, search (`program-search`), Active/Archive tabs with counts, skeleton cards, unified empty states (`No ... yet`), `role=alert/status` messages, flat green top-border.
+- `allowDelete` prop gates the Delete button (archived only), enabling future manager reuse.
 
 ### `admin/CourseLearningOutcomes.tsx`
-- Manage Course Learning Outcomes (CLOs): create, edit, archive, and delete records.
+- Bespoke page (not shared): course-scoped CLOs + PO suggestion mapping, stats + search + tabs + skeleton + unified empty states. Also mounted on the faculty route.
+
+### `admin/SubjectView.tsx` (shared by all roles as Subject Graph)
+- d3 outcome hierarchy: Subject → Curriculum → Prereq/Coreq → CLO → PO → PEO → SG → CMO. Renders after pressing View.
+- Strict green-monochrome + gray + 1 amber (prereq) theme; legend with per-kind counts + Unresolved badge (`countKinds`); placeholder/loading/empty states; mobile stacks panels and scrolls graph horizontally.
+
+### `manager/Users.tsx`
+- Faculty directory (table with role badges) + add/remove faculty (`user` role only, never self). Role changes are admin-only (via SQL).
+
+### `manager/Curriculum.tsx`
+- Props: `userEmail`. Create/edit/archive (no delete), search box, Active/Archive tabs with counts, `role=alert/status` messages.
+
+### `manager/Course.tsx`
+- Wraps `admin/Course` with `hideDelete` (create/edit/archive/restore, no delete). Falls through `renderPage` with `profile` prop.
 
 ### `admin/View.tsx`
 - Printable curriculum map / syllabus report. Displays Vision, Mission, Strategic Goals, PEOs, Program Outcomes, Curriculum Mapping, Course Learning Outcomes, and Course Details in a formatted document layout.
 - Supports inline editing and archiving of Strategic Goals, PEOs, and Program Outcomes via an Edit toggle.
 - Static syllabus content (vision/mission wording, curriculum mapping, course details) comes from `src/data/vcqiSyllabus.ts`.
 
-### `manager/Users.tsx`
-- Read-only faculty directory showing role badges. Role changes are admin-only.
-
-### `manager/Curriculum.tsx`
-- Props: `userEmail`. Same as admin but without the Delete button.
-
 ### `user/Curriculum.tsx`
-- Read-only browse of published curriculum records.
+- Unrouted legacy read-only browse (faculty nav is Dashboard + CLO + Subject Graph + Profile).
 
 ### `ActivityLogs.tsx` (admin and manager)
-- Fetches the latest 100 entries. Columns: when, user, action, details.
+- Latest 100 entries with search + action/date filters, human-readable labels (incl. `course.archived/restored`, `resource.restored`), empty/filtered-empty states. Columns: when (`toLocaleString`), user, action badge (green/neutral only).
 
 ### `Profile.tsx`
 - Props: `profile`, `onSaved`. Edits `full_name`, writes an audit entry, and reports the updated profile back to `App.tsx` via `onSaved`. Shared by all roles.
 
 ### `App.tsx`
-- Holds `session`, `profile`, `activePage`. Defines the `NAV` map (role → nav items) and the `PAGES` map (role → page components, one per role folder; `Profile` is shared). On session change, loads the profile via `ensureProfile` (auto-creates the row if missing — e.g. after a schema re-run) and renders `Login` when signed out; otherwise renders the Sidebar + topbar + current page.
+- Holds `session`, `profile`, `activePage`. Defines the `NAV` map (role → nav items) and the `PAGES` map (role → page components, one per role folder; `Profile` is shared). On session change, loads the profile via `ensureProfile` (auto-creates the row if missing — e.g. after a schema re-run) and renders `Login` when signed out; otherwise renders the header + current page.
 - **Gating:** `page` is coerced to a role-valid page, so even a crafted `activePage` value can't show an unauthorized page.
 - **Login guard:** A `profileLoaded` flag prevents rendering the dashboard before the user's role is known, so the correct role-specific page appears immediately without a flash.
 
 ### `Sidebar.tsx`
-- Renders `navItems` (passed from App, role-specific), the current role, and a logout button.
+- Top header bar: brand + role-specific nav + profile menu. Academic pages group under an `Academics` dropdown (all roles); `subject-view` included. Shows real `full_name`/`email` in the profile menu with role badge; logout lives inside. Active items get `aria-current="page"`; drawer starts closed on mobile (≤1024px).
 
 ---
 
