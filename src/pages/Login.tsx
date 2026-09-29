@@ -59,11 +59,13 @@ function Login() {
         <div className="login-card">
           <div className="login-brand">
             <div className="login-brand-mark">CQI</div>
+            <h1>CQI Monitoring</h1>
+            <p className="login-subtitle">NBSC · Institute of Computer Studies</p>
           </div>
 
-          {error && <div className="login-alert login-alert--error">{error}</div>}
+          {error && <div className="login-alert login-alert--error" role="alert">{error}</div>}
 
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} noValidate>
             <div className="form-group">
               <label htmlFor="email">Email</label>
               <div className="input-wrap">
@@ -76,9 +78,10 @@ function Login() {
                   id="email"
                   placeholder="you@example.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => { setEmail(e.target.value); if (error) setError('') }}
                   autoComplete="email"
                   autoFocus
+                  aria-invalid={error ? true : undefined}
                 />
               </div>
             </div>
@@ -95,8 +98,9 @@ function Login() {
                   id="password"
                   placeholder="Enter your password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => { setPassword(e.target.value); if (error) setError('') }}
                   autoComplete="current-password"
+                  aria-invalid={error ? true : undefined}
                 />
                 <button
                   type="button"
@@ -121,22 +125,32 @@ function Login() {
               </div>
             </div>
 
-            <button type="submit" className="login-btn" disabled={busy}>
-              {busy ? 'Signing in...' : 'Sign In'}
-              {!busy && ' →'}
+            <button type="submit" className="login-btn" disabled={busy} aria-busy={busy}>
+              {busy ? (
+                <span className="login-btn__busy">
+                  <svg className="login-spinner" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.25" strokeWidth="3" />
+                    <path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                  </svg>
+                  Signing in…
+                </span>
+              ) : (
+                <>Sign In →</>
+              )}
             </button>
           </form>
 
-          {/* Dev convenience: the seeded test accounts for the demo */}
-          <p className="login-hint">
-            Test accounts:
-            <br />
-            <strong>Admin</strong> — admin@cqi.test / Admin@123456
-            <br />
-            <strong>Manager</strong> — manager@cqi.test / Manager@123456
-            <br />
-            <strong>User</strong> — user@cqi.test / User@123456
-          </p>
+          {/* Demo convenience: seeded test accounts in a collapsible */}
+          <details className="login-demo">
+            <summary>View test accounts</summary>
+            <p className="login-hint">
+              <strong>Admin</strong> — admin@cqi.test / Admin@123456
+              <br />
+              <strong>Manager</strong> — manager@cqi.test / Manager@123456
+              <br />
+              <strong>User</strong> — user@cqi.test / User@123456
+            </p>
+          </details>
         </div>
 
         <p className="login-footer">© 2026 NBSC · Institute of Computer Studies</p>
