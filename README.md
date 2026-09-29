@@ -57,8 +57,8 @@ No CSS framework, no router library — deliberately simple so it's easy to exte
 | Manage courses (create/edit/archive, no delete for manager) | yes | yes | — |
 | Browse subjects + CLOs | yes | yes | yes |
 | View Subject Graph | yes | yes | yes |
-| View faculty directory (all profiles) | yes | yes | — |
-| Add / remove faculty (`user` role only) | — | yes | — |
+| View users directory (all profiles) | yes | yes | — |
+| Add / remove users (`user` role only) | — | yes | — |
 | Change user roles | yes† | — | — |
 | Create user accounts (any role) | yes* | — | — |
 | View audit log | yes | yes | — |
@@ -130,7 +130,7 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
     │   │       └── useEntityCrud.ts  # Shared CRUD hook for entity forms
     │   ├── manager/
     │   │   ├── Dashboard.tsx         # Manager overview + Course quick-action
-    │   │   ├── Users.tsx             # Faculty directory + add/remove faculty (`user` role only)
+    │   │   ├── Users.tsx             # Users directory + add/remove users (`user` role only)
     │   │   ├── Curriculum.tsx        # Create/edit/archive (no delete) + search
     │   │   └── Course.tsx            # Wraps AdminCourse with `hideDelete` (no delete)
     │   └── user/
@@ -396,7 +396,7 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 - Strict green-monochrome + gray + 1 amber (prereq) theme; legend with per-kind counts + Unresolved badge (`countKinds`); placeholder/loading/empty states; mobile stacks panels and scrolls graph horizontally.
 
 ### `manager/Users.tsx`
-- Faculty directory (table with role badges) + add/remove faculty (`user` role only, never self). Role changes are admin-only (via SQL).
+- Users directory (table with role badges) + add/remove users (`user` role only, never self). Role changes are admin-only (via SQL).
 
 ### `manager/Curriculum.tsx`
 - Props: `userEmail`. Create/edit/archive (no delete), search box, Active/Archive tabs with counts, `role=alert/status` messages.

@@ -1,6 +1,6 @@
 // Manager dashboard — normal dashboard experience for program head / CQI lead.
 // Mirrors admin's 2026 premium layout but scoped to manager capabilities:
-// curriculum records, programs/courses, outcomes alignment, faculty & audit trail.
+// curriculum records, programs/courses, outcomes alignment, users & audit trail.
 
 import { useState, useEffect } from 'react'
 import {
@@ -32,7 +32,7 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
       { label: 'Courses', icon: 'course', sub: 'Across programs', accent: '#15803d', load: () => fetchCourses() },
       { label: 'Program Outcomes', icon: 'po', sub: 'PO alignment', accent: '#15803d', load: () => fetchProgramOutcomesStandalone() },
       { label: 'Course Outcomes', icon: 'clo', sub: 'CLOs per course', accent: '#15803d', load: () => fetchCourseLearningOutcomesStandalone() },
-      { label: 'Faculty', icon: 'users', sub: 'Registered profiles', accent: '#64748b', load: () => fetchAllProfiles() },
+      { label: 'Users', icon: 'users', sub: 'Registered profiles', accent: '#64748b', load: () => fetchAllProfiles() },
     ]
     Promise.all(counters.map(async (c) => {
       try {
@@ -184,7 +184,7 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
         <ul className="role-list" style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 8 }}>
           <li><strong>Curriculum</strong> — map courses to program outcomes, maintain CLO/PO alignment, and publish curriculum data.</li>
           <li><strong>Course</strong> — create, edit, and archive courses with prerequisites and credits.</li>
-          <li><strong>Faculty</strong> — browse all user profiles (read-only).</li>
+          <li><strong>Users</strong> — browse all user profiles and manage user accounts.</li>
           <li><strong>Activity Logs</strong> — view the record of actions for your programs.</li>
           <li><strong>Subject Graph</strong> — explore prerequisite / corequisite relationships visually.</li>
         </ul>

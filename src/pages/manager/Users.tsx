@@ -47,7 +47,7 @@ function Users({ userEmail }: UsersProps) {
     setCreating(true)
     try {
       await adminCreateUser(newEmail.trim(), newPassword, newName.trim(), 'user')
-      setSuccess(`Faculty member ${newEmail} created.`)
+      setSuccess(`User ${newEmail} created.`)
       addActivityLog('user.created')
       clearDraft()
       setNewPassword('')
@@ -60,13 +60,13 @@ function Users({ userEmail }: UsersProps) {
   }
 
   const handleDelete = async (userId: string, email: string) => {
-    if (!window.confirm(`Remove faculty member ${email}? This cannot be undone.`)) return
+    if (!window.confirm(`Remove user ${email}? This cannot be undone.`)) return
     setError('')
     setSuccess('')
     try {
       await adminDeleteUser(userId)
       setUsers((prev) => prev.filter((u) => u.id !== userId))
-      setSuccess(`Faculty member ${email} removed.`)
+      setSuccess(`User ${email} removed.`)
       addActivityLog('user.deleted')
     } catch (e) {
       setError('Failed to remove user: ' + (e instanceof Error ? e.message : String(e)))
@@ -76,15 +76,15 @@ function Users({ userEmail }: UsersProps) {
   return (
     <div className="users">
       <div className="page-heading">
-        <h2>Faculty Directory</h2>
-        <p>Browse faculty profiles and add new members.</p>
+        <h2>Users</h2>
+        <p>Browse user profiles and add new members.</p>
       </div>
 
       {error && <p className="msg msg--error" role="alert">{error}</p>}
       {success && <p className="msg msg--success" role="status">{success}</p>}
 
       <div className="panel create-user">
-        <h3>Add Faculty Member</h3>
+        <h3>Add User</h3>
         <form onSubmit={handleCreate}>
           <div className="create-user__row">
             <input
@@ -111,7 +111,7 @@ function Users({ userEmail }: UsersProps) {
               onChange={(e) => setNewName(e.target.value)}
             />
             <button className="btn btn--primary" type="submit" disabled={creating}>
-              {creating ? 'Adding...' : 'Add Faculty'}
+              {creating ? 'Adding...' : 'Add User'}
             </button>
           </div>
         </form>
@@ -121,7 +121,7 @@ function Users({ userEmail }: UsersProps) {
         <p>Loading users...</p>
       ) : (
         <div className="panel table-wrap" style={{ marginTop: 16 }}>
-          <h3>All Faculty</h3>
+          <h3>All Users</h3>
           <table className="table">
             <thead>
               <tr>

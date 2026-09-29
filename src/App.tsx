@@ -58,7 +58,7 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'course', label: 'Course' },
     { id: 'program-outcomes', label: 'Program Outcomes' },
     { id: 'subject-view', label: 'Subject Graph' },
-    { id: 'users', label: 'Faculty' },
+    { id: 'users', label: 'Users' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
   ],
