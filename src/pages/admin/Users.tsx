@@ -1,9 +1,15 @@
-// Admin Users page: create new manager accounts and list all users.
+// Admin Users page: create new accounts (admin, manager, or faculty) and list all users.
 
 import { useState, useEffect } from 'react'
 import { useDraft } from '../../hooks/useDraft'
 import { adminCreateUser, addActivityLog, fetchAllProfiles } from '../../services/database'
-import type { Profile } from '../../services/database'
+import type { Profile, UserRole } from '../../services/database'
+
+const ROLE_LABELS: Record<UserRole, string> = {
+  admin: 'Admin',
+  manager: 'Manager',
+  user: 'Faculty',
+}
 
 export default function Users() {
   // Draft persists email + name across page navigation. The password is
@@ -14,6 +20,7 @@ export default function Users() {
   const setFullName = (v: string) => setDraft((d) => ({ ...d, fullName: v }))
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [role, setRole] = useState<UserRole>('manager')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -36,14 +43,14 @@ export default function Users() {
     if (!email.trim() || !password.trim()) { setError('Email and password are required.'); return }
     setBusy(true)
     try {
-      await adminCreateUser(email.trim(), password, fullName.trim(), 'manager')
+      await adminCreateUser(email.trim(), password, fullName.trim(), role)
       await addActivityLog(email.trim(), 'user.created')
-      setSuccess(`Manager ${email} created.`)
+      setSuccess(`${ROLE_LABELS[role]} ${email} created.`)
       clearDraft()
       setPassword('')
       loadUsers()
     } catch (e) {
-      setError('Failed to create manager: ' + (e instanceof Error ? e.message : String(e)))
+      setError('Failed to create user: ' + (e instanceof Error ? e.message : String(e)))
     } finally { setBusy(false) }
   }
 
@@ -57,7 +64,7 @@ export default function Users() {
           <div className="program-hero__icon">U</div>
           <div className="program-hero__titles">
             <h2>Users &amp; Accounts</h2>
-            <p>Create manager accounts and audit user roles — admin-only.</p>
+            <p>Create admin, manager, or faculty accounts — admin-only.</p>
           </div>
         </div>
       </div>
@@ -84,12 +91,12 @@ export default function Users() {
       {success && <p className="msg msg--success" role="status">{success}</p>}
 
       <div className="panel create-user" style={{ borderTop: '3px solid #16a34a' }}>
-        <h3>Add Manager</h3>
+        <h3>Add User</h3>
         <form onSubmit={handleSubmit}>
           <div className="create-user__row">
             <label className="field">
               <span>Email</span>
-              <input className="input" type="email" placeholder="manager@example.com" value={email} required
+              <input className="input" type="email" placeholder="user@example.com" value={email} required
                 onChange={(e) => setEmail(e.target.value)} />
             </label>
             <label className="field">
@@ -109,8 +116,16 @@ export default function Users() {
               <input className="input" type="text" placeholder="Juan Dela Cruz" value={fullName}
                 onChange={(e) => setFullName(e.target.value)} />
             </label>
+            <label className="field">
+              <span>Role</span>
+              <select className="input" value={role} onChange={(e) => setRole(e.target.value as UserRole)} required>
+                <option value="manager">Manager</option>
+                <option value="admin">Admin</option>
+                <option value="user">Faculty</option>
+              </select>
+            </label>
             <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
-              {busy ? 'Creating...' : 'Create Manager'}
+              {busy ? 'Creating...' : 'Create User'}
             </button>
           </div>
         </form>

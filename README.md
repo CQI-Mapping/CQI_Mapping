@@ -60,7 +60,7 @@ No CSS framework, no router library — deliberately simple so it's easy to exte
 | View faculty directory (all profiles) | yes | yes | — |
 | Add / remove faculty (`user` role only) | — | yes | — |
 | Change user roles | yes† | — | — |
-| Create manager accounts | yes* | — | — |
+| Create user accounts (any role) | yes* | — | — |
 | View audit log | yes | yes | — |
 | View / edit own profile | yes | yes | yes |
 
@@ -115,7 +115,7 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
     │   ├── Profile.tsx       # View/edit own profile (shared by all roles)
     │   ├── admin/
     │   │   ├── Dashboard.tsx         # Admin overview (green hero, skeleton stats, role badge)
-    │   │   ├── Users.tsx             # Manage roles + create managers (manager-only creation)
+    │   │   ├── Users.tsx             # Manage roles + create users (role select: admin/manager/faculty)
     │   │   ├── ChedMemoOrders.tsx    # CHED Memorandum Orders (via shared EntityCrudPage)
     │   │   ├── StrategicGoals.tsx    # Strategic Goals (via shared EntityCrudPage)
     │   │   ├── ProgramEducationalObjectives.tsx  # PEOs (via shared EntityCrudPage)
@@ -377,7 +377,7 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 - Faculty: 2 stats (Subjects = Courses count, Course Outcomes) + recent CLOs (latest 5 by `created_at`); no Curriculum or PO modules.
 
 ### `admin/Users.tsx`
-- Create **manager** accounts only (role hardcoded to `'manager'` in `adminCreateUser` call) plus table of all users with role badges. Needs `VITE_SUPABASE_SERVICE_ROLE_KEY`. No role `<select>` in UI — role changes via SQL or `updateUserRole()`.
+- Create accounts with role select (**admin**, **manager**, or **faculty**) plus table of all users with role badges. Needs `VITE_SUPABASE_SERVICE_ROLE_KEY`. No role `<select>` on existing rows — role changes via SQL or `updateUserRole()`.
 - Password Show/Hide uses light-form `.password-wrapper` override (dark text on white).
 
 ### `admin/Course.tsx` and `manager/Course.tsx`
