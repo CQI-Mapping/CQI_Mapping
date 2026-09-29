@@ -115,16 +115,17 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth > 1024 : true
   )
+  // Set when the profile fetch fails (e.g. flaky network). The app then shows
+  // a retry screen instead of a stale identity or a silent wrong-role fallback.
+  const [profileError, setProfileError] = useState('')
+  const [retryTick, setRetryTick] = useState(0)
   const profileUserIdRef = useRef<string | null>(null)
 
-  // On first render: restore an existing session from localStorage and subscribe to
-  // auth changes (sign-in / sign-out) so the UI updates automatically.
+  // On first render: subscribe to auth changes. Supabase emits INITIAL_SESSION
+  // on subscribe (session or null), which is the single source of truth — no
+  // separate getSession() call, so a stale cached session can never render first
+  // and flash the wrong account on slow networks.
   useEffect(() => {
-    supabase!.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      if (!session) setLoading(false)
-    })
-
     const { data: { subscription } } = supabase!.auth.onAuthStateChange((event, session) => {
       // TOKEN_REFRESHED fires when the tab regains focus (auto token refresh).
       // Ignoring it here keeps the session object identity stable, so the app
@@ -135,7 +136,10 @@ function App() {
       if (!session) {
         setProfile(null)
         setProfileLoaded(false)
+        setProfileError('')
+        profileUserIdRef.current = null
         setActivePage('dashboard')
+        setLoading(false)
       }
     })
 
@@ -156,6 +160,7 @@ function App() {
     if (profileUserIdRef.current === session.user.id && profileLoaded) return
     profileUserIdRef.current = session.user.id
     setProfileLoaded(false)
+    setProfileError('')
     setLoading(true)
     let cancelled = false
 
@@ -170,19 +175,34 @@ function App() {
           .catch((err) => { console.error('syncDemoRole failed:', err); return p })
       })
       .then((p) => {
-        if (!cancelled && p) setProfile(p)
+        if (cancelled) return
+        if (p) {
+          setProfile(p)
+          setProfileError('')
+        } else {
+          // ensureProfile resolved empty (shouldn't happen) — treat as failure
+          // so we never render another account's stale profile.
+          setProfile(null)
+          profileUserIdRef.current = null
+          setProfileError('Could not load your profile. Check your connection and retry.')
+        }
         setProfileLoaded(true)
         setLoading(false)
       })
       .catch(() => {
         if (!cancelled) {
+          // Failure (e.g. timeout on a slow network): drop any previous
+          // profile so a stale identity is never shown, and offer a retry.
+          setProfile(null)
+          profileUserIdRef.current = null
+          setProfileError('Could not load your profile. Check your connection and retry.')
           setProfileLoaded(true)
           setLoading(false)
         }
       })
 
     return () => { cancelled = true }
-  }, [session])
+  }, [session, retryTick])
 
   const handleLogout = async () => {
     await supabase!.auth.signOut()
@@ -201,6 +221,36 @@ function App() {
   // Profile still loading → show spinner (prevents flashing the wrong role dashboard).
   if (!profileLoaded) {
     return <div className="center-screen">Loading...</div>
+  }
+
+  // Profile fetch failed (e.g. timeout on a slow network) → retry screen.
+  // Never fall back to another account's stale profile or a silent wrong role.
+  if (profileError || !profile) {
+    return (
+      <div className="center-screen">
+        <div className="config-error__card">
+          <h1>Connection issue</h1>
+          <p>{profileError || 'Your profile could not be loaded.'}</p>
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <button
+              type="button"
+              className="btn btn--primary btn--sm"
+              onClick={() => {
+                setProfileError('')
+                setProfileLoaded(false)
+                setLoading(true)
+                setRetryTick((t) => t + 1)
+              }}
+            >
+              Retry
+            </button>
+            <button type="button" className="btn btn--ghost btn--sm" onClick={handleLogout}>
+              Sign out
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   // Role from the profile; unknown/missing roles fall back to 'user' (least privilege).
