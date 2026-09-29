@@ -1835,12 +1835,6 @@ code {
   text-transform: capitalize;
 }
 
-.role-badge--admin {
-  background: #16a34a;
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.25);
-}
-
 .stat-card {
   background: var(--bg-panel);
   border: 1px solid var(--border);
