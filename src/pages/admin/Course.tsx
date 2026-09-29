@@ -19,6 +19,7 @@ import type { Program, Resource, Course } from '../../services/database'
 interface CourseProps {
   profile?: { email?: string | null } | null
   onViewSubject?: (courseId: string) => void
+  hideDelete?: boolean
 }
 
 type CourseForm = {
@@ -106,7 +107,7 @@ function ComboInput({ value, onChange, options, placeholder, disabled }: ComboIn
   )
 }
 
-export default function Course({ profile, onViewSubject }: CourseProps) {
+export default function Course({ profile, onViewSubject, hideDelete }: CourseProps) {
   const [programs, setPrograms] = useState<Program[]>([])
   const [curriculums, setCurriculums] = useState<Resource[]>([])
   const [courses, setCourses] = useState<Course[]>([])
@@ -504,7 +505,7 @@ export default function Course({ profile, onViewSubject }: CourseProps) {
                       <button className={`btn btn--sm ${isActive(c) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleToggleStatus(c)} disabled={busy || !!editId}>
                         {isActive(c) ? 'Archive' : 'Restore'}
                       </button>
-                      {!isActive(c) && (
+                      {!isActive(c) && !hideDelete && (
                         <button className="btn btn--danger btn--sm" onClick={() => handleDelete(c.id)} disabled={busy || !!editId} style={{ marginLeft: 'auto' }}>Delete</button>
                       )}
                     </div>

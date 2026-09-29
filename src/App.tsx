@@ -19,9 +19,9 @@ import AdminActivityLogs from './pages/admin/ActivityLogs'
 import ManagerDashboard from './pages/manager/Dashboard'
 import ManagerUsers from './pages/manager/Users'
 import ManagerCurriculum from './pages/manager/Curriculum'
+import ManagerCourse from './pages/manager/Course'
 import ManagerActivityLogs from './pages/admin/ActivityLogs'
 import UserDashboard from './pages/user/Dashboard'
-import UserCurriculum from './pages/user/Curriculum'
 import AdminChedMemoOrders from './pages/admin/ChedMemoOrders'
 import AdminStrategicGoals from './pages/admin/StrategicGoals'
 import AdminPEOs from './pages/admin/ProgramEducationalObjectives'
@@ -55,6 +55,7 @@ const NAV: Record<UserRole, NavItem[]> = {
   manager: [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'curriculum', label: 'Curriculum' },
+    { id: 'course', label: 'Course' },
     { id: 'program-outcomes', label: 'Program Outcomes' },
     { id: 'subject-view', label: 'Subject Graph' },
     { id: 'users', label: 'Faculty' },
@@ -63,9 +64,8 @@ const NAV: Record<UserRole, NavItem[]> = {
   ],
   user: [
     { id: 'dashboard', label: 'Dashboard' },
-    { id: 'curriculum', label: 'Curriculum' },
-    { id: 'subject-view', label: 'Subject Graph' },
     { id: 'clo', label: 'Course Learning Outcomes' },
+    { id: 'subject-view', label: 'Subject Graph' },
     { id: 'profile', label: 'Profile' },
   ],
 }
@@ -91,6 +91,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
   manager: {
     dashboard: ManagerDashboard,
     curriculum: ManagerCurriculum,
+    course: ManagerCourse,
     'program-outcomes': AdminProgramOutcomes,
     'subject-view': AdminSubjectView,
     users: ManagerUsers,
@@ -99,9 +100,8 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
   },
   user: {
     dashboard: UserDashboard,
-    curriculum: UserCurriculum,
-    'subject-view': AdminSubjectView,
     clo: AdminCourseLearningOutcomes,
+    'subject-view': AdminSubjectView,
     profile: Profile,
   },
 }

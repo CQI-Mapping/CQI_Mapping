@@ -1,15 +1,11 @@
-// User dashboard — normal dashboard for faculty / instructor role.
-// Read-only, clean SaaS style matching admin/manager premium layout.
-// Shows browseable catalog stats + recent curriculum updates.
-
+// User dashboard — faculty role: CLOs + Subject Graph only.
+// Shows subject/outcome counts + recent CLO updates.
 import { useState, useEffect } from 'react'
 import {
-  fetchResources,
   fetchCourses,
-  fetchProgramOutcomesStandalone,
   fetchCourseLearningOutcomesStandalone,
 } from '../../services/database'
-import type { Profile, Resource } from '../../services/database'
+import type { Profile, CourseLearningOutcomeStandalone } from '../../services/database'
 
 interface DashboardProps {
   profile: Profile | null
@@ -18,13 +14,11 @@ interface DashboardProps {
 
 function Dashboard({ profile, onNavigate }: DashboardProps) {
   const [stats, setStats] = useState<Array<{ label: string; value: number | null; accent: string; icon: string; sub: string }>>([])
-  const [recent, setRecent] = useState<Resource[]>([])
+  const [recent, setRecent] = useState<CourseLearningOutcomeStandalone[]>([])
 
   useEffect(() => {
     const counters = [
-      { label: 'Curriculum Records', icon: 'curriculum', sub: 'Published & browsable', accent: 'linear-gradient(135deg,#0ea5e9,#6366f1)', load: () => fetchResources() },
-      { label: 'Courses', icon: 'course', sub: 'Available to you', accent: 'linear-gradient(135deg,#8b5cf6,#ec4899)', load: () => fetchCourses() },
-      { label: 'Program Outcomes', icon: 'po', sub: 'Accreditation POs', accent: 'linear-gradient(135deg,#10b981,#06b6d4)', load: () => fetchProgramOutcomesStandalone() },
+      { label: 'Subjects', icon: 'course', sub: 'Available subjects', accent: 'linear-gradient(135deg,#8b5cf6,#ec4899)', load: () => fetchCourses() },
       { label: 'Course Outcomes', icon: 'clo', sub: 'CLOs per course', accent: 'linear-gradient(135deg,#f59e0b,#ef4444)', load: () => fetchCourseLearningOutcomesStandalone() },
     ]
     Promise.all(
@@ -33,13 +27,11 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
       .then(setStats)
       .catch(() => {})
 
-    // Recent curriculum as activity feed for faculty (since audit log is manager/admin only)
-    fetchResources()
-      .then((res) => setRecent(res.slice(0, 5)))
+    // Recent CLOs as the faculty feed (audit log is manager/admin only)
+    fetchCourseLearningOutcomesStandalone()
+      .then((clos) => setRecent([...clos].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)).slice(0, 5)))
       .catch(() => {})
   }, [])
-
-  const totalRecords = stats.length > 0 ? stats.reduce((a, s) => a + (s.value ?? 0), 0) : 0
 
   function getTimeGreeting(): string {
     const h = new Date().getHours()
@@ -101,13 +93,6 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
             <span>Browse your workspace</span>
           </div>
           <div className="quick-actions">
-            <button className="quick-action" type="button" onClick={() => go('curriculum')}>
-              <span className="quick-action__icon" style={{ background: 'linear-gradient(135deg,#0ea5e9,#6366f1)' }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z" /></svg>
-              </span>
-              <span className="quick-action__text"><strong>Curriculum</strong><small>Browse published maps</small></span>
-              <svg className="quick-action__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 18l6-6-6-6" /></svg>
-            </button>
             <button className="quick-action" type="button" onClick={() => go('clo')}>
               <span className="quick-action__icon" style={{ background: 'linear-gradient(135deg,#8b5cf6,#ec4899)' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
@@ -134,18 +119,18 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
 
         <div className="dashboard-panel">
           <div className="dashboard-panel__header">
-            <h3>Recent curriculum</h3>
-            <span>Latest 5 records</span>
+            <h3>Recent outcomes</h3>
+            <span>Latest 5 CLOs</span>
           </div>
           {recent.length === 0 ? (
-            <p className="dashboard-panel__empty">No curriculum records yet.</p>
+            <p className="dashboard-panel__empty">No course outcomes yet.</p>
           ) : (
             <ul className="activity-feed">
               {recent.map((r) => (
                 <li key={r.id} className="activity-feed__item">
                   <span className="activity-feed__dot" style={{ background: r.status === 'archived' ? '#94a3b8' : '#22c55e', boxShadow: r.status === 'archived' ? '0 0 0 4px #f1f5f9' : '0 0 0 4px #dcfce7' }} />
                   <span className="activity-feed__action">{r.code || r.title}</span>
-                  <span className="activity-feed__user">{r.description?.slice(0, 60) || '—'}{r.description && r.description.length > 60 ? '…' : ''}</span>
+                  <span className="activity-feed__user">{[r.course, r.title].filter(Boolean).join(' · ').slice(0, 60) || '—'}</span>
                   <time className="activity-feed__time">{new Date(r.created_at).toLocaleDateString()}</time>
                 </li>
               ))}
@@ -160,7 +145,6 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
           <span>Faculty permissions</span>
         </div>
         <ul className="role-list" style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 8 }}>
-          <li><strong>Curriculum</strong> — view curriculum maps and outcomes alignment data.</li>
           <li><strong>Course Learning Outcomes</strong> — browse CLOs scoped to your courses.</li>
           <li><strong>Subject Graph</strong> — explore how courses connect via prerequisites.</li>
           <li><strong>Profile</strong> — update your own name and contact details.</li>

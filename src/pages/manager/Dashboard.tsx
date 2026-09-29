@@ -107,6 +107,13 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
               <span className="quick-action__text"><strong>Curriculum</strong><small>Create / edit curriculum</small></span>
               <svg className="quick-action__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 18l6-6-6-6" /></svg>
             </button>
+            <button className="quick-action" type="button" onClick={() => go('course')}>
+              <span className="quick-action__icon" style={{ background: 'linear-gradient(135deg,#10b981,#06b6d4)' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
+              </span>
+              <span className="quick-action__text"><strong>Course</strong><small>Create / edit courses</small></span>
+              <svg className="quick-action__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 18l6-6-6-6" /></svg>
+            </button>
             <button className="quick-action" type="button" onClick={() => go('program-outcomes')}>
               <span className="quick-action__icon" style={{ background: 'linear-gradient(135deg,#8b5cf6,#ec4899)' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><path d="M3 3v18h18" /><path d="M7 16l3-3 3 3 5-8" /></svg>
@@ -160,6 +167,7 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
         </div>
         <ul className="role-list" style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 8 }}>
           <li><strong>Curriculum</strong> — map courses to program outcomes, maintain CLO/PO alignment, and publish curriculum data.</li>
+          <li><strong>Course</strong> — create, edit, and archive courses with prerequisites and credits.</li>
           <li><strong>Faculty</strong> — browse all user profiles (read-only).</li>
           <li><strong>Activity Logs</strong> — view the record of actions for your programs.</li>
           <li><strong>Subject Graph</strong> — explore prerequisite / corequisite relationships visually.</li>
