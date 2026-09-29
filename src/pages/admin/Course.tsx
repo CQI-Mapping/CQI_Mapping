@@ -350,13 +350,13 @@ export default function Course({ profile, onViewSubject, hideDelete }: CoursePro
         </div>
       </div>
 
-      {error && <p className="msg msg--error">{error}</p>}
-      {message && <p className="msg msg--success">{message}</p>}
+      {error && <p className="msg msg--error" role="alert">{error}</p>}
+      {message && <p className="msg msg--success" role="status">{message}</p>}
       {loading ? (
         <p>Loading courses...</p>
       ) : (
         <>
-          <form className="panel create-resource" onSubmit={handleCreate} style={{ borderTop: '3px solid #22c55e' }}>
+          <form className="panel create-resource" onSubmit={handleCreate} style={{ borderTop: '3px solid #16a34a' }}>
             <h3>{editing ? `Edit Course — ${editForm.code || 'untitled'}` : 'New Course'}</h3>
             <label className="field">
               <span>Program code</span>

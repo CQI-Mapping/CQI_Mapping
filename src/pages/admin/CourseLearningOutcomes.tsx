@@ -144,10 +144,10 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
         </div>
       </div>
 
-      {error && <p className="msg msg--error">{error}</p>}
-      {message && <p className="msg msg--success">{message}</p>}
+      {error && <p className="msg msg--error" role="alert">{error}</p>}
+      {message && <p className="msg msg--success" role="status">{message}</p>}
 
-      <form className="panel create-resource" onSubmit={submit} style={{ borderTop: '3px solid #22c55e' }}>
+      <form className="panel create-resource" onSubmit={submit} style={{ borderTop: '3px solid #16a34a' }}>
         <h3>New Course Learning Outcome</h3>
         <label className="field">
           <span>Course (Subject Code)</span>

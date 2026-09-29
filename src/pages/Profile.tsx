@@ -52,7 +52,7 @@ function Profile({ profile, onSaved }: ProfileProps) {
         </div>
       </div>
 
-      <form className="panel profile-card program-panel" onSubmit={handleSubmit} style={{ borderTop: '3px solid #22c55e' }}>
+      <form className="panel profile-card program-panel" onSubmit={handleSubmit} style={{ borderTop: '3px solid #16a34a' }}>
         {/* Read-only details pulled from the profile row */}
         <div className="profile-card__row">
           <span className="profile-card__label">Email</span>
@@ -78,8 +78,8 @@ function Profile({ profile, onSaved }: ProfileProps) {
           />
         </label>
 
-        {error && <p className="msg msg--error">{error}</p>}
-        {message && <p className="msg msg--success">{message}</p>}
+        {error && <p className="msg msg--error" role="alert">{error}</p>}
+        {message && <p className="msg msg--success" role="status">{message}</p>}
 
         <button className="btn btn--primary" type="submit" disabled={saving}>
           {saving ? 'Saving...' : 'Save changes'}

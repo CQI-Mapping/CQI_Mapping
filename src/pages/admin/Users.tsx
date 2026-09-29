@@ -80,10 +80,10 @@ export default function Users() {
         </div>
       </div>
 
-      {error && <p className="msg msg--error">{error}</p>}
-      {success && <p className="msg msg--success">{success}</p>}
+      {error && <p className="msg msg--error" role="alert">{error}</p>}
+      {success && <p className="msg msg--success" role="status">{success}</p>}
 
-      <div className="panel create-user" style={{ borderTop: '3px solid #22c55e' }}>
+      <div className="panel create-user" style={{ borderTop: '3px solid #16a34a' }}>
         <h3>Add Manager</h3>
         <form onSubmit={handleSubmit}>
           <div className="create-user__row">

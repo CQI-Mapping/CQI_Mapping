@@ -13,12 +13,15 @@ const ACTION_LABELS = {
   'resource.created': 'Created curriculum record',
   'resource.updated': 'Updated curriculum record',
   'resource.archived': 'Archived curriculum record',
+  'resource.restored': 'Restored curriculum record',
   'resource.deleted': 'Deleted curriculum record',
   'program.created': 'Created program',
   'program.updated': 'Updated program',
   'program.deleted': 'Deleted program',
   'course.created': 'Created course',
   'course.updated': 'Updated course',
+  'course.archived': 'Archived course',
+  'course.restored': 'Restored course',
   'course.deleted': 'Deleted course',
   'program_outcome.created': 'Created program outcome',
   'program_outcome.updated': 'Updated program outcome',
@@ -157,7 +160,7 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
       {error && <p className="msg msg--error">{error}</p>}
 
       {/* Filters */}
-      <div className="panel activity-filters program-panel" style={{ borderTop: '3px solid #22c55e' }}>
+      <div className="panel activity-filters program-panel" style={{ borderTop: '3px solid #16a34a' }}>
         <div className="activity-filters__row">
           <label className="activity-filter">
             <span>Search</span>

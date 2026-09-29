@@ -339,10 +339,10 @@ alignments,
         </div>
       </div>
 
-      {error && <p className="msg msg--error">{error}</p>}
-      {message && <p className="msg msg--success">{message}</p>}
+      {error && <p className="msg msg--error" role="alert">{error}</p>}
+      {message && <p className="msg msg--success" role="status">{message}</p>}
 
-      <form className="panel create-resource" onSubmit={submit}>
+      <form className="panel create-resource" onSubmit={submit} style={{ borderTop: '3px solid #16a34a' }}>
         <h3>New {title}</h3>
         {titleMultiline ? (
           <>

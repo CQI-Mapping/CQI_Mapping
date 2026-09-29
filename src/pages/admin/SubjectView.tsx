@@ -70,15 +70,15 @@ interface OutcomeDatasets {
 }
 
 const colorMap: Record<NodeKind, string> = {
-  curriculum: '#9333ea',
-  subject: '#2563eb',
-  prerequisite: '#f97316',
-  corequisite: '#22c55e',
-  clo: '#06b6d4',
-  po: '#7c3aed',
-  peo: '#db2777',
-  sg: '#d97706',
-  cmo: '#0891b2',
+  curriculum: '#4d7c0f',
+  subject: '#16a34a',
+  prerequisite: '#b45309',
+  corequisite: '#15803d',
+  clo: '#15803d',
+  po: '#3f6212',
+  peo: '#4d7c0f',
+  sg: '#64748b',
+  cmo: '#475569',
 }
 
 const isActive = <T extends { status?: string }>(x: T) => !x.status || x.status === 'active'
@@ -884,11 +884,11 @@ export default function SubjectView() {
     await loadDatasets()
   }
 
-  if (loading) return <p>Loading subjects...</p>
+  if (loading) return <p role="status">Loading subjects...</p>
 
   return (
     <div className="subject-view">
-      {error && <p className="msg msg--error">{error}</p>}
+      {error && <p className="msg msg--error" role="alert">{error}</p>}
 
       <div className="subject-view__panels">
         {/* ── Left panel: program + subject selection ───────────────────── */}
@@ -930,15 +930,15 @@ export default function SubjectView() {
             <div className="subject-view__summary">
               <div className="subject-view__summary-item">
                 <span className="subject-view__summary-label">Pre-reqs</span>
-                <span className="subject-view__summary-value" style={{ color: '#f97316' }}>{leftCounts.pre}</span>
+                <span className="subject-view__summary-value" style={{ color: '#b45309' }}>{leftCounts.pre}</span>
               </div>
               <div className="subject-view__summary-item">
                 <span className="subject-view__summary-label">Co-reqs</span>
-                <span className="subject-view__summary-value" style={{ color: '#22c55e' }}>{leftCounts.core}</span>
+                <span className="subject-view__summary-value" style={{ color: '#15803d' }}>{leftCounts.core}</span>
               </div>
               <div className="subject-view__summary-item">
                 <span className="subject-view__summary-label">CLOs</span>
-                <span className="subject-view__summary-value" style={{ color: '#06b6d4' }}>{leftCounts.clos >= 0 ? leftCounts.clos : '–'}</span>
+                <span className="subject-view__summary-value" style={{ color: '#15803d' }}>{leftCounts.clos >= 0 ? leftCounts.clos : '–'}</span>
               </div>
             </div>
           )}
@@ -955,7 +955,7 @@ export default function SubjectView() {
             <div className="subject-view__placeholder">
               <div className="subject-view__placeholder-card">
                 <div className="subject-view__placeholder-icon">
-                  <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                     <circle cx="6" cy="6" r="2.5" />
                     <circle cx="18" cy="6" r="2.5" />
                     <circle cx="12" cy="18" r="2.5" />

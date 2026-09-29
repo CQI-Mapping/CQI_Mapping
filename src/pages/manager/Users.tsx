@@ -80,8 +80,8 @@ function Users({ userEmail }: UsersProps) {
         <p>Browse faculty profiles and add new members.</p>
       </div>
 
-      {error && <p className="msg msg--error">{error}</p>}
-      {success && <p className="msg msg--success">{success}</p>}
+      {error && <p className="msg msg--error" role="alert">{error}</p>}
+      {success && <p className="msg msg--success" role="status">{success}</p>}
 
       <div className="panel create-user">
         <h3>Add Faculty Member</h3>

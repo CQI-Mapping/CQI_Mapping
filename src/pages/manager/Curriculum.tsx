@@ -41,10 +41,16 @@ function Curriculum({ userEmail }: CurriculumProps) {
   const [editUnits, setEditUnits] = useState('')
   const [busy, setBusy] = useState(false)
   const [archived, setArchived] = useState(false)
+  const [query, setQuery] = useState('')
 
   // Filtered lists
   const isActive = (i: Resource) => !i.status || i.status === 'active'
-  const visible = items.filter((i) => (archived ? !isActive(i) : isActive(i)))
+  const q = query.trim().toLowerCase()
+  const visible = items
+    .filter((i) => (archived ? !isActive(i) : isActive(i)))
+    .filter(
+      (i) => !q || [i.code, i.title, i.description].some((v) => (v || '').toLowerCase().includes(q)),
+    )
   const archivedCount = items.filter((i) => !isActive(i)).length
 
   // Fetch the list from the DB.
@@ -155,8 +161,8 @@ function Curriculum({ userEmail }: CurriculumProps) {
         <p>Create, edit, and archive curriculum records.</p>
       </div>
 
-      {error && <p className="msg msg--error">{error}</p>}
-      {message && <p className="msg msg--success">{message}</p>}
+      {error && <p className="msg msg--error" role="alert">{error}</p>}
+      {message && <p className="msg msg--success" role="status">{message}</p>}
 
       <form className="panel create-resource" onSubmit={handleCreate}>
         <h3>New curriculum record</h3>
@@ -203,14 +209,25 @@ function Curriculum({ userEmail }: CurriculumProps) {
         <p>Loading curriculum...</p>
       ) : (
         <div className="panel table-wrap">
-          <div className="sd-tabs">
-            <button className={`sd-tab ${!archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(false)}>Active</button>
-            <button className={`sd-tab ${archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(true)}>
-              Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
-            </button>
+          <div className="program-toolbar">
+            <div className="sd-tabs" style={{ marginBottom: 0, flex: 1 }}>
+              <button className={`sd-tab ${!archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(false)}>Active</button>
+              <button className={`sd-tab ${archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(true)}>
+                Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
+              </button>
+            </div>
+            <label className="program-search" aria-label="Search curriculum">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="M20 20L15.5 15.5"/></svg>
+              <input className="input input--sm" type="search" placeholder="Search curriculum..." value={query} onChange={(e) => setQuery(e.target.value)} />
+            </label>
           </div>
           <div className="resource-list">
-            {visible.length === 0 && <p>No {archived ? 'archived' : 'active'} curriculum records.</p>}
+            {visible.length === 0 && (
+              <div className="program-empty" style={{ marginTop: 14 }}>
+                <strong>No {archived ? 'archived' : 'active'} curriculum records yet.</strong>
+                <span>{query ? `No results for "${query}"` : 'Add your first curriculum record above.'}</span>
+              </div>
+            )}
             {visible.map((item) => (
               <div className={`resource-card ${item.status === 'archived' ? 'resource-card--archived' : ''}`} key={item.id}>
                 {editingId === item.id ? (
