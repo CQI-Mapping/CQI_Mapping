@@ -21,6 +21,9 @@
 
 
 -- Cleanup
+DROP TABLE IF EXISTS public.assessment_results CASCADE;
+DROP TABLE IF EXISTS public.assessments CASCADE;
+DROP TABLE IF EXISTS public.clo_po_matrix CASCADE;
 DROP TABLE IF EXISTS public.activity_logs CASCADE;
 DROP TABLE IF EXISTS public.resources CASCADE;
 DROP TABLE IF EXISTS public.course_learning_outcomes CASCADE;
@@ -562,3 +565,82 @@ SELECT
     END
 FROM auth.users u
 ON CONFLICT (id) DO NOTHING;
+
+-- ============================================================
+-- ASSESSMENT MONITORING (CQI Objective 1.3 + IT21 syllabus IX)
+-- Faculty single-save: assessments + aggregated results.
+-- Standardized Title/Term/Method per course fixes multi-section
+-- variance (CQI V1 1.2). Attainment% = avg/max*100.
+-- ============================================================
+
+CREATE TABLE public.clo_po_matrix (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    clo_id UUID NOT NULL REFERENCES public.course_learning_outcomes(id) ON DELETE CASCADE,
+    po_id UUID NOT NULL REFERENCES public.program_outcomes(id) ON DELETE CASCADE,
+    level INTEGER NOT NULL DEFAULT 1 CHECK (level >= 1 AND level <= 3),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (clo_id, po_id)
+);
+
+CREATE TABLE public.assessments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    course_id UUID NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
+    clo_id UUID NOT NULL REFERENCES public.course_learning_outcomes(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'Enabling' CHECK (type IN ('Enabling', 'Summative', 'Culminating')),
+    term TEXT NOT NULL DEFAULT 'Midterm' CHECK (term IN ('Prelim', 'Midterm', 'Finals')),
+    max_score NUMERIC NOT NULL DEFAULT 100 CHECK (max_score > 0),
+    weight NUMERIC CHECK (weight IS NULL OR (weight >= 0 AND weight <= 100)),
+    method TEXT NOT NULL DEFAULT 'direct' CHECK (method IN ('direct', 'indirect')),
+    deadline DATE,
+    created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (course_id, clo_id, title, term)
+);
+
+CREATE TABLE public.assessment_results (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    assessment_id UUID NOT NULL UNIQUE REFERENCES public.assessments(id) ON DELETE CASCADE,
+    students_total INTEGER NOT NULL DEFAULT 0 CHECK (students_total >= 0),
+    students_passed INTEGER NOT NULL DEFAULT 0 CHECK (students_passed >= 0),
+    avg_score NUMERIC NOT NULL DEFAULT 0 CHECK (avg_score >= 0),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CHECK (students_passed <= students_total)
+);
+
+ALTER TABLE public.clo_po_matrix ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.assessments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.assessment_results ENABLE ROW LEVEL SECURITY;
+
+-- CLO/PO MATRIX: read all, manage admin+manager (alignment step)
+CREATE POLICY "Authenticated users can read clo_po_matrix" ON public.clo_po_matrix FOR SELECT
+    USING (auth.role() = 'authenticated');
+CREATE POLICY "Managers and admins can manage clo_po_matrix" ON public.clo_po_matrix FOR ALL
+    USING (public.current_user_role() IN ('admin', 'manager'))
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
+
+-- ASSESSMENTS: read all, create/update own course (faculty included),
+-- delete admin only. Standardized template per course solves CQI V1 1.2 variance.
+CREATE POLICY "Authenticated users can read assessments" ON public.assessments FOR SELECT
+    USING (auth.role() = 'authenticated');
+CREATE POLICY "Faculty and above can create assessments" ON public.assessments FOR INSERT
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager', 'user'));
+CREATE POLICY "Faculty and above can update assessments" ON public.assessments FOR UPDATE
+    USING (public.current_user_role() IN ('admin', 'manager', 'user'))
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager', 'user'));
+CREATE POLICY "Admins can delete assessments" ON public.assessments FOR DELETE
+    USING (public.current_user_role() = 'admin');
+
+-- RESULTS: read all, write faculty and above, delete admin only
+CREATE POLICY "Authenticated users can read assessment_results" ON public.assessment_results FOR SELECT
+    USING (auth.role() = 'authenticated');
+CREATE POLICY "Faculty and above can create assessment_results" ON public.assessment_results FOR INSERT
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager', 'user'));
+CREATE POLICY "Faculty and above can update assessment_results" ON public.assessment_results FOR UPDATE
+    USING (public.current_user_role() IN ('admin', 'manager', 'user'))
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager', 'user'));
+CREATE POLICY "Admins can delete assessment_results" ON public.assessment_results FOR DELETE
+    USING (public.current_user_role() = 'admin');
