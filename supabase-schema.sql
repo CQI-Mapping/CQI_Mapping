@@ -573,7 +573,7 @@ ON CONFLICT (id) DO NOTHING;
 -- variance (CQI V1 1.2). Attainment% = avg/max*100.
 -- ============================================================
 
-CREATE TABLE public.clo_po_matrix (
+CREATE TABLE IF NOT EXISTS public.clo_po_matrix (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     clo_id UUID NOT NULL REFERENCES public.course_learning_outcomes(id) ON DELETE CASCADE,
     po_id UUID NOT NULL REFERENCES public.program_outcomes(id) ON DELETE CASCADE,
@@ -582,7 +582,7 @@ CREATE TABLE public.clo_po_matrix (
     UNIQUE (clo_id, po_id)
 );
 
-CREATE TABLE public.assessments (
+CREATE TABLE IF NOT EXISTS public.assessments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     course_id UUID NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
     clo_id UUID NOT NULL REFERENCES public.course_learning_outcomes(id) ON DELETE CASCADE,
@@ -600,7 +600,7 @@ CREATE TABLE public.assessments (
     UNIQUE (course_id, clo_id, title, term)
 );
 
-CREATE TABLE public.assessment_results (
+CREATE TABLE IF NOT EXISTS public.assessment_results (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     assessment_id UUID NOT NULL UNIQUE REFERENCES public.assessments(id) ON DELETE CASCADE,
     students_total INTEGER NOT NULL DEFAULT 0 CHECK (students_total >= 0),
@@ -615,7 +615,34 @@ ALTER TABLE public.clo_po_matrix ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.assessments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.assessment_results ENABLE ROW LEVEL SECURITY;
 
+-- Shape guards: if the tables pre-existed with an older shape (e.g. clo_po_matrix
+-- from a classmate's migration), add any missing columns instead of failing.
+ALTER TABLE public.clo_po_matrix ADD COLUMN IF NOT EXISTS clo_id UUID REFERENCES public.course_learning_outcomes(id) ON DELETE CASCADE;
+ALTER TABLE public.clo_po_matrix ADD COLUMN IF NOT EXISTS po_id UUID REFERENCES public.program_outcomes(id) ON DELETE CASCADE;
+ALTER TABLE public.clo_po_matrix ADD COLUMN IF NOT EXISTS level INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE public.clo_po_matrix ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
+ALTER TABLE public.assessments ADD COLUMN IF NOT EXISTS course_id UUID REFERENCES public.courses(id) ON DELETE CASCADE;
+ALTER TABLE public.assessments ADD COLUMN IF NOT EXISTS clo_id UUID REFERENCES public.course_learning_outcomes(id) ON DELETE CASCADE;
+ALTER TABLE public.assessments ADD COLUMN IF NOT EXISTS title TEXT;
+ALTER TABLE public.assessments ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'Enabling';
+ALTER TABLE public.assessments ADD COLUMN IF NOT EXISTS term TEXT NOT NULL DEFAULT 'Midterm';
+ALTER TABLE public.assessments ADD COLUMN IF NOT EXISTS max_score NUMERIC NOT NULL DEFAULT 100;
+ALTER TABLE public.assessments ADD COLUMN IF NOT EXISTS weight NUMERIC;
+ALTER TABLE public.assessments ADD COLUMN IF NOT EXISTS method TEXT NOT NULL DEFAULT 'direct';
+ALTER TABLE public.assessments ADD COLUMN IF NOT EXISTS deadline DATE;
+ALTER TABLE public.assessments ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL;
+ALTER TABLE public.assessments ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
+ALTER TABLE public.assessments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
+ALTER TABLE public.assessment_results ADD COLUMN IF NOT EXISTS assessment_id UUID UNIQUE REFERENCES public.assessments(id) ON DELETE CASCADE;
+ALTER TABLE public.assessment_results ADD COLUMN IF NOT EXISTS students_total INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE public.assessment_results ADD COLUMN IF NOT EXISTS students_passed INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE public.assessment_results ADD COLUMN IF NOT EXISTS avg_score NUMERIC NOT NULL DEFAULT 0;
+ALTER TABLE public.assessment_results ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
+
 -- CLO/PO MATRIX: read all, manage admin+manager (alignment step)
+-- DROP first: Postgres has no CREATE POLICY IF NOT EXISTS, so re-runs stay safe.
+DROP POLICY IF EXISTS "Authenticated users can read clo_po_matrix" ON public.clo_po_matrix;
+DROP POLICY IF EXISTS "Managers and admins can manage clo_po_matrix" ON public.clo_po_matrix;
 CREATE POLICY "Authenticated users can read clo_po_matrix" ON public.clo_po_matrix FOR SELECT
     USING (auth.role() = 'authenticated');
 CREATE POLICY "Managers and admins can manage clo_po_matrix" ON public.clo_po_matrix FOR ALL
@@ -624,6 +651,10 @@ CREATE POLICY "Managers and admins can manage clo_po_matrix" ON public.clo_po_ma
 
 -- ASSESSMENTS: read all, create/update own course (faculty included),
 -- delete admin only. Standardized template per course solves CQI V1 1.2 variance.
+DROP POLICY IF EXISTS "Authenticated users can read assessments" ON public.assessments;
+DROP POLICY IF EXISTS "Faculty and above can create assessments" ON public.assessments;
+DROP POLICY IF EXISTS "Faculty and above can update assessments" ON public.assessments;
+DROP POLICY IF EXISTS "Admins can delete assessments" ON public.assessments;
 CREATE POLICY "Authenticated users can read assessments" ON public.assessments FOR SELECT
     USING (auth.role() = 'authenticated');
 CREATE POLICY "Faculty and above can create assessments" ON public.assessments FOR INSERT
@@ -635,6 +666,10 @@ CREATE POLICY "Admins can delete assessments" ON public.assessments FOR DELETE
     USING (public.current_user_role() = 'admin');
 
 -- RESULTS: read all, write faculty and above, delete admin only
+DROP POLICY IF EXISTS "Authenticated users can read assessment_results" ON public.assessment_results;
+DROP POLICY IF EXISTS "Faculty and above can create assessment_results" ON public.assessment_results;
+DROP POLICY IF EXISTS "Faculty and above can update assessment_results" ON public.assessment_results;
+DROP POLICY IF EXISTS "Admins can delete assessment_results" ON public.assessment_results;
 CREATE POLICY "Authenticated users can read assessment_results" ON public.assessment_results FOR SELECT
     USING (auth.role() = 'authenticated');
 CREATE POLICY "Faculty and above can create assessment_results" ON public.assessment_results FOR INSERT
