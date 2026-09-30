@@ -701,6 +701,134 @@ export async function deleteChedMemoOrder(id: string): Promise<void> {
   if (error) throw error
 }
 
+// ---------- Assessment monitoring (faculty single-save, IT21 IX) ----------
+
+export type AssessmentType = 'Enabling' | 'Summative' | 'Culminating'
+export type AssessmentTerm = 'Prelim' | 'Midterm' | 'Finals'
+export type AssessmentMethod = 'direct' | 'indirect'
+
+export interface Assessment {
+  id: string
+  course_id: string
+  clo_id: string
+  title: string
+  type: AssessmentType
+  term: AssessmentTerm
+  max_score: number
+  weight: number | null
+  method: AssessmentMethod
+  deadline: string | null
+  created_by: string | null
+  status: string
+  created_at: string
+  updated_at: string
+}
+
+export interface AssessmentResult {
+  id: string
+  assessment_id: string
+  students_total: number
+  students_passed: number
+  avg_score: number
+  created_at: string
+  updated_at: string
+}
+
+export interface AssessmentWithResult extends Assessment {
+  result: AssessmentResult | null
+  attainment_pct: number | null
+  pass_rate_pct: number | null
+}
+
+export function calcAttainment(avg: number, max: number): number | null {
+  if (!max || max <= 0) return null
+  return Math.round(((avg / max) * 100) * 10) / 10
+}
+
+export function calcPassRate(passed: number, total: number): number | null {
+  if (!total || total <= 0) return null
+  return Math.round(((passed / total) * 100) * 10) / 10
+}
+
+export async function fetchAssessments(courseId: string | null = null): Promise<Assessment[]> {
+  let query = supabase.from('assessments').select('*').order('created_at', { ascending: false })
+  if (courseId) query = query.eq('course_id', courseId)
+  const { data, error } = await query
+  if (error) throw error
+  return data
+}
+
+export async function createAssessment(payload: Partial<Assessment>): Promise<Assessment> {
+  const { data, error } = await supabase
+    .from('assessments')
+    .insert(payload)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function updateAssessment(id: string, updates: Partial<Assessment>): Promise<Assessment> {
+  const { data, error } = await supabase
+    .from('assessments')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteAssessment(id: string): Promise<void> {
+  const { error } = await supabase.from('assessments').delete().eq('id', id)
+  if (error) throw error
+}
+
+export async function fetchAssessmentResults(assessmentId: string | null = null): Promise<AssessmentResult[]> {
+  let query = supabase.from('assessment_results').select('*').order('created_at', { ascending: false })
+  if (assessmentId) query = query.eq('assessment_id', assessmentId)
+  const { data, error } = await query
+  if (error) throw error
+  return data
+}
+
+export async function upsertAssessmentResult(
+  assessmentId: string,
+  studentsTotal: number,
+  studentsPassed: number,
+  avgScore: number
+): Promise<AssessmentResult> {
+  const { data, error } = await supabase
+    .from('assessment_results')
+    .upsert(
+      { assessment_id: assessmentId, students_total: studentsTotal, students_passed: studentsPassed, avg_score: avgScore },
+      { onConflict: 'assessment_id' }
+    )
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+// Joined view for Attainment dashboard: assessments + their aggregated result
+// with computed attainment% and pass_rate% client-side.
+export async function fetchAssessmentsWithResults(courseId: string | null = null): Promise<AssessmentWithResult[]> {
+  const assessments = await fetchAssessments(courseId)
+  if (assessments.length === 0) return []
+  const { data: results, error } = await supabase.from('assessment_results').select('*')
+  if (error) throw error
+  const byAssessment = new Map((results ?? []).map((r: AssessmentResult) => [r.assessment_id, r]))
+  return assessments.map((a) => {
+    const r = byAssessment.get(a.id) ?? null
+    return {
+      ...a,
+      result: r,
+      attainment_pct: r ? calcAttainment(Number(r.avg_score), Number(a.max_score)) : null,
+      pass_rate_pct: r ? calcPassRate(Number(r.students_passed), Number(r.students_total)) : null,
+    }
+  })
+}
+
 // ---------- Activity logs (server-stamped via log_activity RPC) ----------
 
 export async function fetchActivityLogs(): Promise<ActivityLogEntry[]> {
