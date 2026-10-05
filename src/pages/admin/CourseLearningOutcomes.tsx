@@ -19,7 +19,8 @@ import type { CourseLearningOutcomeStandalone, Course } from '../../services/dat
 import SuggestionInput, { type SuggestionOption } from '../../components/SuggestionInput'
 import { rankClosestPos, type PoText, type RankedPo } from '../../utils/poMatch'
 import { rankSemantic } from '../../utils/poSemantic'
-import { boostFor, pickedBefore, recordPick, clearMemory } from '../../utils/poMemory'
+import { fuseRanked } from '../../utils/poRank'
+import { pickedBefore, recordPick, clearMemory } from '../../utils/poMemory'
 
 const EMPTY = { code: '', course: '', description: '', programOutcomes: '' }
 
@@ -142,10 +143,10 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
     if (await handleUpdate(editingId, outPayload(editForm), 'clo.updated')) setEditingId(null)
   }
 
-  // Bulk align: top-1 keyword suggestion for visible filtered CLOs with empty PO.
+  // Bulk align: fused top-1 for visible filtered CLOs with empty PO.
   const bulkTargets = visible.filter((i) => !(i.title ?? '').trim() && (i.description ?? '').trim())
     .map((i) => {
-      const [top] = withBoost(i.description ?? '', rankClosestPos(i.description ?? '', poTexts, 1))
+      const [top] = fuseRanked(i.description ?? '', rankClosestPos(i.description ?? '', poTexts, Math.max(1, poTexts.length)), null, poTexts, 1)
       return { item: i, top }
     })
     .filter((t) => t.top && t.top.score > 0)
@@ -171,18 +172,11 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
     return parts.join(', ')
   }
 
-  const createClosest = rankClosestPos(form.description, poTexts, 3)
-  const editClosest = rankClosestPos(editForm.description, poTexts, 3)
-  // Per-browser click memory: boost previously-picked POs for similar drafts.
-  const withBoost = (draft: string, ranked: RankedPo[]): RankedPo[] =>
-    ranked
-      .map((r) => ({ ...r, score: Math.min(100, r.score + boostFor(draft, r.code, r.score)) }))
-      .sort((a, b) => b.score - a.score || a.code.localeCompare(b.code))
-  const createBoosted = withBoost(form.description, createClosest)
-  const editBoosted = withBoost(editForm.description, editClosest)
-  // Prefer semantic matches when the MiniLM model loaded; otherwise keyword (+memory).
-  const createShown = createSemantic ?? createBoosted
-  const editShown = editSemantic ?? editBoosted
+  const createClosest = rankClosestPos(form.description, poTexts, Math.max(3, poTexts.length))
+  const editClosest = rankClosestPos(editForm.description, poTexts, Math.max(3, poTexts.length))
+  // Hybrid fusion: keyword + semantic + exact-phrase + Bloom + click memory.
+  const createShown = fuseRanked(form.description, createClosest, createSemantic, poTexts, 3)
+  const editShown = fuseRanked(editForm.description, editClosest, editSemantic, poTexts, 3)
   const semanticNote = semanticBusy ? 'Semantic on-device…' : createSemantic || editSemantic ? 'Semantic on-device' : 'Keyword'
 
   // Debounced semantic re-rank for the create-form description.
