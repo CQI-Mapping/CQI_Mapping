@@ -45,6 +45,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   const [editingId, setEditingId] = useState<string | null>(null)
   const [archived, setArchived] = useState(false)
   const [query, setQuery] = useState('')
+  const [bulkBusy, setBulkBusy] = useState(false)
   // Semantic (TensorFlow USE) re-rank, frontend-only. Null = not loaded / failed.
   const [createSemantic, setCreateSemantic] = useState<RankedPo[] | null>(null)
   const [editSemantic, setEditSemantic] = useState<RankedPo[] | null>(null)
@@ -138,6 +139,24 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
 
   const saveEdit = async () => {
     if (await handleUpdate(editingId, outPayload(editForm), 'clo.updated')) setEditingId(null)
+  }
+
+  // Bulk align: top-1 keyword suggestion for visible filtered CLOs with empty PO.
+  const bulkTargets = visible.filter((i) => !(i.title ?? '').trim() && (i.description ?? '').trim())
+    .map((i) => ({ item: i, top: rankClosestPos(i.description ?? '', poTexts, 1)[0] }))
+    .filter((t) => t.top && t.top.score > 0)
+
+  const bulkApply = async () => {
+    if (bulkTargets.length === 0 || bulkBusy || editingId !== null) return
+    if (!window.confirm(`Apply top suggestion to ${bulkTargets.length} empty CLO${bulkTargets.length === 1 ? '' : 's'}?`)) return
+    setBulkBusy(true)
+    try {
+      for (const t of bulkTargets) {
+        await handleUpdate(t.item.id, { title: t.top.code }, 'clo.updated')
+      }
+    } finally {
+      setBulkBusy(false)
+    }
   }
 
   // Closest-PO suggestions: rank POs by word overlap with the typed description.
@@ -268,13 +287,24 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
               {createShown.map((r) => (
                 <button key={r.code} type="button" className="btn btn--ghost btn--sm"
+                  style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: 3 }}
                   title={r.matched.length > 0 ? `${r.label} — ${r.score}% match (${r.matched.join(', ')})` : `${r.label} — ${r.score}% semantic match`}
                   onClick={() => setForm((f) => ({ ...f, programOutcomes: appendPo(f.programOutcomes, r.code) }))}>
-                  {r.score > 0 ? `${r.code} · ${r.score}%` : `~ ${r.code}`}
+                  <span>{r.score > 0 ? `${r.code} · ${r.score}%` : `~ ${r.code}`}</span>
+                  <span aria-hidden="true" style={{ height: 3, borderRadius: 999, background: '#f1f5f9', overflow: 'hidden' }}>
+                    <span style={{
+                      display: 'block', height: '100%', width: `${Math.min(100, r.score)}%`,
+                      background: r.score >= 60 ? '#16a34a' : r.score >= 30 ? '#d97706' : '#94a3b8',
+                    }} />
+                  </span>
                 </button>
               ))}
             </div>
-            {createShown[0].score === 0 && (
+            {createShown[0].matched.length > 0 ? (
+              <span style={{ fontSize: 12, color: '#64748b' }}>Because: {createShown[0].matched.slice(0, 4).join(', ')}</span>
+            ) : createShown[0].score > 0 ? (
+              <span style={{ fontSize: 12, color: '#64748b' }}>Meaning match (no shared words).</span>
+            ) : (
               <span style={{ fontSize: 12, color: '#64748b' }}>No word overlap — try words like design, develop, evaluate.</span>
             )}
           </div>
@@ -315,6 +345,12 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="M20 20L15.5 15.5"/></svg>
               <input className="input input--sm" type="search" placeholder="Search CLOs..." value={query} onChange={(e) => setQuery(e.target.value)} />
             </label>
+            {bulkTargets.length > 0 && (
+              <button type="button" className="btn btn--ghost btn--sm" onClick={bulkApply} disabled={busy || bulkBusy || editingId !== null}
+                title="Fill each empty CLO below with its top suggestion">
+                {bulkBusy ? 'Applying…' : `Apply top to ${bulkTargets.length} empty`}
+              </button>
+            )}
           </div>
           {visible.length === 0 ? (
             <div className="program-empty" style={{ marginTop: 14 }}>
@@ -348,11 +384,25 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                           </span>
                           {editShown.map((r) => (
                             <button key={r.code} type="button" className="btn btn--ghost btn--sm"
+                              style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: 3 }}
                               title={r.matched.length > 0 ? `${r.label} — ${r.score}% match (${r.matched.join(', ')})` : `${r.label} — ${r.score}% semantic match`}
                               onClick={() => setEditForm((f) => ({ ...f, programOutcomes: appendPo(f.programOutcomes, r.code) }))}>
-                              {r.score > 0 ? `${r.code} · ${r.score}%` : `~ ${r.code}`}
+                              <span>{r.score > 0 ? `${r.code} · ${r.score}%` : `~ ${r.code}`}</span>
+                              <span aria-hidden="true" style={{ height: 3, borderRadius: 999, background: '#f1f5f9', overflow: 'hidden' }}>
+                                <span style={{
+                                  display: 'block', height: '100%', width: `${Math.min(100, r.score)}%`,
+                                  background: r.score >= 60 ? '#16a34a' : r.score >= 30 ? '#d97706' : '#94a3b8',
+                                }} />
+                              </span>
                             </button>
                           ))}
+                          <span style={{ fontSize: 12, color: '#64748b', width: '100%' }}>
+                            {editShown[0].matched.length > 0
+                              ? `Because: ${editShown[0].matched.slice(0, 4).join(', ')}`
+                              : editShown[0].score > 0
+                                ? 'Meaning match (no shared words).'
+                                : 'No word overlap — try words like design, develop, evaluate.'}
+                          </span>
                         </div>
                       ) : editForm.description.trim().length >= 4 && (
                         <div style={{ fontSize: 12, color: '#64748b', margin: '6px 0' }}>
