@@ -27,8 +27,6 @@ import AdminStrategicGoals from './pages/admin/StrategicGoals'
 import AdminPEOs from './pages/admin/ProgramEducationalObjectives'
 import AdminProgramOutcomes from './pages/admin/ProgramOutcomes'
 import AdminCourseLearningOutcomes from './pages/admin/CourseLearningOutcomes'
-import AdminAssessments from './pages/admin/Assessments'
-import AdminAttainment from './pages/admin/Attainment'
 import AdminUsers from './pages/admin/Users'
 import AdminProgram from './pages/admin/Program'
 import AdminCourse from './pages/admin/Course'
@@ -49,8 +47,6 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'curriculum', label: 'Curriculum' },
     { id: 'course', label: 'Course' },
     { id: 'clo', label: 'Course Learning Outcomes' },
-    { id: 'assessments', label: 'Assessments' },
-    { id: 'attainment', label: 'Attainment' },
     { id: 'subject-view', label: 'Subject Graph' },
     { id: 'users', label: 'Users & Accounts' },
     { id: 'activity-logs', label: 'Activity Logs' },
@@ -61,8 +57,6 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'curriculum', label: 'Curriculum' },
     { id: 'course', label: 'Course' },
     { id: 'program-outcomes', label: 'Program Outcomes' },
-    { id: 'assessments', label: 'Assessments' },
-    { id: 'attainment', label: 'Attainment' },
     { id: 'subject-view', label: 'Subject Graph' },
     { id: 'users', label: 'Users' },
     { id: 'activity-logs', label: 'Activity Logs' },
@@ -71,8 +65,6 @@ const NAV: Record<UserRole, NavItem[]> = {
   user: [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'clo', label: 'Course Learning Outcomes' },
-    { id: 'assessments', label: 'Assessments' },
-    { id: 'attainment', label: 'Attainment' },
     { id: 'subject-view', label: 'Subject Graph' },
     { id: 'profile', label: 'Profile' },
   ],
@@ -89,8 +81,6 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     curriculum: ManagerCurriculum,
     course: AdminCourse,
     clo: AdminCourseLearningOutcomes,
-    assessments: AdminAssessments,
-    attainment: AdminAttainment,
     'subject-view': AdminSubjectView,
     'strategic-goals': AdminStrategicGoals,
     'ched-memo': AdminChedMemoOrders,
@@ -103,8 +93,6 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     curriculum: ManagerCurriculum,
     course: ManagerCourse,
     'program-outcomes': AdminProgramOutcomes,
-    assessments: AdminAssessments,
-    attainment: AdminAttainment,
     'subject-view': AdminSubjectView,
     users: ManagerUsers,
     'activity-logs': ManagerActivityLogs,
@@ -113,8 +101,6 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
   user: {
     dashboard: UserDashboard,
     clo: AdminCourseLearningOutcomes,
-    assessments: AdminAssessments,
-    attainment: AdminAttainment,
     'subject-view': AdminSubjectView,
     profile: Profile,
   },
@@ -283,7 +269,6 @@ function App() {
     if (page === 'profile') return <Page profile={profile} onSaved={setProfile} />
     if (page === 'users') return <Page />
     if (page === 'curriculum' && role !== 'user') return <Page userEmail={profile?.email} />
-    if (page === 'assessments' && role === 'manager') return <Page profile={profile} hideDelete />
     return <Page profile={profile} onNavigate={setActivePage} />
   }
 
