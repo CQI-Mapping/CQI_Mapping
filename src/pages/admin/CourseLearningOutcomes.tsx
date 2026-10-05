@@ -2,7 +2,7 @@
 // (admin_course_learning_outcomes table). Code + Description + Program Outcomes;
 // the program-outcomes string is stored in the `title` column.
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useEntityCrud } from './curriculum/useEntityCrud.js'
 import {
   fetchCourseLearningOutcomesStandalone,
@@ -52,6 +52,9 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   const [bulkBusy, setBulkBusy] = useState(false)
   // Bumps to re-render fused lists after local reject/memory writes.
   const [memTick, setMemTick] = useState(0)
+  // Auto-fill guards: draft text already auto-applied (or dismissed) per form.
+  const autoCreateFor = useRef<string | null>(null)
+  const autoEditFor = useRef<string | null>(null)
   // Shared pick/reject log for curation (manager/admin readable; null = hidden).
   const [feedback, setFeedback] = useState<PoFeedback[] | null>(null)
   // Semantic (TensorFlow USE) re-rank, frontend-only. Null = not loaded / failed.
@@ -145,11 +148,15 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (await handleCreate(outPayload(form), 'clo.created')) setForm(EMPTY)
+    if (await handleCreate(outPayload(form), 'clo.created')) {
+      setForm(EMPTY)
+      autoCreateFor.current = null
+    }
   }
 
   const startEdit = (i: CourseLearningOutcomeStandalone) => {
     setEditingId(i.id)
+    autoEditFor.current = null
     setEditForm({ code: i.code, course: i.course || '', description: i.description || '', programOutcomes: i.title || '' })
   }
 
@@ -238,6 +245,25 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
     }, 400)
     return () => { cancelled = true; clearTimeout(t) }
   }, [editForm.description, poTexts, editingId])
+
+  // Top-1 auto-fill: score ≥85 with a ≥20 gap over #2 auto-fills an empty PO
+  // field once per draft, with an Undo chip to revert.
+  const autoFillGap = (shown: RankedPo[]) =>
+    shown.length <= 1 ? 100 : shown[0].score - shown[1].score
+  useEffect(() => {
+    const draft = form.description
+    if (!draft.trim() || form.programOutcomes.trim() || autoCreateFor.current === draft) return
+    if (createShown.length === 0 || createShown[0].score < 85 || autoFillGap(createShown) < 20) return
+    autoCreateFor.current = draft
+    setForm((f) => (f.programOutcomes.trim() ? f : { ...f, programOutcomes: createShown[0].code }))
+  }, [form.description, form.programOutcomes, createShown])
+  useEffect(() => {
+    const draft = editForm.description
+    if (editingId === null || !draft.trim() || editForm.programOutcomes.trim() || autoEditFor.current === draft) return
+    if (editShown.length === 0 || editShown[0].score < 85 || autoFillGap(editShown) < 20) return
+    autoEditFor.current = draft
+    setEditForm((f) => (f.programOutcomes.trim() ? f : { ...f, programOutcomes: editShown[0].code }))
+  }, [editForm.description, editForm.programOutcomes, editShown, editingId])
 
   const totalCount = items.length
   const activeCount = items.filter(isActive).length
@@ -357,6 +383,20 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             </span>
           </div>
         )}
+        {autoCreateFor.current === form.description && form.programOutcomes.trim() && (
+          <div className="field" style={{ marginTop: -4 }}>
+            <span style={{ fontSize: 12, color: '#15803d' }}>
+              Auto-filled {form.programOutcomes.trim()} —{' '}
+              <button type="button" className="btn btn--ghost btn--sm"
+                onClick={() => {
+                  autoCreateFor.current = `dismissed:${form.description}`
+                  setForm((f) => ({ ...f, programOutcomes: '' }))
+                }}>
+                Undo
+              </button>
+            </span>
+          </div>
+        )}
         <div className="create-resource__submit">
           <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>{busy ? 'Saving...' : 'Add'}</button>
         </div>
@@ -470,6 +510,18 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                           {poTexts.length === 0
                             ? 'No Program Outcomes yet — create one on the Program Outcomes page first.'
                             : 'No close match — try words like design, develop, evaluate, or pick manually above.'}
+                        </div>
+                      )}
+                      {autoEditFor.current === editForm.description && editForm.programOutcomes.trim() && (
+                        <div style={{ fontSize: 12, color: '#15803d', margin: '6px 0' }}>
+                          Auto-filled {editForm.programOutcomes.trim()} —{' '}
+                          <button type="button" className="btn btn--ghost btn--sm"
+                            onClick={() => {
+                              autoEditFor.current = `dismissed:${editForm.description}`
+                              setEditForm((f) => ({ ...f, programOutcomes: '' }))
+                            }}>
+                            Undo
+                          </button>
                         </div>
                       )}
                       <div className="program-card__actions">
