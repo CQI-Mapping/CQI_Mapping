@@ -14,7 +14,8 @@ import {
 } from '../../services/database'
 import type { CourseLearningOutcomeStandalone, Course } from '../../services/database'
 import SuggestionInput, { type SuggestionOption } from '../../components/SuggestionInput'
-import { rankClosestPos, type PoText } from '../../utils/poMatch'
+import { rankClosestPos, type PoText, type RankedPo } from '../../utils/poMatch'
+import { rankSemantic } from '../../utils/poSemantic'
 
 const EMPTY = { code: '', course: '', description: '', programOutcomes: '' }
 
@@ -41,6 +42,10 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   const [editingId, setEditingId] = useState<string | null>(null)
   const [archived, setArchived] = useState(false)
   const [query, setQuery] = useState('')
+  // Semantic (TensorFlow USE) re-rank, frontend-only. Null = not loaded / failed.
+  const [createSemantic, setCreateSemantic] = useState<RankedPo[] | null>(null)
+  const [editSemantic, setEditSemantic] = useState<RankedPo[] | null>(null)
+  const [semanticBusy, setSemanticBusy] = useState(false)
 
   const autoResize = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return
@@ -124,6 +129,40 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
 
   const createClosest = rankClosestPos(form.description, poTexts, 3)
   const editClosest = rankClosestPos(editForm.description, poTexts, 3)
+  // Prefer semantic matches when the USE model loaded; otherwise keyword.
+  const createShown = createSemantic ?? createClosest
+  const editShown = editSemantic ?? editClosest
+  const semanticNote = semanticBusy ? 'Semantic on-device…' : createSemantic || editSemantic ? 'Semantic on-device' : 'Keyword'
+
+  // Debounced semantic re-rank for the create-form description.
+  useEffect(() => {
+    const draft = form.description.trim()
+    if (draft.length < 8 || poTexts.length === 0) { setCreateSemantic(null); return }
+    let cancelled = false
+    setSemanticBusy(true)
+    const t = setTimeout(() => {
+      rankSemantic(draft, poTexts, 3).then((res) => {
+        if (cancelled) return
+        setCreateSemantic(res && res.ranked.length > 0 ? res.ranked : null)
+        setSemanticBusy(false)
+      })
+    }, 400)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [form.description, poTexts])
+
+  // Debounced semantic re-rank for the edit-form description.
+  useEffect(() => {
+    const draft = editForm.description.trim()
+    if (editingId === null || draft.length < 8 || poTexts.length === 0) { setEditSemantic(null); return }
+    let cancelled = false
+    const t = setTimeout(() => {
+      rankSemantic(draft, poTexts, 3).then((res) => {
+        if (cancelled) return
+        setEditSemantic(res && res.ranked.length > 0 ? res.ranked : null)
+      })
+    }, 400)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [editForm.description, poTexts, editingId])
 
   const totalCount = items.length
   const activeCount = items.filter(isActive).length
@@ -189,13 +228,13 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             value={form.description}
             onChange={(e) => { setForm({ ...form, description: e.target.value }); autoResize(e.target) }} />
         </label>
-        {createClosest.length > 0 && (
+        {createShown.length > 0 && (
           <div className="field" style={{ marginTop: -4 }}>
-            <span style={{ fontSize: 12, color: '#64748b' }}>Closest Program Outcomes for this description:</span>
+            <span style={{ fontSize: 12, color: '#64748b' }}>Closest Program Outcomes for this description ({semanticNote}):</span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-              {createClosest.map((r) => (
+              {createShown.map((r) => (
                 <button key={r.code} type="button" className="btn btn--ghost btn--sm"
-                  title={`${r.label} — ${r.score}% match (${r.matched.join(', ')})`}
+                  title={r.matched.length > 0 ? `${r.label} — ${r.score}% match (${r.matched.join(', ')})` : `${r.label} — ${r.score}% semantic match`}
                   onClick={() => setForm((f) => ({ ...f, programOutcomes: appendPo(f.programOutcomes, r.code) }))}>
                   {r.code} · {r.score}%
                 </button>
@@ -265,11 +304,11 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                         <input className="input input--sm" value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} placeholder="CLO Code" />
                       </div>
                       <textarea className="input input--sm" rows={2} ref={autoResize} value={editForm.description} onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} placeholder="Description" />
-                      {editClosest.length > 0 && (
+                      {editShown.length > 0 && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '6px 0' }}>
-                          {editClosest.map((r) => (
+                          {editShown.map((r) => (
                             <button key={r.code} type="button" className="btn btn--ghost btn--sm"
-                              title={`${r.label} — ${r.score}% match (${r.matched.join(', ')})`}
+                              title={r.matched.length > 0 ? `${r.label} — ${r.score}% match (${r.matched.join(', ')})` : `${r.label} — ${r.score}% semantic match`}
                               onClick={() => setEditForm((f) => ({ ...f, programOutcomes: appendPo(f.programOutcomes, r.code) }))}>
                               {r.code} · {r.score}%
                             </button>
