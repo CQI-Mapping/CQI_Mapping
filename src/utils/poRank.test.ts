@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { rankClosestPos, type PoText } from './poMatch'
-import { fuseRanked, rankFused } from './poRank'
+import { fuseRanked, rankFused, toRelative } from './poRank'
 import { buildGoldens, scoreAccuracy } from './poGolden'
 
 const POS: PoText[] = [
@@ -45,5 +45,23 @@ describe('fuseRanked', () => {
     // Measured on fixture: top1 100, top3 100. Gates: top3 >= 95, top1 >= 80.
     expect(acc.top3).toBeGreaterThanOrEqual(95)
     expect(acc.top1).toBeGreaterThanOrEqual(80)
+  })
+
+  it('relative display anchors top at 100 and keeps raw for gates', () => {
+    const ranked = fuseRanked('Design and develop software systems', full('Design and develop software systems'), null, POS, 3)
+    const shown = toRelative(ranked)
+    expect(shown[0].shown).toBe(100)
+    expect(shown[0].raw).toBe(ranked[0].score)
+    // Order preserved, rest scaled below top.
+    for (let i = 1; i < shown.length; i++) {
+      expect(shown[i].shown).toBeLessThanOrEqual(shown[i - 1].shown)
+    }
+  })
+
+  it('relative display stays low-confidence when raw top is 0', () => {
+    const ranked = fuseRanked('asdf qwer zxcv', full('asdf qwer zxcv'), null, POS, 3)
+    const shown = toRelative(ranked)
+    expect(shown).toHaveLength(3)
+    expect(shown.every((r) => r.shown === 0)).toBe(true)
   })
 })

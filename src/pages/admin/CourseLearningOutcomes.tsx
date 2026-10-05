@@ -21,7 +21,7 @@ import type { CourseLearningOutcomeStandalone, Course, PoFeedback } from '../../
 import SuggestionInput, { type SuggestionOption } from '../../components/SuggestionInput'
 import { rankClosestPos, type PoText, type RankedPo } from '../../utils/poMatch'
 import { rankSemantic } from '../../utils/poSemantic'
-import { fuseRanked } from '../../utils/poRank'
+import { fuseRanked, toRelative } from '../../utils/poRank'
 import { pickedBefore, recordPick, clearMemory, recordRejection, clearRejections, draftSig } from '../../utils/poMemory'
 
 const EMPTY = { code: '', course: '', description: '', programOutcomes: '' }
@@ -60,7 +60,6 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   // Semantic (TensorFlow USE) re-rank, frontend-only. Null = not loaded / failed.
   const [createSemantic, setCreateSemantic] = useState<RankedPo[] | null>(null)
   const [editSemantic, setEditSemantic] = useState<RankedPo[] | null>(null)
-  const [semanticBusy, setSemanticBusy] = useState(false)
 
   const autoResize = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return
@@ -214,19 +213,19 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   void memTick
   const createShown = fuseRanked(form.description, createClosest, createSemantic, poTexts, 3)
   const editShown = fuseRanked(editForm.description, editClosest, editSemantic, poTexts, 3)
-  const semanticNote = semanticBusy ? 'Semantic on-device…' : createSemantic || editSemantic ? 'Semantic on-device' : 'Keyword'
+  // Relative display only (top raw > 0 shows 100%). All gates read raw lists.
+  const createDisplay = toRelative(createShown)
+  const editDisplay = toRelative(editShown)
 
   // Debounced semantic re-rank for the create-form description.
   useEffect(() => {
     const draft = form.description.trim()
     if (draft.length < 4 || poTexts.length === 0) { setCreateSemantic(null); return }
     let cancelled = false
-    setSemanticBusy(true)
     const t = setTimeout(() => {
       rankSemantic(draft, poTexts, 3).then((res) => {
         if (cancelled) return
         setCreateSemantic(res && res.ranked.length > 0 ? res.ranked : null)
-        setSemanticBusy(false)
       })
     }, 400)
     return () => { cancelled = true; clearTimeout(t) }
@@ -338,25 +337,25 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             placeholder="Type to search POs"
           />
         </label>
-        {createShown.length > 0 ? (
+        {createDisplay.length > 0 ? (
           <div className="field" style={{ marginTop: -4 }}>
             <span style={{ fontSize: 12, color: '#64748b' }}>
-              {createShown[0].score > 0
+              {createDisplay[0].raw > 0
                 ? 'Closest Program Outcomes for this description:'
                 : 'Best guesses (low confidence) — click or pick manually:'}
             </span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-              {createShown.map((r) => (
+              {createDisplay.map((r) => (
                 <span key={r.code} style={{ display: 'inline-flex', alignItems: 'stretch', gap: 2 }}>
                   <button type="button" className="btn btn--ghost btn--sm"
                     style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: 3 }}
-                    title={`${r.matched.length > 0 ? `${r.label} — ${r.score}% match (${r.matched.join(', ')})` : `${r.label} — ${r.score}% semantic match`}${pickedBefore(form.description, r.code) ? ' • picked before' : ''}`}
+                    title={`${r.matched.length > 0 ? `${r.label} — shown ${r.shown}% (raw ${r.raw}%: ${r.matched.join(', ')})` : `${r.label} — shown ${r.shown}% (raw ${r.raw}% semantic)`}${pickedBefore(form.description, r.code) ? ' • picked before' : ''}`}
                     onClick={() => { logPick(form.description, r.code); setForm((f) => ({ ...f, programOutcomes: appendPo(f.programOutcomes, r.code) })) }}>
-                    <span>{r.score > 0 ? `${r.code} · ${r.score}%` : `~ ${r.code}`}</span>
+                    <span>{r.raw > 0 ? `${r.code} · ${r.shown}%` : `~ ${r.code}`}</span>
                     <span aria-hidden="true" style={{ height: 3, borderRadius: 999, background: '#f1f5f9', overflow: 'hidden' }}>
                       <span style={{
-                        display: 'block', height: '100%', width: `${Math.min(100, r.score)}%`,
-                        background: r.score >= 60 ? '#16a34a' : r.score >= 30 ? '#d97706' : '#94a3b8',
+                        display: 'block', height: '100%', width: `${Math.min(100, r.shown)}%`,
+                        background: r.raw >= 60 ? '#16a34a' : r.raw >= 30 ? '#d97706' : '#94a3b8',
                       }} />
                     </span>
                   </button>
@@ -366,9 +365,9 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                 </span>
               ))}
             </div>
-            {createShown[0].matched.length > 0 ? (
-              <span style={{ fontSize: 12, color: '#64748b' }}>Because: {createShown[0].matched.slice(0, 4).join(', ')}</span>
-            ) : createShown[0].score > 0 ? (
+            {createDisplay[0].matched.length > 0 ? (
+              <span style={{ fontSize: 12, color: '#64748b' }}>Because: {createDisplay[0].matched.slice(0, 4).join(', ')}</span>
+            ) : createDisplay[0].raw > 0 ? (
               <span style={{ fontSize: 12, color: '#64748b' }}>Meaning match (no shared words).</span>
             ) : (
               <span style={{ fontSize: 12, color: '#64748b' }}>No word overlap — try words like design, develop, evaluate.</span>
@@ -473,22 +472,22 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                       </div>
                       <textarea className="input input--sm" rows={2} ref={autoResize} value={editForm.description} onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} placeholder="Description" />
                       <SuggestionInput value={editForm.programOutcomes} onChange={(v) => setEditForm({ ...editForm, programOutcomes: v })} options={poSuggestions} placeholder="Type to search POs" />
-                      {editShown.length > 0 ? (
+                      {editDisplay.length > 0 ? (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '6px 0' }}>
                           <span style={{ fontSize: 12, color: '#64748b', width: '100%' }}>
-                            {editShown[0].score > 0 ? 'Closest for this description:' : 'Best guesses (low confidence):'}
+                            {editDisplay[0].raw > 0 ? 'Closest for this description:' : 'Best guesses (low confidence):'}
                           </span>
-                          {editShown.map((r) => (
+                          {editDisplay.map((r) => (
                             <span key={r.code} style={{ display: 'inline-flex', alignItems: 'stretch', gap: 2 }}>
                               <button type="button" className="btn btn--ghost btn--sm"
                                 style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: 3 }}
-                                title={`${r.matched.length > 0 ? `${r.label} — ${r.score}% match (${r.matched.join(', ')})` : `${r.label} — ${r.score}% semantic match`}${pickedBefore(editForm.description, r.code) ? ' • picked before' : ''}`}
+                                title={`${r.matched.length > 0 ? `${r.label} — shown ${r.shown}% (raw ${r.raw}%: ${r.matched.join(', ')})` : `${r.label} — shown ${r.shown}% (raw ${r.raw}% semantic)`}${pickedBefore(editForm.description, r.code) ? ' • picked before' : ''}`}
                                 onClick={() => { logPick(editForm.description, r.code); setEditForm((f) => ({ ...f, programOutcomes: appendPo(f.programOutcomes, r.code) })) }}>
-                                <span>{r.score > 0 ? `${r.code} · ${r.score}%` : `~ ${r.code}`}</span>
+                                <span>{r.raw > 0 ? `${r.code} · ${r.shown}%` : `~ ${r.code}`}</span>
                                 <span aria-hidden="true" style={{ height: 3, borderRadius: 999, background: '#f1f5f9', overflow: 'hidden' }}>
                                   <span style={{
-                                    display: 'block', height: '100%', width: `${Math.min(100, r.score)}%`,
-                                    background: r.score >= 60 ? '#16a34a' : r.score >= 30 ? '#d97706' : '#94a3b8',
+                                    display: 'block', height: '100%', width: `${Math.min(100, r.shown)}%`,
+                                    background: r.raw >= 60 ? '#16a34a' : r.raw >= 30 ? '#d97706' : '#94a3b8',
                                   }} />
                                 </span>
                               </button>
@@ -498,9 +497,9 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                             </span>
                           ))}
                           <span style={{ fontSize: 12, color: '#64748b', width: '100%' }}>
-                            {editShown[0].matched.length > 0
-                              ? `Because: ${editShown[0].matched.slice(0, 4).join(', ')}`
-                              : editShown[0].score > 0
+                            {editDisplay[0].matched.length > 0
+                              ? `Because: ${editDisplay[0].matched.slice(0, 4).join(', ')}`
+                              : editDisplay[0].raw > 0
                                 ? 'Meaning match (no shared words).'
                                 : 'No word overlap — try words like design, develop, evaluate.'}
                           </span>

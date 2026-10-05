@@ -89,6 +89,21 @@ export function fuseRanked(
   return fused.slice(0, top)
 }
 
+/** Display view: relative percentage anchored at top = 100. Gates stay raw. */
+export interface ShownPo extends RankedPo {
+  /** Relative 0-100 for display (top raw > 0 maps to 100). */
+  shown: number
+  /** Raw fused score used by all gates. */
+  raw: number
+}
+
+/** Top-anchored rescale for display only. Raw 0 top stays low-confidence. */
+export function toRelative(ranked: RankedPo[]): ShownPo[] {
+  const top = ranked[0]?.score ?? 0
+  if (top <= 0) return ranked.map((r) => ({ ...r, shown: 0, raw: r.score }))
+  return ranked.map((r) => ({ ...r, shown: Math.round((r.score / top) * 100), raw: r.score }))
+}
+
 /** Convenience: keyword rank + fusion in one call (semantic optional). */
 export function rankFused(
   draft: string,
