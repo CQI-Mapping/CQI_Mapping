@@ -1,8 +1,8 @@
-// poSemantic: frontend-only TensorFlow.js semantic ranking for closest-PO.
+// poSemantic: frontend-only MiniLM semantic ranking for closest-PO.
 //
-// Uses the Universal Sentence Encoder (USE) from tensorflow.org — no API keys,
-// no server, no quota. Model weights load once from CDN on first use, then are
-// cached in memory. Embeddings are cached per PO-list hash so re-typing only
+// Uses Transformers.js MiniLM-L6-v2 (free, open-source, in-browser ONNX/WASM)
+// — no API keys, no server, no quota. Model weights load once from CDN on
+// first use, then embeddings are cached per PO-list hash so re-typing only
 // re-embeds the draft, not the whole PO corpus.
 //
 // Returns null when the model cannot load (offline / blocked CDN / timeout)
@@ -10,34 +10,35 @@
 
 import type { PoText, RankedPo } from './poMatch'
 
-export type SemanticEngine = 'use-embeddings' | 'unavailable'
+export type SemanticEngine = 'minilm' | 'unavailable'
 
-interface UseEmbedResult {
-  array: () => Promise<number[][]>
-  dispose?: () => void
+// MiniLM cosine gate, calibrated against the probe set in poMatch.test.ts:
+// MiniLM scores paraphrases higher than USE, so 35 keeps precision while
+// letting true paraphrases through.
+const SEM_GATE = 35
+
+interface MiniLMExtractor {
+  (inputs: string | string[], options?: Record<string, unknown>): Promise<{ tolist: () => number[][] | number[] }>
 }
 
-interface UseModel {
-  embed: (inputs: string[]) => UseEmbedResult
-}
-
-let modelPromise: Promise<UseModel | null> | null = null
+let extractorPromise: Promise<MiniLMExtractor | null> | null = null
 const poCache = new Map<string, { vectors: number[][]; codes: string[] }>()
 
-function loadModel(): Promise<UseModel | null> {
-  if (!modelPromise) {
-    modelPromise = (async () => {
+function loadExtractor(): Promise<MiniLMExtractor | null> {
+  if (!extractorPromise) {
+    extractorPromise = (async () => {
       try {
-        const mod = await import('@tensorflow-models/universal-sentence-encoder')
-        const loader = (mod as unknown as { load?: () => Promise<UseModel> }).load
-        if (typeof loader !== 'function') return null
-        return await loader()
+        const mod = await import('@xenova/transformers')
+        const pipeline = (mod as unknown as { pipeline?: unknown }).pipeline
+        if (typeof pipeline !== 'function') return null
+        const pipe = pipeline as (task: string, model: string) => Promise<MiniLMExtractor>
+        return await pipe('feature-extraction', 'Xenova/all-MiniLM-L6-v2')
       } catch {
         return null
       }
     })()
   }
-  return modelPromise
+  return extractorPromise
 }
 
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
@@ -72,6 +73,12 @@ function cacheKey(pos: PoText[]): string {
   return pos.map((p) => `${p.code}|${p.title ?? ''}|${p.description ?? ''}|${p.extra ?? ''}`).join('\n')
 }
 
+function toMatrix(raw: number[][] | number[], rows: number): number[][] | null {
+  if (rows === 1 && !Array.isArray(raw[0])) return [raw as number[]]
+  if (Array.isArray(raw[0])) return raw as number[][]
+  return null
+}
+
 export async function rankSemantic(
   draft: string,
   pos: PoText[],
@@ -79,15 +86,18 @@ export async function rankSemantic(
 ): Promise<{ ranked: RankedPo[]; engine: SemanticEngine } | null> {
   const clean = draft.trim()
   if (!clean || pos.length === 0) return null
-  const model = await withTimeout(loadModel(), 8000)
-  if (!model) return null
+  const extractor = await withTimeout(loadExtractor(), 12000)
+  if (!extractor) return null
   try {
     const key = cacheKey(pos)
     let cached = poCache.get(key)
     if (!cached || cached.codes.join() !== pos.map((p) => p.code).join()) {
-      const poTexts = pos.map(poTextOf)
-      const emb = await withTimeout(model.embed(poTexts).array(), 8000)
-      if (!emb) return null
+      const raw = await withTimeout(
+        extractor(pos.map(poTextOf), { pooling: 'mean', normalize: true }).then((t) => t.tolist()),
+        12000,
+      )
+      const emb = raw ? toMatrix(raw, pos.length) : null
+      if (!emb || emb.length !== pos.length) return null
       cached = { vectors: emb.slice(0), codes: pos.map((p) => p.code) }
       poCache.set(key, cached)
       if (poCache.size > 5) {
@@ -95,7 +105,11 @@ export async function rankSemantic(
         if (first) poCache.delete(first)
       }
     }
-    const draftEmb = await withTimeout(model.embed([clean.slice(0, 256)]).array(), 8000)
+    const rawDraft = await withTimeout(
+      extractor(clean.slice(0, 256), { pooling: 'mean', normalize: true }).then((t) => t.tolist()),
+      12000,
+    )
+    const draftEmb = rawDraft ? toMatrix(rawDraft, 1) : null
     if (!draftEmb || !draftEmb[0]) return null
     const head = draftEmb[0]
     const scored = pos
@@ -106,10 +120,11 @@ export async function rankSemantic(
         const label = `${po.code} - ${po.title ?? ''}`.trim()
         return { code: po.code, label, score, matched: [] as string[] }
       })
-      .filter((r): r is RankedPo => r !== null && r.score >= 30)
+      .filter((r): r is RankedPo => r !== null && r.score >= SEM_GATE)
       .sort((a, b) => b.score - a.score || a.code.localeCompare(b.code))
       .slice(0, top)
-    return { ranked: scored, engine: 'use-embeddings' }
+    if (scored.length === 0) return null
+    return { ranked: scored, engine: 'minilm' }
   } catch {
     return null
   }
