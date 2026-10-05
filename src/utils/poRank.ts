@@ -7,7 +7,7 @@
 // auto-fill eligibility, never display.
 
 import { rankClosestPos, type PoText, type RankedPo } from './poMatch'
-import { boostFor } from './poMemory'
+import { boostFor, rejectionPenalty } from './poMemory'
 
 export const EXACT_BONUS = 15
 export const BLOOM_BONUS = 5
@@ -74,8 +74,9 @@ export function fuseRanked(
     const s = sem.get(k.code)
     const base = Math.max(k.score, s ?? -1)
     const mem = boostFor(draft, k.code, Math.max(0, base))
+    const penalty = rejectionPenalty(draft, k.code)
     const bonus = (po ? exactBonus(draft, po) : 0) + (po ? bloomBonus(draft, po) : 0)
-    const score = Math.min(100, Math.max(0, base) + mem + bonus)
+    const score = Math.max(0, Math.min(100, Math.max(0, base) + mem + bonus - penalty))
     const matched = s !== undefined && s > k.score ? [] : k.matched
     return { code: k.code, label: k.label, score, matched }
   })

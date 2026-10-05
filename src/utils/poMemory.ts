@@ -47,6 +47,11 @@ function signatureOf(draft: string): string {
     .join(' ')
 }
 
+/** Stable signature shared with the po_feedback table. */
+export function draftSig(draft: string): string {
+  return signatureOf(draft)
+}
+
 export function recordPick(draft: string, poCode: string): void {
   const sig = signatureOf(draft)
   if (!sig || !poCode) return
@@ -70,8 +75,7 @@ export function boostFor(draft: string, poCode: string, base: number): number {
   return Math.min(picks * BOOST_PER_PICK, BOOST_CAP)
 }
 
-export function pickedBefore(draft: string, poCode: string): boolean {
-  const sig = signatureOf(draft)
+export function pickedBefore(draft: string, poCode: string): boolean {  const sig = signatureOf(draft)
   if (!sig) return false
   try {
     return (readMem()[sig]?.[poCode] ?? 0) > 0
@@ -83,6 +87,57 @@ export function pickedBefore(draft: string, poCode: string): boolean {
 export function clearMemory(): void {
   try {
     localStorage.removeItem(KEY)
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
+const REJECT_KEY = 'cqi.poRejects.v1'
+const REJECT_PENALTY = 20
+
+function readRejects(): MemTable {
+  try {
+    const raw = localStorage.getItem(REJECT_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    if (parsed && typeof parsed === 'object') return parsed as MemTable
+  } catch {
+    // Corrupt or unavailable storage — start fresh.
+  }
+  return {}
+}
+
+export function recordRejection(draft: string, poCode: string): void {
+  const sig = signatureOf(draft)
+  if (!sig || !poCode) return
+  try {
+    const table = readRejects()
+    const row = table[sig] ?? {}
+    row[poCode] = (row[poCode] ?? 0) + 1
+    table[sig] = row
+    const keys = Object.keys(table)
+    const trimmed: MemTable = {}
+    for (const k of keys.slice(-MAX_ENTRIES)) trimmed[k] = table[k]
+    localStorage.setItem(REJECT_KEY, JSON.stringify(trimmed))
+  } catch {
+    // Storage unavailable — ranking still works without memory.
+  }
+}
+
+/** Flat penalty for previously-rejected PO + draft pairs. */
+export function rejectionPenalty(draft: string, poCode: string): number {
+  const sig = signatureOf(draft)
+  if (!sig) return 0
+  try {
+    return (readRejects()[sig]?.[poCode] ?? 0) > 0 ? REJECT_PENALTY : 0
+  } catch {
+    return 0
+  }
+}
+
+export function clearRejections(): void {
+  try {
+    localStorage.removeItem(REJECT_KEY)
   } catch {
     // Ignore storage errors.
   }

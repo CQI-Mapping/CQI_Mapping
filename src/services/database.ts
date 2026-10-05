@@ -701,6 +701,39 @@ export async function deleteChedMemoOrder(id: string): Promise<void> {
   if (error) throw error
 }
 
+// ---------- PO feedback (shared pick/reject log for suggestion curation) ----------
+
+export type PoVerdict = 'picked' | 'rejected'
+
+export interface PoFeedback {
+  id: string
+  draft_sig: string
+  po_code: string
+  verdict: PoVerdict
+  created_at: string
+}
+
+export async function recordPoFeedback(
+  draftSig: string,
+  poCode: string,
+  verdict: PoVerdict
+): Promise<void> {
+  const { error } = await supabase
+    .from('po_feedback')
+    .insert({ draft_sig: draftSig, po_code: poCode, verdict })
+  if (error) console.warn('PO feedback not recorded:', error.message)
+}
+
+export async function fetchPoFeedback(): Promise<PoFeedback[]> {
+  const { data, error } = await supabase
+    .from('po_feedback')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(200)
+  if (error) throw error
+  return data
+}
+
 // ---------- Activity logs (server-stamped via log_activity RPC) ----------
 
 export async function fetchActivityLogs(): Promise<ActivityLogEntry[]> {

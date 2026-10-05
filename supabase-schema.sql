@@ -17,6 +17,7 @@
 --   program_educational_objectives— PEOs (admin)
 --   admin_course_learning_outcomes— standalone admin-managed CLO list
 --   ched_memorandum_orders        — CHED memo orders (admin)
+--   po_feedback                   — shared CLO→PO pick/reject log (curation)
 -- =============================================================================
 
 
@@ -35,6 +36,7 @@ DROP TABLE IF EXISTS public.admin_program_outcomes CASCADE;
 DROP TABLE IF EXISTS public.program_educational_objectives CASCADE;
 DROP TABLE IF EXISTS public.admin_course_learning_outcomes CASCADE;
 DROP TABLE IF EXISTS public.ched_memorandum_orders CASCADE;
+DROP TABLE IF EXISTS public.po_feedback CASCADE;
 DROP TABLE IF EXISTS public.profiles CASCADE;
 DROP TYPE IF EXISTS public.user_role CASCADE;
 
@@ -213,6 +215,18 @@ END $$;
 -- CHED MEMORANDUM ORDERS
 -- (definition is above, before admin_program_outcomes)
 
+-- PO FEEDBACK (shared CLO→PO pick/reject log for suggestion curation).
+-- Faculty picks/rejections on one PC improve ranking everywhere after
+-- admin review. Per-browser localStorage remains the instant UX layer.
+CREATE TABLE public.po_feedback (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    draft_sig TEXT NOT NULL,
+    po_code TEXT NOT NULL,
+    verdict TEXT NOT NULL CHECK (verdict IN ('picked', 'rejected')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS po_feedback_sig_idx ON public.po_feedback (draft_sig);
+
 -- ============================================================
 -- HELPER: current user's role (bypasses RLS, avoids recursion)
 -- ============================================================
@@ -274,6 +288,7 @@ ALTER TABLE public.admin_program_outcomes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.program_educational_objectives ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_course_learning_outcomes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ched_memorandum_orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.po_feedback ENABLE ROW LEVEL SECURITY;
 
 -- PROFILES
 CREATE POLICY "Users can view own profile" ON public.profiles FOR SELECT
@@ -428,6 +443,13 @@ CREATE POLICY "Authenticated users can read ched_memorandum_orders" ON public.ch
 CREATE POLICY "Admins can manage ched_memorandum_orders" ON public.ched_memorandum_orders FOR ALL
     USING (public.current_user_role() = 'admin')
     WITH CHECK (public.current_user_role() = 'admin');
+
+-- PO FEEDBACK: anyone signed in may log picks/rejects; managers+admins review.
+CREATE POLICY "Authenticated users can log po_feedback" ON public.po_feedback FOR INSERT
+    WITH CHECK (auth.role() = 'authenticated');
+
+CREATE POLICY "Managers and admins can read po_feedback" ON public.po_feedback FOR SELECT
+    USING (public.current_user_role() IN ('admin', 'manager'));
 
 -- ============================================================
 -- LOGIN AUDIT

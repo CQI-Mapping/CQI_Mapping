@@ -13,14 +13,16 @@ import {
   fetchProgramEducationalObjectives,
   fetchStrategicGoals,
   fetchChedMemoOrders,
+  fetchPoFeedback,
+  recordPoFeedback,
   fetchCourses,
 } from '../../services/database'
-import type { CourseLearningOutcomeStandalone, Course } from '../../services/database'
+import type { CourseLearningOutcomeStandalone, Course, PoFeedback } from '../../services/database'
 import SuggestionInput, { type SuggestionOption } from '../../components/SuggestionInput'
 import { rankClosestPos, type PoText, type RankedPo } from '../../utils/poMatch'
 import { rankSemantic } from '../../utils/poSemantic'
 import { fuseRanked } from '../../utils/poRank'
-import { pickedBefore, recordPick, clearMemory } from '../../utils/poMemory'
+import { pickedBefore, recordPick, clearMemory, recordRejection, clearRejections, draftSig } from '../../utils/poMemory'
 
 const EMPTY = { code: '', course: '', description: '', programOutcomes: '' }
 
@@ -48,6 +50,10 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   const [archived, setArchived] = useState(false)
   const [query, setQuery] = useState('')
   const [bulkBusy, setBulkBusy] = useState(false)
+  // Bumps to re-render fused lists after local reject/memory writes.
+  const [memTick, setMemTick] = useState(0)
+  // Shared pick/reject log for curation (manager/admin readable; null = hidden).
+  const [feedback, setFeedback] = useState<PoFeedback[] | null>(null)
   // Semantic (TensorFlow USE) re-rank, frontend-only. Null = not loaded / failed.
   const [createSemantic, setCreateSemantic] = useState<RankedPo[] | null>(null)
   const [editSemantic, setEditSemantic] = useState<RankedPo[] | null>(null)
@@ -103,6 +109,14 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
         // suggestions are optional; leave the list empty on failure
       }
     })()
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    fetchPoFeedback()
+      .then((rows) => { if (!cancelled) setFeedback(rows) })
+      .catch(() => { if (!cancelled) setFeedback(null) })
     return () => { cancelled = true }
   }, [])
 
@@ -164,6 +178,20 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
     }
   }
 
+  // Shared + local pick/reject logging for curation (fire-and-forget server).
+  const logPick = (draft: string, code: string) => {
+    recordPick(draft, code)
+    const sig = draftSig(draft)
+    if (sig) void recordPoFeedback(sig, code, 'picked')
+    setMemTick((t) => t + 1)
+  }
+  const logReject = (draft: string, code: string) => {
+    recordRejection(draft, code)
+    const sig = draftSig(draft)
+    if (sig) void recordPoFeedback(sig, code, 'rejected')
+    setMemTick((t) => t + 1)
+  }
+
   // Closest-PO suggestions: rank POs by word overlap with the typed description.
   // Clicking a suggestion appends its code to the Program Outcomes field.
   const appendPo = (current: string, code: string) => {
@@ -175,6 +203,8 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   const createClosest = rankClosestPos(form.description, poTexts, Math.max(3, poTexts.length))
   const editClosest = rankClosestPos(editForm.description, poTexts, Math.max(3, poTexts.length))
   // Hybrid fusion: keyword + semantic + exact-phrase + Bloom + click memory.
+  // memTick re-runs fusion after local reject/memory writes (read sync).
+  void memTick
   const createShown = fuseRanked(form.description, createClosest, createSemantic, poTexts, 3)
   const editShown = fuseRanked(editForm.description, editClosest, editSemantic, poTexts, 3)
   const semanticNote = semanticBusy ? 'Semantic on-device…' : createSemantic || editSemantic ? 'Semantic on-device' : 'Keyword'
@@ -291,18 +321,23 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             </span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
               {createShown.map((r) => (
-                <button key={r.code} type="button" className="btn btn--ghost btn--sm"
-                  style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: 3 }}
-                  title={`${r.matched.length > 0 ? `${r.label} — ${r.score}% match (${r.matched.join(', ')})` : `${r.label} — ${r.score}% semantic match`}${pickedBefore(form.description, r.code) ? ' • picked before' : ''}`}
-                  onClick={() => { recordPick(form.description, r.code); setForm((f) => ({ ...f, programOutcomes: appendPo(f.programOutcomes, r.code) })) }}>
-                  <span>{r.score > 0 ? `${r.code} · ${r.score}%` : `~ ${r.code}`}</span>
-                  <span aria-hidden="true" style={{ height: 3, borderRadius: 999, background: '#f1f5f9', overflow: 'hidden' }}>
-                    <span style={{
-                      display: 'block', height: '100%', width: `${Math.min(100, r.score)}%`,
-                      background: r.score >= 60 ? '#16a34a' : r.score >= 30 ? '#d97706' : '#94a3b8',
-                    }} />
-                  </span>
-                </button>
+                <span key={r.code} style={{ display: 'inline-flex', alignItems: 'stretch', gap: 2 }}>
+                  <button type="button" className="btn btn--ghost btn--sm"
+                    style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: 3 }}
+                    title={`${r.matched.length > 0 ? `${r.label} — ${r.score}% match (${r.matched.join(', ')})` : `${r.label} — ${r.score}% semantic match`}${pickedBefore(form.description, r.code) ? ' • picked before' : ''}`}
+                    onClick={() => { logPick(form.description, r.code); setForm((f) => ({ ...f, programOutcomes: appendPo(f.programOutcomes, r.code) })) }}>
+                    <span>{r.score > 0 ? `${r.code} · ${r.score}%` : `~ ${r.code}`}</span>
+                    <span aria-hidden="true" style={{ height: 3, borderRadius: 999, background: '#f1f5f9', overflow: 'hidden' }}>
+                      <span style={{
+                        display: 'block', height: '100%', width: `${Math.min(100, r.score)}%`,
+                        background: r.score >= 60 ? '#16a34a' : r.score >= 30 ? '#d97706' : '#94a3b8',
+                      }} />
+                    </span>
+                  </button>
+                  <button type="button" className="btn btn--ghost btn--sm" title={`Not this PO for this description`}
+                    aria-label={`Reject ${r.code} for this description`}
+                    onClick={() => logReject(form.description, r.code)}>✕</button>
+                </span>
               ))}
             </div>
             {createShown[0].matched.length > 0 ? (
@@ -356,10 +391,22 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                 {bulkBusy ? 'Applying…' : `Apply top to ${bulkTargets.length} empty`}
               </button>
             )}
-            <button type="button" className="btn btn--ghost btn--sm" onClick={() => { clearMemory(); }}
+            <button type="button" className="btn btn--ghost btn--sm" onClick={() => { clearMemory(); clearRejections(); setMemTick((t) => t + 1) }}
               title="Clear per-browser suggestion memory (local only)">
               Reset memory
             </button>
+            {feedback !== null && feedback.length > 0 && (
+              <details style={{ fontSize: 12, color: '#64748b' }}>
+                <summary style={{ cursor: 'pointer' }}>Feedback log ({feedback.length})</summary>
+                <ul style={{ margin: '6px 0 0', paddingLeft: 18, display: 'grid', gap: 2, maxHeight: 120, overflowY: 'auto' }}>
+                  {feedback.slice(0, 20).map((f) => (
+                    <li key={f.id}>
+                      <strong>{f.verdict === 'rejected' ? '✕' : '✓'} {f.po_code}</strong> — {f.draft_sig.slice(0, 60)}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
           </div>
           {visible.length === 0 ? (
             <div className="program-empty" style={{ marginTop: 14 }}>
@@ -392,18 +439,23 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                             {editShown[0].score > 0 ? 'Closest for this description:' : 'Best guesses (low confidence):'}
                           </span>
                           {editShown.map((r) => (
-                            <button key={r.code} type="button" className="btn btn--ghost btn--sm"
-                              style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: 3 }}
-                              title={`${r.matched.length > 0 ? `${r.label} — ${r.score}% match (${r.matched.join(', ')})` : `${r.label} — ${r.score}% semantic match`}${pickedBefore(editForm.description, r.code) ? ' • picked before' : ''}`}
-                              onClick={() => { recordPick(editForm.description, r.code); setEditForm((f) => ({ ...f, programOutcomes: appendPo(f.programOutcomes, r.code) })) }}>
-                              <span>{r.score > 0 ? `${r.code} · ${r.score}%` : `~ ${r.code}`}</span>
-                              <span aria-hidden="true" style={{ height: 3, borderRadius: 999, background: '#f1f5f9', overflow: 'hidden' }}>
-                                <span style={{
-                                  display: 'block', height: '100%', width: `${Math.min(100, r.score)}%`,
-                                  background: r.score >= 60 ? '#16a34a' : r.score >= 30 ? '#d97706' : '#94a3b8',
-                                }} />
-                              </span>
-                            </button>
+                            <span key={r.code} style={{ display: 'inline-flex', alignItems: 'stretch', gap: 2 }}>
+                              <button type="button" className="btn btn--ghost btn--sm"
+                                style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: 3 }}
+                                title={`${r.matched.length > 0 ? `${r.label} — ${r.score}% match (${r.matched.join(', ')})` : `${r.label} — ${r.score}% semantic match`}${pickedBefore(editForm.description, r.code) ? ' • picked before' : ''}`}
+                                onClick={() => { logPick(editForm.description, r.code); setEditForm((f) => ({ ...f, programOutcomes: appendPo(f.programOutcomes, r.code) })) }}>
+                                <span>{r.score > 0 ? `${r.code} · ${r.score}%` : `~ ${r.code}`}</span>
+                                <span aria-hidden="true" style={{ height: 3, borderRadius: 999, background: '#f1f5f9', overflow: 'hidden' }}>
+                                  <span style={{
+                                    display: 'block', height: '100%', width: `${Math.min(100, r.score)}%`,
+                                    background: r.score >= 60 ? '#16a34a' : r.score >= 30 ? '#d97706' : '#94a3b8',
+                                  }} />
+                                </span>
+                              </button>
+                              <button type="button" className="btn btn--ghost btn--sm" title={`Not this PO for this description`}
+                                aria-label={`Reject ${r.code} for this description`}
+                                onClick={() => logReject(editForm.description, r.code)}>✕</button>
+                            </span>
                           ))}
                           <span style={{ fontSize: 12, color: '#64748b', width: '100%' }}>
                             {editShown[0].matched.length > 0
