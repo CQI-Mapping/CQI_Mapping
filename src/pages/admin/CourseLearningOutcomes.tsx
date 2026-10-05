@@ -239,20 +239,31 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
         </label>
         {createShown.length > 0 ? (
           <div className="field" style={{ marginTop: -4 }}>
-            <span style={{ fontSize: 12, color: '#64748b' }}>Closest Program Outcomes for this description ({semanticNote}):</span>
+            <span style={{ fontSize: 12, color: '#64748b' }}>
+              {createShown[0].score > 0
+                ? `Closest Program Outcomes for this description (${semanticNote}):`
+                : 'Best guesses (low confidence) — click or pick manually:'}
+            </span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
               {createShown.map((r) => (
                 <button key={r.code} type="button" className="btn btn--ghost btn--sm"
                   title={r.matched.length > 0 ? `${r.label} — ${r.score}% match (${r.matched.join(', ')})` : `${r.label} — ${r.score}% semantic match`}
                   onClick={() => setForm((f) => ({ ...f, programOutcomes: appendPo(f.programOutcomes, r.code) }))}>
-                  {r.code} · {r.score}%
+                  {r.score > 0 ? `${r.code} · ${r.score}%` : `~ ${r.code}`}
                 </button>
               ))}
             </div>
+            {createShown[0].score === 0 && (
+              <span style={{ fontSize: 12, color: '#64748b' }}>No word overlap — try words like design, develop, evaluate.</span>
+            )}
           </div>
         ) : form.description.trim().length >= 4 && (
           <div className="field" style={{ marginTop: -4 }}>
-            <span style={{ fontSize: 12, color: '#64748b' }}>No close match — try words like design, develop, evaluate, or pick manually above.</span>
+            <span style={{ fontSize: 12, color: '#64748b' }}>
+              {poTexts.length === 0
+                ? 'No Program Outcomes yet — create one on the Program Outcomes page first.'
+                : 'No close match — try words like design, develop, evaluate, or pick manually above.'}
+            </span>
           </div>
         )}
         <div className="create-resource__submit">
@@ -311,17 +322,23 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                       <SuggestionInput value={editForm.programOutcomes} onChange={(v) => setEditForm({ ...editForm, programOutcomes: v })} options={poSuggestions} placeholder="Type to search POs" />
                       {editShown.length > 0 ? (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '6px 0' }}>
-                          <span style={{ fontSize: 12, color: '#64748b', width: '100%' }}>Closest for this description:</span>
+                          <span style={{ fontSize: 12, color: '#64748b', width: '100%' }}>
+                            {editShown[0].score > 0 ? 'Closest for this description:' : 'Best guesses (low confidence):'}
+                          </span>
                           {editShown.map((r) => (
                             <button key={r.code} type="button" className="btn btn--ghost btn--sm"
                               title={r.matched.length > 0 ? `${r.label} — ${r.score}% match (${r.matched.join(', ')})` : `${r.label} — ${r.score}% semantic match`}
                               onClick={() => setEditForm((f) => ({ ...f, programOutcomes: appendPo(f.programOutcomes, r.code) }))}>
-                              {r.code} · {r.score}%
+                              {r.score > 0 ? `${r.code} · ${r.score}%` : `~ ${r.code}`}
                             </button>
                           ))}
                         </div>
                       ) : editForm.description.trim().length >= 4 && (
-                        <div style={{ fontSize: 12, color: '#64748b', margin: '6px 0' }}>No close match — try words like design, develop, evaluate, or pick manually above.</div>
+                        <div style={{ fontSize: 12, color: '#64748b', margin: '6px 0' }}>
+                          {poTexts.length === 0
+                            ? 'No Program Outcomes yet — create one on the Program Outcomes page first.'
+                            : 'No close match — try words like design, develop, evaluate, or pick manually above.'}
+                        </div>
                       )}
                       <div className="program-card__actions">
                         <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>Save</button>

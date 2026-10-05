@@ -89,14 +89,15 @@ export function scorePo(draft: string, po: PoText): { score: number; matched: st
 }
 
 export function rankClosestPos(draft: string, pos: PoText[], top = 3): RankedPo[] {
-  if (!draft.trim()) return []
-  return pos
+  if (!draft.trim() || pos.length === 0) return []
+  const ranked = pos
     .map((po) => {
       const { score, matched } = scorePo(draft, po)
       const label = `${po.code} - ${po.title ?? ''}`.trim()
       return { code: po.code, label, score, matched }
     })
-    .filter((r) => r.score > 0)
     .sort((a, b) => b.score - a.score || a.code.localeCompare(b.code))
-    .slice(0, top)
+  // Always suggest: return best top-N even when nothing overlaps (score 0).
+  // Callers treat top score 0 as low confidence.
+  return ranked.slice(0, top)
 }
