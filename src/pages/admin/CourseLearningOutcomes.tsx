@@ -19,6 +19,7 @@ import type { CourseLearningOutcomeStandalone, Course } from '../../services/dat
 import SuggestionInput, { type SuggestionOption } from '../../components/SuggestionInput'
 import { rankClosestPos, type PoText, type RankedPo } from '../../utils/poMatch'
 import { rankSemantic } from '../../utils/poSemantic'
+import { boostFor, pickedBefore, recordPick, clearMemory } from '../../utils/poMemory'
 
 const EMPTY = { code: '', course: '', description: '', programOutcomes: '' }
 
@@ -143,7 +144,10 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
 
   // Bulk align: top-1 keyword suggestion for visible filtered CLOs with empty PO.
   const bulkTargets = visible.filter((i) => !(i.title ?? '').trim() && (i.description ?? '').trim())
-    .map((i) => ({ item: i, top: rankClosestPos(i.description ?? '', poTexts, 1)[0] }))
+    .map((i) => {
+      const [top] = withBoost(i.description ?? '', rankClosestPos(i.description ?? '', poTexts, 1))
+      return { item: i, top }
+    })
     .filter((t) => t.top && t.top.score > 0)
 
   const bulkApply = async () => {
@@ -169,9 +173,16 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
 
   const createClosest = rankClosestPos(form.description, poTexts, 3)
   const editClosest = rankClosestPos(editForm.description, poTexts, 3)
-  // Prefer semantic matches when the USE model loaded; otherwise keyword.
-  const createShown = createSemantic ?? createClosest
-  const editShown = editSemantic ?? editClosest
+  // Per-browser click memory: boost previously-picked POs for similar drafts.
+  const withBoost = (draft: string, ranked: RankedPo[]): RankedPo[] =>
+    ranked
+      .map((r) => ({ ...r, score: Math.min(100, r.score + boostFor(draft, r.code, r.score)) }))
+      .sort((a, b) => b.score - a.score || a.code.localeCompare(b.code))
+  const createBoosted = withBoost(form.description, createClosest)
+  const editBoosted = withBoost(editForm.description, editClosest)
+  // Prefer semantic matches when the MiniLM model loaded; otherwise keyword (+memory).
+  const createShown = createSemantic ?? createBoosted
+  const editShown = editSemantic ?? editBoosted
   const semanticNote = semanticBusy ? 'Semantic on-device…' : createSemantic || editSemantic ? 'Semantic on-device' : 'Keyword'
 
   // Debounced semantic re-rank for the create-form description.
@@ -288,8 +299,8 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
               {createShown.map((r) => (
                 <button key={r.code} type="button" className="btn btn--ghost btn--sm"
                   style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: 3 }}
-                  title={r.matched.length > 0 ? `${r.label} — ${r.score}% match (${r.matched.join(', ')})` : `${r.label} — ${r.score}% semantic match`}
-                  onClick={() => setForm((f) => ({ ...f, programOutcomes: appendPo(f.programOutcomes, r.code) }))}>
+                  title={`${r.matched.length > 0 ? `${r.label} — ${r.score}% match (${r.matched.join(', ')})` : `${r.label} — ${r.score}% semantic match`}${pickedBefore(form.description, r.code) ? ' • picked before' : ''}`}
+                  onClick={() => { recordPick(form.description, r.code); setForm((f) => ({ ...f, programOutcomes: appendPo(f.programOutcomes, r.code) })) }}>
                   <span>{r.score > 0 ? `${r.code} · ${r.score}%` : `~ ${r.code}`}</span>
                   <span aria-hidden="true" style={{ height: 3, borderRadius: 999, background: '#f1f5f9', overflow: 'hidden' }}>
                     <span style={{
@@ -351,6 +362,10 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                 {bulkBusy ? 'Applying…' : `Apply top to ${bulkTargets.length} empty`}
               </button>
             )}
+            <button type="button" className="btn btn--ghost btn--sm" onClick={() => { clearMemory(); }}
+              title="Clear per-browser suggestion memory (local only)">
+              Reset memory
+            </button>
           </div>
           {visible.length === 0 ? (
             <div className="program-empty" style={{ marginTop: 14 }}>
@@ -385,8 +400,8 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                           {editShown.map((r) => (
                             <button key={r.code} type="button" className="btn btn--ghost btn--sm"
                               style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: 3 }}
-                              title={r.matched.length > 0 ? `${r.label} — ${r.score}% match (${r.matched.join(', ')})` : `${r.label} — ${r.score}% semantic match`}
-                              onClick={() => setEditForm((f) => ({ ...f, programOutcomes: appendPo(f.programOutcomes, r.code) }))}>
+                              title={`${r.matched.length > 0 ? `${r.label} — ${r.score}% match (${r.matched.join(', ')})` : `${r.label} — ${r.score}% semantic match`}${pickedBefore(editForm.description, r.code) ? ' • picked before' : ''}`}
+                              onClick={() => { recordPick(editForm.description, r.code); setEditForm((f) => ({ ...f, programOutcomes: appendPo(f.programOutcomes, r.code) })) }}>
                               <span>{r.score > 0 ? `${r.code} · ${r.score}%` : `~ ${r.code}`}</span>
                               <span aria-hidden="true" style={{ height: 3, borderRadius: 999, background: '#f1f5f9', overflow: 'hidden' }}>
                                 <span style={{
