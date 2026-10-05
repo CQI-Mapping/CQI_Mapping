@@ -137,7 +137,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   // Debounced semantic re-rank for the create-form description.
   useEffect(() => {
     const draft = form.description.trim()
-    if (draft.length < 8 || poTexts.length === 0) { setCreateSemantic(null); return }
+    if (draft.length < 4 || poTexts.length === 0) { setCreateSemantic(null); return }
     let cancelled = false
     setSemanticBusy(true)
     const t = setTimeout(() => {
@@ -153,7 +153,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   // Debounced semantic re-rank for the edit-form description.
   useEffect(() => {
     const draft = editForm.description.trim()
-    if (editingId === null || draft.length < 8 || poTexts.length === 0) { setEditSemantic(null); return }
+    if (editingId === null || draft.length < 4 || poTexts.length === 0) { setEditSemantic(null); return }
     let cancelled = false
     const t = setTimeout(() => {
       rankSemantic(draft, poTexts, 3).then((res) => {
@@ -237,7 +237,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             placeholder="Type to search POs"
           />
         </label>
-        {createShown.length > 0 && (
+        {createShown.length > 0 ? (
           <div className="field" style={{ marginTop: -4 }}>
             <span style={{ fontSize: 12, color: '#64748b' }}>Closest Program Outcomes for this description ({semanticNote}):</span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
@@ -249,6 +249,10 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                 </button>
               ))}
             </div>
+          </div>
+        ) : form.description.trim().length >= 4 && (
+          <div className="field" style={{ marginTop: -4 }}>
+            <span style={{ fontSize: 12, color: '#64748b' }}>No close match — try more keywords or pick manually above.</span>
           </div>
         )}
         <div className="create-resource__submit">
@@ -305,7 +309,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                       </div>
                       <textarea className="input input--sm" rows={2} ref={autoResize} value={editForm.description} onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} placeholder="Description" />
                       <SuggestionInput value={editForm.programOutcomes} onChange={(v) => setEditForm({ ...editForm, programOutcomes: v })} options={poSuggestions} placeholder="Type to search POs" />
-                      {editShown.length > 0 && (
+                      {editShown.length > 0 ? (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '6px 0' }}>
                           <span style={{ fontSize: 12, color: '#64748b', width: '100%' }}>Closest for this description:</span>
                           {editShown.map((r) => (
@@ -316,6 +320,8 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                             </button>
                           ))}
                         </div>
+                      ) : editForm.description.trim().length >= 4 && (
+                        <div style={{ fontSize: 12, color: '#64748b', margin: '6px 0' }}>No close match — try more keywords or pick manually above.</div>
                       )}
                       <div className="program-card__actions">
                         <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>Save</button>
