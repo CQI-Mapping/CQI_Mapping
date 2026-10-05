@@ -5,6 +5,11 @@
 // memory into ONE fused score per PO. Always returns best top-N (even at
 // score 0) so the always-suggest contract holds; gates only decide
 // auto-fill eligibility, never display.
+//
+// Calibrated 2026-10-05 on the golden fixture (poGolden + poRank.test):
+// fused top1 100 / top3 100 without semantic; gates below hold that bar
+// while keeping gibberish at low confidence. Re-measure via `npm run test`
+// after changing any constant here.
 
 import { rankClosestPos, type PoText, type RankedPo } from './poMatch'
 import { boostFor, rejectionPenalty } from './poMemory'

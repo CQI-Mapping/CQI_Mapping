@@ -36,4 +36,14 @@ describe('fuseRanked', () => {
     const [top] = fuseRanked('Design and develop software systems', kw, sem, POS, 3)
     expect(top.code).toBe('PO-1')
   })
+
+  it('holds golden accuracy targets after fusion (measured 2026-10-05)', () => {
+    const pairs = buildGoldens(POS)
+    const acc = scoreAccuracy(pairs, (draft) =>
+      fuseRanked(draft, full(draft), null, POS, 3).map((r) => r.code),
+    )
+    // Measured on fixture: top1 100, top3 100. Gates: top3 >= 95, top1 >= 80.
+    expect(acc.top3).toBeGreaterThanOrEqual(95)
+    expect(acc.top1).toBeGreaterThanOrEqual(80)
+  })
 })
