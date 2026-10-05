@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { rankClosestPos, type PoText } from './poMatch'
+import { buildGoldens, scoreAccuracy } from './poGolden'
 
 const POS: PoText[] = [
   { code: 'PO-1', title: 'Apply computing knowledge to solve problems', extra: 'Bachelor of Science in Information Technology' },
@@ -37,5 +38,17 @@ describe('rankClosestPos contract', () => {
   it('returns [] for empty draft or empty corpus', () => {
     expect(rankClosestPos('   ', POS, 3)).toEqual([])
     expect(rankClosestPos('design software', [], 3)).toEqual([])
+  })
+})
+
+describe('golden accuracy (keyword baseline)', () => {
+  it('top-3 contains expected PO for exact + paraphrase drafts', () => {
+    const pairs = buildGoldens(POS)
+    expect(pairs.length).toBeGreaterThan(0)
+    const acc = scoreAccuracy(pairs, (draft) =>
+      rankClosestPos(draft, POS, 3).map((r) => r.code),
+    )
+    expect(acc.top3).toBeGreaterThanOrEqual(95)
+    expect(acc.top1).toBeGreaterThanOrEqual(80)
   })
 })
