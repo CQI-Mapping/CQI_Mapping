@@ -228,6 +228,15 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             value={form.description}
             onChange={(e) => { setForm({ ...form, description: e.target.value }); autoResize(e.target) }} />
         </label>
+        <label className="field">
+          <span>Program Outcomes</span>
+          <SuggestionInput
+            value={form.programOutcomes}
+            onChange={(v) => setForm({ ...form, programOutcomes: v })}
+            options={poSuggestions}
+            placeholder="Type to search POs"
+          />
+        </label>
         {createShown.length > 0 && (
           <div className="field" style={{ marginTop: -4 }}>
             <span style={{ fontSize: 12, color: '#64748b' }}>Closest Program Outcomes for this description ({semanticNote}):</span>
@@ -242,15 +251,6 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             </div>
           </div>
         )}
-        <label className="field">
-          <span>Program Outcomes</span>
-          <SuggestionInput
-            value={form.programOutcomes}
-            onChange={(v) => setForm({ ...form, programOutcomes: v })}
-            options={poSuggestions}
-            placeholder="Type to search POs"
-          />
-        </label>
         <div className="create-resource__submit">
           <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>{busy ? 'Saving...' : 'Add'}</button>
         </div>
@@ -304,8 +304,10 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                         <input className="input input--sm" value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} placeholder="CLO Code" />
                       </div>
                       <textarea className="input input--sm" rows={2} ref={autoResize} value={editForm.description} onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} placeholder="Description" />
+                      <SuggestionInput value={editForm.programOutcomes} onChange={(v) => setEditForm({ ...editForm, programOutcomes: v })} options={poSuggestions} placeholder="Type to search POs" />
                       {editShown.length > 0 && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '6px 0' }}>
+                          <span style={{ fontSize: 12, color: '#64748b', width: '100%' }}>Closest for this description:</span>
                           {editShown.map((r) => (
                             <button key={r.code} type="button" className="btn btn--ghost btn--sm"
                               title={r.matched.length > 0 ? `${r.label} — ${r.score}% match (${r.matched.join(', ')})` : `${r.label} — ${r.score}% semantic match`}
@@ -315,7 +317,6 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                           ))}
                         </div>
                       )}
-                      <SuggestionInput value={editForm.programOutcomes} onChange={(v) => setEditForm({ ...editForm, programOutcomes: v })} options={poSuggestions} placeholder="Type to search POs" />
                       <div className="program-card__actions">
                         <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>Save</button>
                         <button className="btn btn--ghost btn--sm" onClick={() => setEditingId(null)}>Cancel</button>
