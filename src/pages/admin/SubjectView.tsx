@@ -223,12 +223,28 @@ export default function SubjectView() {
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 })
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set())
   const [navStack, setNavStack] = useState<NavEntry[]>([])
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const svgRef = useRef<SVGSVGElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null)
 
   // Reset expand/collapse when the root changes — like branch-visualizer fresh state.
   useEffect(() => { setCollapsedIds(new Set()) }, [selectedCourseId, selectedPoId, rootType])
+
+  // Fullscreen map: Esc exits, and the page behind stops scrolling.
+  useEffect(() => {
+    if (!isFullscreen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsFullscreen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [isFullscreen])
 
   useEffect(() => {
     let cancelled = false
@@ -1075,7 +1091,7 @@ export default function SubjectView() {
     ro.observe(el)
     setContainerSize({ w: el.clientWidth, h: el.clientHeight })
     return () => ro.disconnect()
-  }, [showGraph, datasets])
+  }, [showGraph, datasets, isFullscreen])
 
   // Render the graph once everything is ready.
   useEffect(() => {
@@ -1244,7 +1260,10 @@ export default function SubjectView() {
         </div>
 
         {/* ── Right panel: D3 hierarchy graph ───────────────────────────── */}
-        <div className="panel subject-view__right" style={{ position: 'relative' }}>
+        <div
+          className={`panel subject-view__right${isFullscreen ? ' subject-view__right--fullscreen' : ''}`}
+          style={{ position: 'relative' }}
+        >
           {!showGraph ? (
             <div className="subject-view__placeholder">
               <div className="subject-view__placeholder-card">
@@ -1295,8 +1314,25 @@ export default function SubjectView() {
               )}
               <div className="subject-view__graph-toolbar">
                 <h3 className="subject-view__graph-title">{graphTitle}</h3>
+                <div className="subject-view__graph-actions">
+                  <button type="button" className="btn btn--ghost btn--sm" onClick={collapseAll} title="Collapse all branches except the root">
+                    Collapse
+                  </button>
+                  <button type="button" className="btn btn--ghost btn--sm" onClick={resetZoom} title="Reset zoom and pan">
+                    Reset zoom
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm"
+                    onClick={() => setIsFullscreen((v) => !v)}
+                    aria-pressed={isFullscreen}
+                    title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Expand map to fullscreen'}
+                  >
+                    {isFullscreen ? 'Exit fullscreen' : '⤢ Fullscreen'}
+                  </button>
+                </div>
               </div>
-              <p className="subject-view__graph-hint">{graphHint}</p>
+              <p className="subject-view__graph-hint">{graphHint}{isFullscreen ? ' Press Esc to exit fullscreen.' : ''}</p>
               <div className="subject-view__legend">
                 {legendDefs.map((l) => {
                   const n = graphStats?.counts[l.kind] ?? 0
