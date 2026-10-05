@@ -292,7 +292,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
           <div className="field" style={{ marginTop: -4 }}>
             <span style={{ fontSize: 12, color: '#64748b' }}>
               {createShown[0].score > 0
-                ? `Closest Program Outcomes for this description (${semanticNote}):`
+                ? 'Closest Program Outcomes for this description:'
                 : 'Best guesses (low confidence) — click or pick manually:'}
             </span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
