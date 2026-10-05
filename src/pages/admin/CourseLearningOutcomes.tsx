@@ -14,6 +14,7 @@ import {
 } from '../../services/database'
 import type { CourseLearningOutcomeStandalone, Course } from '../../services/database'
 import SuggestionInput, { type SuggestionOption } from '../../components/SuggestionInput'
+import { rankClosestPos, type PoText } from '../../utils/poMatch'
 
 const EMPTY = { code: '', course: '', description: '', programOutcomes: '' }
 
@@ -33,6 +34,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete, handleToggleStatus } = crud
 
   const [poSuggestions, setPoSuggestions] = useState<SuggestionOption[]>([])
+  const [poTexts, setPoTexts] = useState<PoText[]>([])
   const [courses, setCourses] = useState<Course[]>([])
   const [form, setForm] = useState(EMPTY)
   const [editForm, setEditForm] = useState(EMPTY)
@@ -67,6 +69,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
           return na !== nb ? na - nb : String(a.code).localeCompare(String(b.code))
         })
         if (!cancelled) setPoSuggestions(pos.map(toSuggestion))
+        if (!cancelled) setPoTexts(pos.map((p) => ({ code: p.code, title: p.title, description: (p as { description?: string | null }).description ?? null })))
       } catch {
         // suggestions are optional; leave the list empty on failure
       }
@@ -110,6 +113,17 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   const saveEdit = async () => {
     if (await handleUpdate(editingId, outPayload(editForm), 'clo.updated')) setEditingId(null)
   }
+
+  // Closest-PO suggestions: rank POs by word overlap with the typed description.
+  // Clicking a suggestion appends its code to the Program Outcomes field.
+  const appendPo = (current: string, code: string) => {
+    const parts = current.split(',').map((s) => s.trim()).filter(Boolean)
+    if (!parts.some((p) => p.toLowerCase() === code.toLowerCase())) parts.push(code)
+    return parts.join(', ')
+  }
+
+  const createClosest = rankClosestPos(form.description, poTexts, 3)
+  const editClosest = rankClosestPos(editForm.description, poTexts, 3)
 
   const totalCount = items.length
   const activeCount = items.filter(isActive).length
@@ -175,6 +189,20 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             value={form.description}
             onChange={(e) => { setForm({ ...form, description: e.target.value }); autoResize(e.target) }} />
         </label>
+        {createClosest.length > 0 && (
+          <div className="field" style={{ marginTop: -4 }}>
+            <span style={{ fontSize: 12, color: '#64748b' }}>Closest Program Outcomes for this description:</span>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+              {createClosest.map((r) => (
+                <button key={r.code} type="button" className="btn btn--ghost btn--sm"
+                  title={`${r.label} — ${r.score}% match (${r.matched.join(', ')})`}
+                  onClick={() => setForm((f) => ({ ...f, programOutcomes: appendPo(f.programOutcomes, r.code) }))}>
+                  {r.code} · {r.score}%
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <label className="field">
           <span>Program Outcomes</span>
           <SuggestionInput
@@ -237,6 +265,17 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                         <input className="input input--sm" value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} placeholder="CLO Code" />
                       </div>
                       <textarea className="input input--sm" rows={2} ref={autoResize} value={editForm.description} onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} placeholder="Description" />
+                      {editClosest.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '6px 0' }}>
+                          {editClosest.map((r) => (
+                            <button key={r.code} type="button" className="btn btn--ghost btn--sm"
+                              title={`${r.label} — ${r.score}% match (${r.matched.join(', ')})`}
+                              onClick={() => setEditForm((f) => ({ ...f, programOutcomes: appendPo(f.programOutcomes, r.code) }))}>
+                              {r.code} · {r.score}%
+                            </button>
+                          ))}
+                        </div>
+                      )}
                       <SuggestionInput value={editForm.programOutcomes} onChange={(v) => setEditForm({ ...editForm, programOutcomes: v })} options={poSuggestions} placeholder="Type to search POs" />
                       <div className="program-card__actions">
                         <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>Save</button>
