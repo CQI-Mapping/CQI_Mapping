@@ -65,11 +65,11 @@ function cosine(a: number[], b: number[]): number {
 }
 
 function poTextOf(po: PoText): string {
-  return `${po.code} ${po.title ?? ''} ${po.description ?? ''}`.trim().slice(0, 256)
+  return `${po.code} ${po.title ?? ''} ${po.description ?? ''} ${po.extra ?? ''}`.trim().slice(0, 512)
 }
 
 function cacheKey(pos: PoText[]): string {
-  return pos.map((p) => `${p.code}|${p.title ?? ''}|${p.description ?? ''}`).join('\n')
+  return pos.map((p) => `${p.code}|${p.title ?? ''}|${p.description ?? ''}|${p.extra ?? ''}`).join('\n')
 }
 
 export async function rankSemantic(

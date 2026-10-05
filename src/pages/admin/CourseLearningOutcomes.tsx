@@ -10,6 +10,9 @@ import {
   updateCourseLearningOutcomeStandalone,
   deleteCourseLearningOutcomeStandalone,
   fetchProgramOutcomesStandalone,
+  fetchProgramEducationalObjectives,
+  fetchStrategicGoals,
+  fetchChedMemoOrders,
   fetchCourses,
 } from '../../services/database'
 import type { CourseLearningOutcomeStandalone, Course } from '../../services/database'
@@ -66,15 +69,33 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
     let cancelled = false
     ;(async () => {
       try {
-        const pos = (await fetchProgramOutcomesStandalone()).filter((p) => !p.status || p.status === 'active')
+        const [pos, peos, sgs, cmos] = await Promise.all([
+          fetchProgramOutcomesStandalone(),
+          fetchProgramEducationalObjectives().catch(() => []),
+          fetchStrategicGoals().catch(() => []),
+          fetchChedMemoOrders().catch(() => []),
+        ])
+        const active = pos.filter((p) => !p.status || p.status === 'active')
         // Numeric PO order PO-1…PO-27 for the suggest dropdown
-        pos.sort((a, b) => {
+        active.sort((a, b) => {
           const n = (s: string) => { const m = s.match(/PO\D*(\d+)/i); return m ? parseInt(m[1], 10) : 9999 }
           const na = n(a.code || ''); const nb = n(b.code || '')
           return na !== nb ? na - nb : String(a.code).localeCompare(String(b.code))
         })
-        if (!cancelled) setPoSuggestions(pos.map(toSuggestion))
-        if (!cancelled) setPoTexts(pos.map((p) => ({ code: p.code, title: p.title, description: (p as { description?: string | null }).description ?? null })))
+        // Enrich thin POs with linked PEO/SG/CMO text so they can still match.
+        const peoByCode = new Map(peos.map((p) => [p.code.trim().toLowerCase(), p.title ?? '']))
+        const sgByCode = new Map(sgs.map((s) => [s.code.trim().toLowerCase(), s.description ?? '']))
+        const cmoById = new Map(cmos.map((c) => [c.id, `${c.title ?? ''} ${c.code ?? ''}`.trim()]))
+        const splitCodes = (v: string | null) => (v ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+        if (!cancelled) setPoSuggestions(active.map(toSuggestion))
+        if (!cancelled) setPoTexts(active.map((p) => {
+          const rec = p as { description?: string | null; cmo_id?: string | null; peo_text?: string | null; sg_text?: string | null }
+          const peoTitles = splitCodes(rec.peo_text ?? null).map((c) => peoByCode.get(c.toLowerCase()) ?? '').filter(Boolean)
+          const sgDescs = splitCodes(rec.sg_text ?? null).map((c) => sgByCode.get(c.toLowerCase()) ?? '').filter(Boolean)
+          const cmoText = (rec.cmo_id && cmoById.get(rec.cmo_id)) || ''
+          const extra = [...peoTitles, ...sgDescs, cmoText].filter(Boolean).join(' | ') || null
+          return { code: p.code, title: p.title, description: rec.description ?? null, extra }
+        }))
       } catch {
         // suggestions are optional; leave the list empty on failure
       }

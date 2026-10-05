@@ -8,6 +8,8 @@ export interface PoText {
   code: string
   title: string | null
   description?: string | null
+  /** Enriched alignment text (PEO/SG/CMO) so thin POs still match. */
+  extra?: string | null
 }
 
 export interface RankedPo {
@@ -76,7 +78,7 @@ function canonical(t: string): string {
 export function scorePo(draft: string, po: PoText): { score: number; matched: string[] } {
   const d = tokenSet(draft)
   if (d.size === 0) return { score: 0, matched: [] }
-  const p = tokenSet(`${po.code} ${po.title ?? ''} ${po.description ?? ''}`)
+  const p = tokenSet(`${po.code} ${po.title ?? ''} ${po.description ?? ''} ${po.extra ?? ''}`)
   if (p.size === 0) return { score: 0, matched: [] }
   const matched: string[] = []
   for (const t of d) if (p.has(t)) matched.push(t)
