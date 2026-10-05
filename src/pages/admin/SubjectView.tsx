@@ -1151,27 +1151,18 @@ export default function SubjectView() {
       <div className="subject-view__panels">
         {/* ── Left panel: root choice + program/subject/PO selection ─────── */}
         <div className="panel subject-view__left">
-          <h3>Start visualization from</h3>
-          <div className="subject-view__root-toggle" role="radiogroup" aria-label="Graph root">
-            <label className="subject-view__root-option">
-              <input
-                type="radio"
-                name="subject-view-root"
-                checked={rootType === 'subject'}
-                onChange={() => { setRootType('subject'); setShowGraph(false); setNavStack([]); setGraphError('') }}
-              />
-              <span>Subject</span>
-            </label>
-            <label className="subject-view__root-option">
-              <input
-                type="radio"
-                name="subject-view-root"
-                checked={rootType === 'po'}
-                onChange={() => { setRootType('po'); setShowGraph(false); setNavStack([]); setGraphError('') }}
-              />
-              <span>PO</span>
-            </label>
-          </div>
+          <h3 className="subject-view__course-heading">Start visualization from</h3>
+          <label className="field">
+            <span className="sr-only">Select graph root</span>
+            <select
+              className="input input--sm"
+              value={rootType}
+              onChange={(e) => { setRootType(e.target.value as RootType); setShowGraph(false); setNavStack([]); setGraphError('') }}
+            >
+              <option value="subject">Subject</option>
+              <option value="po">PO</option>
+            </select>
+          </label>
 
           <h3>Program</h3>
           <label className="field">
