@@ -106,7 +106,7 @@ export async function rankSemantic(
         const label = `${po.code} - ${po.title ?? ''}`.trim()
         return { code: po.code, label, score, matched: [] as string[] }
       })
-      .filter((r): r is RankedPo => r !== null && r.score >= 40)
+      .filter((r): r is RankedPo => r !== null && r.score >= 30)
       .sort((a, b) => b.score - a.score || a.code.localeCompare(b.code))
       .slice(0, top)
     return { ranked: scored, engine: 'use-embeddings' }

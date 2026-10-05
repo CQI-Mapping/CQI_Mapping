@@ -41,7 +41,36 @@ function stem(t: string): string {
 }
 
 function tokenSet(s: string): Set<string> {
-  return new Set(tokens(s).map(stem))
+  return new Set(tokens(s).map((t) => canonical(stem(t))))
+}
+
+// Offline curriculum synonym groups — canonical head is the first entry.
+// Lets "build apps" match "develop software" with zero shared raw words.
+const SYN_GROUPS: string[][] = [
+  ['develop', 'build', 'create', 'construct', 'implement'],
+  ['software', 'app', 'application', 'program', 'system'],
+  ['design', 'plan', 'architect', 'model'],
+  ['evaluate', 'test', 'assess', 'validate', 'measure'],
+  ['analyze', 'compare', 'contrast', 'examine', 'investigate'],
+  ['manage', 'maintain', 'administer', 'operate'],
+  ['data', 'database', 'information', 'dataset'],
+  ['network', 'infrastructure', 'server'],
+  ['security', 'protect', 'secure', 'safety'],
+  ['solve', 'resolve', 'troubleshoot', 'debug'],
+  ['communicate', 'present', 'report', 'document', 'write'],
+  ['team', 'collaborate', 'cooperate', 'group'],
+  ['ethic', 'professional', 'responsibility', 'conduct'],
+  ['learn', 'study', 'understand', 'demonstrate'],
+]
+
+const SYN_MAP: Map<string, string> = (() => {
+  const m = new Map<string, string>()
+  for (const g of SYN_GROUPS) for (const w of g) m.set(w, g[0])
+  return m
+})()
+
+function canonical(t: string): string {
+  return SYN_MAP.get(t) ?? t
 }
 
 export function scorePo(draft: string, po: PoText): { score: number; matched: string[] } {

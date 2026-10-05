@@ -252,7 +252,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
           </div>
         ) : form.description.trim().length >= 4 && (
           <div className="field" style={{ marginTop: -4 }}>
-            <span style={{ fontSize: 12, color: '#64748b' }}>No close match — try more keywords or pick manually above.</span>
+            <span style={{ fontSize: 12, color: '#64748b' }}>No close match — try words like design, develop, evaluate, or pick manually above.</span>
           </div>
         )}
         <div className="create-resource__submit">
@@ -321,7 +321,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                           ))}
                         </div>
                       ) : editForm.description.trim().length >= 4 && (
-                        <div style={{ fontSize: 12, color: '#64748b', margin: '6px 0' }}>No close match — try more keywords or pick manually above.</div>
+                        <div style={{ fontSize: 12, color: '#64748b', margin: '6px 0' }}>No close match — try words like design, develop, evaluate, or pick manually above.</div>
                       )}
                       <div className="program-card__actions">
                         <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>Save</button>
