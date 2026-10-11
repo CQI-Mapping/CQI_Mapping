@@ -5,6 +5,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useEntityCrud } from './useEntityCrud.js'
+import { useViewMode } from '../../../hooks/useViewMode.js'
+import ViewModeToggle from '../../../components/ViewModeToggle.js'
 import SuggestionInput, { type SuggestionOption } from '../../../components/SuggestionInput.js'
 
 // One selectable "alignment" option. `value` is the text shown in the select (and,
@@ -128,6 +130,9 @@ alignments,
   const [editingId, setEditingId] = useState<string | null>(null)
   const [archived, setArchived] = useState(false)
   const [query, setQuery] = useState('')
+  // List (default) or grid card style — the user decides per browser,
+  // remembered separately for each entity type.
+  const [viewMode, setViewMode] = useViewMode(`cqi.viewMode.${title}`)
 
   const autoResize = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return
@@ -452,6 +457,7 @@ alignments,
                 Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
               </button>
             </div>
+            <ViewModeToggle mode={viewMode} onChange={setViewMode} />
             <label className="program-search" aria-label={`Search ${title.toLowerCase()}`}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="M20 20L15.5 15.5"/></svg>
               <input className="input input--sm" type="search" placeholder={`Search ${title.toLowerCase()}...`} value={query} onChange={(e) => setQuery(e.target.value)} />
@@ -461,6 +467,77 @@ alignments,
             <div className="program-empty" style={{ marginTop: 14 }}>
               <strong>No {title.toLowerCase()} yet.</strong>
               <span>{query ? `No results for "${query}"` : `Create your first ${title.toLowerCase()} above.`}</span>
+            </div>
+          ) : viewMode === 'list' ? (
+            <div className="resource-list">
+              {visible.map((item) => (
+                <div key={item.id} className={`resource-card ${isActive(item) ? '' : 'resource-card--archived'}`}>
+                  {editingId === item.id ? (
+                    <div className="resource-card__edit">
+                      <label className="field">
+                        <span>{codeLabel}</span>
+                        <input className="input input--sm" value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} placeholder={codeLabel} />
+                      </label>
+                      {showTitle && (
+                        <label className="field">
+                          <span>{titleLabel}</span>
+                          {titleMultiline ? (
+                            <textarea className="input input--sm" rows={2} ref={autoResize} value={editForm.title} onChange={(e) => { setEditForm({ ...editForm, title: e.target.value }); autoResize(e.target) }} placeholder={titleLabel} />
+                          ) : (
+                            <input className="input input--sm" value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} placeholder={titleLabel} />
+                          )}
+                        </label>
+                      )}
+                      {(tableAlignments ?? alignments ?? []).map((a) => (
+                        <label className="field" key={a.relationField} style={{ marginBottom: 0 }}>
+                          <span>{a.label}</span>
+                          {alignmentSelect(a, editForm.align[a.relationField] || '', (v) =>
+                            setEditForm({ ...editForm, align: { ...editForm.align, [a.relationField]: v } }), isPeoSgDisabled(editForm.align, a))}
+                        </label>
+                      ))}
+                      {!alignments && showDescription && (
+                        <label className="field">
+                          <span>{descriptionLabel}</span>
+                          <textarea className="input input--sm" rows={2} ref={autoResize} value={editForm.description} onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} placeholder={descriptionLabel} />
+                        </label>
+                      )}
+                      <div className="resource-card__actions">
+                        <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>Save</button>
+                        <button className="btn btn--ghost btn--sm" onClick={() => setEditingId(null)}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="resource-card__body">
+                        <h4>{formatCode(codeOf(item))}{showTitle && titleOf(item) ? ` — ${titleOf(item)}` : ''}</h4>
+                        {(tableAlignments ?? alignments ?? []).length > 0 && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+                            {(tableAlignments ?? alignments ?? []).map((a) => (
+                              <div key={a.relationField} style={{ fontSize: 12.5, color: '#475569' }}>
+                                <strong style={{ color: '#64748b' }}>{a.label}:</strong>{' '}{alignLabelOf(item, a)}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {!alignments && showDescription && descOf(item) && <p>{descOf(item)}</p>}
+                        {counts && <div style={{ fontSize: 12, color: '#64748b' }}>{countLabel}: <strong style={{ color: '#0f172a' }}>{counts[item.id] ?? 0}</strong></div>}
+                        <div className="resource-card__meta" style={{ marginTop: 6 }}>
+                          <span className={`status-badge status-badge--${isActive(item) ? 'active' : 'archived'}`}>{isActive(item) ? 'Active' : 'Archived'}</span>
+                        </div>
+                      </div>
+                      <div className="resource-card__actions">
+                        <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} disabled={busy || !!editingId}>Edit</button>
+                        <button className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleUpdate(item.id, { status: isActive(item) ? 'archived' : 'active' }, updateAction)} disabled={busy || !!editingId}>
+                          {isActive(item) ? 'Archive' : 'Restore'}
+                        </button>
+                        {!isActive(item) && allowDelete && (
+                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, deleteAction)} disabled={busy || !!editingId} style={{ marginLeft: 'auto' }}>Delete</button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
             </div>
           ) : (
             <div className="program-grid" style={{ marginTop: 14 }}>
