@@ -17,6 +17,7 @@ import {
   fetchProgramOutcomesStandalone,
   fetchCourseLearningOutcomesStandalone,
   fetchCourses,
+  fetchChedMemoOrders,
   updateStrategicGoal,
   updateProgramEducationalObjective,
   updateProgramOutcomeStandalone,
@@ -27,6 +28,7 @@ import type {
   ProgramOutcomeStandalone,
   CourseLearningOutcomeStandalone,
   Course,
+  ChedMemoOrder,
 } from '../../services/database'
 
 interface ViewProps {
@@ -61,6 +63,13 @@ const DOC_VISION =
 const DOC_MISSION =
   'Northern Bukidnon State College is an accessible community-based institution that provides educational opportunities to develop students into socially responsible, competent, and productive professionals.'
 
+// Fixed CMO categories (stored as cmo_text when cmo_id is null).
+const FIXED_CMO_CATEGORIES = [
+  { id: 'fixed-common', title: 'Common to All Programs in All Types of Schools' },
+  { id: 'fixed-bscs', title: 'Bachelor of Science in Computer Science Program Outcomes' },
+  { id: 'fixed-college', title: 'College Defined Program Outcome' },
+]
+
 // Numbering helpers: digits parsed from the PO code (PO-1 -> 1).
 // Codes without digits (or blank codes) have no number — they sort last
 // and display the raw code instead of "NaN".
@@ -92,6 +101,7 @@ function View({ userEmail }: ViewProps) {
   const [pos, setPos] = useState<ProgramOutcomeStandalone[]>([])
   const [clos, setClos] = useState<CourseLearningOutcomeStandalone[]>([])
   const [courses, setCourses] = useState<Course[]>([])
+  const [cmos, setCmos] = useState<ChedMemoOrder[]>([])
 
   const [editMode, setEditMode] = useState(false)
   const [edit, setEdit] = useState<EditState | null>(null)
@@ -101,18 +111,20 @@ function View({ userEmail }: ViewProps) {
     setLoading(true)
     setError(null)
     try {
-      const [g, p, po, clo, c] = await Promise.all([
+      const [g, p, po, clo, c, cmo] = await Promise.all([
         fetchStrategicGoals(),
         fetchProgramEducationalObjectives(),
         fetchProgramOutcomesStandalone(),
         fetchCourseLearningOutcomesStandalone(),
         fetchCourses(),
+        fetchChedMemoOrders(),
       ])
       setGoals(g)
       setPeos(p)
       setPos(po.sort((a, b) => poNumber(a.code) - poNumber(b.code) || a.code.localeCompare(b.code)))
       setClos(clo)
       setCourses(c)
+      setCmos(cmo)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load curriculum map data.')
     } finally {
@@ -185,12 +197,19 @@ function View({ userEmail }: ViewProps) {
   const visiblePeos = shown(peos)
   const visiblePos = shown(pos)
 
-  // Group active program outcomes by their alignment (description). The
-  // description text is the section heading, so the report follows whatever
-  // the user entered on the Program Outcomes page.
+  // Group active program outcomes by CMO category (cmo_id or cmo_text).
+  const cmoLabel = (po: ProgramOutcomeStandalone) => {
+    const key = po.cmo_id || (po as { cmo_text?: string }).cmo_text
+    if (!key) return 'UNCATEGORIZED'
+    const fixed = FIXED_CMO_CATEGORIES.find((c) => c.id === key)
+    if (fixed) return fixed.title.toUpperCase()
+    const cmo = cmos.find((c) => c.id === key)
+    return cmo ? `${cmo.title} (${cmo.code})`.toUpperCase() : 'UNCATEGORIZED'
+  }
+
   const poGroups: PoGroup[] = []
   for (const po of visiblePos) {
-    const heading = (po.description || 'Uncategorized').trim().toUpperCase()
+    const heading = cmoLabel(po)
     const last = poGroups[poGroups.length - 1]
     if (last && last.heading === heading) last.items.push(po)
     else poGroups.push({ heading, items: [po] })
