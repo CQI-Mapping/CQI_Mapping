@@ -74,7 +74,10 @@ export default function ProgramOutcomesAdmin() {
       setDescription('')
       await load()
     } catch (e) {
-      setError('Failed to add: ' + (e instanceof Error ? e.message : String(e)))
+      const msg = e instanceof Error ? e.message
+        : (e && typeof e === 'object' && 'message' in e) ? String((e as { message: unknown }).message)
+        : String(e)
+      setError('Failed to add: ' + msg)
     } finally {
       setBusy(false)
     }
