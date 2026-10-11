@@ -236,19 +236,6 @@ export async function adminDeleteUser(userId: string): Promise<void> {
   await invokeAdminUsers({ action: 'delete', userId })
 }
 
-export interface ResendWelcomeResult {
-  ok: boolean
-  welcomeEmailSent?: boolean
-}
-
-export async function resendWelcomeEmail(userId: string): Promise<ResendWelcomeResult> {
-  const data = (await invokeAdminUsers({
-    action: 'resend',
-    userId,
-  })) as ResendWelcomeResult
-  return data
-}
-
 // ---------- Resources (curriculum records) ----------
 
 export async function fetchResources(): Promise<Resource[]> {

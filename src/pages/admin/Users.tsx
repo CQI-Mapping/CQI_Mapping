@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useDraft } from '../../hooks/useDraft'
-import { adminCreateUser, adminDeleteUser, resendWelcomeEmail, addActivityLog, fetchAllProfiles, updateUserRole } from '../../services/database'
+import { adminCreateUser, adminDeleteUser, addActivityLog, fetchAllProfiles, updateUserRole } from '../../services/database'
 import { supabase } from '../../utils/supabaseClient'
 import type { Profile, UserRole } from '../../services/database'
 
@@ -30,7 +30,6 @@ export default function Users() {
   const [currentEmail, setCurrentEmail] = useState('')
   const [roleBusyId, setRoleBusyId] = useState('')
   const [deleteBusyId, setDeleteBusyId] = useState('')
-  const [resendBusyId, setResendBusyId] = useState('')
 
   const loadUsers = async () => {
     setLoading(true)
@@ -88,25 +87,6 @@ export default function Users() {
       setError('Failed to update role: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
       setRoleBusyId('')
-    }
-  }
-
-  const handleResend = async (userId: string, email: string) => {
-    setError('')
-    setSuccess('')
-    setResendBusyId(userId)
-    try {
-      const result = await resendWelcomeEmail(userId)
-      await addActivityLog('user.welcome_resent')
-      setSuccess(
-        result.welcomeEmailSent
-          ? `Welcome email re-sent to ${email}.`
-          : `Welcome email could not be sent to ${email} (email service not set up or send failed).`,
-      )
-    } catch (e) {
-      setError('Failed to re-send welcome email: ' + (e instanceof Error ? e.message : String(e)))
-    } finally {
-      setResendBusyId('')
     }
   }
 
@@ -241,24 +221,15 @@ export default function Users() {
                   </td>
                   <td>{new Date(u.created_at).toLocaleDateString()}</td>
                   <td>
-                    <div style={{ display: 'flex', gap: 6 }}>
+                    {u.email !== currentEmail && (
                       <button
-                        className="btn btn--ghost btn--sm"
-                        disabled={resendBusyId === u.id}
-                        onClick={() => handleResend(u.id, u.email)}
+                        className="btn btn--danger btn--sm"
+                        disabled={deleteBusyId === u.id}
+                        onClick={() => handleDelete(u.id, u.email)}
                       >
-                        {resendBusyId === u.id ? 'Sending...' : 'Resend'}
+                        {deleteBusyId === u.id ? 'Removing...' : 'Remove'}
                       </button>
-                      {u.email !== currentEmail && (
-                        <button
-                          className="btn btn--danger btn--sm"
-                          disabled={deleteBusyId === u.id}
-                          onClick={() => handleDelete(u.id, u.email)}
-                        >
-                          {deleteBusyId === u.id ? 'Removing...' : 'Remove'}
-                        </button>
-                      )}
-                    </div>
+                    )}
                   </td>
                 </tr>
               ))}

@@ -4,7 +4,7 @@
 // removal stay admin-only.
 
 import { useState, useEffect } from 'react'
-import { adminCreateUser, resendWelcomeEmail, addActivityLog, fetchAllProfiles } from '../../services/database'
+import { adminCreateUser, addActivityLog, fetchAllProfiles } from '../../services/database'
 import { supabase } from '../../utils/supabaseClient'
 import type { Profile } from '../../services/database'
 
@@ -19,7 +19,6 @@ function Users() {
   const [fullName, setFullName] = useState('')
   const [busy, setBusy] = useState(false)
   const [creatorName, setCreatorName] = useState('')
-  const [resendBusyId, setResendBusyId] = useState('')
 
   const load = async () => {
     setLoading(true)
@@ -68,25 +67,6 @@ function Users() {
     } catch (e) {
       setError('Failed to create faculty: ' + (e instanceof Error ? e.message : String(e)))
     } finally { setBusy(false) }
-  }
-
-  const handleResend = async (userId: string, email: string) => {
-    setError('')
-    setSuccess('')
-    setResendBusyId(userId)
-    try {
-      const result = await resendWelcomeEmail(userId)
-      await addActivityLog('user.welcome_resent')
-      setSuccess(
-        result.welcomeEmailSent
-          ? `Welcome email re-sent to ${email}.`
-          : `Welcome email could not be sent to ${email} (email service not set up or send failed).`,
-      )
-    } catch (e) {
-      setError('Failed to re-send welcome email: ' + (e instanceof Error ? e.message : String(e)))
-    } finally {
-      setResendBusyId('')
-    }
   }
 
   return (
@@ -144,7 +124,6 @@ function Users() {
                 <th>Email</th>
                 <th>Role</th>
                 <th>Joined</th>
-                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -156,17 +135,6 @@ function Users() {
                     <span className={`role-badge role-badge--${u.role}`}>{u.role}</span>
                   </td>
                   <td>{new Date(u.created_at).toLocaleDateString()}</td>
-                  <td>
-                    {u.role === 'user' && (
-                      <button
-                        className="btn btn--ghost btn--sm"
-                        disabled={resendBusyId === u.id}
-                        onClick={() => handleResend(u.id, u.email)}
-                      >
-                        {resendBusyId === u.id ? 'Sending...' : 'Resend'}
-                      </button>
-                    )}
-                  </td>
                 </tr>
               ))}
             </tbody>

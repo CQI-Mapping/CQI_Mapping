@@ -28,7 +28,6 @@
 //
 // Request bodies:
 //   { action: 'create', email, password, fullName?, role } -> { id, email, welcomeEmailSent }
-//   { action: 'resend', userId }                           -> { ok: true, welcomeEmailSent }
 //   { action: 'delete', userId }                           -> { ok: true }
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -193,30 +192,6 @@ Deno.serve(async (req: Request) => {
       })
 
       return json({ id: created.user.id, email: created.user.email, welcomeEmailSent })
-    }
-
-    if (body?.action === 'resend') {
-      // Re-send the welcome email to an existing user (lets admins/managers
-      // retry delivery without creating a new account).
-      const userId = typeof body.userId === 'string' ? body.userId : ''
-      if (!userId) return fail('userId is required', 400)
-      const { data: target, error: targetError } = await admin
-        .from('profiles')
-        .select('id, email, full_name, role')
-        .eq('id', userId)
-        .maybeSingle()
-      if (targetError) throw targetError
-      if (!target) return fail('User not found', 404)
-      if (!isAdmin && target.role !== 'user') {
-        return fail('Forbidden: managers may only re-notify faculty accounts', 403)
-      }
-      const welcomeEmailSent = await sendWelcomeEmail({
-        to: target.email,
-        name: target.full_name || '',
-        role: target.role,
-        inviterName,
-      })
-      return json({ ok: true, welcomeEmailSent })
     }
 
     if (body?.action === 'delete') {
