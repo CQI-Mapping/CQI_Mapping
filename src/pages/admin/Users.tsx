@@ -53,14 +53,17 @@ export default function Users() {
     setBusy(true)
     try {
       const createdEmail = email.trim()
-      await adminCreateUser(createdEmail, password, fullName.trim(), role)
+      const created = await adminCreateUser(createdEmail, password, fullName.trim(), role)
       await addActivityLog('user.created')
       const creator = users.find((u) => u.email === currentEmail)
       const creatorName = creator?.full_name || currentEmail
+      const base = creatorName
+        ? `${ROLE_LABELS[role]} ${createdEmail} has been added to the system by ${creatorName}.`
+        : `${ROLE_LABELS[role]} ${createdEmail} has been added to the system.`
       setSuccess(
-        creatorName
-          ? `${ROLE_LABELS[role]} ${createdEmail} has been added to the system by ${creatorName}.`
-          : `${ROLE_LABELS[role]} ${createdEmail} has been added to the system.`,
+        created.welcomeEmailSent
+          ? `${base} A welcome email was sent to ${createdEmail}.`
+          : `${base} No welcome email was sent (email service not set up) — please tell them their login directly.`,
       )
       clearDraft()
       setPassword('')

@@ -187,6 +187,7 @@ export async function updateUserRole(profileId: string, role: UserRole): Promise
 export interface AdminCreateUserResult {
   id: string
   email: string
+  welcomeEmailSent?: boolean
 }
 
 interface AdminUsersFunctionError {

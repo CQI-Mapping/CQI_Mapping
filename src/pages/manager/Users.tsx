@@ -50,12 +50,15 @@ function Users() {
     setBusy(true)
     try {
       const createdEmail = email.trim()
-      await adminCreateUser(createdEmail, password, fullName.trim(), 'user')
+      const created = await adminCreateUser(createdEmail, password, fullName.trim(), 'user')
       await addActivityLog('user.created')
+      const base = creatorName
+        ? `Faculty ${createdEmail} has been added to the system by ${creatorName}.`
+        : `Faculty ${createdEmail} has been added to the system.`
       setSuccess(
-        creatorName
-          ? `Faculty ${createdEmail} has been added to the system by ${creatorName}.`
-          : `Faculty ${createdEmail} has been added to the system.`,
+        created.welcomeEmailSent
+          ? `${base} A welcome email was sent to ${createdEmail}.`
+          : `${base} No welcome email was sent (email service not set up) — please tell them their login directly.`,
       )
       setEmail('')
       setPassword('')
