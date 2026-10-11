@@ -1,12 +1,14 @@
-// Admin Program Outcomes: categorized read-only table with add form.
+// Admin Program Outcomes: resource-card layout grouped by CMO.
 // Form inputs: CMO dropdown, Number, Description.
-// Table groups outcomes by CMO category with numbered rows.
+// Cards show numbered outcomes with edit/archive/delete icon buttons.
 
 import { useEffect, useState } from 'react'
 import Icon from '../../components/icons'
 import {
   fetchProgramOutcomesStandalone,
   createProgramOutcomeStandalone,
+  updateProgramOutcomeStandalone,
+  deleteProgramOutcomeStandalone,
   fetchChedMemoOrders,
 } from '../../services/database'
 import type { ProgramOutcomeStandalone, ChedMemoOrder } from '../../services/database'
@@ -22,8 +24,9 @@ export default function ProgramOutcomesAdmin() {
   const [cmos, setCmos] = useState<ChedMemoOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
+  const [success, setError2] = useState('')
   const [busy, setBusy] = useState(false)
+  const [archived, setArchived] = useState(false)
 
   // Form state
   const [cmoId, setCmoId] = useState('')
@@ -49,10 +52,12 @@ export default function ProgramOutcomesAdmin() {
 
   useEffect(() => { load() }, [])
 
+  const isActive = (i: ProgramOutcomeStandalone) => !i.status || i.status === 'active'
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    setSuccess('')
+    setError2('')
     if (!cmoId || !number.trim() || !description.trim()) {
       setError('CMO, Number, and Description are required.')
       return
@@ -68,7 +73,7 @@ export default function ProgramOutcomesAdmin() {
         cmo_id: isFixed ? null : cmoId,
         cmo_text: isFixed ? cmoId : undefined,
       })
-      setSuccess(`Program Outcome ${code} added.`)
+      setError2(`Program Outcome ${code} added.`)
       setCmoId('')
       setNumber('')
       setDescription('')
@@ -78,6 +83,38 @@ export default function ProgramOutcomesAdmin() {
         : (e && typeof e === 'object' && 'message' in e) ? String((e as { message: unknown }).message)
         : String(e)
       setError('Failed to add: ' + msg)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleArchive = async (item: ProgramOutcomeStandalone) => {
+    setError('')
+    setError2('')
+    const next = isActive(item) ? 'archived' : 'active'
+    setBusy(true)
+    try {
+      await updateProgramOutcomeStandalone(item.id, { status: next })
+      setError2(`Program Outcome ${next}.`)
+      await load()
+    } catch (e) {
+      setError('Failed to update: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleDelete = async (item: ProgramOutcomeStandalone) => {
+    if (!window.confirm('Delete this program outcome permanently?')) return
+    setError('')
+    setError2('')
+    setBusy(true)
+    try {
+      await deleteProgramOutcomeStandalone(item.id)
+      setError2('Program Outcome deleted.')
+      await load()
+    } catch (e) {
+      setError('Failed to delete: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
       setBusy(false)
     }
@@ -106,6 +143,11 @@ export default function ProgramOutcomesAdmin() {
     const cmo = cmos.find((c) => c.id === id)
     return cmo ? `${cmo.title} (${cmo.code})` : '—'
   }
+
+  const filteredGroup = (group: ProgramOutcomeStandalone[]) =>
+    group.filter((i) => (archived ? !isActive(i) : isActive(i)))
+
+  const archivedCount = items.filter((i) => !isActive(i)).length
 
   return (
     <div className="programs-page curriculum-view">
@@ -168,34 +210,76 @@ export default function ProgramOutcomesAdmin() {
         </div>
       </form>
 
-      {/* Categorized table */}
+      {/* Categorized resource cards */}
       {loading ? (
         <p>Loading program outcomes...</p>
       ) : (
         <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {Array.from(cmoMap.entries()).map(([cmoIdKey, groupItems]) => (
-            <div key={cmoIdKey} className="panel table-wrap">
-              <h3 style={{ marginBottom: 8 }}>
-                {cmoIdKey === 'uncategorized' ? 'Uncategorized' : cmoLabel(cmoIdKey)}
-              </h3>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th style={{ width: 50 }}>#</th>
-                    <th>Description</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...groupItems].sort(sortPo).map((item, idx) => (
-                    <tr key={item.id}>
-                      <td>{idx + 1}</td>
-                      <td>{item.description || item.title || '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {/* Active/Archive tabs */}
+          <div className="program-toolbar" style={{ marginBottom: 0 }}>
+            <div className="sd-tabs" style={{ marginBottom: 0, flex: 1 }}>
+              <button className={`sd-tab ${!archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(false)}>Active</button>
+              <button className={`sd-tab ${archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(true)}>
+                Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
+              </button>
             </div>
-          ))}
+          </div>
+
+          {Array.from(cmoMap.entries()).map(([cmoIdKey, group]) => {
+            const visible = filteredGroup(group)
+            if (visible.length === 0) return null
+            return (
+              <div key={cmoIdKey} className="panel table-wrap">
+                <h3 style={{ marginBottom: 12 }}>
+                  {cmoIdKey === 'uncategorized' ? 'Uncategorized' : cmoLabel(cmoIdKey)}
+                </h3>
+                <div className="resource-list">
+                  {[...visible].sort(sortPo).map((item, idx) => (
+                    <div
+                      key={item.id}
+                      className={`resource-card ${isActive(item) ? '' : 'resource-card--archived'}`}
+                    >
+                      <div className="resource-card__body">
+                        <h4>
+                          <span style={{ color: '#64748b', marginRight: 8 }}>{idx + 1}.</span>
+                          {item.description || item.title || '—'}
+                        </h4>
+                        <div className="resource-card__meta">
+                          <span className={`status-badge status-badge--${isActive(item) ? 'active' : 'archived'}`}>
+                            {isActive(item) ? 'Active' : 'Archived'}
+                          </span>
+                          <span>{item.code}</span>
+                        </div>
+                      </div>
+                      <div className="resource-card__actions">
+                        <button
+                          className="btn btn--ghost btn--sm"
+                          onClick={() => handleArchive(item)}
+                          disabled={busy}
+                          title={isActive(item) ? 'Archive' : 'Restore'}
+                          aria-label={isActive(item) ? `Archive ${item.code}` : `Restore ${item.code}`}
+                        >
+                          <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} />
+                        </button>
+                        {!isActive(item) && (
+                          <button
+                            className="btn btn--danger btn--sm"
+                            onClick={() => handleDelete(item)}
+                            disabled={busy}
+                            style={{ marginLeft: 'auto' }}
+                            title="Delete"
+                            aria-label={`Delete ${item.code}`}
+                          >
+                            <Icon name="trash" size={13} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
