@@ -229,58 +229,61 @@ export default function ProgramOutcomesAdmin() {
 
           {Array.from(cmoMap.entries()).map(([cmoIdKey, group]) => {
             const visible = filteredGroup(group)
-            if (visible.length === 0) return null
             return (
               <div key={cmoIdKey} className="panel table-wrap">
                 <h3 style={{ marginBottom: 12 }}>
                   {cmoIdKey === 'uncategorized' ? 'Uncategorized' : cmoLabel(cmoIdKey)}
                 </h3>
-                <div className="resource-list">
-                  {[...visible].sort(sortPo).map((item, idx) => (
-                    <div
-                      key={item.id}
-                      className={`resource-card ${isActive(item) ? '' : 'resource-card--archived'}`}
-                      onDoubleClick={() => setDetail({ group: cmoIdKey, idx, item })}
-                      title="Double-click to view details"
-                    >
-                      <div className="resource-card__body">
-                        <h4>
-                          <span style={{ color: '#64748b', marginRight: 8 }}>{idx + 1}.</span>
-                          {item.description || item.title || '—'}
-                        </h4>
-                        <div className="resource-card__meta">
-                          <span className={`status-badge status-badge--${isActive(item) ? 'active' : 'archived'}`}>
-                            {isActive(item) ? 'Active' : 'Archived'}
-                          </span>
-                          <span>{item.code}</span>
+                {visible.length === 0 ? (
+                  <p style={{ color: '#64748b' }}>No {archived ? 'archived' : 'active'} outcomes yet.</p>
+                ) : (
+                  <div className="resource-list">
+                    {[...visible].sort(sortPo).map((item, idx) => (
+                      <div
+                        key={item.id}
+                        className={`resource-card ${isActive(item) ? '' : 'resource-card--archived'}`}
+                        onDoubleClick={() => setDetail({ group: cmoIdKey, idx, item })}
+                        title="Double-click to view details"
+                      >
+                        <div className="resource-card__body">
+                          <h4>
+                            <span style={{ color: '#64748b', marginRight: 8 }}>{idx + 1}.</span>
+                            {item.description || item.title || '—'}
+                          </h4>
+                          <div className="resource-card__meta">
+                            <span className={`status-badge status-badge--${isActive(item) ? 'active' : 'archived'}`}>
+                              {isActive(item) ? 'Active' : 'Archived'}
+                            </span>
+                            <span>{item.code}</span>
+                          </div>
+                        </div>
+                        <div className="resource-card__actions">
+                          <button
+                            className="btn btn--ghost btn--sm"
+                            onClick={() => handleArchive(item)}
+                            disabled={busy}
+                            title={isActive(item) ? 'Archive' : 'Restore'}
+                            aria-label={isActive(item) ? `Archive ${item.code}` : `Restore ${item.code}`}
+                          >
+                            <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} />
+                          </button>
+                          {!isActive(item) && (
+                            <button
+                              className="btn btn--danger btn--sm"
+                              onClick={() => handleDelete(item)}
+                              disabled={busy}
+                              style={{ marginLeft: 'auto' }}
+                              title="Delete"
+                              aria-label={`Delete ${item.code}`}
+                            >
+                              <Icon name="trash" size={13} />
+                            </button>
+                          )}
                         </div>
                       </div>
-                      <div className="resource-card__actions">
-                        <button
-                          className="btn btn--ghost btn--sm"
-                          onClick={() => handleArchive(item)}
-                          disabled={busy}
-                          title={isActive(item) ? 'Archive' : 'Restore'}
-                          aria-label={isActive(item) ? `Archive ${item.code}` : `Restore ${item.code}`}
-                        >
-                          <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} />
-                        </button>
-                        {!isActive(item) && (
-                          <button
-                            className="btn btn--danger btn--sm"
-                            onClick={() => handleDelete(item)}
-                            disabled={busy}
-                            style={{ marginLeft: 'auto' }}
-                            title="Delete"
-                            aria-label={`Delete ${item.code}`}
-                          >
-                            <Icon name="trash" size={13} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )
           })}
