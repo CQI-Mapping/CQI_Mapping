@@ -1,12 +1,18 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useEntityCrud } from './curriculum/useEntityCrud.js'
+import { useSelection } from '../../hooks/useSelection'
 import {
   fetchPrograms,
+  fetchCourses,
+  fetchProgramOutcomes,
   createProgram,
   updateProgram,
   deleteProgram,
 } from '../../services/database'
-import type { Program } from '../../services/database'
+import type { Program, Course, ProgramOutcome } from '../../services/database'
+
+const relProgramId = (v: string | { id: string; code: string; name: string } | null | undefined) =>
+  v && typeof v === 'object' ? v.id : v || ''
 
 type ProgramForm = {
   code: string
@@ -36,6 +42,11 @@ export default function Program() {
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Program | null>(null)
   const [form, setForm] = useState<ProgramForm>(blank)
+  // Browser-only selection: which program the user chose to view in detail.
+  const [selectedId, select, clearSelection] = useSelection('cqi.selected.programId')
+  const [relatedCourses, setRelatedCourses] = useState<Course[]>([])
+  const [relatedOutcomes, setRelatedOutcomes] = useState<ProgramOutcome[]>([])
+  const [relatedLoading, setRelatedLoading] = useState(false)
 
   const autoResize = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return
@@ -59,6 +70,28 @@ export default function Program() {
   useEffect(() => {
     crud.load()
   }, [crud.load])
+
+  // Load courses + outcomes linked to the selected program for the details panel.
+  useEffect(() => {
+    if (!selectedId) {
+      setRelatedCourses([])
+      setRelatedOutcomes([])
+      return
+    }
+    setRelatedLoading(true)
+    Promise.all([fetchCourses(), fetchProgramOutcomes(selectedId)])
+      .then(([allCourses, outcomes]) => {
+        setRelatedCourses(allCourses.filter((c) => relProgramId(c.program_id) === selectedId))
+        setRelatedOutcomes(outcomes)
+      })
+      .catch(() => {
+        setRelatedCourses([])
+        setRelatedOutcomes([])
+      })
+      .finally(() => setRelatedLoading(false))
+  }, [selectedId])
+
+  const selectedItem = items.find((p) => p.id === selectedId) ?? null
 
   const openAdd = () => {
     setEditing(null)
@@ -238,7 +271,12 @@ export default function Program() {
         ) : (
           <div className="program-grid" style={{ marginTop: 14 }}>
             {visible.map((item) => (
-              <div key={item.id} className="program-card--2026" data-status={isActive(item) ? 'active' : 'archived'}>
+              <div
+                key={item.id}
+                className={`program-card--2026 ${selectedId === item.id ? 'program-card--selected' : ''}`}
+                data-status={isActive(item) ? 'active' : 'archived'}
+                data-selected={selectedId === item.id ? 'true' : 'false'}
+              >
                 <div className="program-card__top">
                   <span className="program-card__code">{item.code}</span>
                   <span className={`program-card__status ${isActive(item) ? 'program-card__status--active' : 'program-card__status--archived'}`}>
@@ -249,6 +287,14 @@ export default function Program() {
                 <h3 className="program-card__name">{item.name}</h3>
                 <p className="program-card__desc">{item.description || 'No description provided.'}</p>
                 <div className="program-card__actions">
+                  <button
+                    className={`btn btn--sm ${selectedId === item.id ? 'btn--primary' : 'btn--ghost'}`}
+                    onClick={() => select(item.id)}
+                    disabled={busy}
+                    aria-pressed={selectedId === item.id}
+                  >
+                    {selectedId === item.id ? 'Selected' : 'Select'}
+                  </button>
                   <button className="btn btn--ghost btn--sm" onClick={() => openEdit(item)} disabled={busy}>
                     Edit
                   </button>
@@ -269,6 +315,49 @@ export default function Program() {
             ))}
           </div>
         )}
+        <div className="selection-details" aria-live="polite">
+          {selectedItem ? (
+            <>
+              <div className="selection-details__header">
+                <div>
+                  <strong>
+                    Selected: {selectedItem.code}
+                    {selectedItem.name ? ` — ${selectedItem.name}` : ''}
+                  </strong>
+                  {selectedItem.description && <p>{selectedItem.description}</p>}
+                </div>
+                <button className="btn btn--ghost btn--sm" onClick={clearSelection}>
+                  Clear
+                </button>
+              </div>
+              <div className="selection-details__body">
+                {relatedLoading ? (
+                  <p>Loading linked courses and outcomes...</p>
+                ) : (
+                  <>
+                    <p>
+                      {relatedCourses.length} course{relatedCourses.length === 1 ? '' : 's'} ·{' '}
+                      {relatedOutcomes.length} outcome{relatedOutcomes.length === 1 ? '' : 's'}
+                    </p>
+                    {relatedCourses.length === 0 ? (
+                      <p>No courses linked to this program yet.</p>
+                    ) : (
+                      <ul className="selection-details__list">
+                        {relatedCourses.map((c) => (
+                          <li key={c.id}>
+                            <strong>{c.code}</strong> — {c.title}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                )}
+              </div>
+            </>
+          ) : (
+            <p className="selection-details__empty">Select a program to see its details, courses, and outcomes.</p>
+          )}
+        </div>
       </div>
     </div>
   )
