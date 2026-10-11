@@ -299,7 +299,6 @@ export default function ProgramOutcomesAdmin() {
                           <span className={`status-badge status-badge--${isActive(item) ? 'active' : 'archived'}`}>
                             {isActive(item) ? 'Active' : 'Archived'}
                           </span>
-                          <span>{item.code}</span>
                         </div>
                       </div>
                       <div className="resource-card__actions">
@@ -395,7 +394,6 @@ export default function ProgramOutcomesAdmin() {
                       <span className={`status-badge status-badge--${isActive(detail.item) ? 'active' : 'archived'}`}>
                         {isActive(detail.item) ? 'Active' : 'Archived'}
                       </span>
-                      <span>{detail.item.code}</span>
                     </div>
                   </div>
                   <button className="btn btn--ghost btn--sm" onClick={() => setDetail(null)}>
