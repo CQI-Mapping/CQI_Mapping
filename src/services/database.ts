@@ -273,6 +273,11 @@ export async function updateResource(
   return data
 }
 
+export async function deleteResource(id: string): Promise<void> {
+  const { error } = await supabase.from('resources').delete().eq('id', id)
+  if (error) throw error
+}
+
 // ---------- CQI curriculum domain ----------
 
 // PROGRAMS
