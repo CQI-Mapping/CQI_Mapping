@@ -1,6 +1,7 @@
 // Admin Users page: create new accounts (admin, manager, or faculty) and list all users.
 
 import { useState, useEffect } from 'react'
+import Icon from '../../components/icons'
 import { useDraft } from '../../hooks/useDraft'
 import { adminCreateUser, adminDeleteUser, addActivityLog, fetchAllProfiles, updateUserRole } from '../../services/database'
 import { supabase } from '../../utils/supabaseClient'
@@ -178,7 +179,7 @@ export default function Users() {
               </select>
             </label>
             <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
-              {busy ? 'Creating...' : 'Create User'}
+              {busy ? 'Creating...' : (<><Icon name="plus" size={13} /> Create User</>)}
             </button>
           </div>
         </form>
@@ -227,7 +228,7 @@ export default function Users() {
                         disabled={deleteBusyId === u.id}
                         onClick={() => handleDelete(u.id, u.email)}
                       >
-                        {deleteBusyId === u.id ? 'Removing...' : 'Remove'}
+                        {deleteBusyId === u.id ? 'Removing...' : (<><Icon name="trash" size={13} /> Remove</>)}
                       </button>
                     )}
                   </td>

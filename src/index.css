@@ -2796,6 +2796,13 @@ textarea.input {
   font-weight: 500;
   color: #64748b;
   transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sd-tab svg {
+  flex-shrink: 0;
 }
 
 .sd-tab:hover {

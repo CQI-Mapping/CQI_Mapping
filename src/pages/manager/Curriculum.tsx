@@ -14,6 +14,7 @@ import { supabase } from '../../utils/supabaseClient'
 import { useSelection } from '../../hooks/useSelection'
 import { useViewMode } from '../../hooks/useViewMode'
 import ViewModeToggle from '../../components/ViewModeToggle'
+import Icon from '../../components/icons'
 import type { Resource, Course } from '../../services/database'
 
 const relId = (v: string | { id: string } | null | undefined) =>
@@ -228,7 +229,7 @@ function Curriculum({ userEmail }: CurriculumProps) {
         </label>
         <div className="create-resource__submit">
           <button className="btn btn--primary" type="submit" disabled={busy}>
-            {busy ? 'Saving...' : 'Add'}
+            {busy ? 'Saving...' : (<><Icon name="plus" size={14} /> Add</>)}
           </button>
         </div>
       </form>
@@ -294,7 +295,7 @@ function Curriculum({ userEmail }: CurriculumProps) {
                     </label>
                     <div className="resource-card__actions">
                       <button className="btn btn--primary btn--sm" onClick={() => handleSave(item.id)} disabled={busy}>
-                        Save
+                        <Icon name="check" size={13} /> Save
                       </button>
                       <button className="btn btn--ghost btn--sm" onClick={cancelEdit}>
                         Cancel
@@ -320,16 +321,16 @@ function Curriculum({ userEmail }: CurriculumProps) {
                         onClick={() => select(item.id)}
                         aria-pressed={selectedId === item.id}
                       >
-                        {selectedId === item.id ? 'Selected' : 'Select'}
+                        <Icon name="check" size={13} /> {selectedId === item.id ? 'Selected' : 'Select'}
                       </button>
                       <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)}>
-                        Edit
+                        <Icon name="edit" size={13} /> Edit
                       </button>
                       <button
                         className="btn btn--ghost btn--sm"
                         onClick={() => handleToggleStatus(item)}
                       >
-                        {item.status === 'active' ? 'Archive' : 'Restore'}
+                        <Icon name={item.status === 'active' ? 'archive' : 'restore'} size={13} /> {item.status === 'active' ? 'Archive' : 'Restore'}
                       </button>
                     </div>
                   </>
@@ -383,7 +384,7 @@ function Curriculum({ userEmail }: CurriculumProps) {
                     </label>
                     <div className="resource-card__actions">
                       <button className="btn btn--primary btn--sm" onClick={() => handleSave(item.id)} disabled={busy}>
-                        Save
+                        <Icon name="check" size={13} /> Save
                       </button>
                       <button className="btn btn--ghost btn--sm" onClick={cancelEdit}>
                         Cancel
@@ -412,16 +413,16 @@ function Curriculum({ userEmail }: CurriculumProps) {
                         onClick={() => select(item.id)}
                         aria-pressed={selectedId === item.id}
                       >
-                        {selectedId === item.id ? 'Selected' : 'Select'}
+                        <Icon name="check" size={13} /> {selectedId === item.id ? 'Selected' : 'Select'}
                       </button>
                       <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)}>
-                        Edit
+                        <Icon name="edit" size={13} /> Edit
                       </button>
                       <button
                         className="btn btn--ghost btn--sm"
                         onClick={() => handleToggleStatus(item)}
                       >
-                        {item.status === 'active' ? 'Archive' : 'Restore'}
+                        <Icon name={item.status === 'active' ? 'archive' : 'restore'} size={13} /> {item.status === 'active' ? 'Archive' : 'Restore'}
                       </button>
                     </div>
                   </>

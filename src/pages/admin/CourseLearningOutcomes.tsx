@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useEntityCrud } from './curriculum/useEntityCrud.js'
 import { useViewMode } from '../../hooks/useViewMode'
 import ViewModeToggle from '../../components/ViewModeToggle'
+import Icon from '../../components/icons'
 import {
   fetchCourseLearningOutcomesStandalone,
   createCourseLearningOutcomeStandalone,
@@ -339,10 +340,10 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
           </button>
         </div>
       )}
-      <div className="program-card__actions">
-        <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>Save</button>
-        <button className="btn btn--ghost btn--sm" onClick={() => setEditingId(null)}>Cancel</button>
-      </div>
+                      <div className="program-card__actions">
+                        <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}><Icon name="check" size={13} /> Save</button>
+                        <button className="btn btn--ghost btn--sm" onClick={() => setEditingId(null)}>Cancel</button>
+                      </div>
     </>
   )
 
@@ -476,7 +477,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
           </div>
         )}
         <div className="create-resource__submit">
-          <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>{busy ? 'Saving...' : 'Add'}</button>
+          <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>{busy ? 'Saving...' : (<><Icon name="plus" size={13} /> Add</>)}</button>
         </div>
       </form>
 
@@ -549,12 +550,12 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                         </div>
                       </div>
                       <div className="resource-card__actions">
-                        <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} disabled={busy || !!editingId}>Edit</button>
+                        <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} disabled={busy || !!editingId}><Icon name="edit" size={13} /> Edit</button>
                         <button className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleUpdate(item.id, { status: isActive(item) ? 'archived' : 'active' }, 'clo.updated')} disabled={busy || !!editingId}>
-                          {isActive(item) ? 'Archive' : 'Restore'}
+                          <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} /> {isActive(item) ? 'Archive' : 'Restore'}
                         </button>
                         {!isActive(item) && (
-                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'clo.deleted')} disabled={busy || !!editingId} style={{ marginLeft: 'auto' }}>Delete</button>
+                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'clo.deleted')} disabled={busy || !!editingId} style={{ marginLeft: 'auto' }}><Icon name="trash" size={13} /> Delete</button>
                         )}
                       </div>
                     </>
@@ -580,12 +581,12 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                         <strong style={{ color: '#64748b' }}>POs:</strong> {item.title || '—'}
                       </div>
                       <div className="program-card__actions">
-                        <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} disabled={busy || !!editingId}>Edit</button>
+                        <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} disabled={busy || !!editingId}><Icon name="edit" size={13} /> Edit</button>
                         <button className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleUpdate(item.id, { status: isActive(item) ? 'archived' : 'active' }, 'clo.updated')} disabled={busy || !!editingId}>
-                          {isActive(item) ? 'Archive' : 'Restore'}
+                          <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} /> {isActive(item) ? 'Archive' : 'Restore'}
                         </button>
                         {!isActive(item) && (
-                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'clo.deleted')} disabled={busy || !!editingId} style={{ marginLeft: 'auto' }}>Delete</button>
+                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'clo.deleted')} disabled={busy || !!editingId} style={{ marginLeft: 'auto' }}><Icon name="trash" size={13} /> Delete</button>
                         )}
                       </div>
                     </>

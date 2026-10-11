@@ -6,6 +6,7 @@ import { fetchResources, fetchCourses } from '../../services/database'
 import { useSelection } from '../../hooks/useSelection'
 import { useViewMode } from '../../hooks/useViewMode'
 import ViewModeToggle from '../../components/ViewModeToggle'
+import Icon from '../../components/icons'
 import type { Resource, Course } from '../../services/database'
 
 const relId = (v: string | { id: string } | null | undefined) =>
@@ -93,7 +94,7 @@ function Curriculum() {
                     onClick={() => select(item.id)}
                     aria-pressed={selectedId === item.id}
                   >
-                    {selectedId === item.id ? 'Selected' : 'Select'}
+                    <Icon name="check" size={13} /> {selectedId === item.id ? 'Selected' : 'Select'}
                   </button>
                 </div>
               </div>
@@ -128,7 +129,7 @@ function Curriculum() {
                     onClick={() => select(item.id)}
                     aria-pressed={selectedId === item.id}
                   >
-                    {selectedId === item.id ? 'Selected' : 'Select'}
+                    <Icon name="check" size={13} /> {selectedId === item.id ? 'Selected' : 'Select'}
                   </button>
                 </div>
               </div>

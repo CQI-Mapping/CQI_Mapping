@@ -1,6 +1,7 @@
 // ViewModeToggle: List | Grid segmented switch for card-listing pages.
 // Reuses the existing .sd-tab styles so no new design system is introduced.
 import type { ViewMode } from '../hooks/useViewMode'
+import Icon from './icons'
 
 interface ViewModeToggleProps {
   mode: ViewMode
@@ -17,7 +18,7 @@ export default function ViewModeToggle({ mode, onChange, label = 'Change view st
         onClick={() => onChange('list')}
         aria-pressed={mode === 'list'}
       >
-        List
+        <Icon name="list" size={13} /> List
       </button>
       <button
         type="button"
@@ -25,7 +26,7 @@ export default function ViewModeToggle({ mode, onChange, label = 'Change view st
         onClick={() => onChange('grid')}
         aria-pressed={mode === 'grid'}
       >
-        Grid
+        <Icon name="grid" size={13} /> Grid
       </button>
     </div>
   )

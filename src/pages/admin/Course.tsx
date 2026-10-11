@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useDraft } from '../../hooks/useDraft'
 import { useViewMode } from '../../hooks/useViewMode'
 import ViewModeToggle from '../../components/ViewModeToggle'
+import Icon from '../../components/icons'
 import {
   fetchPrograms,
   fetchResources,
@@ -478,7 +479,7 @@ export default function Course({ profile, onViewSubject, hideDelete }: CoursePro
               {editing ? (
                 <>
                   <button className="btn btn--primary btn--sm" type="button" onClick={saveEdit} disabled={busy}>
-                    {busy ? 'Saving...' : 'Save'}
+                    {busy ? 'Saving...' : (<><Icon name="check" size={13} /> Save</>)}
                   </button>{' '}
                   <button className="btn btn--ghost btn--sm" type="button" onClick={cancelEdit} disabled={busy}>
                     Cancel
@@ -486,7 +487,7 @@ export default function Course({ profile, onViewSubject, hideDelete }: CoursePro
                 </>
               ) : (
                 <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
-                  {busy ? 'Saving...' : 'Add'}
+                  {busy ? 'Saving...' : (<><Icon name="plus" size={13} /> Add</>)}
                 </button>
               )}
             </div>
@@ -541,13 +542,13 @@ export default function Course({ profile, onViewSubject, hideDelete }: CoursePro
                           </option>
                         ))}
                       </select>
-                      <button className="btn btn--ghost btn--sm" onClick={() => onViewSubject?.(c.id)} disabled={!!editId}>View</button>
-                      <button className="btn btn--ghost btn--sm" onClick={() => startEdit(c)} disabled={busy || !!editId}>Edit</button>
+                      <button className="btn btn--ghost btn--sm" onClick={() => onViewSubject?.(c.id)} disabled={!!editId}><Icon name="eye" size={13} /> View</button>
+                      <button className="btn btn--ghost btn--sm" onClick={() => startEdit(c)} disabled={busy || !!editId}><Icon name="edit" size={13} /> Edit</button>
                       <button className={`btn btn--sm ${isActive(c) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleToggleStatus(c)} disabled={busy || !!editId}>
-                        {isActive(c) ? 'Archive' : 'Restore'}
+                        <Icon name={isActive(c) ? 'archive' : 'restore'} size={13} /> {isActive(c) ? 'Archive' : 'Restore'}
                       </button>
                       {!isActive(c) && !hideDelete && (
-                        <button className="btn btn--danger btn--sm" onClick={() => handleDelete(c.id)} disabled={busy || !!editId} style={{ marginLeft: 'auto' }}>Delete</button>
+                        <button className="btn btn--danger btn--sm" onClick={() => handleDelete(c.id)} disabled={busy || !!editId} style={{ marginLeft: 'auto' }}><Icon name="trash" size={13} /> Delete</button>
                       )}
                     </div>
                   </div>
@@ -592,13 +593,13 @@ export default function Course({ profile, onViewSubject, hideDelete }: CoursePro
                     </div>
                     <p className="program-card__desc">{c.description || 'No description.'}</p>
                     <div className="program-card__actions">
-                      <button className="btn btn--ghost btn--sm" onClick={() => onViewSubject?.(c.id)} disabled={!!editId}>View</button>
-                      <button className="btn btn--ghost btn--sm" onClick={() => startEdit(c)} disabled={busy || !!editId}>Edit</button>
+                      <button className="btn btn--ghost btn--sm" onClick={() => onViewSubject?.(c.id)} disabled={!!editId}><Icon name="eye" size={13} /> View</button>
+                      <button className="btn btn--ghost btn--sm" onClick={() => startEdit(c)} disabled={busy || !!editId}><Icon name="edit" size={13} /> Edit</button>
                       <button className={`btn btn--sm ${isActive(c) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleToggleStatus(c)} disabled={busy || !!editId}>
-                        {isActive(c) ? 'Archive' : 'Restore'}
+                        <Icon name={isActive(c) ? 'archive' : 'restore'} size={13} /> {isActive(c) ? 'Archive' : 'Restore'}
                       </button>
                       {!isActive(c) && !hideDelete && (
-                        <button className="btn btn--danger btn--sm" onClick={() => handleDelete(c.id)} disabled={busy || !!editId} style={{ marginLeft: 'auto' }}>Delete</button>
+                        <button className="btn btn--danger btn--sm" onClick={() => handleDelete(c.id)} disabled={busy || !!editId} style={{ marginLeft: 'auto' }}><Icon name="trash" size={13} /> Delete</button>
                       )}
                     </div>
                   </div>

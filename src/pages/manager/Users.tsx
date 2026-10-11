@@ -4,6 +4,7 @@
 // removal stay admin-only.
 
 import { useState, useEffect } from 'react'
+import Icon from '../../components/icons'
 import { adminCreateUser, addActivityLog, fetchAllProfiles } from '../../services/database'
 import { supabase } from '../../utils/supabaseClient'
 import type { Profile } from '../../services/database'
@@ -106,7 +107,7 @@ function Users() {
                 onChange={(e) => setFullName(e.target.value)} />
             </label>
             <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
-              {busy ? 'Creating...' : 'Create Faculty'}
+              {busy ? 'Creating...' : (<><Icon name="plus" size={13} /> Create Faculty</>)}
             </button>
           </div>
         </form>

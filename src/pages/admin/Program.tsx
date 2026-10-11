@@ -3,6 +3,7 @@ import { useEntityCrud } from './curriculum/useEntityCrud.js'
 import { useSelection } from '../../hooks/useSelection'
 import { useViewMode } from '../../hooks/useViewMode'
 import ViewModeToggle from '../../components/ViewModeToggle'
+import Icon from '../../components/icons'
 import {
   fetchPrograms,
   fetchCourses,
@@ -146,7 +147,7 @@ export default function Program() {
         </div>
         <div className="program-hero__action">
           <button className="btn btn--primary" onClick={openAdd}>
-            + Add New
+            <Icon name="plus" size={14} /> Add New
           </button>
         </div>
       </div>
@@ -296,21 +297,21 @@ export default function Program() {
                     disabled={busy}
                     aria-pressed={selectedId === item.id}
                   >
-                    {selectedId === item.id ? 'Selected' : 'Select'}
+                    <Icon name="check" size={13} /> {selectedId === item.id ? 'Selected' : 'Select'}
                   </button>
                   <button className="btn btn--ghost btn--sm" onClick={() => openEdit(item)} disabled={busy}>
-                    Edit
+                    <Icon name="edit" size={13} /> Edit
                   </button>
                   <button
                     className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`}
                     onClick={() => handleArchive(item)}
                     disabled={busy}
                   >
-                    {isActive(item) ? 'Archive' : 'Restore'}
+                    <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} /> {isActive(item) ? 'Archive' : 'Restore'}
                   </button>
                   {!isActive(item) && (
                     <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'program.deleted')} disabled={busy} style={{ marginLeft: 'auto' }}>
-                      Delete
+                      <Icon name="trash" size={13} /> Delete
                     </button>
                   )}
                 </div>
@@ -342,21 +343,21 @@ export default function Program() {
                     disabled={busy}
                     aria-pressed={selectedId === item.id}
                   >
-                    {selectedId === item.id ? 'Selected' : 'Select'}
+                    <Icon name="check" size={13} /> {selectedId === item.id ? 'Selected' : 'Select'}
                   </button>
                   <button className="btn btn--ghost btn--sm" onClick={() => openEdit(item)} disabled={busy}>
-                    Edit
+                    <Icon name="edit" size={13} /> Edit
                   </button>
                   <button
                     className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`}
                     onClick={() => handleArchive(item)}
                     disabled={busy}
                   >
-                    {isActive(item) ? 'Archive' : 'Restore'}
+                    <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} /> {isActive(item) ? 'Archive' : 'Restore'}
                   </button>
                   {!isActive(item) && (
                     <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'program.deleted')} disabled={busy} style={{ marginLeft: 'auto' }}>
-                      Delete
+                      <Icon name="trash" size={13} /> Delete
                     </button>
                   )}
                 </div>

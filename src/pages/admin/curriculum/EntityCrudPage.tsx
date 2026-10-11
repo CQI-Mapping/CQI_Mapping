@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useEntityCrud } from './useEntityCrud.js'
 import { useViewMode } from '../../../hooks/useViewMode.js'
 import ViewModeToggle from '../../../components/ViewModeToggle.js'
+import Icon from '../../../components/icons.js'
 import SuggestionInput, { type SuggestionOption } from '../../../components/SuggestionInput.js'
 
 // One selectable "alignment" option. `value` is the text shown in the select (and,
@@ -434,7 +435,7 @@ alignments,
             </label>
           ))}
         <div className="create-resource__submit">
-          <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>{busy ? 'Saving...' : 'Add'}</button>
+          <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>{busy ? 'Saving...' : (<><Icon name="plus" size={13} /> Add</>)}</button>
         </div>
       </form>
 
@@ -502,7 +503,7 @@ alignments,
                         </label>
                       )}
                       <div className="resource-card__actions">
-                        <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>Save</button>
+                        <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}><Icon name="check" size={13} /> Save</button>
                         <button className="btn btn--ghost btn--sm" onClick={() => setEditingId(null)}>Cancel</button>
                       </div>
                     </div>
@@ -526,12 +527,12 @@ alignments,
                         </div>
                       </div>
                       <div className="resource-card__actions">
-                        <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} disabled={busy || !!editingId}>Edit</button>
+                        <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} disabled={busy || !!editingId}><Icon name="edit" size={13} /> Edit</button>
                         <button className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleUpdate(item.id, { status: isActive(item) ? 'archived' : 'active' }, updateAction)} disabled={busy || !!editingId}>
-                          {isActive(item) ? 'Archive' : 'Restore'}
+                          <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} /> {isActive(item) ? 'Archive' : 'Restore'}
                         </button>
                         {!isActive(item) && allowDelete && (
-                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, deleteAction)} disabled={busy || !!editingId} style={{ marginLeft: 'auto' }}>Delete</button>
+                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, deleteAction)} disabled={busy || !!editingId} style={{ marginLeft: 'auto' }}><Icon name="trash" size={13} /> Delete</button>
                         )}
                       </div>
                     </>
@@ -570,7 +571,7 @@ alignments,
                         <textarea className="input input--sm" rows={2} ref={autoResize} value={editForm.description} onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} placeholder={descriptionLabel} />
                       )}
                       <div className="program-card__actions">
-                        <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>Save</button>
+                        <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}><Icon name="check" size={13} /> Save</button>
                         <button className="btn btn--ghost btn--sm" onClick={() => setEditingId(null)}>Cancel</button>
                       </div>
                     </>
@@ -596,12 +597,12 @@ alignments,
                       {!alignments && showDescription && <p className="program-card__desc">{descOf(item) || '—'}</p>}
                       {counts && <div style={{ fontSize: 12, color: '#64748b' }}>{countLabel}: <strong style={{ color: '#0f172a' }}>{counts[item.id] ?? 0}</strong></div>}
                       <div className="program-card__actions">
-                        <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} disabled={busy || !!editingId}>Edit</button>
+                        <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} disabled={busy || !!editingId}><Icon name="edit" size={13} /> Edit</button>
                         <button className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleUpdate(item.id, { status: isActive(item) ? 'archived' : 'active' }, updateAction)} disabled={busy || !!editingId}>
-                          {isActive(item) ? 'Archive' : 'Restore'}
+                          <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} /> {isActive(item) ? 'Archive' : 'Restore'}
                         </button>
                         {!isActive(item) && allowDelete && (
-                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, deleteAction)} disabled={busy || !!editingId} style={{ marginLeft: 'auto' }}>Delete</button>
+                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, deleteAction)} disabled={busy || !!editingId} style={{ marginLeft: 'auto' }}><Icon name="trash" size={13} /> Delete</button>
                         )}
                       </div>
                     </>
