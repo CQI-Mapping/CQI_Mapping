@@ -27,6 +27,8 @@ export default function ProgramOutcomesAdmin() {
   const [success, setError2] = useState('')
   const [busy, setBusy] = useState(false)
   const [archived, setArchived] = useState(false)
+  // Double-click detail view
+  const [detail, setDetail] = useState<{ group: string; idx: number; item: ProgramOutcomeStandalone } | null>(null)
 
   // Form state
   const [cmoId, setCmoId] = useState('')
@@ -238,10 +240,7 @@ export default function ProgramOutcomesAdmin() {
                     <div
                       key={item.id}
                       className={`resource-card ${isActive(item) ? '' : 'resource-card--archived'}`}
-                      onDoubleClick={() => {
-                        // Double-click: show full description in an alert-style detail
-                        window.alert(`${idx + 1}. ${item.description || item.title || '—'}\n\nStatus: ${isActive(item) ? 'Active' : 'Archived'}\nCode: ${item.code}`)
-                      }}
+                      onDoubleClick={() => setDetail({ group: cmoIdKey, idx, item })}
                       title="Double-click to view details"
                     >
                       <div className="resource-card__body">
@@ -285,6 +284,29 @@ export default function ProgramOutcomesAdmin() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Detail panel (double-click) */}
+      {detail && (
+        <div className="selection-details" aria-live="polite" style={{ marginTop: 16 }}>
+          <div className="selection-details__header">
+            <div>
+              <strong>{cmoLabel(detail.group)}</strong>
+              <p>{detail.idx + 1}. {detail.item.description || detail.item.title || '—'}</p>
+            </div>
+            <button className="btn btn--ghost btn--sm" onClick={() => setDetail(null)}>
+              Close
+            </button>
+          </div>
+          <div className="selection-details__body">
+            <div className="resource-card__meta">
+              <span className={`status-badge status-badge--${isActive(detail.item) ? 'active' : 'archived'}`}>
+                {isActive(detail.item) ? 'Active' : 'Archived'}
+              </span>
+              <span>{detail.item.code}</span>
+            </div>
+          </div>
         </div>
       )}
     </div>
