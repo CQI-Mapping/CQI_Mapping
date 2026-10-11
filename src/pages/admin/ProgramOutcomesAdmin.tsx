@@ -238,6 +238,11 @@ export default function ProgramOutcomesAdmin() {
                     <div
                       key={item.id}
                       className={`resource-card ${isActive(item) ? '' : 'resource-card--archived'}`}
+                      onDoubleClick={() => {
+                        // Double-click: show full description in an alert-style detail
+                        window.alert(`${idx + 1}. ${item.description || item.title || '—'}\n\nStatus: ${isActive(item) ? 'Active' : 'Archived'}\nCode: ${item.code}`)
+                      }}
+                      title="Double-click to view details"
                     >
                       <div className="resource-card__body">
                         <h4>
