@@ -1,69 +1,41 @@
-// Admin Program Outcomes: table with NUMBER, Description, and alignments.
-// Admin can add/edit CMO alignment inline. PEO and SG are read-only display.
+// Admin Program Outcomes: categorized read-only table with add form.
+// Form inputs: CMO dropdown, Number, Description.
+// Table groups outcomes by CMO category with numbered rows.
 
 import { useEffect, useState } from 'react'
 import Icon from '../../components/icons'
 import {
   fetchProgramOutcomesStandalone,
-  updateProgramOutcomeStandalone,
+  createProgramOutcomeStandalone,
   fetchChedMemoOrders,
-  fetchProgramEducationalObjectives,
-  fetchStrategicGoals,
 } from '../../services/database'
-import type { ProgramOutcomeStandalone } from '../../services/database'
-
-const FIXED_OPTIONS = [
-  'Common to all programs in all types of schools',
-  'Bachelor of Science in Information Technology Program Outcomes (CMO 25 s. 2015)',
-  'SPECIFIC TO A SUB-DISCIPLINE AND A MAJOR (CMO 25 s. 2015)',
-]
-
-const toSuggestion = (i: { code: string; title: string | null }) => ({
-  value: i.code,
-  label: `${i.code} - ${i.title ?? ''}`.trim(),
-})
-
-const toSgSuggestion = (i: { code: string; description: string | null }) => ({
-  value: i.code,
-  label: `${i.code.replace(/^SG-/i, 'Goal ')}: ${i.description ?? ''}`.trim(),
-})
+import type { ProgramOutcomeStandalone, ChedMemoOrder } from '../../services/database'
 
 export default function ProgramOutcomesAdmin() {
   const [items, setItems] = useState<ProgramOutcomeStandalone[]>([])
-  const [cmoOptions, setCmoOptions] = useState<{ value: string; cmo_id: string | null }[]>([])
-  const [peoSuggestions, setPeoSuggestions] = useState<{ value: string; label: string }[]>([])
-  const [sgSuggestions, setSgSuggestions] = useState<{ value: string; label: string }[]>([])
+  const [cmos, setCmos] = useState<ChedMemoOrder[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editCmo, setEditCmo] = useState('')
-  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  // Form state
+  const [cmoId, setCmoId] = useState('')
+  const [number, setNumber] = useState('')
+  const [description, setDescription] = useState('')
 
   const load = async () => {
     setLoading(true)
-    setError(null)
+    setError('')
     try {
-      const [pos, peos, sgs] = await Promise.all([
+      const [pos, c] = await Promise.all([
         fetchProgramOutcomesStandalone(),
-        fetchProgramEducationalObjectives(),
-        fetchStrategicGoals(),
+        fetchChedMemoOrders(),
       ])
-      const referencedCmos = new Set(pos.map((p) => p.cmo_id).filter(Boolean) as string[])
-      const cmos = (await fetchChedMemoOrders()).filter(
-        (c) => c.status === 'active' || referencedCmos.has(c.id),
-      )
-      const fixedOptions = FIXED_OPTIONS.map((v) => ({ value: v, cmo_id: null }))
-      const cmoOpts = cmos.map((c) => ({
-        value: `${c.title} (${c.code})`,
-        cmo_id: c.id,
-      }))
-
       setItems(pos)
-      setCmoOptions([...fixedOptions, ...cmoOpts])
-      setPeoSuggestions(peos.filter((p) => p.status === 'active').map(toSuggestion))
-      setSgSuggestions(sgs.filter((s) => s.status === 'active').map(toSgSuggestion))
+      setCmos(c.filter((x) => x.status === 'active'))
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load alignment data.')
+      setError('Unable to load: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
       setLoading(false)
     }
@@ -71,55 +43,56 @@ export default function ProgramOutcomesAdmin() {
 
   useEffect(() => { load() }, [])
 
-  const cmoById = new Map(cmoOptions.map((o) => [o.cmo_id, o.value]))
-  const peoByCode = new Map(peoSuggestions.map((p) => [p.value.toLowerCase(), p.label]))
-  const sgByCode = new Map(sgSuggestions.map((s) => [s.value.toLowerCase(), s.label]))
-
-  const alignLabel = (item: ProgramOutcomeStandalone, field: 'peo_text' | 'sg_text' | 'cmo_id') => {
-    if (field === 'cmo_id') {
-      const id = item.cmo_id
-      return id ? (cmoById.get(id) || '—') : '—'
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setSuccess('')
+    if (!cmoId || !number.trim() || !description.trim()) {
+      setError('CMO, Number, and Description are required.')
+      return
     }
-    const val = (item[field] || '').trim()
-    if (!val) return '—'
-    const codes = val.split(',').map((s) => s.trim()).filter(Boolean)
-    const map = field === 'peo_text' ? peoByCode : sgByCode
-    const labels = codes.map((c) => map.get(c.toLowerCase()) || c)
-    return labels.join(', ')
-  }
-
-  const startEditCmo = (item: ProgramOutcomeStandalone) => {
-    setEditingId(item.id)
-    setEditCmo(item.cmo_id || '')
-  }
-
-  const saveCmo = async (id: string) => {
-    setSaving(true)
-    setError(null)
+    setBusy(true)
     try {
-      await updateProgramOutcomeStandalone(id, { cmo_id: editCmo || null })
-      setEditingId(null)
+      const code = `PO-${number.trim()}`
+      await createProgramOutcomeStandalone({
+        code,
+        title: description.trim(),
+        description: description.trim(),
+        cmo_id: cmoId,
+      })
+      setSuccess(`Program Outcome ${code} added.`)
+      setCmoId('')
+      setNumber('')
+      setDescription('')
       await load()
     } catch (e) {
-      setError('Failed to save: ' + (e instanceof Error ? e.message : String(e)))
+      setError('Failed to add: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
-      setSaving(false)
+      setBusy(false)
     }
   }
 
-  if (error) return <p className="msg msg--error">{error}</p>
-  if (loading) return <p>Loading program outcomes...</p>
+  // Group items by CMO
+  const cmoMap = new Map<string, ProgramOutcomeStandalone[]>()
+  for (const item of items) {
+    const key = item.cmo_id || 'uncategorized'
+    if (!cmoMap.has(key)) cmoMap.set(key, [])
+    cmoMap.get(key)!.push(item)
+  }
 
-  const sorted = [...items].sort((a, b) => {
+  // Sort each group by numeric PO order
+  const sortPo = (a: ProgramOutcomeStandalone, b: ProgramOutcomeStandalone) => {
     const n = (s: string) => {
       const m = s.match(/PO\D*(\d+)/i)
       return m ? parseInt(m[1], 10) : 9999
     }
-    const na = n(a.code || '')
-    const nb = n(b.code || '')
-    if (na !== nb) return na - nb
-    return (a.code || '').localeCompare(b.code || '')
-  })
+    return n(a.code || '') - n(b.code || '')
+  }
+
+  const cmoLabel = (id: string) => {
+    const cmo = cmos.find((c) => c.id === id)
+    return cmo ? `${cmo.title} (${cmo.code})` : '—'
+  }
 
   return (
     <div className="programs-page curriculum-view">
@@ -128,68 +101,87 @@ export default function ProgramOutcomesAdmin() {
           <div className="program-hero__icon">PO</div>
           <div className="program-hero__titles">
             <h2>Program Outcomes</h2>
-            <p>Institutional program outcomes with PEO, Strategic Goal, and CMO alignment.</p>
+            <p>Add and browse program outcomes by CMO category.</p>
           </div>
         </div>
       </div>
 
-      <div className="panel table-wrap" style={{ marginTop: 16 }}>
-        <table className="table">
-          <thead>
-            <tr>
-              <th style={{ width:50 }}>#</th>
-              <th>Description</th>
-              <th>Program Educational Objectives Alignment</th>
-              <th>Strategic Goals Alignment</th>
-              <th>CMO Alignment</th>
-              <th style={{ width: 80 }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((item, idx) => (
-              <tr key={item.id}>
-                <td>{idx + 1}</td>
-                <td>{item.description || item.title || '—'}</td>
-                <td>{alignLabel(item, 'peo_text')}</td>
-                <td>{alignLabel(item, 'sg_text')}</td>
-                <td>
-                  {editingId === item.id ? (
-                    <select
-                      className="input input--sm"
-                      value={editCmo}
-                      onChange={(e) => setEditCmo(e.target.value)}
-                      disabled={saving}
-                    >
-                      <option value="">—</option>
-                      {cmoOptions.map((o) => (
-                        <option key={o.value} value={o.cmo_id || ''}>{o.value}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    alignLabel(item, 'cmo_id')
-                  )}
-                </td>
-                <td>
-                  {editingId === item.id ? (
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <button className="btn btn--primary btn--sm" onClick={() => saveCmo(item.id)} disabled={saving} title="Save">
-                        <Icon name="check" size={13} />
-                      </button>
-                      <button className="btn btn--ghost btn--sm" onClick={() => setEditingId(null)} disabled={saving} title="Cancel">
-                        <Icon name="x" size={13} />
-                      </button>
-                    </div>
-                  ) : (
-                    <button className="btn btn--ghost btn--sm" onClick={() => startEditCmo(item)} title="Edit CMO">
-                      <Icon name="edit" size={13} />
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {error && <p className="msg msg--error" role="alert">{error}</p>}
+      {success && <p className="msg msg--success" role="status">{success}</p>}
+
+      {/* Add form */}
+      <form className="panel create-resource" onSubmit={handleSubmit} style={{ borderTop: '3px solid #16a34a' }}>
+        <h3>Add Program Outcome</h3>
+        <div className="create-resource__row create-resource__row--2col">
+          <label className="field">
+            <span>CMO Alignment</span>
+            <select className="input" value={cmoId} onChange={(e) => setCmoId(e.target.value)} required>
+              <option value="">Select CMO...</option>
+              {cmos.map((c) => (
+                <option key={c.id} value={c.id}>{c.title} ({c.code})</option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>Number</span>
+            <input
+              className="input"
+              type="text"
+              placeholder="e.g. 1"
+              value={number}
+              onChange={(e) => setNumber(e.target.value)}
+              required
+            />
+          </label>
+        </div>
+        <label className="field">
+          <span>Description</span>
+          <textarea
+            className="input"
+            rows={3}
+            placeholder="Enter program outcome description..."
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            required
+          />
+        </label>
+        <div className="create-resource__submit">
+          <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
+            {busy ? 'Saving...' : (<><Icon name="plus" size={13} /> Add Program Outcome</>)}
+          </button>
+        </div>
+      </form>
+
+      {/* Categorized table */}
+      {loading ? (
+        <p>Loading program outcomes...</p>
+      ) : (
+        <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {Array.from(cmoMap.entries()).map(([cmoIdKey, groupItems]) => (
+            <div key={cmoIdKey} className="panel table-wrap">
+              <h3 style={{ marginBottom: 8 }}>
+                {cmoIdKey === 'uncategorized' ? 'Uncategorized' : cmoLabel(cmoIdKey)}
+              </h3>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 50 }}>#</th>
+                    <th>Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...groupItems].sort(sortPo).map((item, idx) => (
+                    <tr key={item.id}>
+                      <td>{idx + 1}</td>
+                      <td>{item.description || item.title || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
