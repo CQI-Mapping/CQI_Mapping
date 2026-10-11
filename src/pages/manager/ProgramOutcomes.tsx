@@ -95,9 +95,8 @@ export default function ProgramOutcomes() {
       codeWidth="110px"
       titleLabel="Description"
       alignments={alignments.slice(0, 2)}
-      tableAlignments={[alignments[2], alignments[0], alignments[1]]}
+      tableAlignments={[alignments[0], alignments[1]]}
       inlineForm
-      stackedAlignments={[alignments[2]]}
       sort={(a, b) => {
         // Numeric PO order: PO-1 … PO-27 (fixes lexicographic PO-1, PO-10, PO-2)
         const n = (s: string) => {
