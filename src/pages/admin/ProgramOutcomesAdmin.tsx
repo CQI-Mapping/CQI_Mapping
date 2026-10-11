@@ -1,19 +1,14 @@
-// Admin Program Outcomes: shows PEO and Strategic Goal alignments in the table.
-// Manager uses the original ProgramOutcomes component (shared with admin until now).
+// Admin Program Outcomes: read-only table with NUMBER, Description, and alignments.
+// No Code column, no create/edit form — just a clean categorized list.
 
 import { useEffect, useState } from 'react'
-import EntityCrudPage, { type AlignmentOption, type AlignmentField } from './curriculum/EntityCrudPage.js'
 import {
   fetchProgramOutcomesStandalone,
-  createProgramOutcomeStandalone,
-  updateProgramOutcomeStandalone,
-  deleteProgramOutcomeStandalone,
   fetchChedMemoOrders,
   fetchProgramEducationalObjectives,
   fetchStrategicGoals,
 } from '../../services/database'
 import type { ProgramOutcomeStandalone } from '../../services/database'
-import type { SuggestionOption } from '../../components/SuggestionInput'
 
 const FIXED_OPTIONS = [
   'Common to all programs in all types of schools',
@@ -21,20 +16,21 @@ const FIXED_OPTIONS = [
   'SPECIFIC TO A SUB-DISCIPLINE AND A MAJOR (CMO 25 s. 2015)',
 ]
 
-const toSuggestion = (i: { code: string; title: string | null }): SuggestionOption => ({
+const toSuggestion = (i: { code: string; title: string | null }) => ({
   value: i.code,
   label: `${i.code} - ${i.title ?? ''}`.trim(),
 })
 
-const toSgSuggestion = (i: { code: string; description: string | null }): SuggestionOption => ({
+const toSgSuggestion = (i: { code: string; description: string | null }) => ({
   value: i.code,
   label: `${i.code.replace(/^SG-/i, 'Goal ')}: ${i.description ?? ''}`.trim(),
 })
 
 export default function ProgramOutcomesAdmin() {
-  const [cmoOptions, setCmoOptions] = useState<AlignmentOption[]>([])
-  const [peoSuggestions, setPeoSuggestions] = useState<SuggestionOption[]>([])
-  const [sgSuggestions, setSgSuggestions] = useState<SuggestionOption[]>([])
+  const [items, setItems] = useState<ProgramOutcomeStandalone[]>([])
+  const [cmoOptions, setCmoOptions] = useState<{ value: string; cmo_id: string | null }[]>([])
+  const [peoSuggestions, setPeoSuggestions] = useState<{ value: string; label: string }[]>([])
+  const [sgSuggestions, setSgSuggestions] = useState<{ value: string; label: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -51,13 +47,14 @@ export default function ProgramOutcomesAdmin() {
         const cmos = (await fetchChedMemoOrders()).filter(
           (c) => c.status === 'active' || referencedCmos.has(c.id),
         )
-        const fixedOptions: AlignmentOption[] = FIXED_OPTIONS.map((v) => ({ value: v, cmo_id: null }))
-        const cmoOpts: AlignmentOption[] = cmos.map((c) => ({
+        const fixedOptions = FIXED_OPTIONS.map((v) => ({ value: v, cmo_id: null }))
+        const cmoOpts = cmos.map((c) => ({
           value: `${c.title} (${c.code})`,
           cmo_id: c.id,
         }))
 
         if (!cancelled) {
+          setItems(pos)
           setCmoOptions([...fixedOptions, ...cmoOpts])
           setPeoSuggestions(peos.filter((p) => p.status === 'active').map(toSuggestion))
           setSgSuggestions(sgs.filter((s) => s.status === 'active').map(toSgSuggestion))
@@ -76,42 +73,71 @@ export default function ProgramOutcomesAdmin() {
   if (error) return <p className="msg msg--error">{error}</p>
   if (loading) return <p>Loading program outcomes...</p>
 
-  const alignments: AlignmentField[] = [
-    { label: 'Program Educational Objectives Alignment', relationField: 'peo_text', options: [], type: 'suggest', suggestionOptions: peoSuggestions, placeholder: 'Type PEOs' },
-    { label: 'Strategic Goals Alignment', relationField: 'sg_text', options: [], type: 'suggest', suggestionOptions: sgSuggestions, placeholder: 'Type Strategic Goals' },
-    { label: 'CMO Alignment', relationField: 'cmo_id', textField: 'description', options: cmoOptions },
-  ]
+  const cmoById = new Map(cmoOptions.map((o) => [o.cmo_id, o.value]))
+  const peoByCode = new Map(peoSuggestions.map((p) => [p.value.toLowerCase(), p.label]))
+  const sgByCode = new Map(sgSuggestions.map((s) => [s.value.toLowerCase(), s.label]))
+
+  const alignLabel = (item: ProgramOutcomeStandalone, field: 'peo_text' | 'sg_text' | 'cmo_id') => {
+    if (field === 'cmo_id') {
+      const id = item.cmo_id
+      return id ? (cmoById.get(id) || '—') : '—'
+    }
+    const val = (item[field] || '').trim()
+    if (!val) return '—'
+    const codes = val.split(',').map((s) => s.trim()).filter(Boolean)
+    const map = field === 'peo_text' ? peoByCode : sgByCode
+    const labels = codes.map((c) => map.get(c.toLowerCase()) || c)
+    return labels.join(', ')
+  }
+
+  // Sort by numeric PO order
+  const sorted = [...items].sort((a, b) => {
+    const n = (s: string) => {
+      const m = s.match(/PO\D*(\d+)/i)
+      return m ? parseInt(m[1], 10) : 9999
+    }
+    const na = n(a.code || '')
+    const nb = n(b.code || '')
+    if (na !== nb) return na - nb
+    return (a.code || '').localeCompare(b.code || '')
+  })
 
   return (
-    <EntityCrudPage<ProgramOutcomeStandalone>
-      title="Program Outcome"
-      load={fetchProgramOutcomesStandalone}
-      create={createProgramOutcomeStandalone}
-      update={updateProgramOutcomeStandalone}
-      remove={deleteProgramOutcomeStandalone}
-      scope="Program Outcome"
-      createAction="program_outcome.created"
-      updateAction="program_outcome.updated"
-      deleteAction="program_outcome.deleted"
-      codeLabel="Code"
-      codePlaceholder="e.g. PO-1"
-      codeWidth="110px"
-      titleLabel="Description"
-      alignments={alignments}
-      tableAlignments={alignments}
-      inlineForm
-      stackedAlignments={[alignments[2]]}
-      sort={(a, b) => {
-        const n = (s: string) => {
-          const m = s.match(/PO\D*(\d+)/i)
-          return m ? parseInt(m[1], 10) : 9999
-        }
-        const ca = String((a as { code?: string }).code || '')
-        const cb = String((b as { code?: string }).code || '')
-        const na = n(ca); const nb = n(cb)
-        if (na !== nb) return na - nb
-        return ca.localeCompare(cb)
-      }}
-    />
+    <div className="programs-page curriculum-view">
+      <div className="program-hero">
+        <div className="program-hero__left">
+          <div className="program-hero__icon">PO</div>
+          <div className="program-hero__titles">
+            <h2>Program Outcomes</h2>
+            <p>Institutional program outcomes with PEO, Strategic Goal, and CMO alignment.</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="panel table-wrap" style={{ marginTop: 16 }}>
+        <table className="table">
+          <thead>
+            <tr>
+              <th style={{ width: 50 }}>#</th>
+              <th>Description</th>
+              <th>Program Educational Objectives Alignment</th>
+              <th>Strategic Goals Alignment</th>
+              <th>CMO Alignment</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((item, idx) => (
+              <tr key={item.id}>
+                <td>{idx + 1}</td>
+                <td>{item.description || item.title || '—'}</td>
+                <td>{alignLabel(item, 'peo_text')}</td>
+                <td>{alignLabel(item, 'sg_text')}</td>
+                <td>{alignLabel(item, 'cmo_id')}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   )
 }
