@@ -515,7 +515,7 @@ export default function Course({ profile, onViewSubject, hideDelete }: CoursePro
             ) : viewMode === 'list' ? (
               <div className="resource-list">
                 {visible.map((c) => (
-                  <div key={c.id} className={`resource-card ${isActive(c) ? '' : 'resource-card--archived'}`}>
+                  <div key={c.id} className={`resource-card ${isActive(c) ? '' : 'resource-card--archived'}`} onDoubleClick={() => startEdit(c)} title="Double-click to edit">
                     <div className="resource-card__body">
                       <h4>{c.code} — {c.title}</h4>
                       {c.description && <p>{c.description}</p>}
@@ -542,13 +542,13 @@ export default function Course({ profile, onViewSubject, hideDelete }: CoursePro
                           </option>
                         ))}
                       </select>
-                      <button className="btn btn--ghost btn--sm" onClick={() => onViewSubject?.(c.id)} disabled={!!editId}><Icon name="eye" size={13} /> View</button>
-                      <button className="btn btn--ghost btn--sm" onClick={() => startEdit(c)} disabled={busy || !!editId}><Icon name="edit" size={13} /> Edit</button>
-                      <button className={`btn btn--sm ${isActive(c) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleToggleStatus(c)} disabled={busy || !!editId}>
-                        <Icon name={isActive(c) ? 'archive' : 'restore'} size={13} /> {isActive(c) ? 'Archive' : 'Restore'}
+                      <button className="btn btn--ghost btn--sm" onClick={() => onViewSubject?.(c.id)} disabled={!!editId} aria-label={`View ${c.code}`} title="View"><Icon name="eye" size={13} /></button>
+                      <button className="btn btn--ghost btn--sm" onClick={() => startEdit(c)} disabled={busy || !!editId} aria-label={`Edit ${c.code}`} title="Edit"><Icon name="edit" size={13} /></button>
+                      <button className={`btn btn--sm ${isActive(c) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleToggleStatus(c)} disabled={busy || !!editId} aria-label={isActive(c) ? `Archive ${c.code}` : `Restore ${c.code}`} title={isActive(c) ? 'Archive' : 'Restore'}>
+                        <Icon name={isActive(c) ? 'archive' : 'restore'} size={13} />
                       </button>
                       {!isActive(c) && !hideDelete && (
-                        <button className="btn btn--danger btn--sm" onClick={() => handleDelete(c.id)} disabled={busy || !!editId} style={{ marginLeft: 'auto' }}><Icon name="trash" size={13} /> Delete</button>
+                        <button className="btn btn--danger btn--sm" onClick={() => handleDelete(c.id)} disabled={busy || !!editId} style={{ marginLeft: 'auto' }} aria-label={`Delete ${c.code}`} title="Delete"><Icon name="trash" size={13} /></button>
                       )}
                     </div>
                   </div>
@@ -557,7 +557,7 @@ export default function Course({ profile, onViewSubject, hideDelete }: CoursePro
             ) : (
               <div className="program-grid" style={{ marginTop: 14 }}>
                 {visible.map((c) => (
-                  <div key={c.id} className="program-card--2026 card-enter" data-status={isActive(c) ? 'active' : 'archived'}>
+                  <div key={c.id} className="program-card--2026 card-enter" data-status={isActive(c) ? 'active' : 'archived'} onDoubleClick={() => startEdit(c)} title="Double-click to edit">
                     <div className="program-card__top">
                       <span className="program-card__code">{c.code}</span>
                       <span className={`program-card__status ${isActive(c) ? 'program-card__status--active' : 'program-card__status--archived'}`}>
@@ -593,13 +593,13 @@ export default function Course({ profile, onViewSubject, hideDelete }: CoursePro
                     </div>
                     <p className="program-card__desc">{c.description || 'No description.'}</p>
                     <div className="program-card__actions">
-                      <button className="btn btn--ghost btn--sm" onClick={() => onViewSubject?.(c.id)} disabled={!!editId}><Icon name="eye" size={13} /> View</button>
-                      <button className="btn btn--ghost btn--sm" onClick={() => startEdit(c)} disabled={busy || !!editId}><Icon name="edit" size={13} /> Edit</button>
-                      <button className={`btn btn--sm ${isActive(c) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleToggleStatus(c)} disabled={busy || !!editId}>
-                        <Icon name={isActive(c) ? 'archive' : 'restore'} size={13} /> {isActive(c) ? 'Archive' : 'Restore'}
+                      <button className="btn btn--ghost btn--sm" onClick={() => onViewSubject?.(c.id)} disabled={!!editId} aria-label={`View ${c.code}`} title="View"><Icon name="eye" size={13} /></button>
+                      <button className="btn btn--ghost btn--sm" onClick={() => startEdit(c)} disabled={busy || !!editId} aria-label={`Edit ${c.code}`} title="Edit"><Icon name="edit" size={13} /></button>
+                      <button className={`btn btn--sm ${isActive(c) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleToggleStatus(c)} disabled={busy || !!editId} aria-label={isActive(c) ? `Archive ${c.code}` : `Restore ${c.code}`} title={isActive(c) ? 'Archive' : 'Restore'}>
+                        <Icon name={isActive(c) ? 'archive' : 'restore'} size={13} />
                       </button>
                       {!isActive(c) && !hideDelete && (
-                        <button className="btn btn--danger btn--sm" onClick={() => handleDelete(c.id)} disabled={busy || !!editId} style={{ marginLeft: 'auto' }}><Icon name="trash" size={13} /> Delete</button>
+                        <button className="btn btn--danger btn--sm" onClick={() => handleDelete(c.id)} disabled={busy || !!editId} style={{ marginLeft: 'auto' }} aria-label={`Delete ${c.code}`} title="Delete"><Icon name="trash" size={13} /></button>
                       )}
                     </div>
                   </div>

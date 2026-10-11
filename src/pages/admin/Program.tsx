@@ -146,8 +146,8 @@ export default function Program() {
           </div>
         </div>
         <div className="program-hero__action">
-          <button className="btn btn--primary" onClick={openAdd}>
-            <Icon name="plus" size={14} /> Add New
+          <button className="btn btn--primary" onClick={openAdd} aria-label="Add program" title="Add New">
+            <Icon name="plus" size={14} />
           </button>
         </div>
       </div>
@@ -280,6 +280,8 @@ export default function Program() {
               <div
                 key={item.id}
                 className={`resource-card ${isActive(item) ? '' : 'resource-card--archived'} ${selectedId === item.id ? 'resource-card--selected' : ''}`}
+                onDoubleClick={() => select(item.id)}
+                title="Double-click to view details"
               >
                 <div className="resource-card__body">
                   <h4>{item.code}{item.name && item.name !== item.code ? ` — ${item.name}` : ''}</h4>
@@ -293,25 +295,25 @@ export default function Program() {
                 <div className="resource-card__actions">
                   <button
                     className={`btn btn--sm ${selectedId === item.id ? 'btn--primary' : 'btn--ghost'}`}
-                    onClick={() => select(item.id)}
+                    onClick={() => select(item.id)} aria-label={selectedId === item.id ? `Deselect ${item.code}` : `Select ${item.code}`} title={selectedId === item.id ? 'Selected' : 'Select'}
                     disabled={busy}
                     aria-pressed={selectedId === item.id}
                   >
-                    <Icon name="check" size={13} /> {selectedId === item.id ? 'Selected' : 'Select'}
+                    <Icon name="check" size={13} />
                   </button>
-                  <button className="btn btn--ghost btn--sm" onClick={() => openEdit(item)} disabled={busy}>
-                    <Icon name="edit" size={13} /> Edit
+                  <button className="btn btn--ghost btn--sm" onClick={() => openEdit(item)} disabled={busy} aria-label={`Edit ${item.code}`} title="Edit">
+                    <Icon name="edit" size={13} />
                   </button>
                   <button
                     className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`}
-                    onClick={() => handleArchive(item)}
+                    onClick={() => handleArchive(item)} aria-label={isActive(item) ? `Archive ${item.code}` : `Restore ${item.code}`} title={isActive(item) ? 'Archive' : 'Restore'}
                     disabled={busy}
                   >
-                    <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} /> {isActive(item) ? 'Archive' : 'Restore'}
+                    <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} />
                   </button>
                   {!isActive(item) && (
-                    <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'program.deleted')} disabled={busy} style={{ marginLeft: 'auto' }}>
-                      <Icon name="trash" size={13} /> Delete
+                    <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'program.deleted')} disabled={busy} style={{ marginLeft: 'auto' }} aria-label={`Delete ${item.code}`} title="Delete">
+                      <Icon name="trash" size={13} />
                     </button>
                   )}
                 </div>
@@ -326,6 +328,8 @@ export default function Program() {
                 className={`program-card--2026 ${selectedId === item.id ? 'program-card--selected' : ''}`}
                 data-status={isActive(item) ? 'active' : 'archived'}
                 data-selected={selectedId === item.id ? 'true' : 'false'}
+                onDoubleClick={() => select(item.id)}
+                title="Double-click to view details"
               >
                 <div className="program-card__top">
                   <span className="program-card__code">{item.code}</span>
@@ -339,25 +343,25 @@ export default function Program() {
                 <div className="program-card__actions">
                   <button
                     className={`btn btn--sm ${selectedId === item.id ? 'btn--primary' : 'btn--ghost'}`}
-                    onClick={() => select(item.id)}
+                    onClick={() => select(item.id)} aria-label={selectedId === item.id ? `Deselect ${item.code}` : `Select ${item.code}`} title={selectedId === item.id ? 'Selected' : 'Select'}
                     disabled={busy}
                     aria-pressed={selectedId === item.id}
                   >
-                    <Icon name="check" size={13} /> {selectedId === item.id ? 'Selected' : 'Select'}
+                    <Icon name="check" size={13} />
                   </button>
-                  <button className="btn btn--ghost btn--sm" onClick={() => openEdit(item)} disabled={busy}>
-                    <Icon name="edit" size={13} /> Edit
+                  <button className="btn btn--ghost btn--sm" onClick={() => openEdit(item)} disabled={busy} aria-label={`Edit ${item.code}`} title="Edit">
+                    <Icon name="edit" size={13} />
                   </button>
                   <button
                     className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`}
-                    onClick={() => handleArchive(item)}
+                    onClick={() => handleArchive(item)} aria-label={isActive(item) ? `Archive ${item.code}` : `Restore ${item.code}`} title={isActive(item) ? 'Archive' : 'Restore'}
                     disabled={busy}
                   >
-                    <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} /> {isActive(item) ? 'Archive' : 'Restore'}
+                    <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} />
                   </button>
                   {!isActive(item) && (
-                    <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'program.deleted')} disabled={busy} style={{ marginLeft: 'auto' }}>
-                      <Icon name="trash" size={13} /> Delete
+                    <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'program.deleted')} disabled={busy} style={{ marginLeft: 'auto' }} aria-label={`Delete ${item.code}`} title="Delete">
+                      <Icon name="trash" size={13} />
                     </button>
                   )}
                 </div>
