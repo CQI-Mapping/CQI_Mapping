@@ -5,6 +5,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useDraft } from '../../hooks/useDraft'
+import { useViewMode } from '../../hooks/useViewMode'
+import ViewModeToggle from '../../components/ViewModeToggle'
 import {
   fetchPrograms,
   fetchResources,
@@ -138,6 +140,8 @@ export default function Course({ profile, onViewSubject, hideDelete }: CoursePro
   const setEditForm = (f: CourseForm) => setEditState((s) => ({ ...s, editForm: f }))
   const [archived, setArchived] = useState(false)
   const [query, setQuery] = useState('')
+  // List (default) or grid card style — the user decides per browser.
+  const [viewMode, setViewMode] = useViewMode('cqi.viewMode.course')
 
   const errMsg = (e: unknown) => {
     if (e instanceof Error) return e.message
@@ -496,6 +500,7 @@ export default function Course({ profile, onViewSubject, hideDelete }: CoursePro
                   Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
                 </button>
               </div>
+              <ViewModeToggle mode={viewMode} onChange={setViewMode} />
               <label className="program-search" aria-label="Search courses">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="M20 20L15.5 15.5"/></svg>
                 <input className="input input--sm" type="search" placeholder="Search courses..." value={query} onChange={(e) => setQuery(e.target.value)} />
@@ -505,6 +510,48 @@ export default function Course({ profile, onViewSubject, hideDelete }: CoursePro
               <div className="program-empty" style={{ marginTop: 14 }}>
                 <strong>No {archived ? 'archived' : 'active'} courses yet.</strong>
                 <span>{query ? `No results for "${query}"` : `Add your first course for ${programs.find(p=>p.id===programId)?.code || 'this program'}.`}</span>
+              </div>
+            ) : viewMode === 'list' ? (
+              <div className="resource-list">
+                {visible.map((c) => (
+                  <div key={c.id} className={`resource-card ${isActive(c) ? '' : 'resource-card--archived'}`}>
+                    <div className="resource-card__body">
+                      <h4>{c.code} — {c.title}</h4>
+                      {c.description && <p>{c.description}</p>}
+                      <div className="resource-card__meta">
+                        <span className={`status-badge status-badge--${isActive(c) ? 'active' : 'archived'}`}>{isActive(c) ? 'Active' : 'Archived'}</span>
+                        <span>{curriculumLabel(c.curriculum_id)}</span>
+                        <span>{c.credit_lecture ?? 0} lec / {c.credit_laboratory ?? 0} lab</span>
+                        <span>{instructorLabelOf(c.instructor_id) || 'Unassigned'}</span>
+                      </div>
+                    </div>
+                    <div className="resource-card__actions">
+                      <select
+                        className="input input--sm"
+                        style={{ maxWidth: 160 }}
+                        value={instructorIdOf(c.instructor_id)}
+                        onChange={(e) => handleAssign(c.id, e.target.value)}
+                        disabled={busy || !!editId || assignBusyId === c.id}
+                        aria-label={`Assign instructor for ${c.code}`}
+                      >
+                        <option value="">Unassigned</option>
+                        {faculty.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.full_name || u.email} ({u.role})
+                          </option>
+                        ))}
+                      </select>
+                      <button className="btn btn--ghost btn--sm" onClick={() => onViewSubject?.(c.id)} disabled={!!editId}>View</button>
+                      <button className="btn btn--ghost btn--sm" onClick={() => startEdit(c)} disabled={busy || !!editId}>Edit</button>
+                      <button className={`btn btn--sm ${isActive(c) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleToggleStatus(c)} disabled={busy || !!editId}>
+                        {isActive(c) ? 'Archive' : 'Restore'}
+                      </button>
+                      {!isActive(c) && !hideDelete && (
+                        <button className="btn btn--danger btn--sm" onClick={() => handleDelete(c.id)} disabled={busy || !!editId} style={{ marginLeft: 'auto' }}>Delete</button>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : (
               <div className="program-grid" style={{ marginTop: 14 }}>
@@ -557,6 +604,7 @@ export default function Course({ profile, onViewSubject, hideDelete }: CoursePro
                   </div>
                 ))}
               </div>
+            )
             )}
           </div>
         </>

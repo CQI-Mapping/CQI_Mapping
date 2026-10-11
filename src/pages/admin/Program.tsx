@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useEntityCrud } from './curriculum/useEntityCrud.js'
 import { useSelection } from '../../hooks/useSelection'
+import { useViewMode } from '../../hooks/useViewMode'
+import ViewModeToggle from '../../components/ViewModeToggle'
 import {
   fetchPrograms,
   fetchCourses,
@@ -44,6 +46,8 @@ export default function Program() {
   const [form, setForm] = useState<ProgramForm>(blank)
   // Browser-only selection: which program the user chose to view in detail.
   const [selectedId, select, clearSelection] = useSelection('cqi.selected.programId')
+  // List (default) or grid card style — the user decides per browser.
+  const [viewMode, setViewMode] = useViewMode('cqi.viewMode.program')
   const [relatedCourses, setRelatedCourses] = useState<Course[]>([])
   const [relatedOutcomes, setRelatedOutcomes] = useState<ProgramOutcome[]>([])
   const [relatedLoading, setRelatedLoading] = useState(false)
@@ -238,6 +242,7 @@ export default function Program() {
               Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
             </button>
           </div>
+          <ViewModeToggle mode={viewMode} onChange={setViewMode} />
           <label className="program-search" aria-label="Search programs">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="7" />
@@ -267,6 +272,50 @@ export default function Program() {
           <div className="program-empty" style={{ marginTop: 14 }}>
             <strong>No {archived ? 'archived' : 'active'} programs yet.</strong>
             <span>{q ? `No results for "${query}"` : archived ? 'Archived programs will appear here.' : 'Click "Add New" to create your first program.'}</span>
+          </div>
+        ) : viewMode === 'list' ? (
+          <div className="resource-list">
+            {visible.map((item) => (
+              <div
+                key={item.id}
+                className={`resource-card ${isActive(item) ? '' : 'resource-card--archived'} ${selectedId === item.id ? 'resource-card--selected' : ''}`}
+              >
+                <div className="resource-card__body">
+                  <h4>{item.code}{item.name && item.name !== item.code ? ` — ${item.name}` : ''}</h4>
+                  {item.description && <p>{item.description}</p>}
+                  <div className="resource-card__meta">
+                    <span className={`status-badge status-badge--${isActive(item) ? 'active' : 'archived'}`}>
+                      {isActive(item) ? 'Active' : 'Archived'}
+                    </span>
+                  </div>
+                </div>
+                <div className="resource-card__actions">
+                  <button
+                    className={`btn btn--sm ${selectedId === item.id ? 'btn--primary' : 'btn--ghost'}`}
+                    onClick={() => select(item.id)}
+                    disabled={busy}
+                    aria-pressed={selectedId === item.id}
+                  >
+                    {selectedId === item.id ? 'Selected' : 'Select'}
+                  </button>
+                  <button className="btn btn--ghost btn--sm" onClick={() => openEdit(item)} disabled={busy}>
+                    Edit
+                  </button>
+                  <button
+                    className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`}
+                    onClick={() => handleArchive(item)}
+                    disabled={busy}
+                  >
+                    {isActive(item) ? 'Archive' : 'Restore'}
+                  </button>
+                  {!isActive(item) && (
+                    <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'program.deleted')} disabled={busy} style={{ marginLeft: 'auto' }}>
+                      Delete
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="program-grid" style={{ marginTop: 14 }}>
@@ -314,6 +363,7 @@ export default function Program() {
               </div>
             ))}
           </div>
+        )
         )}
         <div className="selection-details" aria-live="polite">
           {selectedItem ? (
