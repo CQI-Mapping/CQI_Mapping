@@ -52,9 +52,16 @@ export default function Users() {
     if (!email.trim() || !password.trim()) { setError('Email and password are required.'); return }
     setBusy(true)
     try {
-      await adminCreateUser(email.trim(), password, fullName.trim(), role)
+      const createdEmail = email.trim()
+      await adminCreateUser(createdEmail, password, fullName.trim(), role)
       await addActivityLog('user.created')
-      setSuccess(`${ROLE_LABELS[role]} ${email} created.`)
+      const creator = users.find((u) => u.email === currentEmail)
+      const creatorName = creator?.full_name || currentEmail
+      setSuccess(
+        creatorName
+          ? `${ROLE_LABELS[role]} ${createdEmail} has been added to the system by ${creatorName}.`
+          : `${ROLE_LABELS[role]} ${createdEmail} has been added to the system.`,
+      )
       clearDraft()
       setPassword('')
       loadUsers()

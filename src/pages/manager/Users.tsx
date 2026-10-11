@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from 'react'
 import { adminCreateUser, addActivityLog, fetchAllProfiles } from '../../services/database'
+import { supabase } from '../../utils/supabaseClient'
 import type { Profile } from '../../services/database'
 
 function Users() {
@@ -17,12 +18,21 @@ function Users() {
   const [showPassword, setShowPassword] = useState(false)
   const [fullName, setFullName] = useState('')
   const [busy, setBusy] = useState(false)
+  const [creatorName, setCreatorName] = useState('')
 
   const load = async () => {
     setLoading(true)
     setError('')
     try {
-      setUsers(await fetchAllProfiles())
+      const profiles = await fetchAllProfiles()
+      setUsers(profiles)
+      try {
+        const { data } = await supabase!.auth.getUser()
+        const me = profiles.find((u) => u.id === data?.user?.id)
+        setCreatorName(me?.full_name || me?.email || '')
+      } catch {
+        // Name stays blank — the notification still shows the added email.
+      }
     } catch (e) {
       setError('Unable to load users: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
@@ -39,9 +49,14 @@ function Users() {
     if (!email.trim() || !password.trim()) { setError('Email and password are required.'); return }
     setBusy(true)
     try {
-      await adminCreateUser(email.trim(), password, fullName.trim(), 'user')
+      const createdEmail = email.trim()
+      await adminCreateUser(createdEmail, password, fullName.trim(), 'user')
       await addActivityLog('user.created')
-      setSuccess(`Faculty ${email.trim()} created.`)
+      setSuccess(
+        creatorName
+          ? `Faculty ${createdEmail} has been added to the system by ${creatorName}.`
+          : `Faculty ${createdEmail} has been added to the system.`,
+      )
       setEmail('')
       setPassword('')
       setFullName('')
