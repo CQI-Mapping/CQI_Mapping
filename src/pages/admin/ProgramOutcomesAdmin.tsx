@@ -250,7 +250,15 @@ export default function ProgramOutcomesAdmin() {
                             <span style={{ color: '#64748b', marginRight: 8 }}>{idx + 1}.</span>
                             {item.description || item.title || '—'}
                           </h4>
-                          <div className="resource-card__meta">
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+                            <div style={{ fontSize: 12.5, color: '#475569' }}>
+                              <strong style={{ color: '#64748b' }}>Program Educational Objectives Alignment:</strong> {item.peo_text?.trim() || '—'}
+                            </div>
+                            <div style={{ fontSize: 12.5, color: '#475569' }}>
+                              <strong style={{ color: '#64748b' }}>Strategic Goals Alignment:</strong> {item.sg_text?.trim() || '—'}
+                            </div>
+                          </div>
+                          <div className="resource-card__meta" style={{ marginTop: 6 }}>
                             <span className={`status-badge status-badge--${isActive(item) ? 'active' : 'archived'}`}>
                               {isActive(item) ? 'Active' : 'Archived'}
                             </span>
