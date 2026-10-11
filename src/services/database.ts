@@ -579,11 +579,13 @@ export interface ProgramOutcomeStandalone {
   updated_at: string
 }
 
-export async function fetchProgramOutcomesStandalone(): Promise<ProgramOutcomeStandalone[]> {
-  const { data, error } = await supabase
+export async function fetchProgramOutcomesStandalone(source?: 'admin' | 'manager'): Promise<ProgramOutcomeStandalone[]> {
+  let query = supabase
     .from('admin_program_outcomes')
     .select('*')
-    .order('code', { ascending: true })
+  if (source) query = query.eq('source', source)
+  query = query.order('code', { ascending: true })
+  const { data, error } = await query
   if (error) throw error
   return data
 }

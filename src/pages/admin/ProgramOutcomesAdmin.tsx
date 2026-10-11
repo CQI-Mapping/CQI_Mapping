@@ -40,7 +40,7 @@ export default function ProgramOutcomesAdmin() {
     setError('')
     try {
       const [pos, c] = await Promise.all([
-        fetchProgramOutcomesStandalone(),
+        fetchProgramOutcomesStandalone('admin'),
         fetchChedMemoOrders(),
       ])
       setItems(pos)

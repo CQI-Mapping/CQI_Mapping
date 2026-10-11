@@ -40,7 +40,7 @@ export default function ProgramOutcomes() {
     ;(async () => {
       try {
         const [pos, peos, sgs] = await Promise.all([
-          fetchProgramOutcomesStandalone(),
+          fetchProgramOutcomesStandalone('manager'),
           fetchProgramEducationalObjectives(),
           fetchStrategicGoals(),
         ])
