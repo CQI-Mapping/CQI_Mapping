@@ -28,6 +28,7 @@
 //
 // Request bodies:
 //   { action: 'create', email, password, fullName?, role } -> { id, email, welcomeEmailSent }
+//   { action: 'resend', userId }                           -> { ok: true, welcomeEmailSent }
 //   { action: 'delete', userId }                           -> { ok: true }
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -48,6 +49,63 @@ function json(body: unknown, status = 200): Response {
 
 function fail(message: string, status: number): Response {
   return json({ error: message }, status)
+}
+
+// Sends the "your account was created by <inviter>" welcome email via Resend.
+// Returns true only when Resend accepted it (and logs the Resend message id
+// so the delivery can be traced in the Resend dashboard). Never throws:
+// missing secrets or send failures resolve false so account creation is
+// never blocked. (The password is intentionally NOT included — the inviter
+// shares it directly, or the user uses password recovery.)
+async function sendWelcomeEmail(args: {
+  to: string
+  name: string
+  role: string
+  inviterName: string
+}): Promise<boolean> {
+  const resendKey = Deno.env.get('RESEND_API_KEY') || ''
+  const fromEmail = Deno.env.get('WELCOME_FROM_EMAIL') || ''
+  const appUrl = Deno.env.get('APP_URL') || ''
+  if (!resendKey || !fromEmail) return false
+  const roleLabel =
+    args.role === 'admin'
+      ? 'Administrator'
+      : args.role === 'manager'
+        ? 'Program Head'
+        : 'Faculty'
+  try {
+    const emailResp = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${resendKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: fromEmail,
+        to: args.to,
+        subject: 'Your CQI Monitoring account was created',
+        text:
+          `Hello ${args.name || args.to},\n\n` +
+          `An account has been created for you on the CQI Monitoring System ` +
+          `(NBSC · Institute of Computer Studies) by ${args.inviterName}.\n\n` +
+          `Role: ${roleLabel}\n` +
+          `Sign-in email: ${args.to}\n` +
+          (appUrl ? `Sign-in page: ${appUrl}\n` : '') +
+          `Ask ${args.inviterName} for your password, or use password recovery on the sign-in page.\n\n` +
+          `— CQI Monitoring System`,
+      }),
+    })
+    if (!emailResp.ok) {
+      console.error('welcome email failed:', await emailResp.text())
+      return false
+    }
+    const sent = await emailResp.json().catch(() => null)
+    console.log('welcome email sent:', sent?.id ?? '(no id)', 'to:', args.to)
+    return true
+  } catch (err) {
+    console.error('welcome email error:', err)
+    return false
+  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -88,6 +146,8 @@ Deno.serve(async (req: Request) => {
       return fail('Forbidden: admin or manager role required', 403)
     }
     const isAdmin = callerRole === 'admin'
+    const inviterName =
+      callerProfile?.full_name || callerProfile?.email || 'your administrator'
 
     // 3. Dispatch the action.
     const body = await req.json().catch(() => null)
@@ -124,51 +184,39 @@ Deno.serve(async (req: Request) => {
         .eq('id', created.user.id)
       if (updateError) throw updateError
 
-      // Welcome email to the new user, naming who added them. Never blocks
-      // creation: any failure is logged and reported as welcomeEmailSent:false.
-      // (The password is intentionally NOT included — the inviter shares it
-      // with them directly, or they use password recovery.)
-      let welcomeEmailSent = false
-      const resendKey = Deno.env.get('RESEND_API_KEY') || ''
-      const fromEmail = Deno.env.get('WELCOME_FROM_EMAIL') || ''
-      const appUrl = Deno.env.get('APP_URL') || ''
-      const inviterName =
-        callerProfile?.full_name || callerProfile?.email || 'your administrator'
-      const roleLabel =
-        role === 'admin' ? 'Administrator' : role === 'manager' ? 'Program Head' : 'Faculty'
-      if (resendKey && fromEmail) {
-        try {
-          const emailResp = await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${resendKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              from: fromEmail,
-              to: email,
-              subject: 'Your CQI Monitoring account was created',
-              text:
-                `Hello ${fullName || email},\n\n` +
-                `An account has been created for you on the CQI Monitoring System ` +
-                `(NBSC · Institute of Computer Studies) by ${inviterName}.\n\n` +
-                `Role: ${roleLabel}\n` +
-                `Sign-in email: ${email}\n` +
-                (appUrl ? `Sign-in page: ${appUrl}\n` : '') +
-                `Ask ${inviterName} for your password, or use password recovery on the sign-in page.\n\n` +
-                `— CQI Monitoring System`,
-            }),
-          })
-          welcomeEmailSent = emailResp.ok
-          if (!emailResp.ok) {
-            console.error('welcome email failed:', await emailResp.text())
-          }
-        } catch (err) {
-          console.error('welcome email error:', err)
-        }
-      }
+      // Welcome email to the new user, naming who added them.
+      const welcomeEmailSent = await sendWelcomeEmail({
+        to: email,
+        name: fullName,
+        role,
+        inviterName,
+      })
 
       return json({ id: created.user.id, email: created.user.email, welcomeEmailSent })
+    }
+
+    if (body?.action === 'resend') {
+      // Re-send the welcome email to an existing user (lets admins/managers
+      // retry delivery without creating a new account).
+      const userId = typeof body.userId === 'string' ? body.userId : ''
+      if (!userId) return fail('userId is required', 400)
+      const { data: target, error: targetError } = await admin
+        .from('profiles')
+        .select('id, email, full_name, role')
+        .eq('id', userId)
+        .maybeSingle()
+      if (targetError) throw targetError
+      if (!target) return fail('User not found', 404)
+      if (!isAdmin && target.role !== 'user') {
+        return fail('Forbidden: managers may only re-notify faculty accounts', 403)
+      }
+      const welcomeEmailSent = await sendWelcomeEmail({
+        to: target.email,
+        name: target.full_name || '',
+        role: target.role,
+        inviterName,
+      })
+      return json({ ok: true, welcomeEmailSent })
     }
 
     if (body?.action === 'delete') {

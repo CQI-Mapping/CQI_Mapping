@@ -33,6 +33,7 @@ const ACTION_LABELS = {
   'clo_po_mapping.cleared': 'Cleared CLO/PO mapping',
   'role.updated': 'Changed user role',
   'user.created': 'Created user account',
+  'user.welcome_resent': 'Resent welcome email',
   'user.deleted': 'Deleted user account',
   'profile.updated': 'Updated profile',
   'program_outcome.archived': 'Archived program outcome',
