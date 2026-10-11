@@ -365,7 +365,7 @@ export default function Program() {
                   {selectedItem.description && <p>{selectedItem.description}</p>}
                 </div>
                 <button className="btn btn--ghost btn--sm" onClick={clearSelection}>
-                  Clear
+                  Selected
                 </button>
               </div>
               <div className="selection-details__body">
