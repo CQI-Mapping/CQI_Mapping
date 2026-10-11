@@ -9,12 +9,19 @@ import {
   fetchPrograms,
   fetchResources,
   fetchCourses,
+  fetchAllProfiles,
   createCourse,
   updateCourse,
   deleteCourse,
+  assignCourseInstructor,
   addActivityLog,
 } from '../../services/database'
-import type { Program, Resource, Course } from '../../services/database'
+import type { Program, Resource, Course, Profile } from '../../services/database'
+
+const instructorIdOf = (v: Course['instructor_id']) =>
+  v && typeof v === 'object' ? v.id : v || ''
+const instructorLabelOf = (v: Course['instructor_id']) =>
+  v && typeof v === 'object' ? v.full_name || v.email : ''
 
 interface CourseProps {
   profile?: { email?: string | null } | null
@@ -111,6 +118,8 @@ export default function Course({ profile, onViewSubject, hideDelete }: CoursePro
   const [programs, setPrograms] = useState<Program[]>([])
   const [curriculums, setCurriculums] = useState<Resource[]>([])
   const [courses, setCourses] = useState<Course[]>([])
+  const [faculty, setFaculty] = useState<Profile[]>([])
+  const [assignBusyId, setAssignBusyId] = useState<string | null>(null)
   const [programId, setProgramId] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -143,10 +152,11 @@ export default function Course({ profile, onViewSubject, hideDelete }: CoursePro
     setLoading(true)
     setError('')
     try {
-      const [p, res, c] = await Promise.all([fetchPrograms(), fetchResources(), fetchCourses()])
+      const [p, res, c, users] = await Promise.all([fetchPrograms(), fetchResources(), fetchCourses(), fetchAllProfiles().catch(() => [] as Profile[])])
       setPrograms(p)
       setCurriculums(res.filter((r) => r.status !== 'archived' && (r.code || r.title)))
       setCourses(c)
+      setFaculty(users)
       setProgramId((prev) => {
         if (prev && p.some((x) => x.id === prev)) return prev
         return p[0]?.id ?? ''
@@ -165,7 +175,7 @@ export default function Course({ profile, onViewSubject, hideDelete }: CoursePro
   const visible = courses.filter((c) =>
     typeof c.program_id === 'object' ? c.program_id.id === programId : c.program_id === programId,
   ).filter((c) => (archived ? !isActive(c) : isActive(c))).filter(
-    (c) => !q || [c.code, c.title, c.prerequisite, c.corequisite, c.description].some((v) => (v || '').toLowerCase().includes(q)),
+    (c) => !q || [c.code, c.title, c.prerequisite, c.corequisite, c.description, instructorLabelOf(c.instructor_id)].some((v) => (v || '').toLowerCase().includes(q)),
   )
 
   const archivedCount = courses.filter(
@@ -281,6 +291,23 @@ export default function Course({ profile, onViewSubject, hideDelete }: CoursePro
       setError('Failed to delete course: ' + errMsg(err))
     } finally {
       setBusy(false)
+    }
+  }
+
+  // Assign (or unassign with '') the faculty user teaching a course.
+  const handleAssign = async (courseId: string, instructorId: string) => {
+    setError('')
+    setMessage('')
+    setAssignBusyId(courseId)
+    try {
+      await assignCourseInstructor(courseId, instructorId || null)
+      await addActivityLog('course.assigned')
+      setMessage(instructorId ? 'Instructor assigned.' : 'Instructor unassigned.')
+      load()
+    } catch (err) {
+      setError('Failed to assign instructor: ' + errMsg(err))
+    } finally {
+      setAssignBusyId(null)
     }
   }
 
@@ -492,6 +519,24 @@ export default function Course({ profile, onViewSubject, hideDelete }: CoursePro
                     <h3 className="program-card__name">{c.title}</h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12.5 }}>
                       <div style={{ display: 'flex', gap: 6 }}><span style={{ fontWeight: 700, color: '#64748b' }}>Curriculum:</span><span style={{ color: '#0f172a' }}>{curriculumLabel(c.curriculum_id)}</span></div>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <span style={{ fontWeight: 700, color: '#64748b' }}>Instructor:</span>
+                        <select
+                          className="input input--sm"
+                          style={{ flex: 1, minWidth: 0 }}
+                          value={instructorIdOf(c.instructor_id)}
+                          onChange={(e) => handleAssign(c.id, e.target.value)}
+                          disabled={busy || !!editId || assignBusyId === c.id}
+                          aria-label={`Assign instructor for ${c.code}`}
+                        >
+                          <option value="">Unassigned</option>
+                          {faculty.map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.full_name || u.email} ({u.role})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                         <span style={{ color: '#475569' }}><strong style={{ color: '#64748b' }}>Pre-req:</strong> {c.prerequisite || 'N/A'}</span>
                         <span style={{ color: '#475569' }}><strong style={{ color: '#64748b' }}>Co-req:</strong> {c.corequisite || 'N/A'}</span>

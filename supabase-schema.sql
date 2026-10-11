@@ -92,6 +92,7 @@ CREATE TABLE public.courses (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       program_id UUID NOT NULL REFERENCES public.programs(id) ON DELETE CASCADE,
       curriculum_id UUID REFERENCES public.resources(id) ON DELETE SET NULL,
+      instructor_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
       code TEXT NOT NULL,
       title TEXT NOT NULL,
       prerequisite TEXT NOT NULL DEFAULT '',
@@ -105,6 +106,9 @@ CREATE TABLE public.courses (
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       UNIQUE (program_id, code)
   );
+
+-- Migration for existing databases (fresh setups already include instructor_id):
+-- ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS instructor_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL;
 
 CREATE TABLE public.program_outcomes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

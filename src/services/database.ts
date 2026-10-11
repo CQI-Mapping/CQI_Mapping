@@ -58,6 +58,7 @@ export interface Course {
     description: string | null
     program_id: string | { id: string; code: string; name: string }
     curriculum_id: string | { id: string; code: string } | null
+    instructor_id: string | { id: string; full_name: string | null; email: string } | null
     prerequisite: string
     corequisite: string
     status: string
@@ -322,10 +323,18 @@ export async function deleteProgram(id: string): Promise<void> {
 export async function fetchCourses(): Promise<Course[]> {
   const { data, error } = await supabase
 .from('courses')
-      .select('*, program_id ( id, code, name ), curriculum_id ( id, code )')
+      .select('*, program_id ( id, code, name ), curriculum_id ( id, code ), instructor_id ( id, full_name, email )')
       .order('code', { ascending: true })
   if (error) throw error
   return data
+}
+
+export async function assignCourseInstructor(courseId: string, instructorId: string | null): Promise<Course> {
+  // Assign (or unassign with null) the faculty user teaching a course.
+  // RLS: managers and admins can update courses; the instructor profile
+  // join resolves only where profiles RLS allows (own row, or all rows
+  // for manager/admin).
+  return updateCourse(courseId, { instructor_id: instructorId })
 }
 
 export async function createCourse(payload: Partial<Course>): Promise<Course> {
