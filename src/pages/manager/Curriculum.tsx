@@ -228,8 +228,8 @@ function Curriculum({ userEmail }: CurriculumProps) {
           />
         </label>
         <div className="create-resource__submit">
-          <button className="btn btn--primary" type="submit" disabled={busy}>
-            {busy ? 'Saving...' : (<><Icon name="plus" size={14} /> Add</>)}
+          <button className="btn btn--primary" type="submit" disabled={busy} aria-label="Add curriculum record" title="Add">
+            {busy ? 'Saving...' : (<Icon name="plus" size={14} />)}
           </button>
         </div>
       </form>
@@ -263,6 +263,8 @@ function Curriculum({ userEmail }: CurriculumProps) {
               <div
                 className={`resource-card ${item.status === 'archived' ? 'resource-card--archived' : ''} ${selectedId === item.id ? 'resource-card--selected' : ''}`}
                 key={item.id}
+                onDoubleClick={() => select(item.id)}
+                title="Double-click to view details"
               >
                 {editingId === item.id ? (
                   <div className="resource-card__edit">
@@ -294,11 +296,11 @@ function Curriculum({ userEmail }: CurriculumProps) {
                       />
                     </label>
                     <div className="resource-card__actions">
-                      <button className="btn btn--primary btn--sm" onClick={() => handleSave(item.id)} disabled={busy}>
-                        <Icon name="check" size={13} /> Save
+                      <button className="btn btn--primary btn--sm" onClick={() => handleSave(item.id)} disabled={busy} aria-label="Save changes" title="Save">
+                        <Icon name="check" size={13} />
                       </button>
-                      <button className="btn btn--ghost btn--sm" onClick={cancelEdit}>
-                        Cancel
+                      <button className="btn btn--ghost btn--sm" onClick={cancelEdit} aria-label="Cancel" title="Cancel">
+                        <Icon name="x" size={13} />
                       </button>
                     </div>
                   </div>
@@ -318,19 +320,19 @@ function Curriculum({ userEmail }: CurriculumProps) {
                     <div className="resource-card__actions">
                       <button
                         className={`btn btn--sm ${selectedId === item.id ? 'btn--primary' : 'btn--ghost'}`}
-                        onClick={() => select(item.id)}
+                        onClick={() => select(item.id)} aria-label={selectedId === item.id ? `Deselect ${item.code || item.title}` : `Select ${item.code || item.title}`} title={selectedId === item.id ? 'Selected' : 'Select'}
                         aria-pressed={selectedId === item.id}
                       >
-                        <Icon name="check" size={13} /> {selectedId === item.id ? 'Selected' : 'Select'}
+                        <Icon name="check" size={13} />
                       </button>
-                      <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)}>
-                        <Icon name="edit" size={13} /> Edit
+                      <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} aria-label={`Edit ${item.code || item.title}`} title="Edit">
+                        <Icon name="edit" size={13} />
                       </button>
                       <button
                         className="btn btn--ghost btn--sm"
-                        onClick={() => handleToggleStatus(item)}
+                        onClick={() => handleToggleStatus(item)} aria-label={item.status === 'active' ? `Archive ${item.code || item.title}` : `Restore ${item.code || item.title}`} title={item.status === 'active' ? 'Archive' : 'Restore'}
                       >
-                        <Icon name={item.status === 'active' ? 'archive' : 'restore'} size={13} /> {item.status === 'active' ? 'Archive' : 'Restore'}
+                        <Icon name={item.status === 'active' ? 'archive' : 'restore'} size={13} />
                       </button>
                     </div>
                   </>
@@ -352,6 +354,8 @@ function Curriculum({ userEmail }: CurriculumProps) {
                 className={`program-card--2026 card-enter ${selectedId === item.id ? 'program-card--selected' : ''}`}
                 data-status={isActive(item) ? 'active' : 'archived'}
                 data-selected={selectedId === item.id ? 'true' : 'false'}
+                onDoubleClick={() => select(item.id)}
+                title="Double-click to view details"
               >
                 {editingId === item.id ? (
                   <div className="resource-card__edit">
@@ -383,11 +387,11 @@ function Curriculum({ userEmail }: CurriculumProps) {
                       />
                     </label>
                     <div className="resource-card__actions">
-                      <button className="btn btn--primary btn--sm" onClick={() => handleSave(item.id)} disabled={busy}>
-                        <Icon name="check" size={13} /> Save
+                      <button className="btn btn--primary btn--sm" onClick={() => handleSave(item.id)} disabled={busy} aria-label="Save changes" title="Save">
+                        <Icon name="check" size={13} />
                       </button>
-                      <button className="btn btn--ghost btn--sm" onClick={cancelEdit}>
-                        Cancel
+                      <button className="btn btn--ghost btn--sm" onClick={cancelEdit} aria-label="Cancel" title="Cancel">
+                        <Icon name="x" size={13} />
                       </button>
                     </div>
                   </div>
@@ -410,19 +414,19 @@ function Curriculum({ userEmail }: CurriculumProps) {
                     <div className="program-card__actions">
                       <button
                         className={`btn btn--sm ${selectedId === item.id ? 'btn--primary' : 'btn--ghost'}`}
-                        onClick={() => select(item.id)}
+                        onClick={() => select(item.id)} aria-label={selectedId === item.id ? `Deselect ${item.code || item.title}` : `Select ${item.code || item.title}`} title={selectedId === item.id ? 'Selected' : 'Select'}
                         aria-pressed={selectedId === item.id}
                       >
-                        <Icon name="check" size={13} /> {selectedId === item.id ? 'Selected' : 'Select'}
+                        <Icon name="check" size={13} />
                       </button>
-                      <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)}>
-                        <Icon name="edit" size={13} /> Edit
+                      <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} aria-label={`Edit ${item.code || item.title}`} title="Edit">
+                        <Icon name="edit" size={13} />
                       </button>
                       <button
                         className="btn btn--ghost btn--sm"
-                        onClick={() => handleToggleStatus(item)}
+                        onClick={() => handleToggleStatus(item)} aria-label={item.status === 'active' ? `Archive ${item.code || item.title}` : `Restore ${item.code || item.title}`} title={item.status === 'active' ? 'Archive' : 'Restore'}
                       >
-                        <Icon name={item.status === 'active' ? 'archive' : 'restore'} size={13} /> {item.status === 'active' ? 'Archive' : 'Restore'}
+                        <Icon name={item.status === 'active' ? 'archive' : 'restore'} size={13} />
                       </button>
                     </div>
                   </>
@@ -444,7 +448,7 @@ function Curriculum({ userEmail }: CurriculumProps) {
                     </div>
                   </div>
                   <button className="btn btn--ghost btn--sm" onClick={clearSelection}>
-                    Clear
+                    Selected
                   </button>
                 </div>
                 <div className="selection-details__body">

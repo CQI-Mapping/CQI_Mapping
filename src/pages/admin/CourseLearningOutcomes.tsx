@@ -550,12 +550,12 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                         </div>
                       </div>
                       <div className="resource-card__actions">
-                        <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} disabled={busy || !!editingId}><Icon name="edit" size={13} /> Edit</button>
-                        <button className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleUpdate(item.id, { status: isActive(item) ? 'archived' : 'active' }, 'clo.updated')} disabled={busy || !!editingId}>
-                          <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} /> {isActive(item) ? 'Archive' : 'Restore'}
+                        <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} disabled={busy || !!editingId} title="Edit"><Icon name="edit" size={13} /></button>
+                        <button className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleUpdate(item.id, { status: isActive(item) ? 'archived' : 'active' }, 'clo.updated')} disabled={busy || !!editingId} title={isActive(item) ? 'Archive' : 'Restore'}>
+                          <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} />
                         </button>
                         {!isActive(item) && (
-                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'clo.deleted')} disabled={busy || !!editingId} style={{ marginLeft: 'auto' }}><Icon name="trash" size={13} /> Delete</button>
+                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'clo.deleted')} disabled={busy || !!editingId} style={{ marginLeft: 'auto' }} title="Delete"><Icon name="trash" size={13} /></button>
                         )}
                       </div>
                     </>
@@ -581,12 +581,12 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                         <strong style={{ color: '#64748b' }}>POs:</strong> {item.title || '—'}
                       </div>
                       <div className="program-card__actions">
-                        <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} disabled={busy || !!editingId}><Icon name="edit" size={13} /> Edit</button>
-                        <button className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleUpdate(item.id, { status: isActive(item) ? 'archived' : 'active' }, 'clo.updated')} disabled={busy || !!editingId}>
-                          <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} /> {isActive(item) ? 'Archive' : 'Restore'}
+                        <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} disabled={busy || !!editingId} title="Edit"><Icon name="edit" size={13} /></button>
+                        <button className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleUpdate(item.id, { status: isActive(item) ? 'archived' : 'active' }, 'clo.updated')} disabled={busy || !!editingId} title={isActive(item) ? 'Archive' : 'Restore'}>
+                          <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} />
                         </button>
                         {!isActive(item) && (
-                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'clo.deleted')} disabled={busy || !!editingId} style={{ marginLeft: 'auto' }}><Icon name="trash" size={13} /> Delete</button>
+                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'clo.deleted')} disabled={busy || !!editingId} style={{ marginLeft: 'auto' }} title="Delete"><Icon name="trash" size={13} /></button>
                         )}
                       </div>
                     </>
