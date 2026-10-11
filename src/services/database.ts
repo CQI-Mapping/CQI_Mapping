@@ -573,6 +573,7 @@ export interface ProgramOutcomeStandalone {
   peo_text: string | null
   sg_id: string | null
   sg_text: string | null
+  source: string
   status: string
   created_at: string
   updated_at: string

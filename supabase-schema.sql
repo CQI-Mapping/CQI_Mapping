@@ -177,6 +177,7 @@ CREATE TABLE public.admin_program_outcomes (
     peo_text TEXT,
     sg_id UUID REFERENCES public.strategic_goals(id) ON DELETE SET NULL,
     sg_text TEXT,
+    source TEXT NOT NULL DEFAULT 'admin' CHECK (source IN ('admin', 'manager')),
     status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -694,6 +695,9 @@ CREATE POLICY "Admins can delete assessments" ON public.assessments FOR DELETE
 
 -- Migration: add cmo_text column to admin_program_outcomes (for fixed CMO categories)
 ALTER TABLE public.admin_program_outcomes ADD COLUMN IF NOT EXISTS cmo_text TEXT;
+
+-- Migration: add source column to admin_program_outcomes (admin vs manager)
+ALTER TABLE public.admin_program_outcomes ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'admin' CHECK (source IN ('admin', 'manager'));
 
 -- RESULTS: read all, write faculty and above, delete admin only
 DROP POLICY IF EXISTS "Authenticated users can read assessment_results" ON public.assessment_results;

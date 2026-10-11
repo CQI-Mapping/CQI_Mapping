@@ -79,11 +79,16 @@ export default function ProgramOutcomes() {
     { label: 'CMO Alignment', relationField: 'cmo_id', textField: 'description', options: cmoOptions },
   ]
 
+  // Manager create: stamp source='manager' so View can separate admin vs manager inputs.
+  const managerCreate = async (payload: Partial<ProgramOutcomeStandalone>) => {
+    return createProgramOutcomeStandalone({ ...payload, source: 'manager' })
+  }
+
   return (
     <EntityCrudPage<ProgramOutcomeStandalone>
       title="Program Outcome"
       load={fetchProgramOutcomesStandalone}
-      create={createProgramOutcomeStandalone}
+      create={managerCreate}
       update={updateProgramOutcomeStandalone}
       remove={deleteProgramOutcomeStandalone}
       scope="Program Outcome"

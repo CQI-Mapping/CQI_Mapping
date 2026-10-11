@@ -197,6 +197,10 @@ function View({ userEmail }: ViewProps) {
   const visiblePeos = shown(peos)
   const visiblePos = shown(pos)
 
+  // Separate admin vs manager outcomes.
+  const adminPos = visiblePos.filter((p) => (p as { source?: string }).source !== 'manager')
+  const managerPos = visiblePos.filter((p) => (p as { source?: string }).source === 'manager')
+
   // Group active program outcomes by CMO category (cmo_id or cmo_text).
   const cmoLabel = (po: ProgramOutcomeStandalone) => {
     const key = po.cmo_id || (po as { cmo_text?: string }).cmo_text
@@ -207,13 +211,21 @@ function View({ userEmail }: ViewProps) {
     return cmo ? `${cmo.title} (${cmo.code})`.toUpperCase() : 'UNCATEGORIZED'
   }
 
-  const poGroups: PoGroup[] = []
-  for (const po of visiblePos) {
-    const heading = cmoLabel(po)
-    const last = poGroups[poGroups.length - 1]
-    if (last && last.heading === heading) last.items.push(po)
-    else poGroups.push({ heading, items: [po] })
+  const buildGroups = (list: ProgramOutcomeStandalone[]): PoGroup[] => {
+    const groups: PoGroup[] = []
+    for (const po of list) {
+      const heading = cmoLabel(po)
+      const last = groups[groups.length - 1]
+      if (last && last.heading === heading) last.items.push(po)
+      else groups.push({ heading, items: [po] })
+    }
+    return groups
   }
+
+  const adminGroups = buildGroups(adminPos)
+  const managerGroups = buildGroups(managerPos)
+  // Keep the original poGroups (all outcomes) for the mapping matrix below.
+  const poGroups = buildGroups(visiblePos)
 
   const programText = (c: Course) =>
     typeof c.program_id === 'object' && c.program_id ? c.program_id.name : SCHOOL.program
@@ -371,7 +383,7 @@ function View({ userEmail }: ViewProps) {
             </tbody>
           </table>
 
-          {/* Program Outcomes — grouped by their alignment (description) */}
+          {/* Program Outcomes (ADMIN) — grouped by CMO category */}
           <table className="sd-table sd-table--po-single">
             <thead>
               <tr>
@@ -379,12 +391,12 @@ function View({ userEmail }: ViewProps) {
               </tr>
             </thead>
             <tbody>
-              {poGroups.length === 0 && (
+              {adminGroups.length === 0 && (
                 <tr>
-                  <td className="sd-po-single-section">No program outcomes yet.</td>
+                  <td className="sd-po-single-section">No admin program outcomes yet.</td>
                 </tr>
               )}
-              {poGroups.map((group, gi) => (
+              {adminGroups.map((group, gi) => (
                 <tr key={group.heading}>
                   <td className="sd-po-single-section">
                     <div className="sd-po-single-section__head">{group.heading}</div>
@@ -423,6 +435,51 @@ function View({ userEmail }: ViewProps) {
               ))}
             </tbody>
           </table>
+
+          {/* Program Outcomes (MANAGER) — separate section */}
+          {managerGroups.length > 0 && (
+            <table className="sd-table sd-table--po-single">
+              <thead>
+                <tr>
+                  <th className="sd-po-single-title">PROGRAM OUTCOMES (MANAGER)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {managerGroups.map((group) => (
+                  <tr key={group.heading}>
+                    <td className="sd-po-single-section">
+                      <div className="sd-po-single-section__head">{group.heading}</div>
+                      {group.items.map((p, i, arr) => {
+                        const editingThis = edit && edit.kind === 'po' && edit.id === p.id
+                        const isLast = i === arr.length - 1
+                        const semicolon = isLast ? '.' : ';'
+                        return (
+                          <div key={p.id} className={`sd-po-single-outcome ${isActive(p) ? '' : 'sd-archived'}`}>
+                            {poLabel(p.code)}. {p.title.replace(/\.$/, '')}{semicolon}
+                            {editMode && (
+                              <span className="sd-po-single-item__actions">
+                                {rowActions('po', p.id)}
+                              </span>
+                            )}
+                            {editingThis && (
+                              <span className="sd-po-single-edit">
+                                <input
+                                  className="input input--sm"
+                                  value={edit.title}
+                                  onChange={(e) => setEdit({ ...edit, title: e.target.value })}
+                                  disabled={busy}
+                                />
+                              </span>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
 
           {/* Curriculum Mapping — 3-column matrix per PO section, matching the
               syllabus document pages (Program Outcome | PEO | Strategic Goal).
