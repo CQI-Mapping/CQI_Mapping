@@ -4,6 +4,8 @@
 import { useState, useEffect } from 'react'
 import { fetchResources, fetchCourses } from '../../services/database'
 import { useSelection } from '../../hooks/useSelection'
+import { useViewMode } from '../../hooks/useViewMode'
+import ViewModeToggle from '../../components/ViewModeToggle'
 import type { Resource, Course } from '../../services/database'
 
 const relId = (v: string | { id: string } | null | undefined) =>
@@ -15,6 +17,7 @@ function Curriculum() {
   const [error, setError] = useState('')
   const [archived, setArchived] = useState(false)
   const [selectedId, select, clearSelection] = useSelection('cqi.selected.curriculumId')
+  const [viewMode, setViewMode] = useViewMode('cqi.viewMode.curriculum')
   const [relatedCourses, setRelatedCourses] = useState<Course[]>([])
   const [relatedLoading, setRelatedLoading] = useState(false)
 
@@ -57,12 +60,16 @@ function Curriculum() {
         <p>Loading curriculum...</p>
       ) : (
         <div className="panel table-wrap">
-          <div className="sd-tabs">
-            <button className={`sd-tab ${!archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(false)}>Active</button>
-            <button className={`sd-tab ${archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(true)}>
-              Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
-            </button>
+          <div className="program-toolbar" style={{ marginBottom: 12 }}>
+            <div className="sd-tabs" style={{ marginBottom: 0, flex: 1 }}>
+              <button className={`sd-tab ${!archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(false)}>Active</button>
+              <button className={`sd-tab ${archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(true)}>
+                Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
+              </button>
+            </div>
+            <ViewModeToggle mode={viewMode} onChange={setViewMode} />
           </div>
+          {viewMode === 'list' ? (
           <div className="resource-list">
             {visible.length === 0 && <p>No {archived ? 'archived' : 'active'} curriculum records.</p>}
             {visible.map((item) => (
@@ -92,6 +99,42 @@ function Curriculum() {
               </div>
             ))}
           </div>
+          ) : (
+          <div className="program-grid" style={{ marginTop: 0 }}>
+            {visible.length === 0 && <p>No {archived ? 'archived' : 'active'} curriculum records.</p>}
+            {visible.map((item) => (
+              <div
+                key={item.id}
+                className={`program-card--2026 card-enter ${selectedId === item.id ? 'program-card--selected' : ''}`}
+                data-status={isActive(item) ? 'active' : 'archived'}
+                data-selected={selectedId === item.id ? 'true' : 'false'}
+              >
+                <div className="program-card__top">
+                  <span className="program-card__code">{item.code || item.title}</span>
+                  <span className={`program-card__status ${isActive(item) ? 'program-card__status--active' : 'program-card__status--archived'}`}>
+                    <span className="program-card__status-dot" />
+                    {isActive(item) ? 'Active' : 'Archived'}
+                  </span>
+                </div>
+                <h3 className="program-card__name">{item.code || item.title}</h3>
+                {item.description && <p className="program-card__desc">{item.description}</p>}
+                <div style={{ display: 'flex', gap: 10, fontSize: 12, color: '#64748b' }}>
+                  {item.units != null && <span>{item.units} unit{item.units === 1 ? '' : 's'}</span>}
+                  <span>by {(typeof item.created_by === 'object' && item.created_by?.full_name) || 'Unknown'}</span>
+                </div>
+                <div className="program-card__actions">
+                  <button
+                    className={`btn btn--sm ${selectedId === item.id ? 'btn--primary' : 'btn--ghost'}`}
+                    onClick={() => select(item.id)}
+                    aria-pressed={selectedId === item.id}
+                  >
+                    {selectedId === item.id ? 'Selected' : 'Select'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          )}
           <div className="selection-details" aria-live="polite">
             {selectedItem ? (
               <>

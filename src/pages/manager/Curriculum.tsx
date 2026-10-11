@@ -12,6 +12,8 @@ import {
 } from '../../services/database'
 import { supabase } from '../../utils/supabaseClient'
 import { useSelection } from '../../hooks/useSelection'
+import { useViewMode } from '../../hooks/useViewMode'
+import ViewModeToggle from '../../components/ViewModeToggle'
 import type { Resource, Course } from '../../services/database'
 
 const relId = (v: string | { id: string } | null | undefined) =>
@@ -47,6 +49,8 @@ function Curriculum({ userEmail }: CurriculumProps) {
   const [busy, setBusy] = useState(false)
   const [archived, setArchived] = useState(false)
   const [query, setQuery] = useState('')
+  // List (default) or grid card style — the user decides per browser.
+  const [viewMode, setViewMode] = useViewMode('cqi.viewMode.curriculum')
   // Browser-only selection: which card the user chose to view in detail.
   const [selectedId, select, clearSelection] = useSelection('cqi.selected.curriculumId')
   const [relatedCourses, setRelatedCourses] = useState<Course[]>([])
@@ -240,11 +244,13 @@ function Curriculum({ userEmail }: CurriculumProps) {
                 Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
               </button>
             </div>
+            <ViewModeToggle mode={viewMode} onChange={setViewMode} />
             <label className="program-search" aria-label="Search curriculum">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="M20 20L15.5 15.5"/></svg>
               <input className="input input--sm" type="search" placeholder="Search curriculum..." value={query} onChange={(e) => setQuery(e.target.value)} />
             </label>
           </div>
+          {viewMode === 'list' ? (
           <div className="resource-list">
             {visible.length === 0 && (
               <div className="program-empty" style={{ marginTop: 14 }}>
@@ -331,6 +337,99 @@ function Curriculum({ userEmail }: CurriculumProps) {
               </div>
             ))}
           </div>
+          ) : (
+          <div className="program-grid" style={{ marginTop: 0 }}>
+            {visible.length === 0 && (
+              <div className="program-empty" style={{ marginTop: 14 }}>
+                <strong>No {archived ? 'archived' : 'active'} curriculum records yet.</strong>
+                <span>{query ? `No results for "${query}"` : 'Add your first curriculum record above.'}</span>
+              </div>
+            )}
+            {visible.map((item) => (
+              <div
+                key={item.id}
+                className={`program-card--2026 card-enter ${selectedId === item.id ? 'program-card--selected' : ''}`}
+                data-status={isActive(item) ? 'active' : 'archived'}
+                data-selected={selectedId === item.id ? 'true' : 'false'}
+              >
+                {editingId === item.id ? (
+                  <div className="resource-card__edit">
+                    <label className="field">
+                      <span>Curriculum code</span>
+                      <input
+                        className="input"
+                        value={editCode}
+                        onChange={(e) => setEditCode(e.target.value)}
+                      />
+                    </label>
+                    <label className="field">
+                      <span>Curriculum description</span>
+                      <textarea
+                        className="input"
+                        rows={3}
+                        value={editDescription}
+                        onChange={(e) => setEditDescription(e.target.value)}
+                      />
+                    </label>
+                    <label className="field">
+                      <span>Total Units</span>
+                      <input
+                        className="input"
+                        type="number"
+                        min="0"
+                        value={editUnits}
+                        onChange={(e) => setEditUnits(e.target.value)}
+                      />
+                    </label>
+                    <div className="resource-card__actions">
+                      <button className="btn btn--primary btn--sm" onClick={() => handleSave(item.id)} disabled={busy}>
+                        Save
+                      </button>
+                      <button className="btn btn--ghost btn--sm" onClick={cancelEdit}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="program-card__top">
+                      <span className="program-card__code">{item.code || item.title}</span>
+                      <span className={`program-card__status ${isActive(item) ? 'program-card__status--active' : 'program-card__status--archived'}`}>
+                        <span className="program-card__status-dot" />
+                        {isActive(item) ? 'Active' : 'Archived'}
+                      </span>
+                    </div>
+                    <h3 className="program-card__name">{item.code || item.title}</h3>
+                    {item.description && <p className="program-card__desc">{item.description}</p>}
+                    <div style={{ display: 'flex', gap: 10, fontSize: 12, color: '#64748b' }}>
+                      {item.units != null && <span>{item.units} unit{item.units === 1 ? '' : 's'}</span>}
+                      <span>by {(typeof item.created_by === 'object' && item.created_by?.full_name) || 'Unknown'}</span>
+                      <span>{new Date(item.created_at).toLocaleString()}</span>
+                    </div>
+                    <div className="program-card__actions">
+                      <button
+                        className={`btn btn--sm ${selectedId === item.id ? 'btn--primary' : 'btn--ghost'}`}
+                        onClick={() => select(item.id)}
+                        aria-pressed={selectedId === item.id}
+                      >
+                        {selectedId === item.id ? 'Selected' : 'Select'}
+                      </button>
+                      <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)}>
+                        Edit
+                      </button>
+                      <button
+                        className="btn btn--ghost btn--sm"
+                        onClick={() => handleToggleStatus(item)}
+                      >
+                        {item.status === 'active' ? 'Archive' : 'Restore'}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+          )}
           <div className="selection-details" aria-live="polite">
             {selectedItem ? (
               <>
