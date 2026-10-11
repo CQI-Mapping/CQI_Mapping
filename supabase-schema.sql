@@ -172,6 +172,7 @@ CREATE TABLE public.admin_program_outcomes (
     title TEXT NOT NULL,
     description TEXT,
     cmo_id UUID REFERENCES public.ched_memorandum_orders(id) ON DELETE SET NULL,
+    cmo_text TEXT,
     peo_id UUID REFERENCES public.program_educational_objectives(id) ON DELETE SET NULL,
     peo_text TEXT,
     sg_id UUID REFERENCES public.strategic_goals(id) ON DELETE SET NULL,
@@ -690,6 +691,9 @@ CREATE POLICY "Faculty and above can update assessments" ON public.assessments F
     WITH CHECK (public.current_user_role() IN ('admin', 'manager', 'user'));
 CREATE POLICY "Admins can delete assessments" ON public.assessments FOR DELETE
     USING (public.current_user_role() = 'admin');
+
+-- Migration: add cmo_text column to admin_program_outcomes (for fixed CMO categories)
+ALTER TABLE public.admin_program_outcomes ADD COLUMN IF NOT EXISTS cmo_text TEXT;
 
 -- RESULTS: read all, write faculty and above, delete admin only
 DROP POLICY IF EXISTS "Authenticated users can read assessment_results" ON public.assessment_results;
