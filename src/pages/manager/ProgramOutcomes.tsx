@@ -84,10 +84,13 @@ export default function ProgramOutcomes() {
     return createProgramOutcomeStandalone({ ...payload, source: 'manager' })
   }
 
+  // Manager load: only fetch source='manager' outcomes.
+  const managerLoad = async () => fetchProgramOutcomesStandalone('manager')
+
   return (
     <EntityCrudPage<ProgramOutcomeStandalone>
       title="Program Outcome"
-      load={fetchProgramOutcomesStandalone}
+      load={managerLoad}
       create={managerCreate}
       update={updateProgramOutcomeStandalone}
       remove={deleteProgramOutcomeStandalone}
