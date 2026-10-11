@@ -434,59 +434,11 @@ function View({ userEmail }: ViewProps) {
             </tbody>
           </table>
 
-          {/* Program Outcomes (MANAGER) — separate section */}
+          {/* Curriculum Mapping — MANAGER outcomes with PEO/SG alignment matrix */}
           {managerGroups.length > 0 && (
-            <table className="sd-table sd-table--po-single">
-              <thead>
-                <tr>
-                  <th className="sd-po-single-title">PROGRAM OUTCOMES (MANAGER)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {managerGroups.map((group) => (
-                  <tr key={group.heading}>
-                    <td className="sd-po-single-section">
-                      <div className="sd-po-single-section__head">{group.heading}</div>
-                      {group.items.map((p, i, arr) => {
-                        const editingThis = edit && edit.kind === 'po' && edit.id === p.id
-                        const isLast = i === arr.length - 1
-                        const semicolon = isLast ? '.' : ';'
-                        return (
-                          <div key={p.id} className={`sd-po-single-outcome ${isActive(p) ? '' : 'sd-archived'}`}>
-                            {poLabel(p.code)}. {p.title.replace(/\.$/, '')}{semicolon}
-                            {editMode && (
-                              <span className="sd-po-single-item__actions">
-                                {rowActions('po', p.id)}
-                              </span>
-                            )}
-                            {editingThis && (
-                              <span className="sd-po-single-edit">
-                                <input
-                                  className="input input--sm"
-                                  value={edit.title}
-                                  onChange={(e) => setEdit({ ...edit, title: e.target.value })}
-                                  disabled={busy}
-                                />
-                              </span>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-
-          {/* Curriculum Mapping — 3-column matrix per PO section, matching the
-              syllabus document pages (Program Outcome | PEO | Strategic Goal).
-              Driven by each PO's peo_text / sg_text alignments.
-              Uses admin outcomes only (manager outcomes are separate). */}
-          {adminGroups.length > 0 && (
             <div className="sd-mapping">
               <div className="sd-band sd-band--center">CURRICULUM MAPPING</div>
-              {adminGroups.map((group) => (
+              {managerGroups.map((group) => (
                 <table key={group.heading} className="sd-table sd-table--mapping">
                   <thead>
                     <tr>
