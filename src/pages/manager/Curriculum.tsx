@@ -1,25 +1,27 @@
 // Manager Curriculum page: management of curriculum records.
 // Manager can create, edit, and archive/restore records, but cannot delete them.
-// Admins reuse this page with allowDelete to permanently delete archived records.
 // Every mutation writes an activity log entry (action only, no details).
 
 import { useState, useEffect } from 'react'
 import {
   fetchResources,
+  fetchCourses,
   createResource,
   updateResource,
-  deleteResource,
   addActivityLog,
 } from '../../services/database'
 import { supabase } from '../../utils/supabaseClient'
-import type { Resource } from '../../services/database'
+import { useSelection } from '../../hooks/useSelection'
+import type { Resource, Course } from '../../services/database'
+
+const relId = (v: string | { id: string } | null | undefined) =>
+  v && typeof v === 'object' ? v.id : v || ''
 
 interface CurriculumProps {
   userEmail: string
-  allowDelete?: boolean
 }
 
-function Curriculum({ userEmail: _userEmail, allowDelete = false }: CurriculumProps) {
+function Curriculum({ userEmail }: CurriculumProps) {
   const errMsg = (e: unknown) => {
     if (e instanceof Error) return e.message
     if (e && typeof e === 'object') {
@@ -45,6 +47,10 @@ function Curriculum({ userEmail: _userEmail, allowDelete = false }: CurriculumPr
   const [busy, setBusy] = useState(false)
   const [archived, setArchived] = useState(false)
   const [query, setQuery] = useState('')
+  // Browser-only selection: which card the user chose to view in detail.
+  const [selectedId, select, clearSelection] = useSelection('cqi.selected.curriculumId')
+  const [relatedCourses, setRelatedCourses] = useState<Course[]>([])
+  const [relatedLoading, setRelatedLoading] = useState(false)
 
   // Filtered lists
   const isActive = (i: Resource) => !i.status || i.status === 'active'
@@ -70,6 +76,21 @@ function Curriculum({ userEmail: _userEmail, allowDelete = false }: CurriculumPr
   }
 
   useEffect(() => { load() }, [])
+
+  // Load courses linked to the selected curriculum for the details panel.
+  useEffect(() => {
+    if (!selectedId) {
+      setRelatedCourses([])
+      return
+    }
+    setRelatedLoading(true)
+    fetchCourses()
+      .then((all) => setRelatedCourses(all.filter((c) => relId(c.curriculum_id) === selectedId)))
+      .catch(() => setRelatedCourses([]))
+      .finally(() => setRelatedLoading(false))
+  }, [selectedId])
+
+  const selectedItem = items.find((i) => i.id === selectedId) ?? null
 
   // Current user's UUID — required by the RLS insert policy (created_by = auth.uid()).
   const currentUserId = async () => {
@@ -157,21 +178,6 @@ function Curriculum({ userEmail: _userEmail, allowDelete = false }: CurriculumPr
     }
   }
 
-  // Permanently delete an archived record (admin only, RLS enforces the same).
-  const handleDelete = async (item: Resource) => {
-    if (!window.confirm(`Permanently delete curriculum record ${item.code || item.title}? This cannot be undone.`)) return
-    setError('')
-    setMessage('')
-    try {
-      await deleteResource(item.id)
-      await addActivityLog('resource.deleted')
-      setMessage('Resource deleted.')
-      load()
-    } catch (e) {
-      setError('Failed to delete resource: ' + errMsg(e))
-    }
-  }
-
   return (
     <div className="resources">
       <div className="page-heading">
@@ -247,7 +253,10 @@ function Curriculum({ userEmail: _userEmail, allowDelete = false }: CurriculumPr
               </div>
             )}
             {visible.map((item) => (
-              <div className={`resource-card ${item.status === 'archived' ? 'resource-card--archived' : ''}`} key={item.id}>
+              <div
+                className={`resource-card ${item.status === 'archived' ? 'resource-card--archived' : ''} ${selectedId === item.id ? 'resource-card--selected' : ''}`}
+                key={item.id}
+              >
                 {editingId === item.id ? (
                   <div className="resource-card__edit">
                     <label className="field">
@@ -300,6 +309,13 @@ function Curriculum({ userEmail: _userEmail, allowDelete = false }: CurriculumPr
                     </div>
 
                     <div className="resource-card__actions">
+                      <button
+                        className={`btn btn--sm ${selectedId === item.id ? 'btn--primary' : 'btn--ghost'}`}
+                        onClick={() => select(item.id)}
+                        aria-pressed={selectedId === item.id}
+                      >
+                        {selectedId === item.id ? 'Selected' : 'Select'}
+                      </button>
                       <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)}>
                         Edit
                       </button>
@@ -309,19 +325,47 @@ function Curriculum({ userEmail: _userEmail, allowDelete = false }: CurriculumPr
                       >
                         {item.status === 'active' ? 'Archive' : 'Restore'}
                       </button>
-                      {allowDelete && item.status === 'archived' && (
-                        <button
-                          className="btn btn--danger btn--sm"
-                          onClick={() => handleDelete(item)}
-                        >
-                          Delete
-                        </button>
-                      )}
                     </div>
                   </>
                 )}
               </div>
             ))}
+          </div>
+          <div className="selection-details" aria-live="polite">
+            {selectedItem ? (
+              <>
+                <div className="selection-details__header">
+                  <div>
+                    <strong>Selected: {selectedItem.code || selectedItem.title}</strong>
+                    {selectedItem.description && <p>{selectedItem.description}</p>}
+                    <div className="resource-card__meta">
+                      <span className={`status-badge status-badge--${selectedItem.status}`}>{selectedItem.status}</span>
+                      {selectedItem.units != null && <span>{selectedItem.units} units</span>}
+                    </div>
+                  </div>
+                  <button className="btn btn--ghost btn--sm" onClick={clearSelection}>
+                    Clear
+                  </button>
+                </div>
+                <div className="selection-details__body">
+                  {relatedLoading ? (
+                    <p>Loading linked courses...</p>
+                  ) : relatedCourses.length === 0 ? (
+                    <p>No courses linked to this curriculum yet.</p>
+                  ) : (
+                    <ul className="selection-details__list">
+                      {relatedCourses.map((c) => (
+                        <li key={c.id}>
+                          <strong>{c.code}</strong> — {c.title}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="selection-details__empty">Select a curriculum to see its details and linked courses.</p>
+            )}
           </div>
         </div>
       )}
