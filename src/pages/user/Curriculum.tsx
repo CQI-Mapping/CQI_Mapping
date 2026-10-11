@@ -91,10 +91,10 @@ function Curriculum() {
                 <div className="resource-card__actions">
                   <button
                     className={`btn btn--sm ${selectedId === item.id ? 'btn--primary' : 'btn--ghost'}`}
-                    onClick={() => select(item.id)}
+                    onClick={() => select(item.id)} aria-label={selectedId === item.id ? `Deselect ${item.code || item.title}` : `Select ${item.code || item.title}`} title={selectedId === item.id ? 'Selected' : 'Select'}
                     aria-pressed={selectedId === item.id}
                   >
-                    <Icon name="check" size={13} /> {selectedId === item.id ? 'Selected' : 'Select'}
+                    <Icon name="check" size={13} />
                   </button>
                 </div>
               </div>
@@ -126,10 +126,10 @@ function Curriculum() {
                 <div className="program-card__actions">
                   <button
                     className={`btn btn--sm ${selectedId === item.id ? 'btn--primary' : 'btn--ghost'}`}
-                    onClick={() => select(item.id)}
+                    onClick={() => select(item.id)} aria-label={selectedId === item.id ? `Deselect ${item.code || item.title}` : `Select ${item.code || item.title}`} title={selectedId === item.id ? 'Selected' : 'Select'}
                     aria-pressed={selectedId === item.id}
                   >
-                    <Icon name="check" size={13} /> {selectedId === item.id ? 'Selected' : 'Select'}
+                    <Icon name="check" size={13} />
                   </button>
                 </div>
               </div>

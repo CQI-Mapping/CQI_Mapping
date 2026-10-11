@@ -13,6 +13,7 @@ export type IconName =
   | 'list'
   | 'grid'
   | 'plus'
+  | 'x'
 
 const PATHS: Record<IconName, React.ReactNode> = {
   edit: <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />,
@@ -65,6 +66,12 @@ const PATHS: Record<IconName, React.ReactNode> = {
     <>
       <path d="M5 12h14" />
       <path d="M12 5v14" />
+    </>
+  ),
+  x: (
+    <>
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
     </>
   ),
 }

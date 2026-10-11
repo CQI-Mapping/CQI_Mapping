@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import EntityCrudPage, { type AlignmentOption, type AlignmentField } from './curriculum/EntityCrudPage.js'
+import EntityCrudPage, { type AlignmentOption, type AlignmentField } from '../admin/curriculum/EntityCrudPage.js'
 import {
   fetchProgramOutcomesStandalone,
   createProgramOutcomeStandalone,
@@ -13,9 +13,9 @@ import type { ProgramOutcomeStandalone } from '../../services/database'
 import type { SuggestionOption } from '../../components/SuggestionInput'
 
 const FIXED_OPTIONS = [
-  'Common to all programs in all types of schools',
-  'Bachelor of Science in Information Technology Program Outcomes (CMO 25 s. 2015)',
-  'SPECIFIC TO A SUB-DISCIPLINE AND A MAJOR (CMO 25 s. 2015)',
+  'COMMON TO ALL PROGRAMS IN ALL TYPES OF SCHOOLS',
+  'BACHELOR OF SCIENCE IN COMPUTER SCIENCE PROGRAM OUTCOMES ',
+  'COLLEGE DEFINED PROGRAM OUTCOME ',
 ]
 
 const toSuggestion = (i: { code: string; title: string | null }): SuggestionOption => ({
@@ -94,10 +94,10 @@ export default function ProgramOutcomes() {
       codePlaceholder="e.g. PO-1"
       codeWidth="110px"
       titleLabel="Description"
-      alignments={[alignments[2], alignments[0], alignments[1]]}
+      alignments={alignments.slice(0, 2)}
       tableAlignments={[alignments[2], alignments[0], alignments[1]]}
       inlineForm
-      stackedAlignments={[]}
+      stackedAlignments={[alignments[2]]}
       sort={(a, b) => {
         // Numeric PO order: PO-1 … PO-27 (fixes lexicographic PO-1, PO-10, PO-2)
         const n = (s: string) => {

@@ -17,16 +17,20 @@ export default function ViewModeToggle({ mode, onChange, label = 'Change view st
         className={`sd-tab ${mode === 'list' ? 'sd-tab--active' : ''}`}
         onClick={() => onChange('list')}
         aria-pressed={mode === 'list'}
+        aria-label="List view"
+        title="List view"
       >
-        <Icon name="list" size={13} /> List
+        <Icon name="list" size={14} />
       </button>
       <button
         type="button"
         className={`sd-tab ${mode === 'grid' ? 'sd-tab--active' : ''}`}
         onClick={() => onChange('grid')}
         aria-pressed={mode === 'grid'}
+        aria-label="Grid view"
+        title="Grid view"
       >
-        <Icon name="grid" size={13} /> Grid
+        <Icon name="grid" size={14} />
       </button>
     </div>
   )
