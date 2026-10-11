@@ -1,22 +1,15 @@
 import { useEffect, useState } from 'react'
-import EntityCrudPage, { type AlignmentOption, type AlignmentField } from '../admin/curriculum/EntityCrudPage.js'
+import EntityCrudPage, { type AlignmentField } from '../admin/curriculum/EntityCrudPage.js'
 import {
   fetchProgramOutcomesStandalone,
   createProgramOutcomeStandalone,
   updateProgramOutcomeStandalone,
   deleteProgramOutcomeStandalone,
-  fetchChedMemoOrders,
   fetchProgramEducationalObjectives,
   fetchStrategicGoals,
 } from '../../services/database'
 import type { ProgramOutcomeStandalone } from '../../services/database'
 import type { SuggestionOption } from '../../components/SuggestionInput'
-
-const FIXED_OPTIONS = [
-  'COMMON TO ALL PROGRAMS IN ALL TYPES OF SCHOOLS',
-  'BACHELOR OF SCIENCE IN COMPUTER SCIENCE PROGRAM OUTCOMES ',
-  'COLLEGE DEFINED PROGRAM OUTCOME ',
-]
 
 const toSuggestion = (i: { code: string; title: string | null }): SuggestionOption => ({
   value: i.code,
@@ -29,7 +22,6 @@ const toSgSuggestion = (i: { code: string; description: string | null }): Sugges
 })
 
 export default function ProgramOutcomes() {
-  const [cmoOptions, setCmoOptions] = useState<AlignmentOption[]>([])
   const [peoSuggestions, setPeoSuggestions] = useState<SuggestionOption[]>([])
   const [sgSuggestions, setSgSuggestions] = useState<SuggestionOption[]>([])
   const [loading, setLoading] = useState(true)
@@ -39,23 +31,12 @@ export default function ProgramOutcomes() {
     let cancelled = false
     ;(async () => {
       try {
-        const [pos, peos, sgs] = await Promise.all([
-          fetchProgramOutcomesStandalone('manager'),
+        const [peos, sgs] = await Promise.all([
           fetchProgramEducationalObjectives(),
           fetchStrategicGoals(),
         ])
-        const referencedCmos = new Set(pos.map((p) => p.cmo_id).filter(Boolean) as string[])
-        const cmos = (await fetchChedMemoOrders()).filter(
-          (c) => c.status === 'active' || referencedCmos.has(c.id),
-        )
-        const fixedOptions: AlignmentOption[] = FIXED_OPTIONS.map((v) => ({ value: v, cmo_id: null }))
-        const cmoOpts: AlignmentOption[] = cmos.map((c) => ({
-          value: `${c.title} (${c.code})`,
-          cmo_id: c.id,
-        }))
 
         if (!cancelled) {
-          setCmoOptions([...fixedOptions, ...cmoOpts])
           setPeoSuggestions(peos.filter((p) => p.status === 'active').map(toSuggestion))
           setSgSuggestions(sgs.filter((s) => s.status === 'active').map(toSgSuggestion))
           setLoading(false)
@@ -76,7 +57,6 @@ export default function ProgramOutcomes() {
   const alignments: AlignmentField[] = [
     { label: 'Program Educational Objectives Alignment', relationField: 'peo_text', options: [], type: 'suggest', suggestionOptions: peoSuggestions, placeholder: 'Type PEOs' },
     { label: 'Strategic Goals Alignment', relationField: 'sg_text', options: [], type: 'suggest', suggestionOptions: sgSuggestions, placeholder: 'Type Strategic Goals' },
-    { label: 'CMO Alignment', relationField: 'cmo_id', textField: 'description', options: cmoOptions },
   ]
 
   // Manager create: stamp source='manager' so View can separate admin vs manager inputs.
@@ -102,8 +82,8 @@ export default function ProgramOutcomes() {
       codePlaceholder="e.g. PO-1"
       codeWidth="110px"
       titleLabel="Description"
-      alignments={alignments.slice(0, 2)}
-      tableAlignments={[alignments[0], alignments[1]]}
+      alignments={alignments}
+      tableAlignments={alignments}
       inlineForm
       sort={(a, b) => {
         // Numeric PO order: PO-1 … PO-27 (fixes lexicographic PO-1, PO-10, PO-2)
