@@ -33,6 +33,11 @@ export default function ProgramOutcomesAdmin() {
   const [viewMode, setViewMode] = useViewMode('cqi.viewMode.programOutcomes')
   // Double-click detail view
   const [detail, setDetail] = useState<{ group: string; idx: number; item: ProgramOutcomeStandalone } | null>(null)
+  // Inline edit
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editCmoId, setEditCmoId] = useState('')
+  const [editNumber, setEditNumber] = useState('')
+  const [editDescription, setEditDescription] = useState('')
 
   // Form state
   const [cmoId, setCmoId] = useState('')
@@ -122,6 +127,52 @@ export default function ProgramOutcomesAdmin() {
       await load()
     } catch (e) {
       setError('Failed to delete: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const startEdit = (item: ProgramOutcomeStandalone) => {
+    const numMatch = (item.code || '').match(/PO-?(\d+)/i)
+    setEditingId(item.id)
+    setEditCmoId(item.cmo_id || (item as { cmo_text?: string }).cmo_text || '')
+    setEditNumber(numMatch ? numMatch[1] : '')
+    setEditDescription(item.description || item.title || '')
+    setDetail(null)
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+    setEditCmoId('')
+    setEditNumber('')
+    setEditDescription('')
+  }
+
+  const saveEdit = async (id: string) => {
+    setError('')
+    setError2('')
+    if (!editCmoId || !editNumber.trim() || !editDescription.trim()) {
+      setError('CMO, Number, and Description are required.')
+      return
+    }
+    setBusy(true)
+    try {
+      const isFixed = FIXED_CMO_OPTIONS.some((c) => c.id === editCmoId)
+      await updateProgramOutcomeStandalone(id, {
+        code: `PO-${editNumber.trim()}`,
+        title: editDescription.trim(),
+        description: editDescription.trim(),
+        cmo_id: isFixed ? null : editCmoId,
+        cmo_text: isFixed ? editCmoId : undefined,
+      })
+      setError2('Program Outcome updated.')
+      cancelEdit()
+      await load()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message
+        : (e && typeof e === 'object' && 'message' in e) ? String((e as { message: unknown }).message)
+        : String(e)
+      setError('Failed to update: ' + msg)
     } finally {
       setBusy(false)
     }
@@ -289,6 +340,52 @@ export default function ProgramOutcomesAdmin() {
                       onDoubleClick={() => setDetail({ group, idx, item })}
                       title="Double-click to view details"
                     >
+                      {editingId === item.id ? (
+                        <div className="resource-card__edit">
+                          <div className="create-resource__row create-resource__row--2col">
+                            <label className="field">
+                              <span>CMO Alignment</span>
+                              <select className="input input--sm" value={editCmoId} onChange={(e) => setEditCmoId(e.target.value)}>
+                                <option value="">Select CMO...</option>
+                                {FIXED_CMO_OPTIONS.map((c) => (
+                                  <option key={c.id} value={c.id}>{c.title}</option>
+                                ))}
+                                {cmos.map((c) => (
+                                  <option key={c.id} value={c.id}>{c.title} ({c.code})</option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="field">
+                              <span>Number</span>
+                              <input
+                                className="input input--sm"
+                                type="text"
+                                placeholder="e.g. 1"
+                                value={editNumber}
+                                onChange={(e) => setEditNumber(e.target.value)}
+                              />
+                            </label>
+                          </div>
+                          <label className="field">
+                            <span>Description</span>
+                            <textarea
+                              className="input input--sm"
+                              rows={2}
+                              value={editDescription}
+                              onChange={(e) => setEditDescription(e.target.value)}
+                            />
+                          </label>
+                          <div className="resource-card__actions">
+                            <button className="btn btn--primary btn--sm" onClick={() => saveEdit(item.id)} disabled={busy} title="Save">
+                              <Icon name="check" size={13} />
+                            </button>
+                            <button className="btn btn--ghost btn--sm" onClick={cancelEdit} title="Cancel">
+                              <Icon name="x" size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
                       <div className="resource-card__body">
                         <h4>
                           <span style={{ color: '#64748b', marginRight: 8 }}>{idx + 1}.</span>
@@ -304,8 +401,17 @@ export default function ProgramOutcomesAdmin() {
                       <div className="resource-card__actions">
                         <button
                           className="btn btn--ghost btn--sm"
+                          onClick={() => startEdit(item)}
+                          disabled={busy || !!editingId}
+                          title="Edit"
+                          aria-label={`Edit ${item.code}`}
+                        >
+                          <Icon name="edit" size={13} />
+                        </button>
+                        <button
+                          className="btn btn--ghost btn--sm"
                           onClick={() => handleArchive(item)}
-                          disabled={busy}
+                          disabled={busy || !!editingId}
                           title={isActive(item) ? 'Archive' : 'Restore'}
                           aria-label={isActive(item) ? `Archive ${item.code}` : `Restore ${item.code}`}
                         >
@@ -315,7 +421,7 @@ export default function ProgramOutcomesAdmin() {
                           <button
                             className="btn btn--danger btn--sm"
                             onClick={() => handleDelete(item)}
-                            disabled={busy}
+                            disabled={busy || !!editingId}
                             style={{ marginLeft: 'auto' }}
                             title="Delete"
                             aria-label={`Delete ${item.code}`}
@@ -324,6 +430,8 @@ export default function ProgramOutcomesAdmin() {
                           </button>
                         )}
                       </div>
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>
