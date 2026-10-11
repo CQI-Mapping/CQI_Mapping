@@ -604,7 +604,6 @@ export default function Course({ profile, onViewSubject, hideDelete }: CoursePro
                   </div>
                 ))}
               </div>
-            )
             )}
           </div>
         </>

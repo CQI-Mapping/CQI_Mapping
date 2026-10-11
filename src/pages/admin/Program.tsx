@@ -363,7 +363,6 @@ export default function Program() {
               </div>
             ))}
           </div>
-        )
         )}
         <div className="selection-details" aria-live="polite">
           {selectedItem ? (
