@@ -293,14 +293,6 @@ export default function Program() {
                   </div>
                 </div>
                 <div className="resource-card__actions">
-                  <button
-                    className={`btn btn--sm ${selectedId === item.id ? 'btn--primary' : 'btn--ghost'}`}
-                    onClick={() => select(item.id)} aria-label={selectedId === item.id ? `Deselect ${item.code}` : `Select ${item.code}`} title={selectedId === item.id ? 'Selected' : 'Select'}
-                    disabled={busy}
-                    aria-pressed={selectedId === item.id}
-                  >
-                    <Icon name="check" size={13} />
-                  </button>
                   <button className="btn btn--ghost btn--sm" onClick={() => openEdit(item)} disabled={busy} aria-label={`Edit ${item.code}`} title="Edit">
                     <Icon name="edit" size={13} />
                   </button>
@@ -341,14 +333,6 @@ export default function Program() {
                 <h3 className="program-card__name">{item.name}</h3>
                 <p className="program-card__desc">{item.description || 'No description provided.'}</p>
                 <div className="program-card__actions">
-                  <button
-                    className={`btn btn--sm ${selectedId === item.id ? 'btn--primary' : 'btn--ghost'}`}
-                    onClick={() => select(item.id)} aria-label={selectedId === item.id ? `Deselect ${item.code}` : `Select ${item.code}`} title={selectedId === item.id ? 'Selected' : 'Select'}
-                    disabled={busy}
-                    aria-pressed={selectedId === item.id}
-                  >
-                    <Icon name="check" size={13} />
-                  </button>
                   <button className="btn btn--ghost btn--sm" onClick={() => openEdit(item)} disabled={busy} aria-label={`Edit ${item.code}`} title="Edit">
                     <Icon name="edit" size={13} />
                   </button>
