@@ -28,6 +28,7 @@ import AdminChedMemoOrders from './pages/admin/ChedMemoOrders'
 import AdminStrategicGoals from './pages/admin/StrategicGoals'
 import AdminPEOs from './pages/admin/ProgramEducationalObjectives'
 import AdminProgramOutcomes from './pages/admin/ProgramOutcomes'
+import AdminProgramOutcomesAdmin from './pages/admin/ProgramOutcomesAdmin'
 import AdminCourseLearningOutcomes from './pages/admin/CourseLearningOutcomes'
 import AdminUsers from './pages/admin/Users'
 import AdminProgram from './pages/admin/Program'
@@ -84,7 +85,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     dashboard: AdminDashboard,
     program: AdminProgram,
     peos: AdminPEOs,
-    'program-outcomes': AdminProgramOutcomes,
+    'program-outcomes': AdminProgramOutcomesAdmin,
     curriculum: ManagerCurriculum,
     course: AdminCourse,
     clo: AdminCourseLearningOutcomes,
