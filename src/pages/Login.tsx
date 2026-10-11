@@ -32,10 +32,25 @@ function Login() {
     })
 
     if (error) {
-      // Generic message by design — don't reveal whether the email exists,
-      // whether it's a bad password, rate limit, etc.
-      recordLoginEvent(trimmedEmail, false, 'invalid_credentials')
-      setError('Invalid email or password.')
+      // Service/config failures must NOT masquerade as wrong passwords —
+      // otherwise a broken .env sends users chasing their credentials forever.
+      // (Credential rejections stay generic by design: never reveal whether
+      // the email exists, whether it's a bad password, rate limit, etc.)
+      const msg = (error.message || '').toLowerCase()
+      const status = (error as { status?: number }).status
+      const isServiceFailure =
+        status === 401 ||
+        status === 500 ||
+        msg.includes('api key') ||
+        msg.includes('failed to fetch') ||
+        msg.includes('network') ||
+        msg.includes('load failed')
+      recordLoginEvent(trimmedEmail, false, isServiceFailure ? 'service_unreachable' : 'invalid_credentials')
+      setError(
+        isServiceFailure
+          ? 'Cannot reach the auth service. Check your connection and .env keys, then restart the dev server.'
+          : 'Invalid email or password.',
+      )
       setBusy(false)
       return
     }
