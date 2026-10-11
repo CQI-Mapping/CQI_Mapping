@@ -1,16 +1,22 @@
-// Manager Users page: read-only faculty directory.
-// Account creation, role changes, and removal are admin-only
-// (the admin-users Edge Function requires the admin role, so a
-// manager calling it would always get 403 - RLS enforces the same).
+// Manager Users page: faculty directory + add faculty accounts.
+// Managers may create 'user' (faculty) accounts only — the admin-users Edge
+// Function forces the role to 'user' for manager callers. Role changes and
+// removal stay admin-only.
 
 import { useState, useEffect } from 'react'
-import { fetchAllProfiles } from '../../services/database'
+import { adminCreateUser, addActivityLog, fetchAllProfiles } from '../../services/database'
 import type { Profile } from '../../services/database'
 
 function Users() {
   const [users, setUsers] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [fullName, setFullName] = useState('')
+  const [busy, setBusy] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -26,14 +32,67 @@ function Users() {
 
   useEffect(() => { load() }, [])
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setSuccess('')
+    if (!email.trim() || !password.trim()) { setError('Email and password are required.'); return }
+    setBusy(true)
+    try {
+      await adminCreateUser(email.trim(), password, fullName.trim(), 'user')
+      await addActivityLog('user.created')
+      setSuccess(`Faculty ${email.trim()} created.`)
+      setEmail('')
+      setPassword('')
+      setFullName('')
+      load()
+    } catch (e) {
+      setError('Failed to create faculty: ' + (e instanceof Error ? e.message : String(e)))
+    } finally { setBusy(false) }
+  }
+
   return (
     <div className="users">
       <div className="page-heading">
         <h2>Users</h2>
-        <p>Faculty directory (read-only). Account creation and removal are admin-only.</p>
+        <p>Faculty directory. You can add faculty accounts; role changes and removal are admin-only.</p>
       </div>
 
       {error && <p className="msg msg--error" role="alert">{error}</p>}
+      {success && <p className="msg msg--success" role="status">{success}</p>}
+
+      <div className="panel create-user" style={{ borderTop: '3px solid #16a34a' }}>
+        <h3>Add Faculty</h3>
+        <form onSubmit={handleSubmit}>
+          <div className="create-user__row">
+            <label className="field">
+              <span>Email</span>
+              <input className="input" type="email" placeholder="faculty@example.com" value={email} required
+                onChange={(e) => setEmail(e.target.value)} />
+            </label>
+            <label className="field">
+              <span>Password</span>
+              <div className="password-wrapper">
+                <input className="input" type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••" value={password} required
+                  onChange={(e) => setPassword(e.target.value)} />
+                <button type="button" className="password-toggle" onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}>
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
+            </label>
+            <label className="field">
+              <span>Full name</span>
+              <input className="input" type="text" placeholder="Juan Dela Cruz" value={fullName}
+                onChange={(e) => setFullName(e.target.value)} />
+            </label>
+            <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
+              {busy ? 'Creating...' : 'Create Faculty'}
+            </button>
+          </div>
+        </form>
+      </div>
 
       {loading ? (
         <p>Loading users...</p>

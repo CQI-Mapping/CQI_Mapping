@@ -6,10 +6,15 @@
 //
 // The service-role key lives here only, as an injected secret on the hosted
 // Supabase runtime. Every request must carry the caller's JWT in the
-// Authorization header (supabase-js functions.invoke does this automatically),
-// and the caller's profiles.role must be 'admin'.
+// Authorization header (supabase-js functions.invoke does this automatically).
 //
-// Deploy once per project:
+// Tiered access:
+//   admin   — create any role (admin/manager/user), delete any account.
+//   manager — create 'user' (faculty) accounts only; any requested role is
+//             forced to 'user' so privilege escalation is impossible.
+//             Delete stays admin-only.
+//
+// Redeploy after changing this file:
 //   npx supabase login
 //   npx supabase link --project-ref <your-project-ref>
 //   npx supabase functions deploy admin-users
@@ -64,16 +69,18 @@ Deno.serve(async (req: Request) => {
     }
     const callerId = callerData.user.id
 
-    // 2. Only admins may manage accounts.
+    // 2. Admins manage all accounts; managers may only create faculty.
     const { data: callerProfile, error: profileError } = await admin
       .from('profiles')
       .select('role')
       .eq('id', callerId)
       .maybeSingle()
     if (profileError) throw profileError
-    if (callerProfile?.role !== 'admin') {
-      return fail('Forbidden: admin role required', 403)
+    const callerRole = callerProfile?.role ?? null
+    if (callerRole !== 'admin' && callerRole !== 'manager') {
+      return fail('Forbidden: admin or manager role required', 403)
     }
+    const isAdmin = callerRole === 'admin'
 
     // 3. Dispatch the action.
     const body = await req.json().catch(() => null)
@@ -82,9 +89,13 @@ Deno.serve(async (req: Request) => {
       const email = typeof body.email === 'string' ? body.email.trim() : ''
       const password = typeof body.password === 'string' ? body.password : ''
       const fullName = typeof body.fullName === 'string' ? body.fullName.trim() : ''
-      const role = ['admin', 'manager', 'user'].includes(body.role)
-        ? body.role
-        : 'user'
+      // Managers can only create faculty — force the role so a crafted
+      // request can never mint an admin or manager account.
+      const role = !isAdmin
+        ? 'user'
+        : ['admin', 'manager', 'user'].includes(body.role)
+          ? body.role
+          : 'user'
 
       if (!email || !password) {
         return fail('Email and password are required', 400)
@@ -110,6 +121,9 @@ Deno.serve(async (req: Request) => {
     }
 
     if (body?.action === 'delete') {
+      if (!isAdmin) {
+        return fail('Forbidden: admin role required', 403)
+      }
       const userId = typeof body.userId === 'string' ? body.userId : ''
       if (!userId) return fail('userId is required', 400)
       if (userId === callerId) {

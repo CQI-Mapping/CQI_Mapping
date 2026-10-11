@@ -180,8 +180,9 @@ export async function updateUserRole(profileId: string, role: UserRole): Promise
 }
 
 // Privileged account operations run through the admin-users Edge Function.
-// The service-role key stays on the server; the function verifies the caller
-// is an admin from their JWT before acting.
+// The service-role key stays on the server; the function verifies the
+// caller's role from their JWT (admins manage all accounts, managers may
+// only create faculty accounts) before acting.
 
 export interface AdminCreateUserResult {
   id: string
