@@ -566,16 +566,6 @@ export interface ProgramOutcomeStandalone {
   updated_at: string
 }
 
-export interface ProgramOutcomeStandalone {
-  id: string
-  code: string
-  title: string
-  description: string | null
-  status: string
-  created_at: string
-  updated_at: string
-}
-
 export async function fetchProgramOutcomesStandalone(): Promise<ProgramOutcomeStandalone[]> {
   const { data, error } = await supabase
     .from('admin_program_outcomes')

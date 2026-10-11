@@ -61,7 +61,18 @@ const DOC_VISION =
 const DOC_MISSION =
   'Northern Bukidnon State College is an accessible community-based institution that provides educational opportunities to develop students into socially responsible, competent, and productive professionals.'
 
-const poNumber = (code: string) => parseInt(code.replace(/[^0-9]/g, ''), 10)
+// Numbering helpers: digits parsed from the PO code (PO-1 -> 1).
+// Codes without digits (or blank codes) have no number — they sort last
+// and display the raw code instead of "NaN".
+const poDigits = (code: string) => {
+  const m = (code || '').match(/\d+/)
+  return m ? parseInt(m[0], 10) : null
+}
+const poNumber = (code: string) => poDigits(code) ?? 9999
+const poLabel = (code: string) => {
+  const d = poDigits(code)
+  return d === null ? (code || '—') : String(d)
+}
 
 const isActive = (item: { status?: string }) => !item.status || item.status === 'active'
 
@@ -99,7 +110,7 @@ function View({ userEmail }: ViewProps) {
       ])
       setGoals(g)
       setPeos(p)
-      setPos(po.sort((a, b) => poNumber(a.code) - poNumber(b.code)))
+      setPos(po.sort((a, b) => poNumber(a.code) - poNumber(b.code) || a.code.localeCompare(b.code)))
       setClos(clo)
       setCourses(c)
     } catch (e) {
@@ -369,7 +380,7 @@ function View({ userEmail }: ViewProps) {
                       const semicolon = isLast ? '.' : ';'
                       return (
                         <div key={p.id} className={`sd-po-single-outcome ${isActive(p) ? '' : 'sd-archived'}`}>
-                          {poNumber(p.code)}. {p.title.replace(/\.$/, '')}{semicolon}
+                          {poLabel(p.code)}. {p.title.replace(/\.$/, '')}{semicolon}
                           {editMode && (
                             <span className="sd-po-single-item__actions">
                               {rowActions('po', p.id)}
@@ -415,7 +426,7 @@ function View({ userEmail }: ViewProps) {
                   <tbody>
                     {group.items.map((p) => (
                       <tr key={p.id}>
-                        <td>{poNumber(p.code)}. {p.title.replace(/\.$/, '')}</td>
+                        <td>{poLabel(p.code)}. {p.title.replace(/\.$/, '')}</td>
                         <td>{p.peo_text?.trim() || '—'}</td>
                         <td>{p.sg_text?.trim() || '—'}</td>
                       </tr>
