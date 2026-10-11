@@ -4,6 +4,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useEntityCrud } from './curriculum/useEntityCrud.js'
+import { useViewMode } from '../../hooks/useViewMode'
+import ViewModeToggle from '../../components/ViewModeToggle'
 import {
   fetchCourseLearningOutcomesStandalone,
   createCourseLearningOutcomeStandalone,
@@ -50,6 +52,8 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   const [archived, setArchived] = useState(false)
   const [query, setQuery] = useState('')
   const [bulkBusy, setBulkBusy] = useState(false)
+  // List (default) or grid card style — the user decides per browser.
+  const [viewMode, setViewMode] = useViewMode('cqi.viewMode.clo')
   // Bumps to re-render fused lists after local reject/memory writes.
   const [memTick, setMemTick] = useState(0)
   // Auto-fill guards: draft text already auto-applied (or dismissed) per form.
@@ -267,6 +271,81 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   const totalCount = items.length
   const activeCount = items.filter(isActive).length
 
+  // Shared edit form used by both grid and list card styles.
+  const renderEdit = () => (
+    <>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <select className="input input--sm" value={editForm.course} onChange={(e) => setEditForm({ ...editForm, course: e.target.value })}>
+          <option value="">Select course</option>
+          {courses.map((c) => (
+            <option key={c.id} value={c.code}>{c.code}</option>
+          ))}
+          {editForm.course && !courses.some((c) => c.code === editForm.course) && (
+            <option value={editForm.course}>{editForm.course} (legacy)</option>
+          )}
+        </select>
+        <input className="input input--sm" value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} placeholder="CLO Code" />
+      </div>
+      <textarea className="input input--sm" rows={2} ref={autoResize} value={editForm.description} onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} placeholder="Description" />
+      <SuggestionInput value={editForm.programOutcomes} onChange={(v) => setEditForm({ ...editForm, programOutcomes: v })} options={poSuggestions} placeholder="Type to search POs" />
+      {editDisplay.length > 0 ? (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '6px 0' }}>
+          <span style={{ fontSize: 12, color: '#64748b', width: '100%' }}>
+            {editDisplay[0].raw > 0 ? 'Closest for this description:' : 'Best guesses (low confidence):'}
+          </span>
+          {editDisplay.map((r) => (
+            <span key={r.code} style={{ display: 'inline-flex', alignItems: 'stretch', gap: 2 }}>
+              <button type="button" className="btn btn--ghost btn--sm"
+                style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: 3 }}
+                title={`${r.matched.length > 0 ? `${r.label} — shown ${r.shown}% (raw ${r.raw}%: ${r.matched.join(', ')})` : `${r.label} — shown ${r.shown}% (raw ${r.raw}% semantic)`}${pickedBefore(editForm.description, r.code) ? ' • picked before' : ''}`}
+                onClick={() => { logPick(editForm.description, r.code); setEditForm((f) => ({ ...f, programOutcomes: appendPo(f.programOutcomes, r.code) })) }}>
+                <span>{r.raw > 0 ? `${r.code} · ${r.shown}%` : `~ ${r.code}`}</span>
+                <span aria-hidden="true" style={{ height: 3, borderRadius: 999, background: '#f1f5f9', overflow: 'hidden' }}>
+                  <span style={{
+                    display: 'block', height: '100%', width: `${Math.min(100, r.shown)}%`,
+                    background: r.raw >= 60 ? '#16a34a' : r.raw >= 30 ? '#d97706' : '#94a3b8',
+                  }} />
+                </span>
+              </button>
+              <button type="button" className="btn btn--ghost btn--sm" title={`Not this PO for this description`}
+                aria-label={`Reject ${r.code} for this description`}
+                onClick={() => logReject(editForm.description, r.code)}>✕</button>
+            </span>
+          ))}
+          <span style={{ fontSize: 12, color: '#64748b', width: '100%' }}>
+            {editDisplay[0].matched.length > 0
+              ? `Because: ${editDisplay[0].matched.slice(0, 4).join(', ')}`
+              : editDisplay[0].raw > 0
+                ? 'Meaning match (no shared words).'
+                : 'No word overlap — try words like design, develop, evaluate.'}
+          </span>
+        </div>
+      ) : editForm.description.trim().length >= 4 && (
+        <div style={{ fontSize: 12, color: '#64748b', margin: '6px 0' }}>
+          {poTexts.length === 0
+            ? 'No Program Outcomes yet — create one on the Program Outcomes page first.'
+            : 'No close match — try words like design, develop, evaluate, or pick manually above.'}
+        </div>
+      )}
+      {autoEditFor.current === editForm.description && editForm.programOutcomes.trim() && (
+        <div style={{ fontSize: 12, color: '#15803d', margin: '6px 0' }}>
+          Auto-filled {editForm.programOutcomes.trim()} —{' '}
+          <button type="button" className="btn btn--ghost btn--sm"
+            onClick={() => {
+              autoEditFor.current = `dismissed:${editForm.description}`
+              setEditForm((f) => ({ ...f, programOutcomes: '' }))
+            }}>
+            Undo
+          </button>
+        </div>
+      )}
+      <div className="program-card__actions">
+        <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>Save</button>
+        <button className="btn btn--ghost btn--sm" onClick={() => setEditingId(null)}>Cancel</button>
+      </div>
+    </>
+  )
+
   return (
     <div className="programs-page curriculum-view">
       <div className="program-hero">
@@ -420,6 +499,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                 Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
               </button>
             </div>
+            <ViewModeToggle mode={viewMode} onChange={setViewMode} />
             <label className="program-search" aria-label="Search CLOs">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="M20 20L15.5 15.5"/></svg>
               <input className="input input--sm" type="search" placeholder="Search CLOs..." value={query} onChange={(e) => setQuery(e.target.value)} />
@@ -452,83 +532,41 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
               <strong>No course learning outcomes yet.</strong>
               <span>{query ? `No results for "${query}"` : 'Add your first CLO above.'}</span>
             </div>
+          ) : viewMode === 'list' ? (
+            <div className="resource-list">
+              {visible.map((item) => (
+                <div key={item.id} className={`resource-card ${isActive(item) ? '' : 'resource-card--archived'}`}>
+                  {editingId === item.id ? renderEdit() : (
+                    <>
+                      <div className="resource-card__body">
+                        <h4>{item.code} — {item.course || 'No course'}</h4>
+                        {item.description && <p>{item.description}</p>}
+                        <div style={{ fontSize: 12.5, background: '#f8fafc', border: '1px solid #f1f5f9', borderRadius: 8, padding: '8px 10px', color: '#475569', marginTop: 6 }}>
+                          <strong style={{ color: '#64748b' }}>POs:</strong> {item.title || '—'}
+                        </div>
+                        <div className="resource-card__meta" style={{ marginTop: 6 }}>
+                          <span className={`status-badge status-badge--${isActive(item) ? 'active' : 'archived'}`}>{isActive(item) ? 'Active' : 'Archived'}</span>
+                        </div>
+                      </div>
+                      <div className="resource-card__actions">
+                        <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} disabled={busy || !!editingId}>Edit</button>
+                        <button className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleUpdate(item.id, { status: isActive(item) ? 'archived' : 'active' }, 'clo.updated')} disabled={busy || !!editingId}>
+                          {isActive(item) ? 'Archive' : 'Restore'}
+                        </button>
+                        {!isActive(item) && (
+                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'clo.deleted')} disabled={busy || !!editingId} style={{ marginLeft: 'auto' }}>Delete</button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
           ) : (
             <div className="program-grid" style={{ marginTop: 14 }}>
               {visible.map((item) => (
                 <div key={item.id} className="program-card--2026 card-enter" data-status={isActive(item) ? 'active' : 'archived'}>
-                  {editingId === item.id ? (
-                    <>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                        <select className="input input--sm" value={editForm.course} onChange={(e) => setEditForm({ ...editForm, course: e.target.value })}>
-                          <option value="">Select course</option>
-                          {courses.map((c) => (
-                            <option key={c.id} value={c.code}>{c.code}</option>
-                          ))}
-                          {editForm.course && !courses.some((c) => c.code === editForm.course) && (
-                            <option value={editForm.course}>{editForm.course} (legacy)</option>
-                          )}
-                        </select>
-                        <input className="input input--sm" value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} placeholder="CLO Code" />
-                      </div>
-                      <textarea className="input input--sm" rows={2} ref={autoResize} value={editForm.description} onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} placeholder="Description" />
-                      <SuggestionInput value={editForm.programOutcomes} onChange={(v) => setEditForm({ ...editForm, programOutcomes: v })} options={poSuggestions} placeholder="Type to search POs" />
-                      {editDisplay.length > 0 ? (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '6px 0' }}>
-                          <span style={{ fontSize: 12, color: '#64748b', width: '100%' }}>
-                            {editDisplay[0].raw > 0 ? 'Closest for this description:' : 'Best guesses (low confidence):'}
-                          </span>
-                          {editDisplay.map((r) => (
-                            <span key={r.code} style={{ display: 'inline-flex', alignItems: 'stretch', gap: 2 }}>
-                              <button type="button" className="btn btn--ghost btn--sm"
-                                style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: 3 }}
-                                title={`${r.matched.length > 0 ? `${r.label} — shown ${r.shown}% (raw ${r.raw}%: ${r.matched.join(', ')})` : `${r.label} — shown ${r.shown}% (raw ${r.raw}% semantic)`}${pickedBefore(editForm.description, r.code) ? ' • picked before' : ''}`}
-                                onClick={() => { logPick(editForm.description, r.code); setEditForm((f) => ({ ...f, programOutcomes: appendPo(f.programOutcomes, r.code) })) }}>
-                                <span>{r.raw > 0 ? `${r.code} · ${r.shown}%` : `~ ${r.code}`}</span>
-                                <span aria-hidden="true" style={{ height: 3, borderRadius: 999, background: '#f1f5f9', overflow: 'hidden' }}>
-                                  <span style={{
-                                    display: 'block', height: '100%', width: `${Math.min(100, r.shown)}%`,
-                                    background: r.raw >= 60 ? '#16a34a' : r.raw >= 30 ? '#d97706' : '#94a3b8',
-                                  }} />
-                                </span>
-                              </button>
-                              <button type="button" className="btn btn--ghost btn--sm" title={`Not this PO for this description`}
-                                aria-label={`Reject ${r.code} for this description`}
-                                onClick={() => logReject(editForm.description, r.code)}>✕</button>
-                            </span>
-                          ))}
-                          <span style={{ fontSize: 12, color: '#64748b', width: '100%' }}>
-                            {editDisplay[0].matched.length > 0
-                              ? `Because: ${editDisplay[0].matched.slice(0, 4).join(', ')}`
-                              : editDisplay[0].raw > 0
-                                ? 'Meaning match (no shared words).'
-                                : 'No word overlap — try words like design, develop, evaluate.'}
-                          </span>
-                        </div>
-                      ) : editForm.description.trim().length >= 4 && (
-                        <div style={{ fontSize: 12, color: '#64748b', margin: '6px 0' }}>
-                          {poTexts.length === 0
-                            ? 'No Program Outcomes yet — create one on the Program Outcomes page first.'
-                            : 'No close match — try words like design, develop, evaluate, or pick manually above.'}
-                        </div>
-                      )}
-                      {autoEditFor.current === editForm.description && editForm.programOutcomes.trim() && (
-                        <div style={{ fontSize: 12, color: '#15803d', margin: '6px 0' }}>
-                          Auto-filled {editForm.programOutcomes.trim()} —{' '}
-                          <button type="button" className="btn btn--ghost btn--sm"
-                            onClick={() => {
-                              autoEditFor.current = `dismissed:${editForm.description}`
-                              setEditForm((f) => ({ ...f, programOutcomes: '' }))
-                            }}>
-                            Undo
-                          </button>
-                        </div>
-                      )}
-                      <div className="program-card__actions">
-                        <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>Save</button>
-                        <button className="btn btn--ghost btn--sm" onClick={() => setEditingId(null)}>Cancel</button>
-                      </div>
-                    </>
-                  ) : (
+                  {editingId === item.id ? renderEdit() : (
                     <>
                       <div className="program-card__top">
                         <span className="program-card__code">{item.code}</span>
