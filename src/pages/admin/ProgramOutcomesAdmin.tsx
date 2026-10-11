@@ -3,6 +3,8 @@
 // Cards show numbered outcomes with edit/archive/delete icon buttons.
 
 import { useEffect, useState } from 'react'
+import { useViewMode } from '../../hooks/useViewMode'
+import ViewModeToggle from '../../components/ViewModeToggle'
 import Icon from '../../components/icons'
 import {
   fetchProgramOutcomesStandalone,
@@ -27,6 +29,8 @@ export default function ProgramOutcomesAdmin() {
   const [success, setError2] = useState('')
   const [busy, setBusy] = useState(false)
   const [archived, setArchived] = useState(false)
+  const [query, setQuery] = useState('')
+  const [viewMode, setViewMode] = useViewMode('cqi.viewMode.programOutcomes')
   // Double-click detail view
   const [detail, setDetail] = useState<{ group: string; idx: number; item: ProgramOutcomeStandalone } | null>(null)
 
@@ -215,101 +219,193 @@ export default function ProgramOutcomesAdmin() {
 
       {/* Categorized resource cards */}
       {loading ? (
-        <p>Loading program outcomes...</p>
+        <div className="program-grid" style={{ marginTop: 8 }}>
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="program-card--2026" style={{ opacity: 0.6 }}>
+              <div style={{ height: 12, background: '#f1f5f9', borderRadius: 6, width: '40%' }} />
+              <div style={{ height: 16, background: '#f1f5f9', borderRadius: 6 }} />
+              <div style={{ height: 40, background: '#f8fafc', borderRadius: 6 }} />
+            </div>
+          ))}
+        </div>
       ) : (
-        <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Active/Archive tabs */}
-          <div className="program-toolbar" style={{ marginBottom: 0 }}>
+        <div className="program-panel">
+          <div className="program-toolbar">
             <div className="sd-tabs" style={{ marginBottom: 0, flex: 1 }}>
               <button className={`sd-tab ${!archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(false)}>Active</button>
               <button className={`sd-tab ${archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(true)}>
                 Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
               </button>
             </div>
+            <ViewModeToggle mode={viewMode} onChange={setViewMode} />
+            <label className="program-search" aria-label="Search outcomes">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="11" cy="11" r="7" />
+                <path d="M20 20L15.5 15.5" />
+              </svg>
+              <input
+                className="input input--sm"
+                type="search"
+                placeholder="Search outcomes..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </label>
           </div>
 
-          {Array.from(cmoMap.entries()).map(([cmoIdKey, group]) => {
-            const visible = filteredGroup(group)
-            return (
-              <div key={cmoIdKey} className="panel table-wrap">
-                <h3 style={{ marginBottom: 12 }}>
-                  {cmoIdKey === 'uncategorized' ? 'Uncategorized' : cmoLabel(cmoIdKey)}
-                </h3>
-                {visible.length === 0 ? (
-                  <p style={{ color: '#64748b' }}>No {archived ? 'archived' : 'active'} outcomes yet.</p>
-                ) : (
-                  <div className="resource-list">
-                    {[...visible].sort(sortPo).map((item, idx) => (
-                      <div
-                        key={item.id}
-                        className={`resource-card ${isActive(item) ? '' : 'resource-card--archived'}`}
-                        onDoubleClick={() => setDetail({ group: cmoIdKey, idx, item })}
-                        title="Double-click to view details"
-                      >
-                        <div className="resource-card__body">
-                          <h4>
-                            <span style={{ color: '#64748b', marginRight: 8 }}>{idx + 1}.</span>
-                            {item.description || item.title || '—'}
-                          </h4>
-                          <div className="resource-card__meta">
-                            <span className={`status-badge status-badge--${isActive(item) ? 'active' : 'archived'}`}>
-                              {isActive(item) ? 'Active' : 'Archived'}
-                            </span>
-                            <span>{item.code}</span>
-                          </div>
-                        </div>
-                        <div className="resource-card__actions">
-                          <button
-                            className="btn btn--ghost btn--sm"
-                            onClick={() => handleArchive(item)}
-                            disabled={busy}
-                            title={isActive(item) ? 'Archive' : 'Restore'}
-                            aria-label={isActive(item) ? `Archive ${item.code}` : `Restore ${item.code}`}
-                          >
-                            <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} />
-                          </button>
-                          {!isActive(item) && (
-                            <button
-                              className="btn btn--danger btn--sm"
-                              onClick={() => handleDelete(item)}
-                              disabled={busy}
-                              style={{ marginLeft: 'auto' }}
-                              title="Delete"
-                              aria-label={`Delete ${item.code}`}
-                            >
-                              <Icon name="trash" size={13} />
-                            </button>
-                          )}
+          {(() => {
+            // Flatten all outcomes into one list with their CMO group and index.
+            const allItems: { item: ProgramOutcomeStandalone; group: string; groupIdx: number; idx: number }[] = []
+            for (const [cmoIdKey, group] of Array.from(cmoMap.entries())) {
+              const visible = filteredGroup(group)
+              visible.sort(sortPo)
+              visible.forEach((item, idx) => {
+                allItems.push({ item, group: cmoIdKey, groupIdx: idx, idx })
+              })
+            }
+            const q = query.trim().toLowerCase()
+            const filtered = q
+              ? allItems.filter((x) =>
+                  [x.item.description || '', x.item.title || '', x.item.code || '', cmoLabel(x.group)]
+                    .some((v) => (v || '').toLowerCase().includes(q)))
+              : allItems
+
+            if (filtered.length === 0) {
+              return (
+                <div className="program-empty" style={{ marginTop: 14 }}>
+                  <strong>No {archived ? 'archived' : 'active'} outcomes yet.</strong>
+                  <span>{q ? `No results for "${query}"` : 'Add your first program outcome above.'}</span>
+                </div>
+              )
+            }
+
+            if (viewMode === 'list') {
+              return (
+                <div className="resource-list">
+                  {filtered.map(({ item, group, idx }) => (
+                    <div
+                      key={item.id}
+                      className={`resource-card ${isActive(item) ? '' : 'resource-card--archived'}`}
+                      onDoubleClick={() => setDetail({ group, idx, item })}
+                      title="Double-click to view details"
+                    >
+                      <div className="resource-card__body">
+                        <h4>
+                          <span style={{ color: '#64748b', marginRight: 8 }}>{idx + 1}.</span>
+                          {item.description || item.title || '—'}
+                        </h4>
+                        <p style={{ fontSize: 12.5, color: '#475569', marginTop: 4 }}>{cmoLabel(group)}</p>
+                        <div className="resource-card__meta">
+                          <span className={`status-badge status-badge--${isActive(item) ? 'active' : 'archived'}`}>
+                            {isActive(item) ? 'Active' : 'Archived'}
+                          </span>
+                          <span>{item.code}</span>
                         </div>
                       </div>
-                    ))}
+                      <div className="resource-card__actions">
+                        <button
+                          className="btn btn--ghost btn--sm"
+                          onClick={() => handleArchive(item)}
+                          disabled={busy}
+                          title={isActive(item) ? 'Archive' : 'Restore'}
+                          aria-label={isActive(item) ? `Archive ${item.code}` : `Restore ${item.code}`}
+                        >
+                          <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} />
+                        </button>
+                        {!isActive(item) && (
+                          <button
+                            className="btn btn--danger btn--sm"
+                            onClick={() => handleDelete(item)}
+                            disabled={busy}
+                            style={{ marginLeft: 'auto' }}
+                            title="Delete"
+                            aria-label={`Delete ${item.code}`}
+                          >
+                            <Icon name="trash" size={13} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
+            }
+
+            // Grid view
+            return (
+              <div className="program-grid" style={{ marginTop: 14 }}>
+                {filtered.map(({ item, group, idx }) => (
+                  <div
+                    key={item.id}
+                    className="program-card--2026 card-enter"
+                    data-status={isActive(item) ? 'active' : 'archived'}
+                    onDoubleClick={() => setDetail({ group, idx, item })}
+                    title="Double-click to view details"
+                  >
+                    <div className="program-card__top">
+                      <span className="program-card__code">{item.code}</span>
+                      <span className={`program-card__status ${isActive(item) ? 'program-card__status--active' : 'program-card__status--archived'}`}>
+                        <span className="program-card__status-dot" />
+                        {isActive(item) ? 'Active' : 'Archived'}
+                      </span>
+                    </div>
+                    <h3 className="program-card__name">
+                      <span style={{ color: '#64748b', marginRight: 6 }}>{idx + 1}.</span>
+                      {item.description || item.title || '—'}
+                    </h3>
+                    <p style={{ fontSize: 12.5, color: '#475569' }}>{cmoLabel(group)}</p>
+                    <div className="program-card__actions">
+                      <button
+                        className="btn btn--ghost btn--sm"
+                        onClick={() => handleArchive(item)}
+                        disabled={busy}
+                        title={isActive(item) ? 'Archive' : 'Restore'}
+                        aria-label={isActive(item) ? `Archive ${item.code}` : `Restore ${item.code}`}
+                      >
+                        <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} />
+                      </button>
+                      {!isActive(item) && (
+                        <button
+                          className="btn btn--danger btn--sm"
+                          onClick={() => handleDelete(item)}
+                          disabled={busy}
+                          style={{ marginLeft: 'auto' }}
+                          title="Delete"
+                          aria-label={`Delete ${item.code}`}
+                        >
+                          <Icon name="trash" size={13} />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                )}
+                ))}
               </div>
             )
-          })}
-        </div>
-      )}
+          })()}
 
-      {/* Detail panel (double-click) */}
-      {detail && (
-        <div className="selection-details" aria-live="polite" style={{ marginTop: 16 }}>
-          <div className="selection-details__header">
-            <div>
-              <strong>{cmoLabel(detail.group)}</strong>
-              <p>{detail.idx + 1}. {detail.item.description || detail.item.title || '—'}</p>
-            </div>
-            <button className="btn btn--ghost btn--sm" onClick={() => setDetail(null)}>
-              Close
-            </button>
-          </div>
-          <div className="selection-details__body">
-            <div className="resource-card__meta">
-              <span className={`status-badge status-badge--${isActive(detail.item) ? 'active' : 'archived'}`}>
-                {isActive(detail.item) ? 'Active' : 'Archived'}
-              </span>
-              <span>{detail.item.code}</span>
-            </div>
+          {/* Selection details — shows the double-clicked outcome */}
+          <div className="selection-details" aria-live="polite">
+            {detail ? (
+              <>
+                <div className="selection-details__header">
+                  <div>
+                    <strong>{cmoLabel(detail.group)}</strong>
+                    <p>{detail.idx + 1}. {detail.item.description || detail.item.title || '—'}</p>
+                    <div className="resource-card__meta">
+                      <span className={`status-badge status-badge--${isActive(detail.item) ? 'active' : 'archived'}`}>
+                        {isActive(detail.item) ? 'Active' : 'Archived'}
+                      </span>
+                      <span>{detail.item.code}</span>
+                    </div>
+                  </div>
+                  <button className="btn btn--ghost btn--sm" onClick={() => setDetail(null)}>
+                    Close
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p className="selection-details__empty">Double-click a program outcome to see its details.</p>
+            )}
           </div>
         </div>
       )}
