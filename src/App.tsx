@@ -6,9 +6,10 @@
 // mirroring the reference repo's per-role structure.
 //
 // Admin role pages (sidebar order):
-//   Dashboard, Program Educational Objectives, Program Outcomes,
-//   Curriculum, Course, Course Learning Outcomes, Strategic Goals,
-//   CHED Memorandum Orders, Users & Accounts, Activity Logs, Profile
+//   Dashboard, Program, CHED Memorandum Orders, Strategic Goals,
+//   Program Educational Objectives, Program Outcomes,
+//   Curriculum, Course, Course Learning Outcomes, Subject Graph,
+//   Curriculum Report (View), Users & Accounts, Activity Logs, Profile
 
 import { useState, useEffect, useRef } from 'react'
 import Sidebar from './components/Sidebar'
@@ -31,6 +32,8 @@ import AdminUsers from './pages/admin/Users'
 import AdminProgram from './pages/admin/Program'
 import AdminCourse from './pages/admin/Course'
 import AdminSubjectView from './pages/admin/SubjectView'
+import AdminView from './pages/admin/View'
+import UserCurriculum from './pages/user/Curriculum'
 import { supabase } from './utils/supabaseClient'
 import { ensureProfile, syncDemoRole } from './services/database'
 import type { Profile as ProfileType, UserRole, NavItem } from './services/database'
@@ -48,6 +51,7 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'course', label: 'Course' },
     { id: 'clo', label: 'Course Learning Outcomes' },
     { id: 'subject-view', label: 'Subject Graph' },
+    { id: 'view', label: 'Curriculum Report' },
     { id: 'users', label: 'Users & Accounts' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
@@ -65,6 +69,7 @@ const NAV: Record<UserRole, NavItem[]> = {
   user: [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'clo', label: 'Course Learning Outcomes' },
+    { id: 'curriculum', label: 'Curriculum' },
     { id: 'subject-view', label: 'Subject Graph' },
     { id: 'profile', label: 'Profile' },
   ],
@@ -82,6 +87,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     course: AdminCourse,
     clo: AdminCourseLearningOutcomes,
     'subject-view': AdminSubjectView,
+    view: AdminView,
     'strategic-goals': AdminStrategicGoals,
     'ched-memo': AdminChedMemoOrders,
     users: AdminUsers,
@@ -101,6 +107,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
   user: {
     dashboard: UserDashboard,
     clo: AdminCourseLearningOutcomes,
+    curriculum: UserCurriculum,
     'subject-view': AdminSubjectView,
     profile: Profile,
   },
@@ -269,6 +276,8 @@ function App() {
     if (page === 'profile') return <Page profile={profile} onSaved={setProfile} />
     if (page === 'users') return <Page />
     if (page === 'curriculum' && role !== 'user') return <Page userEmail={profile?.email} />
+    if (page === 'curriculum' && role === 'user') return <Page />
+    if (page === 'view') return <Page userEmail={profile?.email} />
     return <Page profile={profile} onNavigate={setActivePage} />
   }
 
