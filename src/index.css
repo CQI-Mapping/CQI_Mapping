@@ -2434,6 +2434,37 @@ code {
   font-size: 13.5px;
 }
 
+/* Curriculum Mapping matrix — 3-column tables matching the syllabus pages:
+   wide Program Outcome column, narrow PEO / Strategic Goal alignment columns */
+.sd-mapping {
+  margin-bottom: 14px;
+}
+
+.sd-table--mapping {
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 13px;
+}
+
+.sd-mapping__section {
+  text-align: center !important;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+}
+
+.sd-table--mapping .sd-mapping__col-po {
+  width: 62%;
+}
+
+.sd-table--mapping .sd-mapping__col-align {
+  width: 19%;
+}
+
+.sd-table--mapping td:nth-child(2),
+.sd-table--mapping td:nth-child(3) {
+  text-align: center;
+}
+
 /* Single-column Program Outcomes table — official academic document format */
 .sd-table--po-single {
   width: 100%;

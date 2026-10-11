@@ -1,5 +1,8 @@
 // Admin Curriculum Map: printable report that mirrors the VCQI course
-// syllabus document (IT21 - Object Oriented Programming) page by page.
+// syllabus document (IT21 - Object Oriented Programming) page by page:
+// letterhead, title block, Vision/Mission/Goals/PEO table, Program Outcomes
+// list, Curriculum Mapping matrix (PO x PEO x Strategic Goal per section),
+// CLO-to-PO table, then course details.
 //
 // All report data is loaded from the database: strategic goals, PEOs and
 // program outcomes (standalone tables), course learning outcomes, and the
@@ -390,6 +393,38 @@ function View({ userEmail }: ViewProps) {
               ))}
             </tbody>
           </table>
+
+          {/* Curriculum Mapping — 3-column matrix per PO section, matching the
+              syllabus document pages (Program Outcome | PEO | Strategic Goal).
+              Driven by each PO's peo_text / sg_text alignments. */}
+          {poGroups.length > 0 && (
+            <div className="sd-mapping">
+              <div className="sd-band sd-band--center">CURRICULUM MAPPING</div>
+              {poGroups.map((group) => (
+                <table key={group.heading} className="sd-table sd-table--mapping">
+                  <thead>
+                    <tr>
+                      <th colSpan={3} className="sd-mapping__section">{group.heading}</th>
+                    </tr>
+                    <tr>
+                      <th className="sd-mapping__col-po">Program Outcomes</th>
+                      <th className="sd-mapping__col-align">Program Educational Objectives</th>
+                      <th className="sd-mapping__col-align">Strategic Goals</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {group.items.map((p) => (
+                      <tr key={p.id}>
+                        <td>{poNumber(p.code)}. {p.title.replace(/\.$/, '')}</td>
+                        <td>{p.peo_text?.trim() || '—'}</td>
+                        <td>{p.sg_text?.trim() || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ))}
+            </div>
+          )}
 
           {/* Course Learning Outcomes */}
           {clos.length > 0 && (
