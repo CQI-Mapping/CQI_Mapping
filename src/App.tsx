@@ -275,7 +275,7 @@ function App() {
     if (page === 'dashboard') return <Page profile={profile} onNavigate={setActivePage} />
     if (page === 'profile') return <Page profile={profile} onSaved={setProfile} />
     if (page === 'users') return <Page />
-    if (page === 'curriculum' && role !== 'user') return <Page userEmail={profile?.email} />
+    if (page === 'curriculum' && role !== 'user') return <Page userEmail={profile?.email} allowDelete={role === 'admin'} />
     if (page === 'curriculum' && role === 'user') return <Page />
     if (page === 'view') return <Page userEmail={profile?.email} />
     return <Page profile={profile} onNavigate={setActivePage} />

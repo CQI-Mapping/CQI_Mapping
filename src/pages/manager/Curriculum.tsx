@@ -1,5 +1,6 @@
 // Manager Curriculum page: management of curriculum records.
 // Manager can create, edit, and archive/restore records, but cannot delete them.
+// Admins reuse this page with allowDelete to permanently delete archived records.
 // Every mutation writes an activity log entry (action only, no details).
 
 import { useState, useEffect } from 'react'
@@ -7,6 +8,7 @@ import {
   fetchResources,
   createResource,
   updateResource,
+  deleteResource,
   addActivityLog,
 } from '../../services/database'
 import { supabase } from '../../utils/supabaseClient'
@@ -14,9 +16,10 @@ import type { Resource } from '../../services/database'
 
 interface CurriculumProps {
   userEmail: string
+  allowDelete?: boolean
 }
 
-function Curriculum({ userEmail }: CurriculumProps) {
+function Curriculum({ userEmail: _userEmail, allowDelete = false }: CurriculumProps) {
   const errMsg = (e: unknown) => {
     if (e instanceof Error) return e.message
     if (e && typeof e === 'object') {
@@ -151,6 +154,21 @@ function Curriculum({ userEmail }: CurriculumProps) {
       load()
     } catch (e) {
       setError('Failed to update resource: ' + errMsg(e))
+    }
+  }
+
+  // Permanently delete an archived record (admin only, RLS enforces the same).
+  const handleDelete = async (item: Resource) => {
+    if (!window.confirm(`Permanently delete curriculum record ${item.code || item.title}? This cannot be undone.`)) return
+    setError('')
+    setMessage('')
+    try {
+      await deleteResource(item.id)
+      await addActivityLog('resource.deleted')
+      setMessage('Resource deleted.')
+      load()
+    } catch (e) {
+      setError('Failed to delete resource: ' + errMsg(e))
     }
   }
 
@@ -291,6 +309,14 @@ function Curriculum({ userEmail }: CurriculumProps) {
                       >
                         {item.status === 'active' ? 'Archive' : 'Restore'}
                       </button>
+                      {allowDelete && item.status === 'archived' && (
+                        <button
+                          className="btn btn--danger btn--sm"
+                          onClick={() => handleDelete(item)}
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </>
                 )}
