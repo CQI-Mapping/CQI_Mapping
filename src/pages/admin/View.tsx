@@ -224,8 +224,6 @@ function View({ userEmail }: ViewProps) {
 
   const adminGroups = buildGroups(adminPos)
   const managerGroups = buildGroups(managerPos)
-  // Keep the original poGroups (all outcomes) for the mapping matrix below.
-  const poGroups = buildGroups(visiblePos)
 
   const programText = (c: Course) =>
     typeof c.program_id === 'object' && c.program_id ? c.program_id.name : SCHOOL.program
@@ -483,11 +481,12 @@ function View({ userEmail }: ViewProps) {
 
           {/* Curriculum Mapping — 3-column matrix per PO section, matching the
               syllabus document pages (Program Outcome | PEO | Strategic Goal).
-              Driven by each PO's peo_text / sg_text alignments. */}
-          {poGroups.length > 0 && (
+              Driven by each PO's peo_text / sg_text alignments.
+              Uses admin outcomes only (manager outcomes are separate). */}
+          {adminGroups.length > 0 && (
             <div className="sd-mapping">
               <div className="sd-band sd-band--center">CURRICULUM MAPPING</div>
-              {poGroups.map((group) => (
+              {adminGroups.map((group) => (
                 <table key={group.heading} className="sd-table sd-table--mapping">
                   <thead>
                     <tr>
