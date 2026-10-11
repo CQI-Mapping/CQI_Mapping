@@ -11,6 +11,12 @@ import {
 } from '../../services/database'
 import type { ProgramOutcomeStandalone, ChedMemoOrder } from '../../services/database'
 
+const FIXED_CMO_OPTIONS = [
+  { id: 'fixed-common', title: 'Common to All Programs in All Types of Schools', code: '' },
+  { id: 'fixed-bscs', title: 'Bachelor of Science in Computer Science Program Outcomes', code: '' },
+  { id: 'fixed-college', title: 'College Defined Program Outcome', code: '' },
+]
+
 export default function ProgramOutcomesAdmin() {
   const [items, setItems] = useState<ProgramOutcomeStandalone[]>([])
   const [cmos, setCmos] = useState<ChedMemoOrder[]>([])
@@ -54,11 +60,13 @@ export default function ProgramOutcomesAdmin() {
     setBusy(true)
     try {
       const code = `PO-${number.trim()}`
+      const isFixed = FIXED_CMO_OPTIONS.some((c) => c.id === cmoId)
       await createProgramOutcomeStandalone({
         code,
         title: description.trim(),
         description: description.trim(),
-        cmo_id: cmoId,
+        cmo_id: isFixed ? null : cmoId,
+        cmo_text: isFixed ? cmoId : undefined,
       })
       setSuccess(`Program Outcome ${code} added.`)
       setCmoId('')
@@ -72,10 +80,10 @@ export default function ProgramOutcomesAdmin() {
     }
   }
 
-  // Group items by CMO
+  // Group items by CMO (use cmo_text for fixed options when cmo_id is null)
   const cmoMap = new Map<string, ProgramOutcomeStandalone[]>()
   for (const item of items) {
-    const key = item.cmo_id || 'uncategorized'
+    const key = item.cmo_id || (item as { cmo_text?: string }).cmo_text || 'uncategorized'
     if (!cmoMap.has(key)) cmoMap.set(key, [])
     cmoMap.get(key)!.push(item)
   }
@@ -90,6 +98,8 @@ export default function ProgramOutcomesAdmin() {
   }
 
   const cmoLabel = (id: string) => {
+    const fixed = FIXED_CMO_OPTIONS.find((c) => c.id === id)
+    if (fixed) return fixed.title
     const cmo = cmos.find((c) => c.id === id)
     return cmo ? `${cmo.title} (${cmo.code})` : '—'
   }
@@ -117,6 +127,9 @@ export default function ProgramOutcomesAdmin() {
             <span>CMO Alignment</span>
             <select className="input" value={cmoId} onChange={(e) => setCmoId(e.target.value)} required>
               <option value="">Select CMO...</option>
+              {FIXED_CMO_OPTIONS.map((c) => (
+                <option key={c.id} value={c.id}>{c.title}</option>
+              ))}
               {cmos.map((c) => (
                 <option key={c.id} value={c.id}>{c.title} ({c.code})</option>
               ))}
