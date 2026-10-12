@@ -209,6 +209,19 @@ function View({ userEmail }: ViewProps) {
     ? clos.filter((c) => isActive(c) && cloMatchesSubject(c.course || '', normalizeCode(selectedCourse.code)))
     : []
 
+  // Course-details helpers: split comma-separated pre-req/co-req values and
+  // resolve each token to "CODE - Title" from the loaded courses.
+  const listItems = (s: string) =>
+    Array.from(new Set((s || '').split(',').map((t) => t.trim()).filter(Boolean)))
+  const resolvedCourseLabel = (ref: string) => {
+    const norm = normalizeCode(ref)
+    const exact = courses.find((c) => norm === normalizeCode(c.code))
+    if (exact) return `${exact.code} - ${exact.title}`
+    const lead = normalizeCode(ref.split(/[\s\-–—]+/)[0])
+    const byLead = courses.find((c) => normalizeCode(c.code) === lead)
+    return byLead ? `${byLead.code} - ${byLead.title}` : ref
+  }
+
   // Separate admin vs manager outcomes.
   const adminPos = visiblePos.filter((p) => (p as { source?: string }).source !== 'manager')
 
@@ -542,8 +555,26 @@ function View({ userEmail }: ViewProps) {
               <ol className="sd-details__list">
                 <li><strong>I. Course Code:</strong> {selectedCourse.code}</li>
                 <li><strong>II. Course Title:</strong> {selectedCourse.title}</li>
-                <li><strong>III. Pre-requisite:</strong> {selectedCourse.prerequisite}</li>
-                <li><strong>IV. Co-requisite:</strong> {selectedCourse.corequisite}</li>
+                <li>
+                  <strong>III. Pre-requisite:</strong>
+                  {listItems(selectedCourse.prerequisite).length > 0 && (
+                    <ul className="sd-details__items">
+                      {listItems(selectedCourse.prerequisite).map((p) => (
+                        <li key={p}>{resolvedCourseLabel(p)}</li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+                <li>
+                  <strong>IV. Co-requisite:</strong>
+                  {listItems(selectedCourse.corequisite).length > 0 && (
+                    <ul className="sd-details__items">
+                      {listItems(selectedCourse.corequisite).map((c) => (
+                        <li key={c}>{resolvedCourseLabel(c)}</li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
                 <li><strong>V. Credit:</strong> {selectedCourse.units ?? 0} units ({selectedCourse.credit_lecture ?? 0} units Lecture and {selectedCourse.credit_laboratory ?? 0} laboratory)</li>
               </ol>
             )}
