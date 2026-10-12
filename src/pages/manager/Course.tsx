@@ -55,6 +55,17 @@ const blank: CourseForm = {
 const relId = (v: string | { id: string } | null | undefined) =>
   v && typeof v === 'object' ? v.id : (v || '')
 
+// Count how many duplicate tokens exist in a comma-separated pre-req/co-req value.
+const dupTokenCount = (v: string) => {
+  const seen = new Set<string>()
+  let dupes = 0
+  for (const t of v.split(',').map((s) => s.trim().toLowerCase().replace(/\s+/g, ' ')).filter(Boolean)) {
+    if (seen.has(t)) dupes++
+    seen.add(t)
+  }
+  return dupes
+}
+
 interface ComboInputProps {
   value: string
   onChange: (value: string) => void
@@ -407,6 +418,11 @@ export default function ManagerCourse({ profile }: CourseProps) {
                   N/A
                 </label>
               </div>
+              {!activeForm.prereqNA && dupTokenCount(activeForm.prereq) > 0 && (
+                <div style={{ fontSize: 12, color: '#b45309', marginTop: 4 }}>
+                  Repeated pre-requisites are listed once in the report.
+                </div>
+              )}
             </label>
             <label className="field">
               <span>Co-requisite</span>
@@ -425,6 +441,11 @@ export default function ManagerCourse({ profile }: CourseProps) {
                   N/A
                 </label>
               </div>
+              {!activeForm.coreqNA && dupTokenCount(activeForm.coreq) > 0 && (
+                <div style={{ fontSize: 12, color: '#b45309', marginTop: 4 }}>
+                  Repeated co-requisites are listed once in the report.
+                </div>
+              )}
             </label>
             <div className="field">
               <span>Credit</span>

@@ -221,6 +221,20 @@ function View({ userEmail }: ViewProps) {
     const byLead = courses.find((c) => normalizeCode(c.code) === lead)
     return byLead ? `${byLead.code} - ${byLead.title}` : ref
   }
+  // One entry per resolved course — "IT13" and "IT13 - Fundamentals of
+  // Programming 2" collapse to a single line.
+  const uniqueResolved = (s: string) => {
+    const seen = new Set<string>()
+    const out: string[] = []
+    for (const raw of listItems(s)) {
+      const label = resolvedCourseLabel(raw)
+      if (!seen.has(label)) {
+        seen.add(label)
+        out.push(label)
+      }
+    }
+    return out
+  }
 
   // Separate admin vs manager outcomes.
   const adminPos = visiblePos.filter((p) => (p as { source?: string }).source !== 'manager')
@@ -557,20 +571,20 @@ function View({ userEmail }: ViewProps) {
                 <li><strong>II. Course Title:</strong> {selectedCourse.title}</li>
                 <li>
                   <strong>III. Pre-requisite:</strong>
-                  {listItems(selectedCourse.prerequisite).length > 0 && (
+                  {uniqueResolved(selectedCourse.prerequisite).length > 0 && (
                     <ul className="sd-details__items">
-                      {listItems(selectedCourse.prerequisite).map((p) => (
-                        <li key={p}>{resolvedCourseLabel(p)}</li>
+                      {uniqueResolved(selectedCourse.prerequisite).map((p) => (
+                        <li key={p}>{p}</li>
                       ))}
                     </ul>
                   )}
                 </li>
                 <li>
                   <strong>IV. Co-requisite:</strong>
-                  {listItems(selectedCourse.corequisite).length > 0 && (
+                  {uniqueResolved(selectedCourse.corequisite).length > 0 && (
                     <ul className="sd-details__items">
-                      {listItems(selectedCourse.corequisite).map((c) => (
-                        <li key={c}>{resolvedCourseLabel(c)}</li>
+                      {uniqueResolved(selectedCourse.corequisite).map((c) => (
+                        <li key={c}>{c}</li>
                       ))}
                     </ul>
                   )}
