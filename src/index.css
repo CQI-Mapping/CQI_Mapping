@@ -2511,6 +2511,31 @@ code {
   text-align: center;
 }
 
+/* Borders measured from the source PDF (page 4): the three column separators
+   (a right-hand rule on every cell) with NO left edge, and horizontal rules
+   only at the table top, under each group header, and at the table bottom —
+   the body rows are not separated by lines. */
+.sd-table--mapping th,
+.sd-table--mapping td {
+  border-top-width: 0;
+  border-bottom-width: 0;
+  border-left-width: 0;
+  border-right: 1px solid #000;
+}
+
+.sd-table--mapping tr:first-child > * {
+  border-top: 1px solid #000;
+}
+
+.sd-table--mapping tbody > tr:first-child > * {
+  border-top: 1px solid #000;
+  border-bottom: 1px solid #000;
+}
+
+.sd-table--mapping tbody:last-of-type > tr:last-child > * {
+  border-bottom: 1px solid #000;
+}
+
 /* Single-column Program Outcomes table — official academic document format */
 .sd-table--po-single {
   width: 100%;
