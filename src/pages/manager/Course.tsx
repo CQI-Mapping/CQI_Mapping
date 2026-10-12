@@ -9,6 +9,7 @@ import { useDraft } from '../../hooks/useDraft'
 import { useViewMode } from '../../hooks/useViewMode'
 import ViewModeToggle from '../../components/ViewModeToggle'
 import Icon from '../../components/icons'
+import { normalizeCode } from '../../utils/courseCodes'
 import {
   fetchPrograms,
   fetchResources,
@@ -209,6 +210,23 @@ export default function ManagerCourse({ profile }: CourseProps) {
       (typeof c.program_id === 'object' ? c.program_id.id === programId : c.program_id === programId),
   )
 
+  // Duplicate lookup: same program + same normalized code. Catches "it21",
+  // "IT 21", "IT-21", etc. so near-duplicates can't sneak past the DB
+  // constraint (courses_program_id_code_key) and mislead the report/Subject Graph.
+  const sameProgram = (c: Course) =>
+    (typeof c.program_id === 'object' ? c.program_id.id : c.program_id) === programId
+  const dupeFor = (code: string, excludeId?: string) =>
+    courses.find(
+      (c) =>
+        c.id !== excludeId &&
+        sameProgram(c) &&
+        normalizeCode(c.code) === normalizeCode(code),
+    )
+  const dupeMessage = (code: string, dupe: Course) =>
+    isActive(dupe)
+      ? `A course with code ${code} already exists in this program.`
+      : `${code} exists but is archived — toggle "Archived" on this page and press Restore on that card instead of creating a new one.`
+
   const totalCredits = (f: CourseForm) => {
     const lec = parseInt(f.creditLecture, 10) || 0
     const lab = parseInt(f.creditLaboratory, 10) || 0
@@ -223,7 +241,7 @@ export default function ManagerCourse({ profile }: CourseProps) {
   }
 
   const buildPayload = (f: CourseForm) => ({
-    code: f.code.trim(),
+    code: f.code.trim().toUpperCase(),
     title: f.title.trim(),
     curriculum_id: f.curriculum || null,
     prerequisite: f.prereqNA ? '' : f.prereq.trim(),
@@ -241,6 +259,12 @@ export default function ManagerCourse({ profile }: CourseProps) {
     setMessage('')
     setBusy(true)
     try {
+      const code = form.code.trim().toUpperCase()
+      const dupe = dupeFor(code)
+      if (dupe) {
+        setError(dupeMessage(code, dupe))
+        return
+      }
       await createCourse({ program_id: programId, ...buildPayload(form) })
       await addActivityLog('course.created')
       setMessage('Course created.')
@@ -279,6 +303,12 @@ export default function ManagerCourse({ profile }: CourseProps) {
     setMessage('')
     setBusy(true)
     try {
+      const code = editForm.code.trim().toUpperCase()
+      const dupe = dupeFor(code, editId)
+      if (dupe) {
+        setError(dupeMessage(code, dupe))
+        return
+      }
       await updateCourse(editId, buildPayload(editForm))
       await addActivityLog('course.updated')
       setMessage('Course updated.')
