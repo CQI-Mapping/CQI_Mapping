@@ -210,9 +210,6 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
     if (!parts.some((p) => p.toLowerCase() === code.toLowerCase())) parts.push(code)
     return parts.join(', ')
   }
-  // Codes already in the Program Outcomes field (lowercased for matching).
-  const pickedCodes = (v: string) =>
-    (v || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
 
   const createClosest = rankClosestPos(form.description, poTexts, Math.max(3, poTexts.length))
   const editClosest = rankClosestPos(editForm.description, poTexts, Math.max(3, poTexts.length))
@@ -224,13 +221,6 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   // Relative display only (top raw > 0 shows 100%). All gates read raw lists.
   const createDisplay = toRelative(createShown)
   const editDisplay = toRelative(editShown)
-  // Once a PO is selected, drop it from the suggestion chips.
-  const createPicked = pickedCodes(form.programOutcomes)
-  const editPicked = pickedCodes(editForm.programOutcomes)
-  const createSuggestions = createDisplay.filter((r) => !createPicked.includes(r.code.toLowerCase()))
-  const editSuggestions = editDisplay.filter((r) => !editPicked.includes(r.code.toLowerCase()))
-  const createAllPicked = createDisplay.length > 0 && createSuggestions.length === 0
-  const editAllPicked = editDisplay.length > 0 && editSuggestions.length === 0
 
   // Debounced semantic re-rank for the create-form description.
   useEffect(() => {
@@ -299,12 +289,12 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
       </div>
       <textarea className="input input--sm" rows={2} ref={autoResize} value={editForm.description} onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} placeholder="Description" />
       <SuggestionInput value={editForm.programOutcomes} onChange={(v) => setEditForm({ ...editForm, programOutcomes: v })} options={poSuggestions} placeholder="Type to search POs" />
-      {editSuggestions.length > 0 ? (
+      {editDisplay.length > 0 ? (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '6px 0' }}>
           <span style={{ fontSize: 12, color: '#64748b', width: '100%' }}>
-            {editSuggestions[0].raw > 0 ? 'Closest for this description:' : 'Best guesses (low confidence):'}
+            {editDisplay[0].raw > 0 ? 'Closest for this description:' : 'Best guesses (low confidence):'}
           </span>
-          {editSuggestions.map((r) => (
+          {editDisplay.map((r) => (
             <span key={r.code} style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
               <button type="button" className="btn btn--ghost btn--sm"
                 style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: 3 }}
@@ -324,7 +314,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             </span>
           ))}
         </div>
-      ) : editForm.description.trim().length >= 4 && !editAllPicked && (
+      ) : editForm.description.trim().length >= 4 && (
         <div style={{ fontSize: 12, color: '#64748b', margin: '6px 0' }}>
           {poTexts.length === 0
             ? 'No Program Outcomes yet — create one on the Program Outcomes page first.'
@@ -420,15 +410,15 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             placeholder="Type to search POs"
           />
         </label>
-        {createSuggestions.length > 0 ? (
+        {createDisplay.length > 0 ? (
           <div className="field" style={{ marginTop: -4 }}>
             <span style={{ fontSize: 12, color: '#64748b' }}>
-              {createSuggestions[0].raw > 0
+              {createDisplay[0].raw > 0
                 ? 'Closest Program Outcomes for this description:'
                 : 'Best guesses (low confidence) — click or pick manually:'}
             </span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-              {createSuggestions.map((r) => (
+              {createDisplay.map((r) => (
                 <span key={r.code} style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
                   <button type="button" className="btn btn--ghost btn--sm"
                     style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: 3 }}
@@ -449,7 +439,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
               ))}
             </div>
           </div>
-        ) : form.description.trim().length >= 4 && !createAllPicked && (
+        ) : form.description.trim().length >= 4 && (
           <div className="field" style={{ marginTop: -4 }}>
             <span style={{ fontSize: 12, color: '#64748b' }}>
               {poTexts.length === 0

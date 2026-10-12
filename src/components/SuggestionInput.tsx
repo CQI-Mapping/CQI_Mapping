@@ -2,6 +2,10 @@
 // matching options appears. Supports comma-separated multi-values (e.g. PEO
 // Alignment "PEO-1, PEO-2") — the keyword is "," and suggestions follow the
 // last token after the last comma.
+//
+// Fully controlled: the input always renders the `value` prop, so external
+// changes (auto-fill, chip picks, edits) are shown immediately with no
+// internal copy that can go stale.
 
 import { useEffect, useRef, useState } from 'react'
 
@@ -15,15 +19,13 @@ interface SuggestionInputProps {
   onChange: (value: string) => void
   options: SuggestionOption[]
   placeholder?: string
+  disabled?: boolean
 }
 
-export default function SuggestionInput({ value, onChange, options, placeholder }: SuggestionInputProps) {
+export default function SuggestionInput({ value, onChange, options, placeholder, disabled }: SuggestionInputProps) {
   const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState(value)
   const [active, setActive] = useState(0)
   const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => { setQuery(value) }, [value])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -33,7 +35,8 @@ export default function SuggestionInput({ value, onChange, options, placeholder 
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  useEffect(() => setActive(0), [query])
+  // Reset highlight when the value or visibility changes.
+  useEffect(() => setActive(0), [value, open])
 
   // Follow the active item when user navigates with arrows (keyboard) — keeps it visible.
   useEffect(() => {
@@ -43,11 +46,11 @@ export default function SuggestionInput({ value, onChange, options, placeholder 
   }, [active, open])
 
   // Multi-value support: keyword is "," — filter on the last comma-separated token.
-  const lastToken = query.split(',').pop()?.trim() ?? ''
+  const lastToken = value.split(',').pop()?.trim() ?? ''
   const lastTokenLower = lastToken.toLowerCase()
   // Exclude already-selected tokens from suggestions
   const selectedSet = new Set(
-    query.split(',').map((s) => s.trim().toLowerCase()).filter((s) => s && s !== lastTokenLower)
+    value.split(',').map((s) => s.trim().toLowerCase()).filter((s) => s && s !== lastTokenLower)
   )
   const visibleOptions = lastTokenLower.length >= 2
     ? options.filter((o) => {
@@ -58,11 +61,10 @@ export default function SuggestionInput({ value, onChange, options, placeholder 
     : []
 
   const select = (o: SuggestionOption) => {
-    const parts = query.split(',')
+    const parts = value.split(',')
     parts[parts.length - 1] = ` ${o.value}` // keep comma separation
     const next = parts.map((s) => s.trim()).filter(Boolean).join(', ')
     onChange(next)
-    setQuery(next)
     setOpen(false)
   }
 
@@ -102,9 +104,10 @@ export default function SuggestionInput({ value, onChange, options, placeholder 
         className="input input--sm suggestion__input"
         type="text"
         placeholder={placeholder}
-        value={query}
-        onChange={(e) => { setQuery(e.target.value); setOpen(shouldOpen(e.target.value)); }}
-        onFocus={() => { if (shouldOpen(query)) setOpen(true) }}
+        value={value}
+        disabled={disabled}
+        onChange={(e) => { onChange(e.target.value); setOpen(shouldOpen(e.target.value)) }}
+        onFocus={() => { if (!disabled && shouldOpen(value)) setOpen(true) }}
         onKeyDown={onKeyDown}
       />
       {open && (
@@ -112,7 +115,8 @@ export default function SuggestionInput({ value, onChange, options, placeholder 
           {visibleOptions.length === 0 && <div className="suggestion__empty">No matches</div>}
           {visibleOptions.map((o, i) => (
             <button type="button" key={o.value} className={`suggestion__item ${i === active ? 'suggestion__item--active' : ''}`}
-              onMouseDown={(e) => { e.preventDefault(); select(o) }}
+              disabled={disabled}
+              onMouseDown={(e) => { e.preventDefault(); if (!disabled) select(o) }}
               onMouseEnter={() => setActive(i)}>
               {o.label ?? o.value}
             </button>
