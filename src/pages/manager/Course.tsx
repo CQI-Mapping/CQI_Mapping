@@ -13,22 +13,17 @@ import {
   fetchPrograms,
   fetchResources,
   fetchCourses,
-  fetchAllProfiles,
   createCourse,
   updateCourse,
-  assignCourseInstructor,
   addActivityLog,
 } from '../../services/database'
-import type { Program, Resource, Course, Profile } from '../../services/database'
+import type { Program, Resource, Course } from '../../services/database'
 
-const instructorIdOf = (v: Course['instructor_id']) =>
-  v && typeof v === 'object' ? v.id : v || ''
 const instructorLabelOf = (v: Course['instructor_id']) =>
   v && typeof v === 'object' ? v.full_name || v.email : ''
 
 interface CourseProps {
   profile?: { email?: string | null } | null
-  onViewSubject?: (courseId: string) => void
 }
 
 type CourseForm = {
@@ -116,12 +111,10 @@ function ComboInput({ value, onChange, options, placeholder, disabled }: ComboIn
   )
 }
 
-export default function ManagerCourse({ profile, onViewSubject }: CourseProps) {
+export default function ManagerCourse({ profile }: CourseProps) {
   const [programs, setPrograms] = useState<Program[]>([])
   const [curriculums, setCurriculums] = useState<Resource[]>([])
   const [courses, setCourses] = useState<Course[]>([])
-  const [faculty, setFaculty] = useState<Profile[]>([])
-  const [assignBusyId, setAssignBusyId] = useState<string | null>(null)
   const [programId, setProgramId] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -156,7 +149,7 @@ export default function ManagerCourse({ profile, onViewSubject }: CourseProps) {
     setLoading(true)
     setError('')
     try {
-      const [p, res, c, users] = await Promise.all([fetchPrograms(), fetchResources(), fetchCourses(), fetchAllProfiles().catch(() => [] as Profile[])])
+      const [p, res, c] = await Promise.all([fetchPrograms(), fetchResources(), fetchCourses()])
       setPrograms(p)
       // Arrange curriculum options by number (natural order: 1, 2, … 10)
       setCurriculums(
@@ -171,7 +164,6 @@ export default function ManagerCourse({ profile, onViewSubject }: CourseProps) {
           ),
       )
       setCourses(c)
-      setFaculty(users)
       setProgramId((prev) => {
         if (prev && p.some((x) => x.id === prev)) return prev
         return p[0]?.id ?? ''
@@ -290,23 +282,6 @@ export default function ManagerCourse({ profile, onViewSubject }: CourseProps) {
 
   const cancelEdit = () => {
     clearEdit()
-  }
-
-  // Assign (or unassign with '') the faculty user teaching a course.
-  const handleAssign = async (courseId: string, instructorId: string) => {
-    setError('')
-    setMessage('')
-    setAssignBusyId(courseId)
-    try {
-      await assignCourseInstructor(courseId, instructorId || null)
-      await addActivityLog('course.assigned')
-      setMessage(instructorId ? 'Instructor assigned.' : 'Instructor unassigned.')
-      load()
-    } catch (err) {
-      setError('Failed to assign instructor: ' + errMsg(err))
-    } finally {
-      setAssignBusyId(null)
-    }
   }
 
   const handleToggleStatus = async (item: Course) => {
@@ -520,22 +495,6 @@ export default function ManagerCourse({ profile, onViewSubject }: CourseProps) {
                       </div>
                     </div>
                     <div className="resource-card__actions">
-                      <select
-                        className="input input--sm"
-                        style={{ maxWidth: 160 }}
-                        value={instructorIdOf(c.instructor_id)}
-                        onChange={(e) => handleAssign(c.id, e.target.value)}
-                        disabled={busy || !!editId || assignBusyId === c.id}
-                        aria-label={`Assign instructor for ${c.code}`}
-                      >
-                        <option value="">Unassigned</option>
-                        {faculty.map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.full_name || u.email} ({u.role})
-                          </option>
-                        ))}
-                      </select>
-                      <button className="btn btn--ghost btn--sm" onClick={() => onViewSubject?.(c.id)} disabled={!!editId} aria-label={`View ${c.code}`} title="View"><Icon name="eye" size={13} /></button>
                       <button className="btn btn--ghost btn--sm" onClick={() => startEdit(c)} disabled={busy || !!editId} aria-label={`Edit ${c.code}`} title="Edit"><Icon name="edit" size={13} /></button>
                       <button className={`btn btn--sm ${isActive(c) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleToggleStatus(c)} disabled={busy || !!editId} aria-label={isActive(c) ? `Archive ${c.code}` : `Restore ${c.code}`} title={isActive(c) ? 'Archive' : 'Restore'}>
                         <Icon name={isActive(c) ? 'archive' : 'restore'} size={13} />
@@ -559,21 +518,7 @@ export default function ManagerCourse({ profile, onViewSubject }: CourseProps) {
                       <div style={{ display: 'flex', gap: 6 }}><span style={{ fontWeight: 700, color: '#64748b' }}>Curriculum:</span><span style={{ color: '#0f172a' }}>{curriculumLabel(c.curriculum_id)}</span></div>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                         <span style={{ fontWeight: 700, color: '#64748b' }}>Instructor:</span>
-                        <select
-                          className="input input--sm"
-                          style={{ flex: 1, minWidth: 0 }}
-                          value={instructorIdOf(c.instructor_id)}
-                          onChange={(e) => handleAssign(c.id, e.target.value)}
-                          disabled={busy || !!editId || assignBusyId === c.id}
-                          aria-label={`Assign instructor for ${c.code}`}
-                        >
-                          <option value="">Unassigned</option>
-                          {faculty.map((u) => (
-                            <option key={u.id} value={u.id}>
-                              {u.full_name || u.email} ({u.role})
-                            </option>
-                          ))}
-                        </select>
+                        <span style={{ color: '#0f172a' }}>{instructorLabelOf(c.instructor_id) || 'Unassigned'}</span>
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                         <span style={{ color: '#475569' }}><strong style={{ color: '#64748b' }}>Pre-req:</strong> {c.prerequisite || 'N/A'}</span>
@@ -583,7 +528,6 @@ export default function ManagerCourse({ profile, onViewSubject }: CourseProps) {
                     </div>
                     <p className="program-card__desc">{c.description || 'No description.'}</p>
                     <div className="program-card__actions">
-                      <button className="btn btn--ghost btn--sm" onClick={() => onViewSubject?.(c.id)} disabled={!!editId} aria-label={`View ${c.code}`} title="View"><Icon name="eye" size={13} /></button>
                       <button className="btn btn--ghost btn--sm" onClick={() => startEdit(c)} disabled={busy || !!editId} aria-label={`Edit ${c.code}`} title="Edit"><Icon name="edit" size={13} /></button>
                       <button className={`btn btn--sm ${isActive(c) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleToggleStatus(c)} disabled={busy || !!editId} aria-label={isActive(c) ? `Archive ${c.code}` : `Restore ${c.code}`} title={isActive(c) ? 'Archive' : 'Restore'}>
                         <Icon name={isActive(c) ? 'archive' : 'restore'} size={13} />
