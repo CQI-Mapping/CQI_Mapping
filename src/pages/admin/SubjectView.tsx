@@ -43,7 +43,7 @@ import type {
   StrategicGoal,
   ChedMemoOrder,
 } from '../../services/database'
-import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
+import { normalizeCode, cloMatchesSubject, courseCreditLabel, courseHoursSentence } from '../../utils/courseCodes'
 
 type NodeKind =
   | 'curriculum'
@@ -1350,10 +1350,13 @@ export default function SubjectView() {
                 <p className="subject-view__inside-subtitle">{selectedCourse.title}</p>
                 {selectedCourse.description && <p className="subject-view__inside-desc">{selectedCourse.description}</p>}
                 <div className="subject-view__inside-grid">
-                  <span><strong>Units:</strong> {selectedCourse.units ?? 0} ({selectedCourse.credit_lecture ?? 0} lec / {selectedCourse.credit_laboratory ?? 0} lab)</span>
-                  <span><strong>Status:</strong> <span className={`status-badge status-badge--${selectedCourse.status}`}>{selectedCourse.status}</span></span>
                   <span><strong>Prerequisite:</strong> {selectedCourse.prerequisite?.trim() || '—'}</span>
                   <span><strong>Corequisite:</strong> {selectedCourse.corequisite?.trim() || '—'}</span>
+                  {/* Credit + hours wording is shared with the report's Course
+                      Details (V. Credit / VIII. Number of Hours). */}
+                  <span><strong>Credit:</strong> {courseCreditLabel(selectedCourse)}</span>
+                  <span><strong>Number of Hours:</strong> {courseHoursSentence(selectedCourse)}</span>
+                  <span><strong>Status:</strong> <span className={`status-badge status-badge--${selectedCourse.status}`}>{selectedCourse.status}</span></span>
                   {(() => {
                     const cid = typeof selectedCourse.curriculum_id === 'object' ? (selectedCourse.curriculum_id as any)?.code ?? (selectedCourse.curriculum_id as any)?.id : selectedCourse.curriculum_id
                     const curLabel = typeof selectedCourse.curriculum_id === 'object' ? (selectedCourse.curriculum_id as any)?.code : cid
@@ -1369,12 +1372,12 @@ export default function SubjectView() {
                     <div className="subject-view__inside-list">
                       <strong className="subject-view__inside-list-title">CLOs inside ({insideClos.length}):</strong>
                       <ul>
-                        {insideClos.slice(0, 6).map((clo) => (
+                        {/* Every CLO, matching the report's VII. list. */}
+                        {insideClos.map((clo) => (
                           <li key={clo.id} title={clo.description || clo.title}>
                             <span className="subject-view__inside-code">{clo.code}</span> — {clo.description || clo.title}
                           </li>
                         ))}
-                        {insideClos.length > 6 && <li className="subject-view__inside-more">+ {insideClos.length - 6} more — see graph</li>}
                       </ul>
                     </div>
                   )

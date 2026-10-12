@@ -30,7 +30,7 @@ import type {
   Course,
   ChedMemoOrder,
 } from '../../services/database'
-import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
+import { normalizeCode, cloMatchesSubject, courseCreditLabel, courseHoursSentence } from '../../utils/courseCodes'
 
 interface ViewProps {
   userEmail: string
@@ -240,19 +240,9 @@ function View({ userEmail }: ViewProps) {
   const poLines = (v?: string | null) =>
     (v || '').split(',').map((s) => s.trim()).filter(Boolean)
 
-  // "VIII. NUMBER OF HOURS" is derived from the subject's unit load, not from
-  // how those units are split between lecture and laboratory — a 3-unit
-  // subject runs 5 hours a week whether it is 2L/1Lab, 1L/2Lab or 0L/3Lab,
-  // over an 18-week semester ("5 hours ... or 90 hours").
-  const SEMESTER_WEEKS = 18
-  const EXTRA_WEEKLY_HOURS = 2
-  const hoursSentence = (c: Course) => {
-    const units = Number(c.units) || 0
-    if (units <= 0) return 'No hours recorded for this subject yet.'
-    const weekly = units + EXTRA_WEEKLY_HOURS
-    const semester = weekly * SEMESTER_WEEKS
-    return `${weekly} hours in every week for ${SEMESTER_WEEKS} weeks, or ${semester} hours in a semester`
-  }
+  // "VIII. NUMBER OF HOURS" wording lives in utils/courseCodes so the Subject
+  // Graph's About card reads identically.
+  const hoursSentence = (c: Course) => courseHoursSentence(c)
 
   // Separate admin vs manager outcomes.
   const adminPos = visiblePos.filter((p) => (p as { source?: string }).source !== 'manager')
@@ -616,7 +606,7 @@ function View({ userEmail }: ViewProps) {
                     </ul>
                   )}
                 </li>
-                <li><strong>V. Credit:</strong> {selectedCourse.units ?? 0} units ({selectedCourse.credit_lecture ?? 0} units Lecture and {selectedCourse.credit_laboratory ?? 0} laboratory)</li>
+                <li><strong>V. Credit:</strong> {courseCreditLabel(selectedCourse)}</li>
                 {/* VI and VII put their content on the lines below the label;
                     VIII keeps its value on the label's own line. */}
                 <li className="sd-details__block">
