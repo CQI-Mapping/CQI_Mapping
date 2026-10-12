@@ -2499,6 +2499,7 @@ code {
   vertical-align: middle;
 }
 
+.sd-table--mapping td:nth-child(1),
 .sd-table--mapping td:nth-child(2),
 .sd-table--mapping td:nth-child(3) {
   text-align: center;
