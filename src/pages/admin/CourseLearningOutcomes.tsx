@@ -295,7 +295,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             {editDisplay[0].raw > 0 ? 'Closest for this description:' : 'Best guesses (low confidence):'}
           </span>
           {editDisplay.map((r) => (
-            <span key={r.code} style={{ display: 'inline-flex', alignItems: 'stretch', gap: 2 }}>
+            <span key={r.code} style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
               <button type="button" className="btn btn--ghost btn--sm"
                 style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: 3 }}
                 title={`${r.matched.length > 0 ? `${r.label} — shown ${r.shown}% (raw ${r.raw}%: ${r.matched.join(', ')})` : `${r.label} — shown ${r.shown}% (raw ${r.raw}% semantic)`}${pickedBefore(editForm.description, r.code) ? ' • picked before' : ''}`}
@@ -419,7 +419,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             </span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
               {createDisplay.map((r) => (
-                <span key={r.code} style={{ display: 'inline-flex', alignItems: 'stretch', gap: 2 }}>
+                <span key={r.code} style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
                   <button type="button" className="btn btn--ghost btn--sm"
                     style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: 3 }}
                     title={`${r.matched.length > 0 ? `${r.label} — shown ${r.shown}% (raw ${r.raw}%: ${r.matched.join(', ')})` : `${r.label} — shown ${r.shown}% (raw ${r.raw}% semantic)`}${pickedBefore(form.description, r.code) ? ' • picked before' : ''}`}
