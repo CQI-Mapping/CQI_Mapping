@@ -104,6 +104,8 @@ alignments,
   const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete } = crud
 
   const allAlignments = [...(alignments ?? tableAlignments ?? []), ...stackedAlignments]
+  // Edit form fields = table columns + stacked alignments (so CMO shows in edit too).
+  const editAlignments = [...(tableAlignments ?? alignments ?? []), ...stackedAlignments]
 
   const blank = (): FormState => ({
     code: '',
@@ -496,6 +498,13 @@ alignments,
                             setEditForm({ ...editForm, align: { ...editForm.align, [a.relationField]: v } }), isPeoSgDisabled(editForm.align, a))}
                         </label>
                       ))}
+                      {stackedAlignments.map((a) => (
+                        <label className="field" key={a.relationField} style={{ marginBottom: 0 }}>
+                          <span>{a.label}</span>
+                          {alignmentSelect(a, editForm.align[a.relationField] || '', (v) =>
+                            setEditForm({ ...editForm, align: { ...editForm.align, [a.relationField]: v } }), isPeoSgDisabled(editForm.align, a))}
+                        </label>
+                      ))}
                       {!alignments && showDescription && (
                         <label className="field">
                           <span>{descriptionLabel}</span>
@@ -559,6 +568,15 @@ alignments,
                         </div>
                       )}
                       {(tableAlignments ?? alignments ?? []).map((a) => (
+                        <div key={a.relationField}>
+                          <label className="field" style={{ marginBottom: 0 }}>
+                            <span>{a.label}</span>
+                            {alignmentSelect(a, editForm.align[a.relationField] || '', (v) =>
+                              setEditForm({ ...editForm, align: { ...editForm.align, [a.relationField]: v } }), isPeoSgDisabled(editForm.align, a))}
+                          </label>
+                        </div>
+                      ))}
+                      {stackedAlignments.map((a) => (
                         <div key={a.relationField}>
                           <label className="field" style={{ marginBottom: 0 }}>
                             <span>{a.label}</span>
