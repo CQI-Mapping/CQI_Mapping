@@ -313,13 +313,6 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                 onClick={() => logReject(editForm.description, r.code)}>✕</button>
             </span>
           ))}
-          <span style={{ fontSize: 12, color: '#64748b', width: '100%' }}>
-            {editDisplay[0].matched.length > 0
-              ? `Because: ${editDisplay[0].matched.slice(0, 4).join(', ')}`
-              : editDisplay[0].raw > 0
-                ? 'Meaning match (no shared words).'
-                : 'No word overlap — try words like design, develop, evaluate.'}
-          </span>
         </div>
       ) : editForm.description.trim().length >= 4 && (
         <div style={{ fontSize: 12, color: '#64748b', margin: '6px 0' }}>
@@ -445,13 +438,6 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                 </span>
               ))}
             </div>
-            {createDisplay[0].matched.length > 0 ? (
-              <span style={{ fontSize: 12, color: '#64748b' }}>Because: {createDisplay[0].matched.slice(0, 4).join(', ')}</span>
-            ) : createDisplay[0].raw > 0 ? (
-              <span style={{ fontSize: 12, color: '#64748b' }}>Meaning match (no shared words).</span>
-            ) : (
-              <span style={{ fontSize: 12, color: '#64748b' }}>No word overlap — try words like design, develop, evaluate.</span>
-            )}
           </div>
         ) : form.description.trim().length >= 4 && (
           <div className="field" style={{ marginTop: -4 }}>
