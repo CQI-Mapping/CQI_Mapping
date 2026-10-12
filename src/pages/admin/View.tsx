@@ -252,7 +252,7 @@ function View({ userEmail }: ViewProps) {
     const weekly = lecture + lab * LAB_HOURS_PER_UNIT
     if (weekly <= 0) return 'No hours recorded for this subject yet.'
     const semester = weekly * SEMESTER_WEEKS
-    return `${weekly} hours in every week for ${SEMESTER_WEEKS} weeks, or ${semester} hours in a semester.`
+    return `${weekly} hours in every week for ${SEMESTER_WEEKS} weeks, or ${semester} hours in a semester`
   }
 
   // Separate admin vs manager outcomes.
