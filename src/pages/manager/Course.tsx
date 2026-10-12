@@ -67,6 +67,9 @@ const dupTokenCount = (v: string) => {
   return dupes
 }
 
+// Split a comma-separated pre-req/co-req value into trimmed non-empty tokens.
+const listTokens = (s: string) => (s || '').split(',').map((t) => t.trim()).filter(Boolean)
+
 interface ComboInputProps {
   value: string
   onChange: (value: string) => void
@@ -571,9 +574,27 @@ export default function ManagerCourse({ profile }: CourseProps) {
                         <span style={{ fontWeight: 700, color: '#64748b' }}>Instructor:</span>
                         <span style={{ color: '#0f172a' }}>{instructorLabelOf(c.instructor_id)}</span>
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                        <span style={{ color: '#475569' }}><strong style={{ color: '#64748b' }}>Pre-req:</strong> {c.prerequisite || 'N/A'}</span>
-                        <span style={{ color: '#475569' }}><strong style={{ color: '#64748b' }}>Co-req:</strong> {c.corequisite || 'N/A'}</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <div style={{ color: '#475569' }}>
+                          <strong style={{ color: '#64748b' }}>Pre-req:</strong>
+                          {listTokens(c.prerequisite).length > 0 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              {listTokens(c.prerequisite).map((p, i) => (
+                                <span key={i}>{p}</span>
+                              ))}
+                            </div>
+                          ) : <span> N/A</span>}
+                        </div>
+                        <div style={{ color: '#475569' }}>
+                          <strong style={{ color: '#64748b' }}>Co-req:</strong>
+                          {listTokens(c.corequisite).length > 0 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              {listTokens(c.corequisite).map((p, i) => (
+                                <span key={i}>{p}</span>
+                              ))}
+                            </div>
+                          ) : <span> N/A</span>}
+                        </div>
                       </div>
                       <div style={{ color: '#475569' }}><strong style={{ color: '#64748b' }}>Credits:</strong> {c.credit_lecture ?? 0} lec / {c.credit_laboratory ?? 0} lab / {c.units ?? 0} total</div>
                     </div>
