@@ -540,13 +540,11 @@ function View({ userEmail }: ViewProps) {
               <p>No courses yet — add one on the Course page.</p>
             ) : (
               <ol className="sd-details__list">
-                <li><strong>Course Code:</strong> {selectedCourse.code}</li>
-                <li><strong>Course Title:</strong> {selectedCourse.title}</li>
-                <li><strong>Credits:</strong> Lecture {selectedCourse.credit_lecture ?? 0} / Laboratory {selectedCourse.credit_laboratory ?? 0} / Total {selectedCourse.units ?? 0}</li>
-                <li><strong>Program:</strong> {programText(selectedCourse)}</li>
-                {selectedCourse.prerequisite && <li><strong>Pre-requisite:</strong> {selectedCourse.prerequisite}</li>}
-                {selectedCourse.corequisite && <li><strong>Co-requisite:</strong> {selectedCourse.corequisite}</li>}
-                {selectedCourse.description && <li><strong>Description:</strong> {selectedCourse.description}</li>}
+                <li><strong>I. Course Code:</strong> {selectedCourse.code}</li>
+                <li><strong>II. Course Title:</strong> {selectedCourse.title}</li>
+                <li><strong>III. Pre-requisite:</strong> {selectedCourse.prerequisite}</li>
+                <li><strong>IV. Co-requisite:</strong> {selectedCourse.corequisite}</li>
+                <li><strong>V. Credit:</strong> {selectedCourse.units ?? 0} units ({selectedCourse.credit_lecture ?? 0} units Lecture and {selectedCourse.credit_laboratory ?? 0} laboratory)</li>
               </ol>
             )}
           </div>

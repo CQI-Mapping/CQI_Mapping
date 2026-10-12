@@ -2662,8 +2662,9 @@ textarea.input {
 
 /* Course details */
 .sd-details__list {
-  margin: 6px 0 6px 1.4em;
+  margin: 6px 0;
   padding: 0;
+  list-style: none;
 }
 
 .sd-details__section {
