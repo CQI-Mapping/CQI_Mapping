@@ -201,8 +201,15 @@ function View({ userEmail }: ViewProps) {
   const adminPos = visiblePos.filter((p) => (p as { source?: string }).source !== 'manager')
   const managerPos = visiblePos.filter((p) => (p as { source?: string }).source === 'manager')
 
-  // Group active program outcomes by CMO category (cmo_id or cmo_text).
+  // Group active program outcomes by CMO category.
+  // Admin outcomes store CMO in cmo_id (UUID) / cmo_text (fixed id).
+  // Manager outcomes store CMO display text in the description column (via
+  // EntityCrudPage's textField mapping), so we read that for manager rows.
   const cmoLabel = (po: ProgramOutcomeStandalone) => {
+    if ((po as { source?: string }).source === 'manager') {
+      const desc = (po.description || '').trim().toUpperCase()
+      return desc || 'UNCATEGORIZED'
+    }
     const key = po.cmo_id || (po as { cmo_text?: string }).cmo_text
     if (!key) return 'UNCATEGORIZED'
     const fixed = FIXED_CMO_CATEGORIES.find((c) => c.id === key)
