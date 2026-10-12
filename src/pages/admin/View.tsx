@@ -30,7 +30,8 @@ import type {
   Course,
   ChedMemoOrder,
 } from '../../services/database'
-import { normalizeCode, cloMatchesSubject, courseCreditLabel, courseHoursSentence } from '../../utils/courseCodes'
+import { normalizeCode, cloMatchesSubject, uniqueResolvedRefs } from '../../utils/courseCodes'
+import CourseDetails from '../../components/CourseDetails'
 
 interface ViewProps {
   userEmail: string
@@ -209,40 +210,17 @@ function View({ userEmail }: ViewProps) {
     ? clos.filter((c) => isActive(c) && cloMatchesSubject(c.course || '', normalizeCode(selectedCourse.code)))
     : []
 
-  // Course-details helpers: split comma-separated pre-req/co-req values and
-  // resolve each token to "CODE - Title" from the loaded courses.
-  const listItems = (s: string) =>
-    Array.from(new Set((s || '').split(',').map((t) => t.trim()).filter(Boolean)))
-  const resolvedCourseLabel = (ref: string) => {
-    const norm = normalizeCode(ref)
-    const exact = courses.find((c) => norm === normalizeCode(c.code))
-    if (exact) return `${exact.code} - ${exact.title}`
-    const lead = normalizeCode(ref.split(/[\s\-–—]+/)[0])
-    const byLead = courses.find((c) => normalizeCode(c.code) === lead)
-    return byLead ? `${byLead.code} - ${byLead.title}` : ref
-  }
-  // One entry per resolved course — "IT13" and "IT13 - Fundamentals of
-  // Programming 2" collapse to a single line.
-  const uniqueResolved = (s: string) => {
-    const seen = new Set<string>()
-    const out: string[] = []
-    for (const raw of listItems(s)) {
-      const label = resolvedCourseLabel(raw)
-      if (!seen.has(label)) {
-        seen.add(label)
-        out.push(label)
-      }
-    }
-    return out
-  }
+  // Pre-req / co-req resolution ("IT13" → "IT13 - Fundamentals of Programming
+  // 2", one line per course) lives in utils/courseCodes so the Subject Graph's
+  // About card resolves them the same way.
   // Program Outcomes codes, one per line — the PDF lists each PLO group on
   // its own centered row inside the cell ("PLO1" then "PLO3, & PLO10").
   const poLines = (v?: string | null) =>
     (v || '').split(',').map((s) => s.trim()).filter(Boolean)
 
-  // "VIII. NUMBER OF HOURS" wording lives in utils/courseCodes so the Subject
-  // Graph's About card reads identically.
-  const hoursSentence = (c: Course) => courseHoursSentence(c)
+  // "VIII. NUMBER OF HOURS" and "V. Credit" wording, plus the Course Details
+  // markup itself, are shared with the Subject Graph's About card via
+  // utils/courseCodes and components/CourseDetails.
 
   // Separate admin vs manager outcomes.
   const adminPos = visiblePos.filter((p) => (p as { source?: string }).source !== 'manager')
@@ -576,66 +554,14 @@ function View({ userEmail }: ViewProps) {
             </table>
           )}
 
-          {/* Course Details */}
-          <div className="sd-details">
-            <div className="sd-band">COURSE DETAILS</div>
-            {!selectedCourse ? (
-              <p>No courses yet — add one on the Course page.</p>
-            ) : (
-              <>
-              <ol className="sd-details__list">
-                <li><strong>I. Course Code:</strong> {selectedCourse.code}</li>
-                <li><strong>II. Course Title:</strong> {selectedCourse.title}</li>
-                <li>
-                  <strong>III. Pre-requisite:</strong>
-                  {uniqueResolved(selectedCourse.prerequisite).length > 0 && (
-                    <ul className="sd-details__items">
-                      {uniqueResolved(selectedCourse.prerequisite).map((p) => (
-                        <li key={p}>{p}</li>
-                      ))}
-                    </ul>
-                  )}
-                </li>
-                <li>
-                  <strong>IV. Co-requisite:</strong>
-                  {uniqueResolved(selectedCourse.corequisite).length > 0 && (
-                    <ul className="sd-details__items">
-                      {uniqueResolved(selectedCourse.corequisite).map((c) => (
-                        <li key={c}>{c}</li>
-                      ))}
-                    </ul>
-                  )}
-                </li>
-                <li><strong>V. Credit:</strong> {courseCreditLabel(selectedCourse)}</li>
-                {/* VI and VII put their content on the lines below the label;
-                    VIII keeps its value on the label's own line. */}
-                <li className="sd-details__block">
-                  <strong>VI. COURSE DESCRIPTION</strong>
-                  {selectedCourse.description ? (
-                    <p>{selectedCourse.description}</p>
-                  ) : (
-                    <p>No description provided for this subject.</p>
-                  )}
-                </li>
-                <li className="sd-details__block">
-                  <strong>VII. COURSE LEARNING OUTCOMES</strong>
-                  {/* Plain list only — the CLO ↔ Program Outcomes table lives in
-                      the standalone "Course Learning Outcomes" section above. */}
-                  {subjectClos.length === 0 ? (
-                    <p>No course learning outcomes for this subject.</p>
-                  ) : (
-                    <ol className="sd-details__items">
-                      {subjectClos.map((c) => (
-                        <li key={c.id}>{c.code}: {c.description}</li>
-                      ))}
-                    </ol>
-                  )}
-                </li>
-                <li><strong>VIII. NUMBER OF HOURS:</strong> {hoursSentence(selectedCourse)}</li>
-              </ol>
-              </>
-            )}
-          </div>
+          {/* Course Details — shared markup so the Subject Graph's About card
+              renders the identical format. */}
+          <CourseDetails
+            course={selectedCourse}
+            prereqItems={selectedCourse ? uniqueResolvedRefs(selectedCourse.prerequisite, courses) : []}
+            coreqItems={selectedCourse ? uniqueResolvedRefs(selectedCourse.corequisite, courses) : []}
+            clos={subjectClos.map((c) => ({ id: c.id, code: c.code, text: c.description || '' }))}
+          />
         </div>
       )}
     </div>

@@ -9,6 +9,42 @@
 export const normalizeCode = (code: string) =>
   code.trim().toUpperCase().replace(/[\s\-–—._/,]+/g, '')
 
+// ── Pre-/co-requisite reference helpers shared by the report and the graph ──
+// References are free text ("IT13", "IT13 - Fundamentals of Programming 2"),
+// so each token is resolved to "CODE - Title" from the loaded course list and
+// de-duplicated, giving one line per course.
+
+type CodeTitle = { code: string; title: string }
+
+/** Comma-separated reference string → de-duplicated, trimmed tokens. */
+export const listItems = (s?: string | null) =>
+  Array.from(new Set((s || '').split(',').map((t) => t.trim()).filter(Boolean)))
+
+/** Resolve a single reference to "CODE - Title", falling back to the raw text. */
+export const resolvedCourseLabel = (ref: string, courses: CodeTitle[]) => {
+  const norm = normalizeCode(ref)
+  const exact = courses.find((c) => norm === normalizeCode(c.code))
+  if (exact) return `${exact.code} - ${exact.title}`
+  const lead = normalizeCode(ref.split(/[\s\-–—]+/)[0])
+  const byLead = courses.find((c) => normalizeCode(c.code) === lead)
+  return byLead ? `${byLead.code} - ${byLead.title}` : ref
+}
+
+/** One entry per resolved course — "IT13" and "IT13 - Fundamentals of
+ *  Programming 2" collapse to a single line. */
+export const uniqueResolvedRefs = (s: string, courses: CodeTitle[]) => {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of listItems(s)) {
+    const label = resolvedCourseLabel(raw, courses)
+    if (!seen.has(label)) {
+      seen.add(label)
+      out.push(label)
+    }
+  }
+  return out
+}
+
 // ── Credit / contact-hour wording shared by the Curriculum Report (View.tsx)
 // and the Subject Graph's About card (SubjectView.tsx), so both read the same.
 

@@ -43,7 +43,8 @@ import type {
   StrategicGoal,
   ChedMemoOrder,
 } from '../../services/database'
-import { normalizeCode, cloMatchesSubject, courseCreditLabel, courseHoursSentence } from '../../utils/courseCodes'
+import { normalizeCode, cloMatchesSubject, uniqueResolvedRefs } from '../../utils/courseCodes'
+import CourseDetails from '../../components/CourseDetails'
 
 type NodeKind =
   | 'curriculum'
@@ -1113,6 +1114,16 @@ export default function SubjectView() {
     return p ? `${p.code} — ${p.description || p.title}` : 'Unknown outcome'
   }
 
+  // Curriculum label for the About card — curriculum_id is either an id string
+  // or an expanded { id, code } object depending on the query.
+  const curriculumLabel = (c: Course) => {
+    const cid = typeof c.curriculum_id === 'object'
+      ? (c.curriculum_id as any)?.code ?? (c.curriculum_id as any)?.id
+      : c.curriculum_id
+    const label = typeof c.curriculum_id === 'object' ? (c.curriculum_id as any)?.code : cid
+    return label || '—'
+  }
+
   const currentEntry: NavEntry | null =
     rootType === 'subject' && selectedCourseId ? { type: 'subject', id: selectedCourseId }
     : rootType === 'po' && selectedPoId ? { type: 'po', id: selectedPoId }
@@ -1339,47 +1350,34 @@ export default function SubjectView() {
               <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800, letterSpacing: '-0.02em' }}>
                 About {selectedCourse.code} — {selectedCourse.title}
               </h3>
-              <p style={{ margin: '0 0 12px', color: '#64748b', fontSize: 13 }}>
+              <p style={{ margin: '0 0 10px', color: '#64748b', fontSize: 13 }}>
                 {(() => {
                   const prog = programs.find((p) => p.id === selectedProgramId)
                   return prog ? `${prog.code} · ${prog.name}` : ''
                 })()}
               </p>
-              <div className="subject-view__inside" style={{ marginTop: 0, background: '#fff', border: '1px solid #e2e8f0' }}>
-                <h4 className="subject-view__inside-title">Inside {selectedCourse.code}</h4>
-                <p className="subject-view__inside-subtitle">{selectedCourse.title}</p>
-                {selectedCourse.description && <p className="subject-view__inside-desc">{selectedCourse.description}</p>}
-                <div className="subject-view__inside-grid">
-                  <span><strong>Prerequisite:</strong> {selectedCourse.prerequisite?.trim() || '—'}</span>
-                  <span><strong>Corequisite:</strong> {selectedCourse.corequisite?.trim() || '—'}</span>
-                  {/* Credit + hours wording is shared with the report's Course
-                      Details (V. Credit / VIII. Number of Hours). */}
-                  <span><strong>Credit:</strong> {courseCreditLabel(selectedCourse)}</span>
-                  <span><strong>Number of Hours:</strong> {courseHoursSentence(selectedCourse)}</span>
-                  <span><strong>Status:</strong> <span className={`status-badge status-badge--${selectedCourse.status}`}>{selectedCourse.status}</span></span>
-                  {(() => {
-                    const cid = typeof selectedCourse.curriculum_id === 'object' ? (selectedCourse.curriculum_id as any)?.code ?? (selectedCourse.curriculum_id as any)?.id : selectedCourse.curriculum_id
-                    const curLabel = typeof selectedCourse.curriculum_id === 'object' ? (selectedCourse.curriculum_id as any)?.code : cid
-                    return <span><strong>Curriculum:</strong> {curLabel || '—'}</span>
-                  })()}
-                </div>
+              <div className="subject-view__about-meta">
+                <span><strong>Status:</strong> <span className={`status-badge status-badge--${selectedCourse.status}`}>{selectedCourse.status}</span></span>
+                <span><strong>Curriculum:</strong> {curriculumLabel(selectedCourse)}</span>
+              </div>
+              {/* Course Details in the report's exact format (serif, numbered
+                  I–VIII) — same component the Curriculum Report renders. */}
+              <div className="subject-view__about-doc">
                 {(() => {
-                  if (!datasets) return <p className="subject-view__inside-hint">Press <strong>View Graph</strong> to load CLOs / POs inside this subject.</p>
-                  const key = normalizeCode(selectedCourse.code)
-                  const insideClos = datasets.clos.filter((c) => cloMatchesSubject(c.course || '', key))
-                  if (insideClos.length === 0) return <p className="subject-view__inside-empty">No CLOs linked to this subject yet.</p>
+                  const insideClos = datasets
+                    ? datasets.clos.filter((c) => cloMatchesSubject(c.course || '', normalizeCode(selectedCourse.code)))
+                    : []
+                  const closEmpty = !datasets
+                    ? <>Press <strong>View Graph</strong> to load the CLOs for this subject.</>
+                    : 'No course learning outcomes for this subject.'
                   return (
-                    <div className="subject-view__inside-list">
-                      <strong className="subject-view__inside-list-title">CLOs inside ({insideClos.length}):</strong>
-                      <ul>
-                        {/* Every CLO, matching the report's VII. list. */}
-                        {insideClos.map((clo) => (
-                          <li key={clo.id} title={clo.description || clo.title}>
-                            <span className="subject-view__inside-code">{clo.code}</span> — {clo.description || clo.title}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                    <CourseDetails
+                      course={selectedCourse}
+                      prereqItems={uniqueResolvedRefs(selectedCourse.prerequisite || '', courses)}
+                      coreqItems={uniqueResolvedRefs(selectedCourse.corequisite || '', courses)}
+                      clos={insideClos.map((c) => ({ id: c.id, code: c.code, text: c.description || c.title || '' }))}
+                      closEmpty={closEmpty}
+                    />
                   )
                 })()}
               </div>
