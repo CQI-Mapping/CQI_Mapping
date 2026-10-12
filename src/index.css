@@ -2516,10 +2516,12 @@ code {
 .sd-table--mapping th:nth-child(3),
 .sd-table--mapping td:nth-child(3) { width: 13%; }
 
-/* Alignment values stay centered; the outcome text reads left like the PDF. */
+/* Body alignment values are left-aligned in the PDF — measured: every PEO entry
+   starts at the same x (745) and every Strategic Goal at the same x (873),
+   whatever their length. Only the column headers are centered. */
 .sd-table--mapping td:nth-child(2),
 .sd-table--mapping td:nth-child(3) {
-  text-align: center;
+  text-align: left;
 }
 
 /* The outcome text keeps a wider inset (~25px in the source document),
