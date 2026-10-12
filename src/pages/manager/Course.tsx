@@ -73,7 +73,7 @@ const listTokens = (s: string) => (s || '').split(',').map((t) => t.trim()).filt
 interface ComboInputProps {
   value: string
   onChange: (value: string) => void
-  options: string[]
+  options: { code: string; title: string }[]
   placeholder: string
   disabled?: boolean
 }
@@ -91,10 +91,31 @@ function ComboInput({ value, onChange, options, placeholder, disabled }: ComboIn
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const uniqueOptions = Array.from(new Set(options))
-  const visibleOptions = query
-    ? uniqueOptions.filter((o) => o.toLowerCase().includes(query.toLowerCase()))
-    : uniqueOptions
+  // Tokens already entered in the field (comma-separated).
+  const picked = listTokens(value)
+
+  // Whether a token refers to the same subject as a code (lenient, mirrors the report).
+  const sameAs = (token: string, code: string) => {
+    const tn = normalizeCode(token)
+    const cn = normalizeCode(code)
+    return tn === cn || tn.startsWith(cn)
+  }
+
+  const uniqueOptions = Array.from(new Map(options.map((o) => [o.code, o])).values())
+  const visibleOptions = uniqueOptions
+    .filter((o) => !picked.some((t) => sameAs(t, o.code)))
+    .filter((o) =>
+      query ? `${o.code} ${o.title}`.toLowerCase().includes(query.toLowerCase()) : true,
+    )
+
+  // Selecting a suggestion APPENDS it — multiple pre-requisites accumulate as
+  // "IT12, IT13, CS101" instead of replacing what was typed.
+  const addToken = (code: string) => {
+    const next = picked.length === 0 ? code : [...picked, code].join(', ')
+    onChange(next)
+    setQuery('')
+    setOpen(false)
+  }
 
   return (
     <div className="combo" ref={ref}>
@@ -113,11 +134,15 @@ function ComboInput({ value, onChange, options, placeholder, disabled }: ComboIn
       </button>
       {open && !disabled && (
         <div className="combo__list">
-          {visibleOptions.length === 0 && <div className="combo__empty">No matches</div>}
+          {visibleOptions.length === 0 && (
+            <div className="combo__empty">
+              {picked.length > 0 ? 'All available subjects already added' : 'No matches'}
+            </div>
+          )}
           {visibleOptions.map((o) => (
-            <button type="button" key={o} className="combo__item"
-              onMouseDown={(e) => { e.preventDefault(); onChange(o); setOpen(false) }}>
-              {o}
+            <button type="button" key={o.code} className="combo__item"
+              onMouseDown={(e) => { e.preventDefault(); addToken(o.code) }}>
+              {o.code}{o.title ? ` — ${o.title}` : ''}
             </button>
           ))}
         </div>
@@ -440,7 +465,7 @@ export default function ManagerCourse({ profile }: CourseProps) {
 <ComboInput
                   value={activeForm.prereq}
                   onChange={(v) => setActiveForm({ ...activeForm, prereq: v })}
-                  options={programCourses.map((c) => c.code)}
+                  options={programCourses}
                   placeholder="Type or select prerequisite"
                   disabled={activeForm.prereqNA}
                 />
@@ -463,7 +488,7 @@ export default function ManagerCourse({ profile }: CourseProps) {
 <ComboInput
                   value={activeForm.coreq}
                   onChange={(v) => setActiveForm({ ...activeForm, coreq: v })}
-                  options={programCourses.map((c) => c.code)}
+                  options={programCourses}
                   placeholder="Type or select co-requisite"
                   disabled={activeForm.coreqNA}
                 />
