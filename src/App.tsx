@@ -34,6 +34,7 @@ import AdminProgram from './pages/admin/Program'
 import AdminSubjectView from './pages/admin/SubjectView'
 import AdminView from './pages/admin/View'
 import UserCurriculum from './pages/user/Curriculum'
+import UserCourseLearningOutcomes from './pages/user/CourseLearningOutcomes'
 import { supabase } from './utils/supabaseClient'
 import { ensureProfile, syncDemoRole } from './services/database'
 import type { Profile as ProfileType, UserRole, NavItem } from './services/database'
@@ -104,7 +105,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
   },
   user: {
     dashboard: UserDashboard,
-    clo: AdminCourseLearningOutcomes,
+    clo: UserCourseLearningOutcomes,
     curriculum: UserCurriculum,
     'subject-view': AdminSubjectView,
     profile: Profile,
