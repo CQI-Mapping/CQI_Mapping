@@ -240,17 +240,16 @@ function View({ userEmail }: ViewProps) {
   const poLines = (v?: string | null) =>
     (v || '').split(',').map((s) => s.trim()).filter(Boolean)
 
-  // "VIII. NUMBER OF HOURS" is derived from the subject's credits instead of
-  // being hardcoded: one lecture unit meets 1 hour a week, one laboratory unit
-  // meets 3 (standard HEI load), over a 18-week semester. So a 3-unit course
-  // (2 units Lecture and 1 laboratory) reads "5 hours ... or 90 hours".
+  // "VIII. NUMBER OF HOURS" is derived from the subject's unit load, not from
+  // how those units are split between lecture and laboratory — a 3-unit
+  // subject runs 5 hours a week whether it is 2L/1Lab, 1L/2Lab or 0L/3Lab,
+  // over an 18-week semester ("5 hours ... or 90 hours").
   const SEMESTER_WEEKS = 18
-  const LAB_HOURS_PER_UNIT = 3
+  const EXTRA_WEEKLY_HOURS = 2
   const hoursSentence = (c: Course) => {
-    const lecture = Number(c.credit_lecture) || 0
-    const lab = Number(c.credit_laboratory) || 0
-    const weekly = lecture + lab * LAB_HOURS_PER_UNIT
-    if (weekly <= 0) return 'No hours recorded for this subject yet.'
+    const units = Number(c.units) || 0
+    if (units <= 0) return 'No hours recorded for this subject yet.'
+    const weekly = units + EXTRA_WEEKLY_HOURS
     const semester = weekly * SEMESTER_WEEKS
     return `${weekly} hours in every week for ${SEMESTER_WEEKS} weeks, or ${semester} hours in a semester`
   }
