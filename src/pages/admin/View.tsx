@@ -535,6 +535,31 @@ function View({ userEmail }: ViewProps) {
             </div>
           )}
 
+          {/* Course Learning Outcomes */}
+          {selectedCourse && (
+            <table className="sd-table sd-table--clo">
+              <thead>
+                <tr>
+                  <th>Course Learning Outcomes</th>
+                  <th className="sd-map-col">Program Outcomes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {subjectClos.length === 0 && (
+                  <tr>
+                    <td colSpan={2}>No course learning outcomes for this subject.</td>
+                  </tr>
+                )}
+                {subjectClos.map((c) => (
+                  <tr key={c.id}>
+                    <td>{c.code}: {c.description}</td>
+                    <td>{c.title}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
           {/* Course Details */}
           <div className="sd-details">
             <div className="sd-band">COURSE DETAILS</div>
