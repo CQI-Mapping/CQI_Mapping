@@ -1131,7 +1131,7 @@ export default function SubjectView() {
       <div className="subject-view__panels">
         {/* ── Left panel: root choice + program/subject/PO selection ─────── */}
         <div className="panel subject-view__left">
-          <h3 className="subject-view__course-heading">Start visualization from</h3>
+          <h3 className="subject-view__course-heading">What you want to visualize from</h3>
           <label className="field">
             <span className="sr-only">Select graph root</span>
             <select
