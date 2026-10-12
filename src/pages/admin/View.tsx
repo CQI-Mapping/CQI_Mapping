@@ -458,9 +458,9 @@ function View({ userEmail }: ViewProps) {
                     </tr>
                   </thead>
                   <tbody>
-                    {group.items.map((p) => (
+                    {group.items.map((p, idx) => (
                       <tr key={p.id}>
-                        <td>{poLabel(p.code)}. {p.title.replace(/\.$/, '')}</td>
+                        <td>{idx + 1}. {p.title.replace(/\.$/, '')}</td>
                         <td>{p.peo_text?.trim() || '—'}</td>
                         <td>{p.sg_text?.trim() || '—'}</td>
                       </tr>
