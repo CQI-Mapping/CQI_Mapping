@@ -8,7 +8,7 @@
 // Admin role pages (sidebar order):
 //   Dashboard, Program, CHED Memorandum Orders, Strategic Goals,
 //   Program Educational Objectives, Program Outcomes,
-//   Curriculum, Course, Course Learning Outcomes, Subject Graph,
+//   Curriculum, Course Learning Outcomes, Subject Graph,
 //   Curriculum Report (View), Users & Accounts, Activity Logs, Profile
 
 import { useState, useEffect, useRef } from 'react'
@@ -32,7 +32,6 @@ import AdminProgramOutcomesAdmin from './pages/admin/ProgramOutcomesAdmin'
 import AdminCourseLearningOutcomes from './pages/admin/CourseLearningOutcomes'
 import AdminUsers from './pages/admin/Users'
 import AdminProgram from './pages/admin/Program'
-import AdminCourse from './pages/admin/Course'
 import AdminSubjectView from './pages/admin/SubjectView'
 import AdminView from './pages/admin/View'
 import UserCurriculum from './pages/user/Curriculum'
@@ -50,7 +49,6 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'peos', label: 'Program Educational Objectives' },
     { id: 'program-outcomes', label: 'Program Outcomes' },
     { id: 'curriculum', label: 'Curriculum' },
-    { id: 'course', label: 'Course' },
     { id: 'clo', label: 'Course Learning Outcomes' },
     { id: 'subject-view', label: 'Subject Graph' },
     { id: 'view', label: 'Curriculum Report' },
@@ -87,7 +85,6 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     peos: AdminPEOs,
     'program-outcomes': AdminProgramOutcomesAdmin,
     curriculum: ManagerCurriculum,
-    course: AdminCourse,
     clo: AdminCourseLearningOutcomes,
     'subject-view': AdminSubjectView,
     view: AdminView,
