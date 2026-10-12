@@ -235,6 +235,10 @@ function View({ userEmail }: ViewProps) {
     }
     return out
   }
+  // Program Outcomes codes, one per line — the PDF lists each PLO group on
+  // its own centered row inside the cell ("PLO1" then "PLO3, & PLO10").
+  const poLines = (v?: string | null) =>
+    (v || '').split(',').map((s) => s.trim()).filter(Boolean)
 
   // Separate admin vs manager outcomes.
   const adminPos = visiblePos.filter((p) => (p as { source?: string }).source !== 'manager')
@@ -553,7 +557,13 @@ function View({ userEmail }: ViewProps) {
                 {subjectClos.map((c) => (
                   <tr key={c.id}>
                     <td>{c.code}: {c.description}</td>
-                    <td>{c.title}</td>
+                    <td>
+                      {poLines(c.title).length > 0 ? (
+                        poLines(c.title).map((p, i) => <div key={i}>{p}</div>)
+                      ) : (
+                        '—'
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -618,7 +628,13 @@ function View({ userEmail }: ViewProps) {
                       {subjectClos.map((c) => (
                         <tr key={c.id}>
                           <td>{c.code}: {c.description}</td>
-                          <td>{c.title}</td>
+                          <td>
+                            {poLines(c.title).length > 0 ? (
+                              poLines(c.title).map((p, i) => <div key={i}>{p}</div>)
+                            ) : (
+                              '—'
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
