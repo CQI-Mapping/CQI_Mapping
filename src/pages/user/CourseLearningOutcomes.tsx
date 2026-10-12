@@ -30,12 +30,6 @@ import { pickedBefore, recordPick, clearMemory, recordRejection, clearRejections
 
 const EMPTY = { code: '', course: '', description: '', programOutcomes: '' }
 
-/** "CODE — Title" for a stored course code, or '' when it isn't in the list. */
-const courseLabel = (code: string, list: Course[]) => {
-  const c = list.find((x) => x.code === code)
-  return c ? `${c.code} — ${c.title}` : ''
-}
-
 const toSuggestion = (i: { code: string; title: string }): SuggestionOption => ({
   value: i.code,
   label: `${i.code} - ${i.title}`.trim(),
@@ -286,7 +280,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
         {editForm.course ? (
           <div className="input input--sm subject-picker__chosen">
             <span className="subject-picker__text">
-              {courseLabel(editForm.course, courses) || editForm.course}
+              {editForm.course}
             </span>
             <button type="button" className="btn btn--ghost btn--sm" onClick={() => setEditForm((f) => ({ ...f, course: '' }))}>
               Change
@@ -397,7 +391,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
           {form.course ? (
             <div className="input input--sm subject-picker__chosen">
               <span className="subject-picker__text">
-                {courseLabel(form.course, courses) || form.course}
+                {form.course}
               </span>
               <button type="button" className="btn btn--ghost btn--sm" onClick={() => setForm((f) => ({ ...f, course: '' }))}>
                 Change
