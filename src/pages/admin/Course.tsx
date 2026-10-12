@@ -159,7 +159,18 @@ export default function Course({ profile, onViewSubject, hideDelete }: CoursePro
     try {
       const [p, res, c, users] = await Promise.all([fetchPrograms(), fetchResources(), fetchCourses(), fetchAllProfiles().catch(() => [] as Profile[])])
       setPrograms(p)
-      setCurriculums(res.filter((r) => r.status !== 'archived' && (r.code || r.title)))
+      // Arrange curriculum options by number (natural order: 1, 2, … 10)
+      setCurriculums(
+        res
+          .filter((r) => r.status !== 'archived' && (r.code || r.title))
+          .sort((a, b) =>
+            String(a.code || a.title || '').localeCompare(
+              String(b.code || b.title || ''),
+              undefined,
+              { numeric: true, sensitivity: 'base' },
+            ),
+          ),
+      )
       setCourses(c)
       setFaculty(users)
       setProgramId((prev) => {
