@@ -318,13 +318,6 @@ function Curriculum({ userEmail }: CurriculumProps) {
                     </div>
 
                     <div className="resource-card__actions">
-                      <button
-                        className={`btn btn--sm ${selectedId === item.id ? 'btn--primary' : 'btn--ghost'}`}
-                        onClick={() => select(item.id)} aria-label={selectedId === item.id ? `Deselect ${item.code || item.title}` : `Select ${item.code || item.title}`} title={selectedId === item.id ? 'Selected' : 'Select'}
-                        aria-pressed={selectedId === item.id}
-                      >
-                        <Icon name="check" size={13} />
-                      </button>
                       <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} aria-label={`Edit ${item.code || item.title}`} title="Edit">
                         <Icon name="edit" size={13} />
                       </button>
@@ -412,13 +405,6 @@ function Curriculum({ userEmail }: CurriculumProps) {
                       <span>{new Date(item.created_at).toLocaleString()}</span>
                     </div>
                     <div className="program-card__actions">
-                      <button
-                        className={`btn btn--sm ${selectedId === item.id ? 'btn--primary' : 'btn--ghost'}`}
-                        onClick={() => select(item.id)} aria-label={selectedId === item.id ? `Deselect ${item.code || item.title}` : `Select ${item.code || item.title}`} title={selectedId === item.id ? 'Selected' : 'Select'}
-                        aria-pressed={selectedId === item.id}
-                      >
-                        <Icon name="check" size={13} />
-                      </button>
                       <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} aria-label={`Edit ${item.code || item.title}`} title="Edit">
                         <Icon name="edit" size={13} />
                       </button>

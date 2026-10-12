@@ -6,7 +6,6 @@ import { fetchResources, fetchCourses } from '../../services/database'
 import { useSelection } from '../../hooks/useSelection'
 import { useViewMode } from '../../hooks/useViewMode'
 import ViewModeToggle from '../../components/ViewModeToggle'
-import Icon from '../../components/icons'
 import type { Resource, Course } from '../../services/database'
 
 const relId = (v: string | { id: string } | null | undefined) =>
@@ -77,6 +76,8 @@ function Curriculum() {
               <div
                 className={`resource-card ${item.status === 'archived' ? 'resource-card--archived' : ''} ${selectedId === item.id ? 'resource-card--selected' : ''}`}
                 key={item.id}
+                onDoubleClick={() => select(item.id)}
+                title="Double-click to view details"
               >
                 <div className="resource-card__body">
                   <h4>{item.code || item.title}</h4>
@@ -87,15 +88,6 @@ function Curriculum() {
                     <span>by {(typeof item.created_by === 'object' && item.created_by?.full_name) || 'Unknown'}</span>
                     <span>{new Date(item.created_at).toLocaleString()}</span>
                   </div>
-                </div>
-                <div className="resource-card__actions">
-                  <button
-                    className={`btn btn--sm ${selectedId === item.id ? 'btn--primary' : 'btn--ghost'}`}
-                    onClick={() => select(item.id)} aria-label={selectedId === item.id ? `Deselect ${item.code || item.title}` : `Select ${item.code || item.title}`} title={selectedId === item.id ? 'Selected' : 'Select'}
-                    aria-pressed={selectedId === item.id}
-                  >
-                    <Icon name="check" size={13} />
-                  </button>
                 </div>
               </div>
             ))}
@@ -109,6 +101,8 @@ function Curriculum() {
                 className={`program-card--2026 card-enter ${selectedId === item.id ? 'program-card--selected' : ''}`}
                 data-status={isActive(item) ? 'active' : 'archived'}
                 data-selected={selectedId === item.id ? 'true' : 'false'}
+                onDoubleClick={() => select(item.id)}
+                title="Double-click to view details"
               >
                 <div className="program-card__top">
                   <span className="program-card__code">{item.code || item.title}</span>
@@ -122,15 +116,6 @@ function Curriculum() {
                 <div style={{ display: 'flex', gap: 10, fontSize: 12, color: '#64748b' }}>
                   {item.units != null && <span>{item.units} unit{item.units === 1 ? '' : 's'}</span>}
                   <span>by {(typeof item.created_by === 'object' && item.created_by?.full_name) || 'Unknown'}</span>
-                </div>
-                <div className="program-card__actions">
-                  <button
-                    className={`btn btn--sm ${selectedId === item.id ? 'btn--primary' : 'btn--ghost'}`}
-                    onClick={() => select(item.id)} aria-label={selectedId === item.id ? `Deselect ${item.code || item.title}` : `Select ${item.code || item.title}`} title={selectedId === item.id ? 'Selected' : 'Select'}
-                    aria-pressed={selectedId === item.id}
-                  >
-                    <Icon name="check" size={13} />
-                  </button>
                 </div>
               </div>
             ))}
