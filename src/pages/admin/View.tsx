@@ -199,7 +199,20 @@ function View({ userEmail }: ViewProps) {
 
   // Separate admin vs manager outcomes.
   const adminPos = visiblePos.filter((p) => (p as { source?: string }).source !== 'manager')
-  const managerPos = visiblePos.filter((p) => (p as { source?: string }).source === 'manager')
+
+  // Manager outcomes are arranged by CMO Alignment group first (matching the
+  // manager's Program Outcomes page), then by PO number within each group —
+  // so the CURRICULUM MAPPING sections below group cleanly by CMO.
+  const cmoGroupKey = (p: ProgramOutcomeStandalone) =>
+    (p.description || '').trim().toUpperCase() || '\uffff'
+  const managerPos = visiblePos
+    .filter((p) => (p as { source?: string }).source === 'manager')
+    .sort((a, b) => {
+      const ka = cmoGroupKey(a)
+      const kb = cmoGroupKey(b)
+      if (ka !== kb) return ka < kb ? -1 : 1
+      return poNumber(a.code) - poNumber(b.code) || a.code.localeCompare(b.code)
+    })
 
   // Group active program outcomes by CMO category.
   // Admin outcomes store CMO in cmo_id (UUID) / cmo_text (fixed id).
@@ -445,16 +458,16 @@ function View({ userEmail }: ViewProps) {
           {managerGroups.length > 0 && (
             <div className="sd-mapping">
               <div className="sd-band sd-band--center">CURRICULUM MAPPING</div>
-              {managerGroups.map((group) => (
-                <table key={group.heading} className="sd-table sd-table--mapping">
-                  <thead>
+              {/* Single continuous table (like the source PDF): each CMO group
+                  is a <tbody> whose repeated header row carries the CMO title. */}
+              <table className="sd-table sd-table--mapping">
+                {managerGroups.map((group) => (
+                  <tbody key={group.heading}>
                     <tr>
                       <th className="sd-mapping__col-po">{group.heading}</th>
                       <th className="sd-mapping__col-align">Program Educational Objectives</th>
                       <th className="sd-mapping__col-align">Strategic Goals</th>
                     </tr>
-                  </thead>
-                  <tbody>
                     {group.items.map((p) => (
                       <tr key={p.id}>
                         <td>{poLabel(p.code)}. {p.title.replace(/\.$/, '')}</td>
@@ -463,8 +476,8 @@ function View({ userEmail }: ViewProps) {
                       </tr>
                     ))}
                   </tbody>
-                </table>
-              ))}
+                ))}
+              </table>
             </div>
           )}
 
