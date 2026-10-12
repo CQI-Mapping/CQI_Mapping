@@ -631,31 +631,16 @@ function View({ userEmail }: ViewProps) {
 
               <div className="sd-details__section">
                 <strong>VII. COURSE LEARNING OUTCOMES</strong>
+                {/* Plain list only — the CLO ↔ Program Outcomes table lives in
+                    the standalone "Course Learning Outcomes" section above. */}
                 {subjectClos.length === 0 ? (
                   <p>No course learning outcomes for this subject.</p>
                 ) : (
-                  <table className="sd-table sd-table--clo">
-                    <thead>
-                      <tr>
-                        <th>Course Learning Outcomes</th>
-                        <th className="sd-map-col">Program Outcomes</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {subjectClos.map((c) => (
-                        <tr key={c.id}>
-                          <td>{c.code}: {c.description}</td>
-                          <td>
-                            {poLines(c.title).length > 0 ? (
-                              poLines(c.title).map((p, i) => <div key={i}>{p}</div>)
-                            ) : (
-                              '—'
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <ol className="sd-details__items">
+                    {subjectClos.map((c) => (
+                      <li key={c.id}>{c.code}: {c.description}</li>
+                    ))}
+                  </ol>
                 )}
               </div>
 
