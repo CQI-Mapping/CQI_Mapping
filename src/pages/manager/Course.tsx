@@ -542,7 +542,7 @@ export default function ManagerCourse({ profile }: CourseProps) {
                         <span className={`status-badge status-badge--${isActive(c) ? 'active' : 'archived'}`}>{isActive(c) ? 'Active' : 'Archived'}</span>
                         <span>{curriculumLabel(c.curriculum_id)}</span>
                         <span>{c.credit_lecture ?? 0} lec / {c.credit_laboratory ?? 0} lab</span>
-                        <span>{instructorLabelOf(c.instructor_id) || 'Unassigned'}</span>
+                        <span>{instructorLabelOf(c.instructor_id)}</span>
                       </div>
                     </div>
                     <div className="resource-card__actions">
@@ -569,7 +569,7 @@ export default function ManagerCourse({ profile }: CourseProps) {
                       <div style={{ display: 'flex', gap: 6 }}><span style={{ fontWeight: 700, color: '#64748b' }}>Curriculum:</span><span style={{ color: '#0f172a' }}>{curriculumLabel(c.curriculum_id)}</span></div>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                         <span style={{ fontWeight: 700, color: '#64748b' }}>Instructor:</span>
-                        <span style={{ color: '#0f172a' }}>{instructorLabelOf(c.instructor_id) || 'Unassigned'}</span>
+                        <span style={{ color: '#0f172a' }}>{instructorLabelOf(c.instructor_id)}</span>
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                         <span style={{ color: '#475569' }}><strong style={{ color: '#64748b' }}>Pre-req:</strong> {c.prerequisite || 'N/A'}</span>
