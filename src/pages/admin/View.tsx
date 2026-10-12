@@ -240,6 +240,21 @@ function View({ userEmail }: ViewProps) {
   const poLines = (v?: string | null) =>
     (v || '').split(',').map((s) => s.trim()).filter(Boolean)
 
+  // "VIII. NUMBER OF HOURS" is derived from the subject's credits instead of
+  // being hardcoded: one lecture unit meets 1 hour a week, one laboratory unit
+  // meets 3 (standard HEI load), over a 18-week semester. So a 3-unit course
+  // (2 units Lecture and 1 laboratory) reads "5 hours ... or 90 hours".
+  const SEMESTER_WEEKS = 18
+  const LAB_HOURS_PER_UNIT = 3
+  const hoursSentence = (c: Course) => {
+    const lecture = Number(c.credit_lecture) || 0
+    const lab = Number(c.credit_laboratory) || 0
+    const weekly = lecture + lab * LAB_HOURS_PER_UNIT
+    if (weekly <= 0) return 'No hours recorded for this subject yet.'
+    const semester = weekly * SEMESTER_WEEKS
+    return `${weekly} hours in every week for ${SEMESTER_WEEKS} weeks, or ${semester} hours in a semester.`
+  }
+
   // Separate admin vs manager outcomes.
   const adminPos = visiblePos.filter((p) => (p as { source?: string }).source !== 'manager')
 
@@ -646,7 +661,7 @@ function View({ userEmail }: ViewProps) {
 
               <div className="sd-details__section">
                 <strong>VIII. NUMBER OF HOURS</strong>
-                <p>5 hours in every week for 18 weeks, or 90 hours in a semester.</p>
+                <p>{hoursSentence(selectedCourse)}</p>
               </div>
               </>
             )}
