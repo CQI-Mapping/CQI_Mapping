@@ -2512,6 +2512,13 @@ code {
   text-align: center;
 }
 
+/* The PDF has no left rule, so the outcome text keeps a wider inset (~2% of
+   the table width) instead of the default cell padding. */
+.sd-table--mapping td:nth-child(1),
+.sd-table--mapping .sd-mapping__col-po {
+  padding-left: 16px;
+}
+
 /* Borders measured from the source PDF (page 4): the three column separators
    (a right-hand rule on every cell) with NO left edge, and horizontal rules
    only at the table top, under each group header, and at the table bottom —

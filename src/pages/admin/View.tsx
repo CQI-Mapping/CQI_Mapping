@@ -529,8 +529,10 @@ function View({ userEmail }: ViewProps) {
                     {group.items.map((p) => (
                       <tr key={p.id}>
                         <td>{poLabel(p.code)}. {p.title.replace(/\.$/, '')}</td>
-                        <td>{p.peo_text?.trim() || '—'}</td>
-                        <td>{p.sg_text?.trim() || '—'}</td>
+                        {/* Blank when unaligned — the source document leaves
+                            those cells empty rather than showing a dash. */}
+                        <td>{p.peo_text?.trim()}</td>
+                        <td>{p.sg_text?.trim()}</td>
                       </tr>
                     ))}
                   </tbody>
