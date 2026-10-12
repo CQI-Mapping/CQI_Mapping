@@ -103,7 +103,7 @@ alignments,
   const crud = useEntityCrud<T>({ loadFn: load, createFn: create, updateFn: update, deleteFn: remove, userEmail: '', scope })
   const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete } = crud
 
-  const allAlignments = tableAlignments ?? alignments ?? []
+  const allAlignments = [...(alignments ?? tableAlignments ?? []), ...stackedAlignments]
 
   const blank = (): FormState => ({
     code: '',

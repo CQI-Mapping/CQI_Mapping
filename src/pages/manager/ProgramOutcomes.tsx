@@ -74,9 +74,9 @@ export default function ProgramOutcomes() {
   if (loading) return <p>Loading program outcomes...</p>
 
   const alignments: AlignmentField[] = [
+    { label: 'CMO Alignment', relationField: 'cmo_id', textField: 'description', options: cmoOptions },
     { label: 'Program Educational Objectives Alignment', relationField: 'peo_text', options: [], type: 'suggest', suggestionOptions: peoSuggestions, placeholder: 'Type PEOs' },
     { label: 'Strategic Goals Alignment', relationField: 'sg_text', options: [], type: 'suggest', suggestionOptions: sgSuggestions, placeholder: 'Type Strategic Goals' },
-    { label: 'CMO Alignment', relationField: 'cmo_id', textField: 'description', options: cmoOptions },
   ]
 
   // Manager create: stamp source='manager' so View can separate admin vs manager inputs.
@@ -102,9 +102,10 @@ export default function ProgramOutcomes() {
       codePlaceholder="e.g. PO-1"
       codeWidth="110px"
       titleLabel="Description"
-      alignments={alignments}
-      tableAlignments={[alignments[0], alignments[1]]}
+      alignments={[alignments[1], alignments[2]]}
+      tableAlignments={[alignments[1], alignments[2]]}
       inlineForm
+      stackedAlignments={[alignments[0]]}
       sort={(a, b) => {
         // Numeric PO order: PO-1 … PO-27 (fixes lexicographic PO-1, PO-10, PO-2)
         const n = (s: string) => {
