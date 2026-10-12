@@ -2442,8 +2442,10 @@ code {
   font-size: 13.5px;
 }
 
-/* Curriculum Mapping matrix — 3-column tables matching the syllabus pages:
-   wide Program Outcome column, narrow PEO / Strategic Goal alignment columns */
+/* Curriculum Mapping matrix — 3-column tables matching the source PDF (page 4):
+   the CMO / section title is the first column's header, with the PEO and
+   Strategic Goal alignment columns labeled beside it.
+   Column widths measured from the PDF: Outcome 74% | PEO 13% | SG 13% */
 .sd-mapping {
   margin-bottom: 14px;
 }
@@ -2453,19 +2455,21 @@ code {
   font-size: 13px;
 }
 
-.sd-mapping__section {
-  text-align: center !important;
+.sd-table--mapping .sd-mapping__col-po {
+  width: 74%;
+  text-align: center;
   font-weight: 700;
   font-size: 13px;
-  letter-spacing: 0.5px;
-}
-
-.sd-table--mapping .sd-mapping__col-po {
-  width: 62%;
+  letter-spacing: 0.3px;
+  vertical-align: middle;
 }
 
 .sd-table--mapping .sd-mapping__col-align {
-  width: 19%;
+  width: 13%;
+  text-align: center;
+  font-weight: 700;
+  font-size: 13px;
+  vertical-align: middle;
 }
 
 .sd-table--mapping td:nth-child(2),

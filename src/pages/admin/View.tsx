@@ -449,18 +449,15 @@ function View({ userEmail }: ViewProps) {
                 <table key={group.heading} className="sd-table sd-table--mapping">
                   <thead>
                     <tr>
-                      <th colSpan={3} className="sd-mapping__section">{group.heading}</th>
-                    </tr>
-                    <tr>
-                      <th className="sd-mapping__col-po">Program Outcomes</th>
+                      <th className="sd-mapping__col-po">{group.heading}</th>
                       <th className="sd-mapping__col-align">Program Educational Objectives</th>
                       <th className="sd-mapping__col-align">Strategic Goals</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {group.items.map((p, i) => (
+                    {group.items.map((p) => (
                       <tr key={p.id}>
-                        <td>{i + 1}. {p.title.replace(/\.$/, '')}</td>
+                        <td>{poLabel(p.code)}. {p.title.replace(/\.$/, '')}</td>
                         <td>{p.peo_text?.trim() || '—'}</td>
                         <td>{p.sg_text?.trim() || '—'}</td>
                       </tr>
