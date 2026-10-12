@@ -28,13 +28,12 @@ import AdminStrategicGoals from './pages/admin/StrategicGoals'
 import AdminPEOs from './pages/admin/ProgramEducationalObjectives'
 import ManagerProgramOutcomes from './pages/manager/ProgramOutcomes'
 import AdminProgramOutcomesAdmin from './pages/admin/ProgramOutcomesAdmin'
-import AdminCourseLearningOutcomes from './pages/admin/CourseLearningOutcomes'
+import UserCourseLearningOutcomes from './pages/user/CourseLearningOutcomes'
 import AdminUsers from './pages/admin/Users'
 import AdminProgram from './pages/admin/Program'
 import AdminSubjectView from './pages/admin/SubjectView'
 import AdminView from './pages/admin/View'
 import UserCurriculum from './pages/user/Curriculum'
-import UserCourseLearningOutcomes from './pages/user/CourseLearningOutcomes'
 import { supabase } from './utils/supabaseClient'
 import { ensureProfile, syncDemoRole } from './services/database'
 import type { Profile as ProfileType, UserRole, NavItem } from './services/database'
@@ -49,7 +48,6 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'peos', label: 'Program Educational Objectives' },
     { id: 'program-outcomes', label: 'Program Outcomes' },
     { id: 'curriculum', label: 'Curriculum' },
-    { id: 'clo', label: 'Course Learning Outcomes' },
     { id: 'subject-view', label: 'Subject Graph' },
     { id: 'view', label: 'Curriculum Report' },
     { id: 'users', label: 'Users & Accounts' },
@@ -84,7 +82,6 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     peos: AdminPEOs,
     'program-outcomes': AdminProgramOutcomesAdmin,
     curriculum: ManagerCurriculum,
-    clo: AdminCourseLearningOutcomes,
     'subject-view': AdminSubjectView,
     view: AdminView,
     'strategic-goals': AdminStrategicGoals,
