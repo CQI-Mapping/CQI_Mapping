@@ -2472,7 +2472,8 @@ code {
 /* Curriculum Mapping matrix — 3-column tables matching the source PDF (page 4):
    the CMO / section title is the first column's header, with the PEO and
    Strategic Goal alignment columns labeled beside it.
-   Column widths measured from the PDF: Outcome 74% | PEO 13% | SG 13% */
+   Column widths measured from the PDF: Outcome 74% | PEO 11% | SG 15%
+   (the narrow PEO column makes its header wrap to three lines, as in the PDF) */
 .sd-mapping {
   margin-bottom: 14px;
 }
@@ -2492,14 +2493,19 @@ code {
 }
 
 .sd-table--mapping .sd-mapping__col-align {
-  width: 13%;
   text-align: center;
   font-weight: 700;
   font-size: 13px;
   vertical-align: middle;
 }
 
-.sd-table--mapping td:nth-child(1),
+.sd-table--mapping th:nth-child(2),
+.sd-table--mapping td:nth-child(2) { width: 11%; }
+
+.sd-table--mapping th:nth-child(3),
+.sd-table--mapping td:nth-child(3) { width: 15%; }
+
+/* Alignment values stay centered; the outcome text reads left like the PDF. */
 .sd-table--mapping td:nth-child(2),
 .sd-table--mapping td:nth-child(3) {
   text-align: center;
