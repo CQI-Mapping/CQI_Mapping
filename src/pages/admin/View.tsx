@@ -229,24 +229,8 @@ function View({ userEmail }: ViewProps) {
     return groups
   }
 
-  // Fixed CMO display order for the report (Common → BSIT → Specific → Horizontal → College).
-  const CMO_ORDER = [
-    'COMMON TO ALL PROGRAMS IN ALL TYPES OF SCHOOLS',
-    'BACHELOR OF SCIENCE IN INFORMATION TECHNOLOGY PROGRAM OUTCOMES (CMO 25 S. 2015)',
-    'BACHELOR OF SCIENCE IN COMPUTER SCIENCE PROGRAM OUTCOMES',
-    'SPECIFIC TO A SUB-DISCIPLINE AND A MAJOR (CMO 25 S. 2015)',
-    'COMMON TO HORIZONTAL TYPES (CMO 46 S. 2012)',
-    'COLLEGE DEFINED PROGRAM OUTCOME',
-  ]
-  const cmoOrderIndex = (heading: string) => {
-    const i = CMO_ORDER.indexOf(heading)
-    return i === -1 ? CMO_ORDER.length : i
-  }
-  const sortGroups = (groups: PoGroup[]) =>
-    groups.sort((a, b) => cmoOrderIndex(a.heading) - cmoOrderIndex(b.heading))
-
-  const adminGroups = sortGroups(buildGroups(adminPos))
-  const managerGroups = sortGroups(buildGroups(managerPos))
+  const adminGroups = buildGroups(adminPos)
+  const managerGroups = buildGroups(managerPos)
 
   const programText = (c: Course) =>
     typeof c.program_id === 'object' && c.program_id ? c.program_id.name : SCHOOL.program
@@ -474,9 +458,9 @@ function View({ userEmail }: ViewProps) {
                     </tr>
                   </thead>
                   <tbody>
-                    {group.items.map((p) => (
+                    {group.items.map((p, i) => (
                       <tr key={p.id}>
-                        <td>{poLabel(p.code)}. {p.title.replace(/\.$/, '')}</td>
+                        <td>{i + 1}. {p.title.replace(/\.$/, '')}</td>
                         <td>{p.peo_text?.trim() || '—'}</td>
                         <td>{p.sg_text?.trim() || '—'}</td>
                       </tr>
