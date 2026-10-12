@@ -109,11 +109,15 @@ export default function ProgramOutcomes() {
       outcomeCard
       groupOf={(i) => ((i.description || '').trim() || 'UNCATEGORIZED')}
       sort={(a, b) => {
-        // Numeric PO order: PO-1 … PO-27 (fixes lexicographic PO-1, PO-10, PO-2)
+        // Arrange by CMO Alignment group first (matching the admin page's
+        // grouping), then by numeric PO order within each group (PO-1 … PO-27).
         const n = (s: string) => {
           const m = s.match(/PO\D*(\d+)/i)
           return m ? parseInt(m[1], 10) : 9999
         }
+        const g = (p: ProgramOutcomeStandalone) => (p.description || '').trim().toUpperCase() || '\uffff'
+        const ga = g(a); const gb = g(b)
+        if (ga !== gb) return ga < gb ? -1 : 1
         const ca = String((a as { code?: string }).code || '')
         const cb = String((b as { code?: string }).code || '')
         const na = n(ca); const nb = n(cb)
