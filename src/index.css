@@ -325,6 +325,22 @@ code {
   margin-bottom: 14px;
 }
 
+/* Course picker after a subject is chosen: shows only that one course, with a
+   Change button to reopen the dropdown. */
+.subject-picker__chosen {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: #f8fafc;
+}
+
+.subject-picker__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .field span {
   font-size: 13px;
   font-weight: 600;

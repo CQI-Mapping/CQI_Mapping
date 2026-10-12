@@ -30,6 +30,12 @@ import { pickedBefore, recordPick, clearMemory, recordRejection, clearRejections
 
 const EMPTY = { code: '', course: '', description: '', programOutcomes: '' }
 
+/** "CODE — Title" for a stored course code, or '' when it isn't in the list. */
+const courseLabel = (code: string, list: Course[]) => {
+  const c = list.find((x) => x.code === code)
+  return c ? `${c.code} — ${c.title}` : ''
+}
+
 const toSuggestion = (i: { code: string; title: string }): SuggestionOption => ({
   value: i.code,
   label: `${i.code} - ${i.title}`.trim(),
@@ -277,15 +283,23 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   const renderEdit = () => (
     <>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        <select className="input input--sm" value={editForm.course} onChange={(e) => setEditForm({ ...editForm, course: e.target.value })}>
-          <option value="">Select course</option>
-          {courses.map((c) => (
-            <option key={c.id} value={c.code}>{c.code} — {c.title}</option>
-          ))}
-          {editForm.course && !courses.some((c) => c.code === editForm.course) && (
-            <option value={editForm.course}>{editForm.course} (legacy)</option>
-          )}
-        </select>
+        {editForm.course ? (
+          <div className="input input--sm subject-picker__chosen">
+            <span className="subject-picker__text">
+              {courseLabel(editForm.course, courses) || editForm.course}
+            </span>
+            <button type="button" className="btn btn--ghost btn--sm" onClick={() => setEditForm((f) => ({ ...f, course: '' }))}>
+              Change
+            </button>
+          </div>
+        ) : (
+          <select className="input input--sm" value={editForm.course} onChange={(e) => setEditForm({ ...editForm, course: e.target.value })}>
+            <option value="">Select course</option>
+            {courses.map((c) => (
+              <option key={c.id} value={c.code}>{c.code} — {c.title}</option>
+            ))}
+          </select>
+        )}
         <input className="input input--sm" value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} placeholder="CLO Code" />
       </div>
       <textarea className="input input--sm" rows={2} ref={autoResize} value={editForm.description} onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} placeholder="Description" />
@@ -378,18 +392,27 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
         <h3>New Course Learning Outcome</h3>
         <label className="field">
           <span>Course (Subject Code)</span>
-          <select className="input input--sm" value={form.course}
-            onChange={(e) => setForm({ ...form, course: e.target.value })} required>
-            <option value="">Select course</option>
-            {courses.map((c) => (
-              <option key={c.id} value={c.code}>{c.code} — {c.title}</option>
-            ))}
-            {courses.length === 0 && <option value="" disabled>No courses available — create one in Course page first</option>}
-            {/* Preserve legacy/manual value if not in list so editing old rows doesn't blank out */}
-            {form.course && !courses.some((c) => c.code === form.course) && (
-              <option value={form.course}>{form.course} (legacy)</option>
-            )}
-          </select>
+          {/* Once a subject is chosen the picker collapses to a read-only
+              summary, so only the selected course shows. "Change" reopens it. */}
+          {form.course ? (
+            <div className="input input--sm subject-picker__chosen">
+              <span className="subject-picker__text">
+                {courseLabel(form.course, courses) || form.course}
+              </span>
+              <button type="button" className="btn btn--ghost btn--sm" onClick={() => setForm((f) => ({ ...f, course: '' }))}>
+                Change
+              </button>
+            </div>
+          ) : (
+            <select className="input input--sm" value={form.course}
+              onChange={(e) => setForm({ ...form, course: e.target.value })} required>
+              <option value="">Select course</option>
+              {courses.map((c) => (
+                <option key={c.id} value={c.code}>{c.code} — {c.title}</option>
+              ))}
+              {courses.length === 0 && <option value="" disabled>No courses available — create one in Course page first</option>}
+            </select>
+          )}
         </label>
         <label className="field">
           <span>CLO Code</span>
