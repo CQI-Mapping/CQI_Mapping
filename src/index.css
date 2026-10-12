@@ -2730,6 +2730,21 @@ textarea.input {
   margin: 0;
 }
 
+/* VI / VII are list items whose label sits on the numeral's line and whose
+   content runs onto the lines below, indented to the label column. */
+.sd-details__block {
+  margin: 10px 0 4px;
+}
+
+.sd-details__block > strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.sd-details__block > p {
+  margin: 0;
+}
+
 .sd-details__section {
   margin: 10px 0 4px;
 }

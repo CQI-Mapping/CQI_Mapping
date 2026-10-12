@@ -618,36 +618,32 @@ function View({ userEmail }: ViewProps) {
                   )}
                 </li>
                 <li><strong>V. Credit:</strong> {selectedCourse.units ?? 0} units ({selectedCourse.credit_lecture ?? 0} units Lecture and {selectedCourse.credit_laboratory ?? 0} laboratory)</li>
+                {/* VI and VII put their content on the lines below the label;
+                    VIII keeps its value on the label's own line. */}
+                <li className="sd-details__block">
+                  <strong>VI. COURSE DESCRIPTION</strong>
+                  {selectedCourse.description ? (
+                    <p>{selectedCourse.description}</p>
+                  ) : (
+                    <p>No description provided for this subject.</p>
+                  )}
+                </li>
+                <li className="sd-details__block">
+                  <strong>VII. COURSE LEARNING OUTCOMES</strong>
+                  {/* Plain list only — the CLO ↔ Program Outcomes table lives in
+                      the standalone "Course Learning Outcomes" section above. */}
+                  {subjectClos.length === 0 ? (
+                    <p>No course learning outcomes for this subject.</p>
+                  ) : (
+                    <ol className="sd-details__items">
+                      {subjectClos.map((c) => (
+                        <li key={c.id}>{c.code}: {c.description}</li>
+                      ))}
+                    </ol>
+                  )}
+                </li>
+                <li><strong>VIII. NUMBER OF HOURS:</strong> {hoursSentence(selectedCourse)}</li>
               </ol>
-
-              <div className="sd-details__section">
-                <strong>VI. COURSE DESCRIPTION</strong>
-                {selectedCourse.description ? (
-                  <p>{selectedCourse.description}</p>
-                ) : (
-                  <p>No description provided for this subject.</p>
-                )}
-              </div>
-
-              <div className="sd-details__section">
-                <strong>VII. COURSE LEARNING OUTCOMES</strong>
-                {/* Plain list only — the CLO ↔ Program Outcomes table lives in
-                    the standalone "Course Learning Outcomes" section above. */}
-                {subjectClos.length === 0 ? (
-                  <p>No course learning outcomes for this subject.</p>
-                ) : (
-                  <ol className="sd-details__items">
-                    {subjectClos.map((c) => (
-                      <li key={c.id}>{c.code}: {c.description}</li>
-                    ))}
-                  </ol>
-                )}
-              </div>
-
-              <div className="sd-details__section">
-                <strong>VIII. NUMBER OF HOURS</strong>
-                <p>{hoursSentence(selectedCourse)}</p>
-              </div>
               </>
             )}
           </div>
