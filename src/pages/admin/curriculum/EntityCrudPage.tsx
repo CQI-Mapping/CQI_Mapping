@@ -62,8 +62,8 @@ interface EntityCrudPageProps<T extends { id: string }> {
   counts?: Record<string, number>
   countLabel?: string
   // Program Outcome card style used by the manager page: "N. <description>"
-  // with a CMO category subtitle (matching the dedicated admin page), the
-  // alignment lines kept below, and a double-click details panel.
+  // with a CMO category subtitle (matching the dedicated admin page), with the
+  // alignment lines kept below.
   outcomeCard?: boolean
   // Returns the group label (CMO category) used as the subtitle and for the
   // per-group card numbering when `outcomeCard` is enabled.
@@ -142,8 +142,6 @@ alignments,
   const [editingId, setEditingId] = useState<string | null>(null)
   const [archived, setArchived] = useState(false)
   const [query, setQuery] = useState('')
-  // Double-click detail view for the Program Outcome card style.
-  const [detail, setDetail] = useState<T | null>(null)
   // List (default) or grid card style — the user decides per browser,
   // remembered separately for each entity type.
   const [viewMode, setViewMode] = useViewMode(`cqi.viewMode.${title}`)
@@ -505,12 +503,7 @@ alignments,
           ) : viewMode === 'list' ? (
             <div className="resource-list">
               {visible.map((item) => (
-                <div
-                  key={item.id}
-                  className={`resource-card ${isActive(item) ? '' : 'resource-card--archived'}`}
-                  onDoubleClick={outcomeCard ? () => setDetail(item) : undefined}
-                  title={outcomeCard ? 'Double-click to view details' : undefined}
-                >
+                <div key={item.id} className={`resource-card ${isActive(item) ? '' : 'resource-card--archived'}`}>
                   {editingId === item.id ? (
                     <div className="resource-card__edit">
                       <label className="field">
@@ -684,39 +677,6 @@ alignments,
                   )}
                 </div>
               ))}
-            </div>
-          )}
-
-          {/* Selection details — double-click detail panel (Program Outcome card style) */}
-          {outcomeCard && (
-            <div className="selection-details" aria-live="polite">
-              {detail ? (
-                <div className="selection-details__header">
-                  <div>
-                    <strong>{groupOf ? groupOf(detail) : ''}</strong>
-                    <p>{cardIndex(detail)}. {titleOf(detail) || '—'}</p>
-                    {(tableAlignments ?? alignments ?? []).length > 0 && (
-                      <div className="resource-card__align">
-                        {(tableAlignments ?? alignments ?? []).map((a) => (
-                          <div key={a.relationField}>
-                            <strong>{a.label}:</strong> {alignLabelOf(detail, a)}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <div className="resource-card__meta">
-                      <span className={`status-badge status-badge--${isActive(detail) ? 'active' : 'archived'}`}>
-                        {isActive(detail) ? 'Active' : 'Archived'}
-                      </span>
-                    </div>
-                  </div>
-                  <button className="btn btn--ghost btn--sm" onClick={() => setDetail(null)}>
-                    Close
-                  </button>
-                </div>
-              ) : (
-                <p className="selection-details__empty">Double-click a program outcome to see its details.</p>
-              )}
             </div>
           )}
         </div>
