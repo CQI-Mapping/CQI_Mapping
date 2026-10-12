@@ -2481,14 +2481,24 @@ code {
 
 .sd-table--mapping {
   font-family: 'Times New Roman', Times, serif;
-  font-size: 13px;
+  /* Measured from the PDF: all-caps ink is 8px (cap height 0.676em), so the
+     source type size is ~12px, with a ~13px line pitch (~1.1). */
+  font-size: 12px;
+  line-height: 1.1;
+}
+
+/* The base .sd-table padding (8px 10px) makes every row roughly twice as tall
+   as the source. Measured gap from the rule down to the first ink is ~3px. */
+.sd-table--mapping th,
+.sd-table--mapping td {
+  padding: 1px 6px;
 }
 
 .sd-table--mapping .sd-mapping__col-po {
   width: 74%;
   text-align: center;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 12px;
   letter-spacing: 0.3px;
   vertical-align: middle;
 }
@@ -2496,7 +2506,7 @@ code {
 .sd-table--mapping .sd-mapping__col-align {
   text-align: center;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 12px;
   vertical-align: middle;
 }
 
@@ -2512,11 +2522,11 @@ code {
   text-align: center;
 }
 
-/* The outcome text keeps a slightly wider inset inside its cell (~13px in the
-   source document), measured from the number to the start of the wording. */
+/* The outcome text keeps a wider inset (~25px in the source document),
+   measured from the left rule to where the row number starts. */
 .sd-table--mapping td:nth-child(1),
 .sd-table--mapping .sd-mapping__col-po {
-  padding-left: 18px;
+  padding-left: 22px;
 }
 
 /* Borders measured from the source PDF (page 4): a left edge, the two column
