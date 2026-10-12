@@ -191,7 +191,9 @@ export default function SubjectView() {
   const [courses, setCourses] = useState<Course[]>([])
   const [selectedProgramId, setSelectedProgramId] = useState('')
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null)
-  const [rootType, setRootType] = useState<RootType>('subject')
+  // '' means the user has not picked what to visualize from yet, so the select
+  // shows its "--- select to Visualize ---" placeholder.
+  const [rootType, setRootType] = useState<RootType | ''>('')
   const [selectedPoId, setSelectedPoId] = useState<string | null>(null)
   const [poList, setPoList] = useState<ProgramOutcomeStandalone[]>([])
   const [loading, setLoading] = useState(true)
@@ -1087,6 +1089,7 @@ export default function SubjectView() {
   }, [showGraph, rootType, selectedCourse, selectedPo, datasets, containerSize, renderGraph, setGraphError])
 
   const handleView = async () => {
+    if (!rootType) return
     if (rootType === 'subject' && !selectedCourse) return
     if (rootType === 'po' && !selectedPoId) return
     setShowGraph(true)
@@ -1137,8 +1140,9 @@ export default function SubjectView() {
             <select
               className="input input--sm"
               value={rootType}
-              onChange={(e) => { setRootType(e.target.value as RootType); setShowGraph(false); setNavStack([]); setGraphError('') }}
+              onChange={(e) => { setRootType(e.target.value as RootType | ''); setShowGraph(false); setNavStack([]); setGraphError('') }}
             >
+              <option value="">--- select to Visualize ---</option>
               <option value="subject">Subject</option>
               <option value="po">PO</option>
             </select>
@@ -1158,7 +1162,7 @@ export default function SubjectView() {
           </label>
           <p className="subject-view__helper">{programs.length === 0 ? 'Create a program first to get started.' : `${programCourses.length} subject${programCourses.length === 1 ? '' : 's'} in this program.`}</p>
 
-          {rootType === 'subject' ? (
+          {rootType === 'subject' && (
             <>
               <h3 className="subject-view__course-heading">Subject Code</h3>
               <label className="field">
@@ -1179,7 +1183,8 @@ export default function SubjectView() {
                 </select>
               </label>
             </>
-          ) : (
+          )}
+          {rootType === 'po' && (
             <>
               <h3 className="subject-view__course-heading">PO Code</h3>
               <label className="field">
