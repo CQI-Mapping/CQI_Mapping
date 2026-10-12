@@ -2106,6 +2106,33 @@ code {
   font-size: 14px;
 }
 
+/* Program Outcome card style (manager page) — numbered index + CMO subtitle,
+   mirroring the dedicated admin page cards */
+.resource-card__index {
+  color: #64748b;
+  margin-right: 8px;
+  font-weight: 700;
+}
+
+.resource-card__sub {
+  margin: 4px 0 8px;
+  font-size: 12.5px;
+  color: #475569;
+}
+
+.resource-card__align {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: #475569;
+}
+
+.resource-card__align strong {
+  color: #64748b;
+}
+
 .resource-card__meta {
   display: flex;
   align-items: center;

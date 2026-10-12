@@ -61,6 +61,13 @@ interface EntityCrudPageProps<T extends { id: string }> {
   allowDelete?: boolean
   counts?: Record<string, number>
   countLabel?: string
+  // Program Outcome card style used by the manager page: "N. <description>"
+  // with a CMO category subtitle (matching the dedicated admin page), the
+  // alignment lines kept below, and a double-click details panel.
+  outcomeCard?: boolean
+  // Returns the group label (CMO category) used as the subtitle and for the
+  // per-group card numbering when `outcomeCard` is enabled.
+  groupOf?: (item: T) => string
 }
 
 interface FormState {
@@ -99,6 +106,8 @@ alignments,
   allowDelete = true,
   counts,
   countLabel = 'Linked',
+  outcomeCard = false,
+  groupOf,
 }: EntityCrudPageProps<T>) {
   const crud = useEntityCrud<T>({ loadFn: load, createFn: create, updateFn: update, deleteFn: remove, userEmail: '', scope })
   const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete } = crud
@@ -133,6 +142,8 @@ alignments,
   const [editingId, setEditingId] = useState<string | null>(null)
   const [archived, setArchived] = useState(false)
   const [query, setQuery] = useState('')
+  // Double-click detail view for the Program Outcome card style.
+  const [detail, setDetail] = useState<T | null>(null)
   // List (default) or grid card style — the user decides per browser,
   // remembered separately for each entity type.
   const [viewMode, setViewMode] = useViewMode(`cqi.viewMode.${title}`)
@@ -256,6 +267,26 @@ alignments,
           .some((v) => (v || '').toLowerCase().includes(q)),
     )
   if (sort) visible.sort(sort)
+
+  // Per-group card numbering for the Program Outcome card style: mirrors the
+  // admin page, where "1." restarts for each CMO category. Computed from the
+  // active/archived list (before the search filter) so numbers stay stable
+  // while searching.
+  const cardIndex = (() => {
+    const idxById = new Map<string, number>()
+    if (outcomeCard && groupOf) {
+      const counters = new Map<string, number>()
+      const base = items.filter((i) => (archived ? !isActive(i) : isActive(i)))
+      if (sort) base.sort(sort)
+      for (const it of base) {
+        const key = groupOf(it)
+        const n = (counters.get(key) ?? 0) + 1
+        counters.set(key, n)
+        idxById.set(it.id, n)
+      }
+    }
+    return (item: T) => idxById.get(item.id) ?? 0
+  })()
 
   const isPeoSgDisabled = (align: Record<string, string>, field: AlignmentField) => {
     if (title !== 'Program Outcome') return false
@@ -474,7 +505,12 @@ alignments,
           ) : viewMode === 'list' ? (
             <div className="resource-list">
               {visible.map((item) => (
-                <div key={item.id} className={`resource-card ${isActive(item) ? '' : 'resource-card--archived'}`}>
+                <div
+                  key={item.id}
+                  className={`resource-card ${isActive(item) ? '' : 'resource-card--archived'}`}
+                  onDoubleClick={outcomeCard ? () => setDetail(item) : undefined}
+                  title={outcomeCard ? 'Double-click to view details' : undefined}
+                >
                   {editingId === item.id ? (
                     <div className="resource-card__edit">
                       <label className="field">
@@ -519,17 +555,38 @@ alignments,
                   ) : (
                     <>
                       <div className="resource-card__body">
-                        <h4>{formatCode(codeOf(item))}{showTitle && titleOf(item) ? ` — ${titleOf(item)}` : ''}</h4>
-                        {(tableAlignments ?? alignments ?? []).length > 0 && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
-                            {(tableAlignments ?? alignments ?? []).map((a) => (
-                              <div key={a.relationField} style={{ fontSize: 12.5, color: '#475569' }}>
-                                <strong style={{ color: '#64748b' }}>{a.label}:</strong>{' '}{alignLabelOf(item, a)}
+                        {outcomeCard ? (
+                          <>
+                            <h4>
+                              <span className="resource-card__index">{cardIndex(item)}.</span>
+                              {titleOf(item) || '—'}
+                            </h4>
+                            {groupOf && <p className="resource-card__sub">{groupOf(item)}</p>}
+                            {(tableAlignments ?? alignments ?? []).length > 0 && (
+                              <div className="resource-card__align">
+                                {(tableAlignments ?? alignments ?? []).map((a) => (
+                                  <div key={a.relationField}>
+                                    <strong>{a.label}:</strong> {alignLabelOf(item, a)}
+                                  </div>
+                                ))}
                               </div>
-                            ))}
-                          </div>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <h4>{formatCode(codeOf(item))}{showTitle && titleOf(item) ? ` — ${titleOf(item)}` : ''}</h4>
+                            {(tableAlignments ?? alignments ?? []).length > 0 && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+                                {(tableAlignments ?? alignments ?? []).map((a) => (
+                                  <div key={a.relationField} style={{ fontSize: 12.5, color: '#475569' }}>
+                                    <strong style={{ color: '#64748b' }}>{a.label}:</strong>{' '}{alignLabelOf(item, a)}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {!alignments && showDescription && descOf(item) && <p>{descOf(item)}</p>}
+                          </>
                         )}
-                        {!alignments && showDescription && descOf(item) && <p>{descOf(item)}</p>}
                         {counts && <div style={{ fontSize: 12, color: '#64748b' }}>{countLabel}: <strong style={{ color: '#0f172a' }}>{counts[item.id] ?? 0}</strong></div>}
                         <div className="resource-card__meta" style={{ marginTop: 6 }}>
                           <span className={`status-badge status-badge--${isActive(item) ? 'active' : 'archived'}`}>{isActive(item) ? 'Active' : 'Archived'}</span>
@@ -627,6 +684,39 @@ alignments,
                   )}
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Selection details — double-click detail panel (Program Outcome card style) */}
+          {outcomeCard && (
+            <div className="selection-details" aria-live="polite">
+              {detail ? (
+                <div className="selection-details__header">
+                  <div>
+                    <strong>{groupOf ? groupOf(detail) : ''}</strong>
+                    <p>{cardIndex(detail)}. {titleOf(detail) || '—'}</p>
+                    {(tableAlignments ?? alignments ?? []).length > 0 && (
+                      <div className="resource-card__align">
+                        {(tableAlignments ?? alignments ?? []).map((a) => (
+                          <div key={a.relationField}>
+                            <strong>{a.label}:</strong> {alignLabelOf(detail, a)}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="resource-card__meta">
+                      <span className={`status-badge status-badge--${isActive(detail) ? 'active' : 'archived'}`}>
+                        {isActive(detail) ? 'Active' : 'Archived'}
+                      </span>
+                    </div>
+                  </div>
+                  <button className="btn btn--ghost btn--sm" onClick={() => setDetail(null)}>
+                    Close
+                  </button>
+                </div>
+              ) : (
+                <p className="selection-details__empty">Double-click a program outcome to see its details.</p>
+              )}
             </div>
           )}
         </div>

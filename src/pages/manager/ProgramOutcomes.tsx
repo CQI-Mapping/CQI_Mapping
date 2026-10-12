@@ -106,6 +106,8 @@ export default function ProgramOutcomes() {
       tableAlignments={[alignments[1], alignments[2]]}
       inlineForm
       stackedAlignments={[alignments[0]]}
+      outcomeCard
+      groupOf={(i) => ((i.description || '').trim() || 'UNCATEGORIZED')}
       sort={(a, b) => {
         // Numeric PO order: PO-1 … PO-27 (fixes lexicographic PO-1, PO-10, PO-2)
         const n = (s: string) => {
