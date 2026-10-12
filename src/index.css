@@ -2682,6 +2682,11 @@ textarea.input {
   margin: 10px 0 4px;
 }
 
+.sd-details__section > strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
 .sd-details__clos {
   margin: 4px 0 4px 2em;
   padding: 0;

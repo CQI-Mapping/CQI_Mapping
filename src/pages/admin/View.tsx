@@ -535,37 +535,13 @@ function View({ userEmail }: ViewProps) {
             </div>
           )}
 
-          {/* Course Learning Outcomes */}
-          {selectedCourse && (
-            <table className="sd-table sd-table--clo">
-              <thead>
-                <tr>
-                  <th>Course Learning Outcomes</th>
-                  <th className="sd-map-col">Program Outcomes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {subjectClos.length === 0 && (
-                  <tr>
-                    <td colSpan={2}>No course learning outcomes for this subject.</td>
-                  </tr>
-                )}
-                {subjectClos.map((c) => (
-                  <tr key={c.id}>
-                    <td>{c.code}: {c.description}</td>
-                    <td>{c.title}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-
           {/* Course Details */}
           <div className="sd-details">
             <div className="sd-band">COURSE DETAILS</div>
             {!selectedCourse ? (
               <p>No courses yet — add one on the Course page.</p>
             ) : (
+              <>
               <ol className="sd-details__list">
                 <li><strong>I. Course Code:</strong> {selectedCourse.code}</li>
                 <li><strong>II. Course Title:</strong> {selectedCourse.title}</li>
@@ -591,6 +567,45 @@ function View({ userEmail }: ViewProps) {
                 </li>
                 <li><strong>V. Credit:</strong> {selectedCourse.units ?? 0} units ({selectedCourse.credit_lecture ?? 0} units Lecture and {selectedCourse.credit_laboratory ?? 0} laboratory)</li>
               </ol>
+
+              <div className="sd-details__section">
+                <strong>VI. COURSE DESCRIPTION</strong>
+                {selectedCourse.description ? (
+                  <p>{selectedCourse.description}</p>
+                ) : (
+                  <p>No description provided for this subject.</p>
+                )}
+              </div>
+
+              <div className="sd-details__section">
+                <strong>VII. COURSE LEARNING OUTCOMES</strong>
+                {subjectClos.length === 0 ? (
+                  <p>No course learning outcomes for this subject.</p>
+                ) : (
+                  <table className="sd-table sd-table--clo">
+                    <thead>
+                      <tr>
+                        <th>Course Learning Outcomes</th>
+                        <th className="sd-map-col">Program Outcomes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {subjectClos.map((c) => (
+                        <tr key={c.id}>
+                          <td>{c.code}: {c.description}</td>
+                          <td>{c.title}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div className="sd-details__section">
+                <strong>VIII. NUMBER OF HOURS</strong>
+                <p>5 hours in every week for 18 weeks, or 90 hours in a semester.</p>
+              </div>
+              </>
             )}
           </div>
         </div>
