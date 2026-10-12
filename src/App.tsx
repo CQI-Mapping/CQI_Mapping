@@ -22,7 +22,6 @@ import ManagerUsers from './pages/manager/Users'
 import ManagerCurriculum from './pages/manager/Curriculum'
 import ManagerCourse from './pages/manager/Course'
 import ManagerActivityLogs from './pages/admin/ActivityLogs'
-import ManagerInstructorAssignment from './pages/manager/InstructorAssignment'
 import UserDashboard from './pages/user/Dashboard'
 import AdminChedMemoOrders from './pages/admin/ChedMemoOrders'
 import AdminStrategicGoals from './pages/admin/StrategicGoals'
@@ -61,7 +60,6 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'curriculum', label: 'Curriculum' },
     { id: 'course', label: 'Course' },
-    { id: 'instructor-assignment', label: 'Instructor Assignment' },
     { id: 'subject-view', label: 'Subject Graph' },
     { id: 'users', label: 'Users' },
     { id: 'activity-logs', label: 'Activity Logs' },
@@ -98,7 +96,6 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     dashboard: ManagerDashboard,
     curriculum: ManagerCurriculum,
     course: ManagerCourse,
-    'instructor-assignment': ManagerInstructorAssignment,
     'program-outcomes': ManagerProgramOutcomes,
     'subject-view': AdminSubjectView,
     users: ManagerUsers,
