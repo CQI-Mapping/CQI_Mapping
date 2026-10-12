@@ -2682,6 +2682,20 @@ textarea.input {
   gap: 12px;
 }
 
+/* Subject picker in the report toolbar (screen only — toolbar is no-print) */
+.sd-toolbar__subject {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.sd-toolbar__subject select {
+  min-width: 220px;
+  max-width: 340px;
+}
+
 .sd-check {
   display: inline-flex;
   align-items: center;

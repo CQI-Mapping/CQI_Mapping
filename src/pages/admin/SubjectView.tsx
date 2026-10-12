@@ -43,6 +43,7 @@ import type {
   StrategicGoal,
   ChedMemoOrder,
 } from '../../services/database'
+import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
 
 type NodeKind =
   | 'curriculum'
@@ -109,14 +110,6 @@ const colorMap: Record<NodeKind, string> = {
 
 const isActive = <T extends { status?: string }>(x: T) => !x.status || x.status === 'active'
 
-const normalizeCode = (code: string) =>
-  code.trim().toUpperCase().replace(/[\s\-–—._/,]+/g, '')
-
-const firstToken = (s: string) => {
-  const m = s.trim().split(/[\s\-–—]+/)[0]
-  return m || ''
-}
-
 const extractCodes = (text: string, prefix: 'PO' | 'PEO' | 'SG'): string[] => {
   const re = new RegExp(`${prefix}\\s*-?\\s*(\\d+)`, 'gi')
   const out: string[] = []
@@ -146,19 +139,6 @@ const findSgByToken = (sgs: StrategicGoal[], tok: string): StrategicGoal | undef
         return n !== undefined && s.code.match(/\d+/)?.[0] === n
       })
   )
-}
-
-// True when a CLO record's `course` field refers to the given subject code.
-// Lenient: handles "IT 21", "IT21", "IT 21 - OOP", "IT21-OOP", "IT-21" etc.
-const cloMatchesSubject = (cloCourse: string, subjectKey: string) => {
-  const raw = (cloCourse || '').trim()
-  if (!raw) return false
-  const norm = normalizeCode(raw)
-  if (norm === subjectKey) return true
-  if (normalizeCode(firstToken(raw)) === subjectKey) return true
-  if (norm.includes(subjectKey)) return true
-  const tokens = raw.split(/[\s,;|]+/).map((s) => normalizeCode(s)).filter(Boolean)
-  return tokens.includes(subjectKey)
 }
 
 // Count unique nodes per kind plus unresolved placeholders across the tree.

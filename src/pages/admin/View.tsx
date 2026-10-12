@@ -30,6 +30,7 @@ import type {
   Course,
   ChedMemoOrder,
 } from '../../services/database'
+import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
 
 interface ViewProps {
   userEmail: string
@@ -102,6 +103,7 @@ function View({ userEmail }: ViewProps) {
   const [clos, setClos] = useState<CourseLearningOutcomeStandalone[]>([])
   const [courses, setCourses] = useState<Course[]>([])
   const [cmos, setCmos] = useState<ChedMemoOrder[]>([])
+  const [selectedCourseId, setSelectedCourseId] = useState('')
 
   const [editMode, setEditMode] = useState(false)
   const [edit, setEdit] = useState<EditState | null>(null)
@@ -196,6 +198,16 @@ function View({ userEmail }: ViewProps) {
   const visibleGoals = shown(goals)
   const visiblePeos = shown(peos)
   const visiblePos = shown(pos)
+
+  // Subject scope: the report renders one subject's syllabus at a time.
+  // CLOs link to a subject through their free-text `course` field, so matching
+  // is lenient (see courseCodes.ts). Defaults to the first active subject.
+  const activeCourses = courses.filter(isActive)
+  const selectedCourse =
+    activeCourses.find((c) => c.id === selectedCourseId) ?? activeCourses[0] ?? null
+  const subjectClos = selectedCourse
+    ? clos.filter((c) => isActive(c) && cloMatchesSubject(c.course || '', normalizeCode(selectedCourse.code)))
+    : []
 
   // Separate admin vs manager outcomes.
   const adminPos = visiblePos.filter((p) => (p as { source?: string }).source !== 'manager')
@@ -313,6 +325,23 @@ function View({ userEmail }: ViewProps) {
           Generated: {new Date().toLocaleDateString()} &middot; {userEmail}
         </span>
         <div className="sd-toolbar-controls">
+          {activeCourses.length > 0 && (
+            <label className="sd-toolbar__subject">
+              <span>Subject</span>
+              <select
+                className="input input--sm"
+                value={selectedCourse?.id ?? ''}
+                onChange={(e) => setSelectedCourseId(e.target.value)}
+                aria-label="Select subject for this syllabus"
+              >
+                {activeCourses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.code}{c.title ? ` — ${c.title}` : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <button
             className={`btn btn--sm ${editMode ? 'btn--primary' : 'btn--ghost'}`}
             onClick={() => { setEditMode(!editMode); setEdit(null) }}
@@ -349,11 +378,9 @@ function View({ userEmail }: ViewProps) {
           <div className="sd-titleblock">
             <div className="sd-titleblock__title">{SCHOOL.title}</div>
             <div>{SCHOOL.institute}</div>
-            <div>{courses[0] ? programText(courses[0]) : SCHOOL.program}</div>
-            {courses.length > 0 ? (
-              courses.map((c) => (
-                <div className="sd-titleblock__course" key={c.id}>{c.code} - {c.title}</div>
-              ))
+            <div>{selectedCourse ? programText(selectedCourse) : SCHOOL.program}</div>
+            {selectedCourse ? (
+              <div className="sd-titleblock__course">{selectedCourse.code} - {selectedCourse.title}</div>
             ) : (
               <div className="sd-titleblock__course">No courses yet</div>
             )}
@@ -482,7 +509,7 @@ function View({ userEmail }: ViewProps) {
           )}
 
           {/* Course Learning Outcomes */}
-          {clos.length > 0 && (
+          {selectedCourse && (
             <table className="sd-table sd-table--clo">
               <thead>
                 <tr>
@@ -491,7 +518,12 @@ function View({ userEmail }: ViewProps) {
                 </tr>
               </thead>
               <tbody>
-                {clos.map((c) => (
+                {subjectClos.length === 0 && (
+                  <tr>
+                    <td colSpan={2}>No course learning outcomes for this subject.</td>
+                  </tr>
+                )}
+                {subjectClos.map((c) => (
                   <tr key={c.id}>
                     <td>{c.code}: {c.description}</td>
                     <td>{c.title}</td>
@@ -504,17 +536,18 @@ function View({ userEmail }: ViewProps) {
           {/* Course Details */}
           <div className="sd-details">
             <div className="sd-band">COURSE DETAILS</div>
-            {courses.length === 0 ? (
+            {!selectedCourse ? (
               <p>No courses yet — add one on the Course page.</p>
             ) : (
-              courses.map((c) => (
-                <ol className="sd-details__list" key={c.id}>
-                  <li><strong>Course Code:</strong> {c.code}</li>
-                  <li><strong>Course Title:</strong> {c.title}</li>
-                  <li><strong>Credits:</strong> Lecture {c.credit_lecture ?? 0} / Laboratory {c.credit_laboratory ?? 0} / Total {c.units ?? 0}</li>
-                  <li><strong>Program:</strong> {programText(c)}</li>
-                </ol>
-              ))
+              <ol className="sd-details__list">
+                <li><strong>Course Code:</strong> {selectedCourse.code}</li>
+                <li><strong>Course Title:</strong> {selectedCourse.title}</li>
+                <li><strong>Credits:</strong> Lecture {selectedCourse.credit_lecture ?? 0} / Laboratory {selectedCourse.credit_laboratory ?? 0} / Total {selectedCourse.units ?? 0}</li>
+                <li><strong>Program:</strong> {programText(selectedCourse)}</li>
+                {selectedCourse.prerequisite && <li><strong>Pre-requisite:</strong> {selectedCourse.prerequisite}</li>}
+                {selectedCourse.corequisite && <li><strong>Co-requisite:</strong> {selectedCourse.corequisite}</li>}
+                {selectedCourse.description && <li><strong>Description:</strong> {selectedCourse.description}</li>}
+              </ol>
             )}
           </div>
         </div>
