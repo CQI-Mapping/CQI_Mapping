@@ -1,10 +1,10 @@
 // Table of Specification workspace.
 //
 // The TOS is built first and the exam is written to match it, so this page is
-// closer to a spreadsheet than a viewer. It opens on an IT21 Prelim blueprint
-// laid out exactly like the faculty's workbook: you type in the green cells,
-// and the gray formula cells — the hour-weighted "Number of Item" column, the
-// header percentages, the column totals — recompute as you go.
+// closer to a spreadsheet than a viewer: you type in the green cells, and the
+// gray formula cells — the hour-weighted "Number of Item" column, the header
+// percentages, the column totals — recompute as you go. The layout follows the
+// faculty's workbook, green for inputs and gray for formulas.
 //
 // Persistence: exams, sheets, and topics live in Supabase under RLS scoped to
 // the signed-in user, so a blueprint survives a refresh and nobody else can see
@@ -27,7 +27,6 @@ import {
   type TosSheet,
   type TosTopic,
 } from '../../utils/tosMath'
-import { TOS_EXAM_META, TOS_SHEETS } from '../../utils/tosSampleData'
 import {
   createTosExam,
   createTosSheet,
@@ -78,9 +77,17 @@ const currentUserId = async (): Promise<string> => {
   return id
 }
 
-export default function TableOfSpecification() {
+export default function TOS() {
   const [activeId, setActiveId] = useState('')
-  const [exam, setExam] = useState<TosExam>(() => ({ ...TOS_EXAM_META }))
+  const [exam, setExam] = useState<TosExam>(() => ({
+    code: '',
+    title: '',
+    examType: 'Table of Specification for Prelim',
+    term: '',
+    coverage: '',
+    preparedBy: '',
+    totalHours: 8,
+  }))
   const [sheet, setSheet] = useState<TosSheet>(blankSheet)
 
   const [loading, setLoading] = useState(true)
@@ -131,8 +138,6 @@ export default function TableOfSpecification() {
       coverage: row.coverage ?? '',
       preparedBy: row.prepared_by ?? '',
       totalHours: num(row.total_hours),
-      school: TOS_EXAM_META.school,
-      institute: TOS_EXAM_META.institute,
     })
     setSheet({
       id: target.id,
@@ -151,8 +156,11 @@ export default function TableOfSpecification() {
     })
   }, [])
 
-  // First visit: seed the shipped IT21 blueprint so the page opens on real
-  // data rather than an empty grid.
+  // First visit: create an empty blueprint rather than a sample one. Every
+  // account used to open onto a copy of IT21, which meant a Manager got a
+  // syllabus they do not teach. The sheet starts with zero topics, so
+  // validateSheet reports NO_TOPICS until the first one is added -- which is
+  // accurate feedback, not a failure.
   useEffect(() => {
     let cancelled = false
 
@@ -163,38 +171,16 @@ export default function TableOfSpecification() {
         let rows = await fetchTosExams()
         if (rows.length === 0) {
           const created = await createTosExam(
-            {
-              code: TOS_EXAM_META.code,
-              title: TOS_EXAM_META.title,
-              exam_type: TOS_EXAM_META.examType.replace(
-                /^Table of Specification for\s+/i,
-                '',
-              ),
-              term: TOS_EXAM_META.term,
-              coverage: TOS_EXAM_META.coverage,
-              prepared_by: TOS_EXAM_META.preparedBy,
-              total_hours: num(TOS_EXAM_META.totalHours),
-            },
+            { code: '', title: '', exam_type: 'Prelim', term: '', total_hours: 8 },
             await currentUserId(),
           )
-          const seed = TOS_SHEETS[0]
-          const createdSheet = await createTosSheet({
+          await createTosSheet({
             exam_id: created.id,
-            kind: seed.kind,
-            label: seed.label,
-            total: num(seed.total),
-            note: seed.note,
+            kind: 'items',
+            label: 'Multiple Choice',
+            total: 20,
             position: 0,
           })
-          await replaceTosTopics(
-            createdSheet.id,
-            seed.topics.map((t) => ({
-              title: t.title,
-              slo: t.slo,
-              hours: num(t.hours),
-              bloom: t.bloom,
-            })),
-          )
           rows = [created]
         }
         if (cancelled) return

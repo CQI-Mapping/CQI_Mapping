@@ -86,8 +86,6 @@ export interface TosExam {
   coverage: string
   preparedBy: string
   totalHours: number
-  school: string
-  institute: string
 }
 
 // How far a topic's placed items may sit from its weighted items before we
