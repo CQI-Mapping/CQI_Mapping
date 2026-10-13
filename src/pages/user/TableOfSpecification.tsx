@@ -1,19 +1,18 @@
 // Table of Specification workspace.
 //
 // The TOS is built first and the exam is written to match it, so this page is
-// closer to a spreadsheet than a viewer. It opens on an IT21 Prelim blueprint
-// laid out exactly like the faculty's workbook: you type in the green cells,
-// and the gray formula cells — the hour-weighted "Number of Item" column, the
-// header percentages, the column totals — recompute as you go.
+// closer to a spreadsheet than a viewer. It opens on the IT21 Prelim blueprint
+// the faculty authored, laid out exactly like their workbook: you type in the
+// green cells, and the gray formula cells — the hour-weighted "Number of Item"
+// column, the header percentages, the column totals — recompute as you go.
 //
-// Persistence: exams, sheets, and topics live in Supabase under RLS scoped to
-// the signed-in user, so a blueprint survives a refresh and nobody else can see
-// it. Edits are optimistic — the grid updates on keystroke and the write follows,
-// so typing never waits on the network.
+// Persistence: the exam, its sheets, and its topics live in Supabase under RLS
+// scoped to the signed-in user, so a blueprint survives a refresh and no one
+// else can see it. Edits are optimistic — the grid updates immediately and the
+// write follows, so typing never waits on the network.
 //
-// An exam owns its sheets; a sheet owns its topics. The hour weighting is never
-// stored — it is derived from topic hours and the sheet total on every read, so
-// editing either input moves every weight for free.
+// First visit seeds the shipped IT21 blueprint, which is why the page opens on
+// real data rather than an empty grid.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import TosSheetGrid from '../../components/TosSheetGrid'
@@ -31,42 +30,34 @@ import { TOS_EXAM_META, TOS_SHEETS } from '../../utils/tosSampleData'
 import {
   createTosExam,
   createTosSheet,
-  deleteTosExam,
   fetchTosExams,
   fetchTosSheets,
   fetchTosTopics,
   replaceTosTopics,
   updateTosExam,
   updateTosSheet,
-  type TosExamRow,
 } from '../../services/database'
 
 const SAVE_DEBOUNCE_MS = 600
 
-/** A blank exam: identity left for the user, one empty blueprint sheet. */
-const blankSheet = (): TosSheet => ({
-  id: '',
-  kind: 'items',
-  label: 'Multiple Choice',
-  total: 20,
-  note: '',
-  topics: [],
-})
-
-const examLabel = (e: TosExamRow) =>
-  [e.code, e.exam_type, e.term].filter(Boolean).join(' · ')
+/** A copy of the shipped blueprint; blankTopic mints real UUIDs, so every
+ *  topic is persistable the moment it is created. */
+const freshSheet = (): TosSheet => {
+  const seed = TOS_SHEETS[0]
+  return { ...seed, topics: seed.topics.map((t) => ({ ...t, bloom: { ...t.bloom } })) }
+}
 
 export default function TableOfSpecification() {
-  const [exams, setExams] = useState<TosExamRow[]>([])
-  const [activeId, setActiveId] = useState('')
   const [exam, setExam] = useState<TosExam>(() => ({ ...TOS_EXAM_META }))
-  const [sheet, setSheet] = useState<TosSheet>(blankSheet)
+  const [sheet, setSheet] = useState<TosSheet>(freshSheet)
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [savedAt, setSavedAt] = useState<string | null>(null)
 
+  // Server ids, needed to save what we hold and to seed on first visit.
+  const examId = useRef<string | null>(null)
   const sheetId = useRef<string | null>(null)
   const examTimer = useRef<number | null>(null)
   const sheetTimer = useRef<number | null>(null)
@@ -84,47 +75,8 @@ export default function TableOfSpecification() {
     setError(null)
   }, [])
 
-  // ---- loading an exam -------------------------------------------------
+  // ---- load (and seed on first visit) -------------------------------
 
-  /** Pull one exam's sheet and topics into the working copy. */
-  const loadInto = useCallback(async (row: TosExamRow) => {
-    const sheets = await fetchTosSheets(row.id)
-    // 'items' first: the multiple choice paper is the one shown.
-    const target = sheets.find((s) => s.kind === 'items') ?? sheets[0]
-    if (!target) throw new Error('This exam has no blueprint sheet.')
-    const topicRows = await fetchTosTopics(target.id)
-
-    sheetId.current = target.id
-    setExam({
-      code: row.code,
-      title: row.title,
-      examType: `Table of Specification for ${row.exam_type}`,
-      term: row.term,
-      coverage: row.coverage ?? '',
-      preparedBy: row.prepared_by ?? '',
-      totalHours: num(row.total_hours),
-      school: TOS_EXAM_META.school,
-      institute: TOS_EXAM_META.institute,
-    })
-    setSheet({
-      id: target.id,
-      kind: target.kind,
-      label: target.label,
-      total: num(target.total),
-      note: target.note ?? '',
-      topics: topicRows.map((t) => ({
-        id: t.id,
-        position: t.position,
-        title: t.title,
-        slo: t.slo ?? '',
-        hours: num(t.hours),
-        bloom: t.bloom ?? {},
-      })),
-    })
-  }, [])
-
-  // First visit: seed the shipped IT21 blueprint so the page opens on real
-  // data rather than an empty grid.
   useEffect(() => {
     let cancelled = false
 
@@ -132,8 +84,11 @@ export default function TableOfSpecification() {
       setLoading(true)
       setError(null)
       try {
-        let rows = await fetchTosExams()
-        if (rows.length === 0) {
+        let exams = await fetchTosExams()
+
+        // First visit: seed the shipped IT21 blueprint so the page opens on
+        // something real instead of an empty grid.
+        if (exams.length === 0) {
           const created = await createTosExam({
             code: TOS_EXAM_META.code,
             title: TOS_EXAM_META.title,
@@ -143,30 +98,65 @@ export default function TableOfSpecification() {
             prepared_by: TOS_EXAM_META.preparedBy,
             total_hours: num(TOS_EXAM_META.totalHours),
           })
-          const seed = TOS_SHEETS[0]
+          const seedSheet = TOS_SHEETS[0]
           const createdSheet = await createTosSheet({
             exam_id: created.id,
-            kind: seed.kind,
-            label: seed.label,
-            total: num(seed.total),
-            note: seed.note,
+            kind: seedSheet.kind,
+            label: seedSheet.label,
+            total: num(seedSheet.total),
+            note: seedSheet.note,
             position: 0,
           })
           await replaceTosTopics(
             createdSheet.id,
-            seed.topics.map((t) => ({
+            seedSheet.topics.map((t) => ({
               title: t.title,
               slo: t.slo,
               hours: num(t.hours),
               bloom: t.bloom,
             })),
           )
-          rows = [created]
+          exams = [created]
         }
+
+        const row = exams[0]
+        const sheets = await fetchTosSheets(row.id)
+        // 'items' first: the multiple choice paper is the one shown.
+        const target = sheets.find((s) => s.kind === 'items') ?? sheets[0]
+        if (!target) throw new Error('This exam has no blueprint sheet.')
+
+        const topicRows = await fetchTosTopics(target.id)
         if (cancelled) return
-        setExams(rows)
-        setActiveId(rows[0].id)
-        await loadInto(rows[0])
+
+        examId.current = row.id
+        sheetId.current = target.id
+
+        setExam({
+          code: row.code,
+          title: row.title,
+          examType: `Table of Specification for ${row.exam_type}`,
+          term: row.term,
+          coverage: row.coverage ?? '',
+          preparedBy: row.prepared_by ?? '',
+          totalHours: num(row.total_hours),
+          school: TOS_EXAM_META.school,
+          institute: TOS_EXAM_META.institute,
+        })
+        setSheet({
+          id: target.id,
+          kind: target.kind,
+          label: target.label,
+          total: num(target.total),
+          note: target.note ?? '',
+          topics: topicRows.map((t) => ({
+            id: t.id,
+            position: t.position,
+            title: t.title,
+            slo: t.slo ?? '',
+            hours: num(t.hours),
+            bloom: t.bloom ?? {},
+          })),
+        })
       } catch (e) {
         fail(e, 'Could not load your Table of Specification.')
       } finally {
@@ -178,107 +168,17 @@ export default function TableOfSpecification() {
     return () => {
       cancelled = true
     }
-  }, [fail, loadInto])
-
-  /** Switch to another exam the user already has. */
-  const switchTo = useCallback(
-    async (id: string) => {
-      const row = exams.find((e) => e.id === id)
-      if (!row || id === activeId) return
-      setLoading(true)
-      setError(null)
-      try {
-        await loadInto(row)
-        setActiveId(id)
-      } catch (e) {
-        fail(e, 'Could not open that exam.')
-      } finally {
-        setLoading(false)
-      }
-    },
-    [activeId, exams, fail, loadInto],
-  )
-
-  // ---- exam management ------------------------------------------------
-
-  /** A new exam starts blank — a template would pre-fill a subject the user
-   *  may not even be building a blueprint for. */
-  const newExam = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const created = await createTosExam({
-        code: '',
-        title: '',
-        exam_type: 'Prelim',
-        term: '',
-        total_hours: 8,
-      })
-      const createdSheet = await createTosSheet({
-        exam_id: created.id,
-        kind: 'items',
-        label: 'Multiple Choice',
-        total: 20,
-        position: 0,
-      })
-      setExams((prev) => [created, ...prev])
-      setActiveId(created.id)
-      sheetId.current = createdSheet.id
-      setExam({
-        code: '',
-        title: '',
-        examType: 'Table of Specification for Prelim',
-        term: '',
-        coverage: '',
-        preparedBy: '',
-        totalHours: 8,
-        school: TOS_EXAM_META.school,
-        institute: TOS_EXAM_META.institute,
-      })
-      setSheet({ ...blankSheet(), id: createdSheet.id })
-    } catch (e) {
-      fail(e, 'Could not create a new exam.')
-    } finally {
-      setLoading(false)
-    }
   }, [fail])
 
-  /** Deletes cascade through tos_sheets to tos_topics at the database level. */
-  const removeExam = useCallback(async () => {
-    const row = exams.find((e) => e.id === activeId)
-    if (!row) return
-    const name = row.code || row.title || 'this exam'
-    if (!window.confirm(`Delete ${name}? Its blueprint and topics go with it.`)) return
+  // ---- debounced writes ---------------------------------------------
 
-    setLoading(true)
-    setError(null)
-    try {
-      await deleteTosExam(row.id)
-      const remaining = (await fetchTosExams()).filter((e) => e.id !== row.id)
-      if (remaining.length === 0) {
-        // Nothing left: re-seed so the page is never a dead end.
-        setExams([])
-        setActiveId('')
-        setSheet(blankSheet())
-        window.location.reload()
-        return
-      }
-      setExams(remaining)
-      setActiveId(remaining[0].id)
-      await loadInto(remaining[0])
-    } catch (e) {
-      fail(e, 'Could not delete that exam.')
-    } finally {
-      setLoading(false)
-    }
-  }, [activeId, exams, fail, loadInto])
+  // Every setter updates local state immediately and schedules a write. The
+  // grid never waits on the network, and a burst of keystrokes in one cell
+  // collapses into a single request.
 
-  // ---- debounced writes -----------------------------------------------
-
-  // Every setter updates local state immediately and schedules a write, so a
-  // burst of keystrokes in one cell collapses into a single request.
-
-  const afterEdit = useCallback(() => setSaving(true), [])
+  const afterEdit = useCallback(() => {
+    setSaving(true)
+  }, [])
 
   const patchExam = useCallback(
     (patch: Partial<TosExam>) => {
@@ -286,9 +186,9 @@ export default function TableOfSpecification() {
         const next = { ...prev, ...patch }
         if (examTimer.current) window.clearTimeout(examTimer.current)
         examTimer.current = window.setTimeout(async () => {
-          if (!activeId) return
+          if (!examId.current) return
           try {
-            await updateTosExam(activeId, {
+            await updateTosExam(examId.current, {
               code: next.code,
               title: next.title,
               exam_type: next.examType.replace(/^Table of Specification for\s+/i, ''),
@@ -297,21 +197,6 @@ export default function TableOfSpecification() {
               prepared_by: next.preparedBy,
               total_hours: num(next.totalHours),
             })
-            // Keep the picker's label in step with the fields above it.
-            setExams((prev) =>
-              prev.map((e) =>
-                e.id === activeId
-                  ? {
-                      ...e,
-                      code: next.code,
-                      title: next.title,
-                      exam_type: next.examType.replace(/^Table of Specification for\s+/i, ''),
-                      term: next.term,
-                      total_hours: num(next.totalHours),
-                    }
-                  : e,
-              ),
-            )
             reportSaved()
           } catch (e) {
             fail(e, 'Could not save the exam details.')
@@ -321,7 +206,7 @@ export default function TableOfSpecification() {
       })
       afterEdit()
     },
-    [activeId, afterEdit, fail, reportSaved],
+    [afterEdit, fail, reportSaved],
   )
 
   const patchSheet = useCallback(
@@ -383,7 +268,7 @@ export default function TableOfSpecification() {
     [],
   )
 
-  // ---- topic editing --------------------------------------------------
+  // ---- topic editing -------------------------------------------------
 
   const patchTopic = useCallback(
     (id: string, patch: { title?: string; slo?: string; hours?: number }) => {
@@ -420,46 +305,8 @@ export default function TableOfSpecification() {
 
   return (
     <div className="syllabus-doc">
-      {/* ---- exam picker ---- */}
+      {/* ---- exam header ---- */}
       <div className="panel tos-panel no-print">
-        <div className="tos-exambar">
-          <label className="field tos-exambar__pick">
-            <span>Exam</span>
-            <select
-              className="input input--sm"
-              value={activeId}
-              disabled={loading || exams.length === 0}
-              onChange={(e) => switchTo(e.target.value)}
-            >
-              {exams.length === 0 && <option value="">No exams yet</option>}
-              {exams.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {examLabel(e) || 'Untitled exam'}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="tos-exambar__actions">
-            <button
-              type="button"
-              className="btn btn--sm btn--ghost"
-              onClick={newExam}
-              disabled={loading}
-            >
-              New exam
-            </button>
-            <button
-              type="button"
-              className="btn btn--sm btn--danger"
-              onClick={removeExam}
-              disabled={loading || exams.length === 0}
-            >
-              Delete
-            </button>
-          </div>
-        </div>
-
-        {/* ---- exam header ---- */}
         <div className="tos-field-grid">
           <label className="field">
             <span>Course</span>
@@ -503,7 +350,7 @@ export default function TableOfSpecification() {
 
         <div className="tos-savestate" role="status">
           {error && <span className="tos-savestate__error">{error}</span>}
-          {!error && loading && <span>Loading…</span>}
+          {!error && loading && <span>Loading your blueprint…</span>}
           {!error && !loading && saving && <span>Saving…</span>}
           {!error && !loading && !saving && savedAt && <span>Saved {savedAt}</span>}
         </div>

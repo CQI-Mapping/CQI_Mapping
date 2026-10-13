@@ -3134,32 +3134,6 @@ textarea.input {
   margin-bottom: 12px;
 }
 
-/* Exam picker: dropdown on the left, its actions on the right. */
-.tos-exambar {
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
-  padding-bottom: 12px;
-  margin-bottom: 12px;
-  border-bottom: 1px solid var(--border);
-}
-
-.tos-exambar__pick {
-  flex: 1 1 auto;
-  min-width: 0;
-  margin-bottom: 0 !important;
-}
-
-.tos-exambar__pick select {
-  width: 100%;
-}
-
-.tos-exambar__actions {
-  display: flex;
-  gap: 6px;
-  flex: 0 0 auto;
-}
-
 /* The exam's identifying fields, stacked: Course, then its title, then Term,
    then the exam type. One column, each label under the field above it.
    Capped so the inputs stay a readable length instead of spanning the panel. */
