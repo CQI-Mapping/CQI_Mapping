@@ -7,6 +7,7 @@ import {
   BLOOM_LEVELS,
   bloomTotals,
   fmt,
+  fmt1,
   num,
   placedTotal,
   renumber,
@@ -52,6 +53,15 @@ describe('num / fmt', () => {
     expect(fmt(1.25)).toBe('1.25')
     expect(fmt(1 / 3)).toBe('0.33')
     expect(fmt(0.1 + 0.2)).toBe('0.3')
+  })
+
+  it('renders the weighted column at one decimal, as the workbook does', () => {
+    // The faculty sheet is formatted to 1dp, so 1.25 items reads "1.3" there.
+    expect(fmt1(1.25)).toBe('1.3')
+    expect(fmt1(2.5)).toBe('2.5')
+    expect(fmt1(5)).toBe('5.0')
+    expect(fmt1(1 / 3)).toBe('0.3')
+    expect(fmt1('2.5')).toBe('2.5')
   })
 })
 

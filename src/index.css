@@ -2866,64 +2866,266 @@ textarea.input {
 }
 
 /* ---- Table of Specification ----
-   The nine-column blueprint (topic, hours, derived weight, six Bloom levels)
-   plus the editing chrome around it. The document itself reuses the .sd-*
-   report classes above, so only what they don't cover lives here. */
+   The blueprint is laid out like the faculty workbook and edited in place.
+   The colouring is the spec, not decoration:
 
-/* The letterhead has no image asset, so show the text block instead. */
-.tos-letterhead .sd-letterhead__text {
-  display: block;
+     GREEN  = an input. Type in it.
+     GRAY   = a formula. Derived, never typed into.
+
+   A gray cell that looks focusable would be a lie, so gray cells are plain
+   text with no hit target, while green cells render as borderless inputs that
+   only reveal themselves on hover/focus. */
+
+.tos-sheet {
+  padding: 14px 16px;
 }
 
-.tos-table {
-  table-layout: fixed;
-  width: 100%;
+.tos-sheet__meta {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #0f172a;
 }
 
-.tos-table th:first-child,
-.tos-table td:first-child {
-  width: 40%;
-}
-
-.tos-table .tos-num {
-  width: 8%;
+.tos-sheet__doctitle {
+  margin-top: 4px;
+  font-weight: 700;
   text-align: center;
 }
 
-.tos-table tfoot td {
+.tos-sheet__tazon {
+  margin-top: 4px;
   font-weight: 700;
-  border-top: 2px solid #94a3b8;
 }
 
-.tos-table .tos-row--target td {
+.tos-sheet__issues {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* The table itself ------------------------------------------------- */
+
+.tos-table {
+  width: 100%;
+  margin-top: 8px;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 12px;
+  background: #fff;
+}
+
+.tos-table th,
+.tos-table td {
+  border: 1px solid #9aa4ad;
+  padding: 0;
+  vertical-align: top;
+}
+
+.tos-table thead th {
+  padding: 4px 5px;
+  background: #d7d9db;
+  color: #111827;
+  font-weight: 700;
+  text-align: center;
+}
+
+.tos-th--topic { width: 34%; }
+.tos-th--hrs,
+.tos-th--weight { width: 7%; }
+
+.tos-th--bloom {
+  width: 8.66%;
+}
+
+.tos-th__name {
+  display: block;
+}
+
+.tos-th__share {
+  display: block;
+  font-weight: 400;
   font-size: 11px;
-  font-style: italic;
-  color: #64748b;
-  background: #f8fafc;
 }
 
-.tos-table .tos-num--set {
+/* Green input cells ------------------------------------------------ */
+
+.tos-td--topic {
+  padding: 3px 5px;
+  background: #cbe7b7;
+}
+
+.tos-td--num {
+  text-align: center;
+  background: #cbe7b7;
+}
+
+.tos-topic__title {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-weight: 700;
+}
+
+.tos-topic__num {
+  flex: 0 0 auto;
+}
+
+.tos-topic__title .tos-cell__input {
+  font-weight: 700;
+}
+
+.tos-topic__slo {
+  display: flex;
+  gap: 4px;
+  margin-top: 3px;
+  font-size: 11px;
+  font-weight: 400;
+  color: #1f2937;
+}
+
+.tos-topic__slo strong {
+  flex: 0 0 auto;
+}
+
+/* The input is invisible until you go looking for it, so a filled grid still
+   reads as a document rather than a wall of form controls. */
+.tos-cell__input {
+  width: 100%;
+  min-width: 0;
+  padding: 1px 2px;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+}
+
+.tos-cell__input::placeholder {
+  color: #7c8b7a;
+}
+
+.tos-cell__input:hover {
+  border-color: #86a878;
+}
+
+.tos-cell__input:focus {
+  outline: 2px solid #16a34a;
+  outline-offset: -1px;
+  background: #fff;
+}
+
+.tos-cell__input--multi {
+  resize: vertical;
+  min-height: 2.2em;
+  line-height: 1.35;
+}
+
+/* Gray formula cells ------------------------------------------------ */
+
+.tos-td--formula {
+  text-align: center;
+  background: #dcdedc;
+  color: #1f2937;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+/* A row whose placement disagrees with its hour weighting. */
+.tos-row--drift .tos-td--formula {
+  box-shadow: inset 2px 0 0 #dc2626;
+}
+
+.tos-empty {
+  padding: 14px;
+  text-align: center;
+  background: #cbe7b7;
+  color: #1f2937;
+}
+
+/* Totals band ------------------------------------------------------- */
+
+.tos-table tfoot th {
+  padding: 3px 6px;
+  background: #d7d9db;
+  color: #111827;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.tos-table tfoot td {
+  vertical-align: middle;
+}
+
+/* Row controls, outside the table so they never print ------------- */
+
+.tos-rows {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.tos-rows__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px 3px 8px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
+.tos-rows__label {
+  color: #64748b;
+}
+
+.tos-rows__name {
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 600;
 }
 
-.tos-slo {
-  margin-top: 4px;
+.tos-rows__item .btn + .btn {
+  margin-left: 2px;
+}
+
+.tos-foot {
+  margin-top: 8px;
   font-size: 11px;
-  font-weight: 400;
-  font-style: italic;
   color: #475569;
 }
 
-.tos-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 14px;
-  margin-top: 6px;
-  font-size: 11px;
-  font-weight: 400;
+/* Printing: strip the input chrome so the sheet looks like a document. */
+@media print {
+  .tos-cell__input {
+    border-color: transparent !important;
+    outline: none !important;
+    background: transparent !important;
+  }
+
+  .tos-table {
+    font-size: 10pt;
+  }
+
+  .tos-sheet {
+    padding: 0;
+  }
+
+  .tos-table thead th {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 }
 
-/* ---- TOS editing chrome (never printed) ---- */
+/* ---- TOS editing chrome above the document (never printed) ---- */
 
 .tos-panel {
   margin-bottom: 12px;
@@ -3024,78 +3226,6 @@ textarea.input {
   display: flex;
   flex-direction: column;
   gap: 6px;
-}
-
-.tos-editor {
-  margin-top: 14px;
-}
-
-.tos-editor__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-
-.tos-editor__head h3 {
-  margin: 0;
-}
-
-.tos-editor__table {
-  min-width: 900px;
-}
-
-.tos-editor__table input,
-.tos-editor__table textarea {
-  width: 100%;
-  font-family: inherit;
-}
-
-.tos-editor__slo {
-  margin-top: 5px;
-  resize: vertical;
-}
-
-.tos-editor__num,
-.tos-editor__hours,
-.tos-editor__weighted,
-.tos-editor__bloom {
-  text-align: center;
-  vertical-align: top;
-}
-
-.tos-editor__num {
-  width: 34px;
-}
-
-.tos-editor__hours,
-.tos-editor__weighted {
-  width: 74px;
-}
-
-.tos-editor__bloom {
-  width: 62px;
-}
-
-.tos-editor__actions {
-  width: 150px;
-  white-space: nowrap;
-}
-
-.tos-editor__actions .btn + .btn {
-  margin-left: 4px;
-}
-
-.tos-editor__foot {
-  margin: 10px 0 0;
-  font-size: 12px;
-  color: #64748b;
-}
-
-.tos-drift {
-  color: var(--danger);
-  font-weight: 700;
 }
 
 .tos-guide {

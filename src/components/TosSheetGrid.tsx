@@ -1,155 +1,358 @@
-// One sheet of a Table of Specification, laid out as a printable document.
+// One sheet of a Table of Specification, laid out as the faculty workbook it
+// came from — and editable in place, the way the spreadsheet is.
 //
-// Pure props -> JSX, no state, no fetching. It reads the same .sd-* report
-// classes the Curriculum Report and the Subject Graph About cards already use,
-// so it inherits their paper look and their @media print rules for free.
+// The colouring carries the meaning:
+//   GREEN  cells are inputs. Type in them.
+//   GRAY   cells are formulas. They recompute from the inputs and cannot be
+//          typed into — the "Number of Item" column is derived from the hour
+//          allotment, and the header percentages are derived from the column
+//          sums.
 //
-// Column layout matches the faculty workbook: Topic/SLO, hours, the derived
-// weighted column, then one column per Bloom level.
+// That distinction is the whole design: a TOS holds an intent (hours imply a
+// weight) and a reality (items placed on Bloom levels). The intent column is
+// gray because you never type it; the Bloom cells are green because you always
+// do. When they disagree, tosMath reports the drift.
+//
+// Controlled from above — the page owns the state and passes the setters down,
+// so this file stays a pure view with no fetching of its own.
 
 import {
   BLOOM_LEVELS,
   BLOOM_LABELS,
-  BLOOM_SHORT,
   bloomTotals,
   fmt,
+  fmt1,
+  num,
   shares,
-  totalHours,
   weightedFor,
+  type BloomLevel,
   type TosExam,
+  type TosIssue,
   type TosSheet,
 } from '../utils/tosMath'
 
-interface TosSheetGridProps {
-  exam: TosExam
-  sheet: TosSheet
-}
-
 const pct = (n: number) => `${Math.round(n * 1000) / 10}%`
 
-export default function TosSheetGrid({ exam, sheet }: TosSheetGridProps) {
+export interface TosSheetGridProps {
+  exam: TosExam
+  sheet: TosSheet
+  issues: TosIssue[]
+  /** False renders the document read-only for printing or review. */
+  editable: boolean
+  onPatchExam: (patch: Partial<TosExam>) => void
+  onPatchSheet: (patch: Partial<TosSheet>) => void
+  onPatchTopic: (id: string, patch: { title?: string; slo?: string; hours?: number }) => void
+  onSetBloom: (topicId: string, level: BloomLevel, value: string) => void
+  onAddTopic: () => void
+  onRemoveTopic: (id: string) => void
+  onMoveTopic: (id: string, delta: number) => void
+}
+
+/** A green input cell that reads as a flat cell until you click it. */
+function Cell({
+  value,
+  onChange,
+  type = 'text',
+  step,
+  min,
+  placeholder,
+  label,
+  multiline,
+}: {
+  value: string | number
+  onChange: (v: string) => void
+  type?: string
+  step?: string
+  min?: string
+  placeholder?: string
+  label: string
+  multiline?: boolean
+}) {
+  const cls = `tos-cell__input${multiline ? ' tos-cell__input--multi' : ''}`
+  return multiline ? (
+    <textarea
+      className={cls}
+      value={value}
+      rows={2}
+      placeholder={placeholder}
+      aria-label={label}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  ) : (
+    <input
+      className={cls}
+      type={type}
+      step={step}
+      min={min}
+      value={value}
+      placeholder={placeholder}
+      aria-label={label}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  )
+}
+
+export default function TosSheetGrid({
+  exam,
+  sheet,
+  issues,
+  editable,
+  onPatchExam,
+  onPatchSheet,
+  onPatchTopic,
+  onSetBloom,
+  onAddTopic,
+  onRemoveTopic,
+  onMoveTopic,
+}: TosSheetGridProps) {
   const totals = bloomTotals(sheet.topics)
   const share = shares(sheet.topics, sheet.total)
-  const hours = totalHours(sheet.topics)
-  const unit = sheet.kind === 'points' ? 'Points' : 'Items'
+  const unit = sheet.kind === 'points' ? 'Point' : 'Item'
+
+  // Drift per topic, so the grid can mark the offending rows without the page
+  // having to pass a lookup table down.
+  const drifted = new Set(
+    sheet.topics
+      .filter((t) => {
+        const placed = BLOOM_LEVELS.reduce((s, l) => s + num(t.bloom[l]), 0)
+        return Math.abs(placed - weightedFor(sheet, t)) > 0.25
+      })
+      .map((t) => t.id),
+  )
 
   return (
-    <div className="syllabus-doc__page">
-      <header className="sd-letterhead tos-letterhead">
-        <div className="sd-letterhead__text">
-          <div>Republic of the Philippines</div>
-          <div className="sd-letterhead__school">{exam.school}</div>
-          <div>{exam.institute}</div>
-          <div className="sd-letterhead__motto">
-            Creando futura, Transformationis vitae, Ductae a Deo
-          </div>
-        </div>
-      </header>
-
-      <div className="sd-titleblock">
-        <div className="sd-titleblock__title">TABLE OF SPECIFICATION</div>
-        <div>{exam.examType}</div>
-        <div>{exam.institute}</div>
+    <div className="syllabus-doc__page tos-sheet">
+      <div className="tos-sheet__meta">
         <div>
-          {exam.code} &mdash; {exam.title}
+          <strong>Course Title:</strong> {exam.title}
         </div>
-        <div className="sd-titleblock__course">{exam.term}</div>
+        <div>{exam.term}</div>
+        <div className="tos-sheet__doctitle">
+          {exam.examType}: {sheet.label} Type
+        </div>
+        <div className="tos-sheet__tazon">Blooms Revised Taxonomy</div>
+        <div>
+          <strong>Topic:</strong> {exam.coverage}
+        </div>
       </div>
 
-      {exam.coverage && (
-        <div className="sd-band">
-          <strong>Coverage: </strong>
-          {exam.coverage}
-        </div>
-      )}
-
-      <div className="sd-band sd-band--center">
-        BLOOM&rsquo;S REVISED TAXONOMY
-      </div>
-
-      <table className="sd-table tos-table">
+      <table className="tos-table">
         <thead>
           <tr>
-            <th>Topic with SLO</th>
-            <th className="tos-num">Hrs</th>
-            <th className="tos-num">No. of {unit}</th>
+            <th className="tos-th--topic">Topic with SLO</th>
+            <th className="tos-th--hrs">No. of hrs</th>
+            <th className="tos-th--weight">Number of {unit}</th>
             {BLOOM_LEVELS.map((level) => (
-              <th key={level} className="tos-num" title={BLOOM_LABELS[level]}>
-                {BLOOM_SHORT[level]}
+              <th key={level} className="tos-th--bloom">
+                <span className="tos-th__name">{BLOOM_LABELS[level]}</span>
+                <span className="tos-th__share">{pct(share[level])}</span>
               </th>
             ))}
           </tr>
         </thead>
 
         <tbody>
-          {/* Row 12 of the workbook: each Bloom level as a share of the exam. */}
-          <tr className="tos-row--target">
-            <td>Target percentage</td>
-            <td className="tos-num">&mdash;</td>
-            <td className="tos-num">100%</td>
+          {sheet.topics.map((topic) => (
+            <tr key={topic.id} className={drifted.has(topic.id) ? 'tos-row--drift' : ''}>
+              <td className="tos-td--topic">
+                <div className="tos-topic__title">
+                  <span className="tos-topic__num">{topic.position}.</span>
+                  {editable ? (
+                    <Cell
+                      label={`Topic ${topic.position} title`}
+                      value={topic.title}
+                      placeholder="Topic title"
+                      onChange={(v) => onPatchTopic(topic.id, { title: v })}
+                    />
+                  ) : (
+                    <span>{topic.title}</span>
+                  )}
+                </div>
+                <div className="tos-topic__slo">
+                  <strong>SLO: </strong>
+                  {editable ? (
+                    <Cell
+                      multiline
+                      label={`Topic ${topic.position} SLO`}
+                      value={topic.slo}
+                      placeholder="Student Learning Outcome"
+                      onChange={(v) => onPatchTopic(topic.id, { slo: v })}
+                    />
+                  ) : (
+                    <span>{topic.slo}</span>
+                  )}
+                </div>
+              </td>
+
+              <td className="tos-td--num">
+                {editable ? (
+                  <Cell
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    label={`Topic ${topic.position} hours`}
+                    value={topic.hours}
+                    onChange={(v) => onPatchTopic(topic.id, { hours: num(v) })}
+                  />
+                ) : (
+                  fmt(topic.hours)
+                )}
+              </td>
+
+              {/* GRAY — derived from the hours, never typed. */}
+              <td className="tos-td--num tos-td--formula">{fmt1(weightedFor(sheet, topic))}</td>
+
+              {BLOOM_LEVELS.map((level) => (
+                <td key={level} className="tos-td--num">
+                  {editable ? (
+                    <Cell
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="0"
+                      label={`${BLOOM_LABELS[level]} items for topic ${topic.position}`}
+                      value={topic.bloom[level] ?? ''}
+                      onChange={(v) => onSetBloom(topic.id, level, v)}
+                    />
+                  ) : (
+                    (topic.bloom[level] ?? '') || ''
+                  )}
+                </td>
+              ))}
+            </tr>
+          ))}
+
+          {sheet.topics.length === 0 && (
+            <tr>
+              <td colSpan={9} className="tos-empty">
+                No topics yet.{' '}
+                {editable && (
+                  <button type="button" className="btn btn--ghost btn--sm" onClick={onAddTopic}>
+                    Add the first one
+                  </button>
+                )}
+              </td>
+            </tr>
+          )}
+        </tbody>
+
+        <tfoot>
+          {/* GREEN — you set the exam total; everything else follows from it. */}
+          <tr className="tos-total">
+            <th scope="row">Total Number of {sheet.kind === 'points' ? 'Points' : 'Items'}</th>
+            <td className="tos-td--formula" />
+            <td className="tos-td--num">
+              {editable ? (
+                <Cell
+                  type="number"
+                  min="0"
+                  step="1"
+                  label={`Total number of ${unit}s on this sheet`}
+                  value={sheet.total}
+                  onChange={(v) => onPatchSheet({ total: num(v) })}
+                />
+              ) : (
+                fmt(sheet.total)
+              )}
+            </td>
+            {/* GRAY — these are the SUM of the columns above, not inputs. */}
             {BLOOM_LEVELS.map((level) => (
-              <td key={level} className="tos-num">
-                {pct(share[level])}
+              <td key={level} className="tos-td--num tos-td--formula">
+                {totals[level] || ''}
               </td>
             ))}
           </tr>
 
-          {sheet.topics.map((topic) => (
-            <tr key={topic.id}>
-              <td>
-                <strong>
-                  {topic.position}. {topic.title}
-                </strong>
-                {topic.slo && <div className="tos-slo">SLO: {topic.slo}</div>}
-              </td>
-              <td className="tos-num">{fmt(topic.hours)}</td>
-              <td className="tos-num">{fmt(weightedFor(sheet, topic))}</td>
-              {BLOOM_LEVELS.map((level) => {
-                const n = topic.bloom[level] ?? 0
-                return (
-                  <td key={level} className={`tos-num${n ? ' tos-num--set' : ''}`}>
-                    {n || ''}
-                  </td>
-                )
-              })}
-            </tr>
-          ))}
-        </tbody>
-
-        <tfoot>
-          <tr>
-            <td>Total</td>
-            <td className="tos-num">{fmt(hours)}</td>
-            <td className="tos-num">{fmt(sheet.total)}</td>
+          <tr className="tos-total">
+            <th scope="row">Total Number of Hours</th>
+            <td className="tos-td--num">
+              {editable ? (
+                <Cell
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  label="Total hours for this exam"
+                  value={exam.totalHours}
+                  onChange={(v) => onPatchExam({ totalHours: num(v) })}
+                />
+              ) : (
+                fmt(exam.totalHours)
+              )}
+            </td>
+            <td className="tos-td--formula" />
             {BLOOM_LEVELS.map((level) => (
-              <td key={level} className="tos-num">
-                {totals[level] || ''}
-              </td>
+              <td key={level} className="tos-td--formula" />
+            ))}
+          </tr>
+
+          {/* GRAY — always 100% by construction, so it is never an input. */}
+          <tr className="tos-total">
+            <th scope="row">Total Percentage</th>
+            <td className="tos-td--num tos-td--formula">100%</td>
+            {Array.from({ length: BLOOM_LEVELS.length + 1 }).map((_, i) => (
+              <td key={i} className="tos-td--formula" />
             ))}
           </tr>
         </tfoot>
       </table>
 
-      <div className="sd-details">
-        <div className="sd-details__section">
-          <strong>Bloom&rsquo;s Revised Taxonomy key</strong>
-          <div className="tos-legend">
-            {BLOOM_LEVELS.filter((level) => totals[level] > 0).map((level) => (
-              <span key={level} className="tos-legend__item">
-                <strong>{BLOOM_SHORT[level]}</strong> &mdash; {BLOOM_LABELS[level]}
-              </span>
-            ))}
-            {BLOOM_LEVELS.every((level) => totals[level] === 0) && (
-              <span className="tos-legend__item">No Bloom levels assigned yet.</span>
-            )}
-          </div>
+      {/* Row controls live outside the table so they never print. */}
+      {editable && (
+        <div className="tos-rows no-print">
+          {sheet.topics.map((topic) => (
+            <span key={topic.id} className="tos-rows__item">
+              <span className="tos-rows__label">{topic.position}.</span>
+              <span className="tos-rows__name">{topic.title || 'Untitled topic'}</span>
+              <button
+                type="button"
+                className="btn btn--ghost btn--sm"
+                disabled={topic.position === 1}
+                onClick={() => onMoveTopic(topic.id, -1)}
+                aria-label={`Move topic ${topic.position} up`}
+              >
+                &uarr;
+              </button>
+              <button
+                type="button"
+                className="btn btn--ghost btn--sm"
+                disabled={topic.position === sheet.topics.length}
+                onClick={() => onMoveTopic(topic.id, 1)}
+                aria-label={`Move topic ${topic.position} down`}
+              >
+                &darr;
+              </button>
+              <button
+                type="button"
+                className="btn btn--danger btn--sm"
+                onClick={() => onRemoveTopic(topic.id)}
+                aria-label={`Delete topic ${topic.position}`}
+              >
+                Delete
+              </button>
+            </span>
+          ))}
+          <button type="button" className="btn btn--primary btn--sm" onClick={onAddTopic}>
+            Add topic
+          </button>
         </div>
+      )}
+
+      <div className="tos-foot">
+        <em>Note: Only those highlighted with green are editable cells. Gray colored cells
+        contains the formula.</em>
       </div>
 
-      {exam.preparedBy && (
-        <div className="sd-details__block">
-          <strong>Prepared by: </strong>
-          <p>{exam.preparedBy}</p>
+      {issues.length > 0 && editable && (
+        <div className="tos-sheet__issues no-print">
+          {issues.map((issue) => (
+            <p
+              key={issue.code}
+              className={`msg msg--${issue.level === 'error' ? 'error' : 'info'}`}
+              role="status"
+            >
+              {issue.message}
+            </p>
+          ))}
         </div>
       )}
     </div>

@@ -1,17 +1,16 @@
 // Table of Specification workspace.
 //
 // The TOS is built first and the exam is written to match it, so this page is
-// closer to a form than a viewer: you state the syllabus hours and where each
-// item sits on Bloom's ladder, and the derived weighted column, the column
-// totals, the target percentages, and the consistency checks all fall out of
-// that as you type.
+// closer to a spreadsheet than a viewer. It opens on the IT21 Prelim blueprint
+// the faculty authored, laid out exactly like their workbook: you type in the
+// green cells, and the gray formula cells — the hour-weighted "Number of Item"
+// column, the header percentages, the column totals — recompute as you go.
 //
-// State is local React only for now — a refresh discards edits. The intended
+// State is local React only for now; a refresh discards edits. The intended
 // next step is Supabase persistence (tos_exams / tos_sheets / tos_topics under
 // RLS scoped to the signed-in user), which is why the data lives in
 // tosSampleData.ts rather than inline here: that file becomes the seed and the
-// useState becomes a fetch, with no change to TosSheetGrid, tosMath, or the
-// markup below.
+// useState becomes a fetch, with no change to TosSheetGrid or tosMath.
 
 import { useCallback, useMemo, useState } from 'react'
 import TosSheetGrid from '../../components/TosSheetGrid'
@@ -19,7 +18,6 @@ import {
   BLOOM_DESCRIPTIONS,
   BLOOM_LABELS,
   BLOOM_LEVELS,
-  BLOOM_SHORT,
   bloomTotals,
   blankTopic,
   fmt,
@@ -29,10 +27,8 @@ import {
   shares,
   totalHours,
   validateSheet,
-  weightedFor,
   type BloomLevel,
   type TosExam,
-  type TosIssue,
   type TosSheet,
   type TosTopic,
 } from '../../utils/tosMath'
@@ -40,21 +36,18 @@ import { TOS_EXAM_META, TOS_SHEETS } from '../../utils/tosSampleData'
 
 const pct = (n: number) => `${Math.round(n * 1000) / 10}%`
 
-const ISSUE_CLASS: Record<TosIssue['level'], string> = {
-  error: 'msg msg--error',
-  warn: 'msg msg--info',
-  info: 'msg msg--info',
-}
-
 /** A deep enough copy that editing topics never mutates the sample constant. */
 const freshSheets = (): TosSheet[] =>
-  TOS_SHEETS.map((s) => ({ ...s, topics: s.topics.map((t) => ({ ...t, bloom: { ...t.bloom } })) }))
+  TOS_SHEETS.map((s) => ({
+    ...s,
+    topics: s.topics.map((t) => ({ ...t, bloom: { ...t.bloom } })),
+  }))
 
 export default function TableOfSpecification() {
   const [exam, setExam] = useState<TosExam>(() => ({ ...TOS_EXAM_META }))
   const [sheets, setSheets] = useState<TosSheet[]>(freshSheets)
-  const [activeId, setActiveId] = useState(sheets[0]?.id ?? '')
-  const [editMode, setEditMode] = useState(false)
+  const [activeId, setActiveId] = useState(TOS_SHEETS[0].id)
+  const [editMode, setEditMode] = useState(true)
   const [showGuide, setShowGuide] = useState(false)
 
   const sheet = useMemo(
@@ -72,50 +65,56 @@ export default function TableOfSpecification() {
     setExam((prev) => ({ ...prev, ...patch }))
   }, [])
 
+  const patchSheet = useCallback((patch: Partial<TosSheet>) => {
+    setSheets((prev) =>
+      prev.map((s) => (s.id === activeId ? { ...s, ...patch } : s)),
+    )
+  }, [activeId])
+
   // ---- topic editing -------------------------------------------------
 
-  const replaceSheet = useCallback((next: TosSheet) => {
-    setSheets((prev) => prev.map((s) => (s.id === next.id ? next : s)))
-  }, [])
+  const replaceSheet = useCallback(
+    (topics: TosTopic[]) => {
+      setSheets((prev) =>
+        prev.map((s) => (s.id === activeId ? { ...s, topics } : s)),
+      )
+    },
+    [activeId],
+  )
 
   const patchTopic = useCallback(
-    (id: string, patch: Partial<TosTopic>) => {
-      replaceSheet({
-        ...sheet,
-        topics: sheet.topics.map((t) => (t.id === id ? { ...t, ...patch } : t)),
-      })
+    (id: string, patch: { title?: string; slo?: string; hours?: number }) => {
+      replaceSheet(
+        sheet.topics.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+      )
     },
-    [sheet, replaceSheet],
+    [sheet.topics, replaceSheet],
   )
 
   const setBloom = useCallback(
-    (id: string, level: BloomLevel, raw: string) => {
-      const value = num(raw)
-      const topic = sheet.topics.find((t) => t.id === id)
+    (topicId: string, level: BloomLevel, raw: string) => {
+      const topic = sheet.topics.find((t) => t.id === topicId)
       if (!topic) return
+      const value = num(raw)
       const bloom = { ...topic.bloom }
+      // Zero and blank both mean "nothing at this level", so the key is dropped
+      // rather than stored as 0 — keeps the share maths and the grid honest.
       if (value > 0) bloom[level] = value
       else delete bloom[level]
-      patchTopic(id, { bloom })
+      replaceSheet(sheet.topics.map((t) => (t.id === topicId ? { ...t, bloom } : t)))
     },
-    [sheet.topics, patchTopic],
+    [sheet.topics, replaceSheet],
   )
 
   const addTopic = useCallback(() => {
-    replaceSheet({
-      ...sheet,
-      topics: [...sheet.topics, blankTopic(sheet.topics.length + 1)],
-    })
-  }, [sheet, replaceSheet])
+    replaceSheet([...sheet.topics, blankTopic(sheet.topics.length + 1)])
+  }, [sheet.topics, replaceSheet])
 
   const removeTopic = useCallback(
     (id: string) => {
-      replaceSheet({
-        ...sheet,
-        topics: renumber(sheet.topics.filter((t) => t.id !== id)),
-      })
+      replaceSheet(renumber(sheet.topics.filter((t) => t.id !== id)))
     },
-    [sheet, replaceSheet],
+    [sheet.topics, replaceSheet],
   )
 
   const moveTopic = useCallback(
@@ -126,26 +125,27 @@ export default function TableOfSpecification() {
       if (index < 0 || target < 0 || target >= topics.length) return
       const [moved] = topics.splice(index, 1)
       topics.splice(target, 0, moved)
-      replaceSheet({ ...sheet, topics: renumber(topics) })
+      replaceSheet(renumber(topics))
     },
-    [sheet, replaceSheet],
+    [sheet.topics, replaceSheet],
   )
 
   const unit = sheet.kind === 'points' ? 'points' : 'items'
-  const columns = BLOOM_LEVELS.length
+  const singular = sheet.kind === 'points' ? 'Point' : 'Item'
 
   return (
     <div className="syllabus-doc">
       {/* ---- toolbar ---- */}
       <div className="syllabus-doc__toolbar no-print">
         <span className="syllabus-doc__meta">
-          {exam.code} &middot; {exam.title} &middot; {exam.term}
+          {exam.code} &middot; {exam.term}
         </span>
         <div className="sd-toolbar-controls">
           <button
             type="button"
             className={`btn btn--sm ${editMode ? 'btn--primary' : 'btn--ghost'}`}
             onClick={() => setEditMode((v) => !v)}
+            aria-pressed={editMode}
           >
             {editMode ? 'Done editing' : 'Edit'}
           </button>
@@ -159,7 +159,7 @@ export default function TableOfSpecification() {
         </div>
       </div>
 
-      {/* ---- exam header form ---- */}
+      {/* ---- exam header ---- */}
       <div className="panel tos-panel no-print">
         <div className="tos-field-grid">
           <label className="field">
@@ -228,23 +228,20 @@ export default function TableOfSpecification() {
 
       {/* ---- sheet tabs ---- */}
       <div className="sd-tabs no-print">
-        {sheets.map((s) => {
-          const sTotals = bloomTotals(s.topics)
-          return (
-            <button
-              key={s.id}
-              type="button"
-              className={`sd-tab ${s.id === sheet.id ? 'sd-tab--active' : ''}`}
-              onClick={() => setActiveId(s.id)}
-            >
-              {s.label}
-              <span className="sd-tab__count">{sTotals ? placedTotal(s.topics) : 0}</span>
-            </button>
-          )
-        })}
+        {sheets.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            className={`sd-tab ${s.id === sheet.id ? 'sd-tab--active' : ''}`}
+            onClick={() => setActiveId(s.id)}
+          >
+            {s.label}
+            <span className="sd-tab__count">{placedTotal(s.topics)}</span>
+          </button>
+        ))}
       </div>
 
-      {/* ---- derived readouts + checks ---- */}
+      {/* ---- live readouts ---- */}
       <div className="tos-summary no-print">
         <div className="tos-summary__stats">
           <div className="tos-summary__stat">
@@ -284,157 +281,37 @@ export default function TableOfSpecification() {
           ))}
         </div>
 
-        {issues.length > 0 && (
-          <div className="tos-issues">
-            {issues.map((issue) => (
-              <p key={issue.code} className={ISSUE_CLASS[issue.level]} role="status">
-                {issue.message}
-              </p>
-            ))}
-          </div>
-        )}
-        {issues.length === 0 && (
+        {issues.length === 0 ? (
           <p className="msg msg--success" role="status">
             This sheet adds up and every topic matches its hour allotment.
           </p>
+        ) : (
+          issues.map((issue) => (
+            <p
+              key={issue.code}
+              className={`msg msg--${issue.level === 'error' ? 'error' : 'info'}`}
+              role="status"
+            >
+              {issue.message}
+            </p>
+          ))
         )}
       </div>
 
-      {/* ---- the document ---- */}
-      <TosSheetGrid exam={exam} sheet={sheet} />
-
-      {/* ---- topic editor ---- */}
-      {editMode && (
-        <div className="panel tos-editor no-print">
-          <div className="tos-editor__head">
-            <h3>Topics</h3>
-            <button type="button" className="btn btn--ghost btn--sm" onClick={addTopic}>
-              Add topic
-            </button>
-          </div>
-
-          <div className="table-wrap">
-            <table className="table tos-editor__table">
-              <thead>
-                <tr>
-                  <th className="tos-editor__num">#</th>
-                  <th>Topic with SLO</th>
-                  <th className="tos-editor__hours">Hrs</th>
-                  <th className="tos-editor__weighted">By hours</th>
-                  {BLOOM_LEVELS.map((level) => (
-                    <th key={level} className="tos-editor__bloom" title={BLOOM_LABELS[level]}>
-                      {BLOOM_SHORT[level]}
-                    </th>
-                  ))}
-                  <th className="tos-editor__actions">Reorder</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sheet.topics.map((topic) => {
-                  const weighted = weightedFor(sheet, topic)
-                  const topicPlaced = BLOOM_LEVELS.reduce(
-                    (sum, level) => sum + num(topic.bloom[level]),
-                    0,
-                  )
-                  const drift = Math.abs(topicPlaced - weighted) > 0.25
-                  return (
-                    <tr key={topic.id}>
-                      <td className="tos-editor__num">{topic.position}</td>
-                      <td>
-                        <input
-                          className="input input--sm"
-                          value={topic.title}
-                          placeholder="Topic title"
-                          aria-label={`Topic ${topic.position} title`}
-                          onChange={(e) => patchTopic(topic.id, { title: e.target.value })}
-                        />
-                        <textarea
-                          className="input input--sm tos-editor__slo"
-                          value={topic.slo}
-                          rows={2}
-                          placeholder="SLO: Student Learning Outcome"
-                          aria-label={`Topic ${topic.position} SLO`}
-                          onChange={(e) => patchTopic(topic.id, { slo: e.target.value })}
-                        />
-                      </td>
-                      <td className="tos-editor__hours">
-                        <input
-                          className="input input--sm"
-                          type="number"
-                          min="0"
-                          step="0.5"
-                          value={topic.hours}
-                          aria-label={`Topic ${topic.position} hours`}
-                          onChange={(e) =>
-                            patchTopic(topic.id, { hours: num(e.target.value) })
-                          }
-                        />
-                      </td>
-                      <td className="tos-editor__weighted">
-                        <span className={drift ? 'tos-drift' : ''}>{fmt(weighted)}</span>
-                      </td>
-                      {BLOOM_LEVELS.map((level) => (
-                        <td key={level} className="tos-editor__bloom">
-                          <input
-                            className="input input--sm"
-                            type="number"
-                            min="0"
-                            step="1"
-                            value={topic.bloom[level] ?? ''}
-                            placeholder="0"
-                            aria-label={`${BLOOM_LABELS[level]} items for topic ${topic.position}`}
-                            onChange={(e) => setBloom(topic.id, level, e.target.value)}
-                          />
-                        </td>
-                      ))}
-                      <td className="tos-editor__actions">
-                        <button
-                          type="button"
-                          className="btn btn--ghost btn--sm"
-                          disabled={topic.position === 1}
-                          onClick={() => moveTopic(topic.id, -1)}
-                          aria-label={`Move topic ${topic.position} up`}
-                        >
-                          &uarr;
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn--ghost btn--sm"
-                          disabled={topic.position === sheet.topics.length}
-                          onClick={() => moveTopic(topic.id, 1)}
-                          aria-label={`Move topic ${topic.position} down`}
-                        >
-                          &darr;
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn--danger btn--sm"
-                          onClick={() => removeTopic(topic.id)}
-                          aria-label={`Delete topic ${topic.position}`}
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
-                {sheet.topics.length === 0 && (
-                  <tr>
-                    <td colSpan={columns + 5} className="program-empty">
-                      No topics yet. Add one to start building this sheet.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          <p className="tos-editor__foot">
-            &ldquo;By hours&rdquo; is derived: (total {unit} &divide; {fmt(hours)} hrs) &times;
-            topic hours. It is the weight the syllabus asks for; the Bloom columns are what
-            you actually placed. A gap between them is flagged above.
-          </p>
-        </div>
-      )}
+      {/* ---- the blueprint ---- */}
+      <TosSheetGrid
+        exam={exam}
+        sheet={sheet}
+        issues={issues}
+        editable={editMode}
+        onPatchExam={patchExam}
+        onPatchSheet={patchSheet}
+        onPatchTopic={patchTopic}
+        onSetBloom={setBloom}
+        onAddTopic={addTopic}
+        onRemoveTopic={removeTopic}
+        onMoveTopic={moveTopic}
+      />
 
       {/* ---- explainer ---- */}
       <div className="panel tos-guide no-print">
@@ -444,7 +321,7 @@ export default function TableOfSpecification() {
           onClick={() => setShowGuide((v) => !v)}
           aria-expanded={showGuide}
         >
-          {showGuide ? 'Hide' : 'What'} is a Table of Specification?
+          What is a Table of Specification?
           <span className="tos-guide__chevron">{showGuide ? '−' : '+'}</span>
         </button>
 
@@ -453,18 +330,29 @@ export default function TableOfSpecification() {
             <p>
               A TOS is the exam&rsquo;s blueprint, built before any question is written. It
               maps each syllabus topic to a cognitive level and a count, so the exam is a
-              fair sample of the course rather than a test of whichever chapter was covered
-              last.
+              fair sample of the course rather than a test of whichever chapter was
+              covered last.
             </p>
+
+            <div className="sd-details__section">
+              <strong>Why some cells are green and some are gray</strong>
+              <p>
+                <strong>Green</strong> cells are the ones a person decides: topic names,
+                SLOs, hours, Bloom counts, the exam total. <strong>Gray</strong> cells hold
+                formulas and are not typed into. The <em>Number of {singular}</em> column is
+                gray because it is computed from the hours —
+                <code>(total {unit} &divide; total hours) &times; topic hours</code>, the
+                workbook&rsquo;s <code>=($C$19/$B$20)*B13</code>. The percentages in the header
+                are gray because they fall out of the column sums.
+              </p>
+            </div>
 
             <div className="sd-details__section">
               <strong>1. Weight follows hours</strong>
               <p>
-                Items are distributed in proportion to the time each topic gets. The{' '}
-                <em>No. of {unit}</em> column is{' '}
-                <code>(total {unit} &divide; total hours) &times; topic hours</code> — the
-                workbook&rsquo;s <code>=($C$19/$B$20)*B13</code>. Change the hours or the
-                total and every weight moves.
+                Items are distributed in proportion to the time each topic gets, so a topic
+                taught for twice as long earns twice as much of the exam. Change an hour
+                figure or the total and every gray weight in the column moves with it.
               </p>
             </div>
 
@@ -472,8 +360,7 @@ export default function TableOfSpecification() {
               <strong>2. Bloom&rsquo;s Revised Taxonomy sets the difficulty mix</strong>
               <p>
                 Every item sits at one of six cognitive levels. Spreading items across the
-                ladder stops a student from passing on memorization alone — the target
-                percentages on this sheet cap how much of the exam can be simple recall.
+                ladder stops a student from passing on memorization alone.
               </p>
               <ul className="tos-guide__list">
                 {BLOOM_LEVELS.map((level) => (
@@ -499,14 +386,11 @@ export default function TableOfSpecification() {
                 </li>
                 <li>
                   <strong>Placement must match weight.</strong> If a topic is weighted for
-                  2.5 items but places 3, the exam over-tests that topic relative to the
-                  time spent on it.
+                  2.5 items but places 3, the exam over-tests it relative to the time spent
+                  on it. Drifting rows are outlined in the grid.
                 </li>
               </ul>
-              <p>
-                These three checks run automatically on every keystroke above, so mistakes
-                surface while the sheet is being built rather than after the exam is printed.
-              </p>
+              <p>All three run on every keystroke, so mistakes surface while the sheet is being built.</p>
             </div>
           </div>
         )}

@@ -103,6 +103,13 @@ export const num = (v: unknown): number => {
 /** Trim float noise for display: 20 -> "20", 2.5 -> "2.5", 0.333 -> "0.33". */
 export const fmt = (n: number): string => String(Math.round(num(n) * 100) / 100)
 
+/**
+ * One decimal, always. The weighted column in the faculty workbook is formatted
+ * this way, so 1.25 items reads "1.3" there. Matching it keeps the document
+ * looking like the sheet it came from.
+ */
+export const fmt1 = (n: number): string => num(n).toFixed(1)
+
 /** Items actually placed in one topic, across every Bloom column. */
 export const topicPlaced = (topic: TosTopic): number =>
   BLOOM_LEVELS.reduce((sum, level) => sum + num(topic.bloom[level]), 0)
