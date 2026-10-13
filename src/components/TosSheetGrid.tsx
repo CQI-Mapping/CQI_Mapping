@@ -274,6 +274,15 @@ export default function TosSheetGrid({
         </tfoot>
       </table>
 
+      {/* Add sits directly under the table it adds a row to, right-aligned. */}
+      {editable && (
+        <div className="tos-addrow no-print">
+          <button type="button" className="btn btn--primary btn--sm" onClick={onAddTopic}>
+            Add topic
+          </button>
+        </div>
+      )}
+
       <div className="tos-foot">
         <em>Note: Only those highlighted with green are editable cells. Gray colored cells
         contains the formula.</em>
@@ -290,15 +299,6 @@ export default function TosSheetGrid({
               {issue.message}
             </p>
           ))}
-        </div>
-      )}
-
-      {/* Add sits under the table it adds to, right-aligned. */}
-      {editable && (
-        <div className="tos-addrow no-print">
-          <button type="button" className="btn btn--primary btn--sm" onClick={onAddTopic}>
-            Add topic
-          </button>
         </div>
       )}
     </div>
