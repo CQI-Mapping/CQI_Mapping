@@ -304,10 +304,12 @@ export default function SubjectView() {
     return { pre, core, clos }
   }, [rootType, selectedPo, selectedCourse, datasets, courses])
 
-  // ── Load + cache outcome datasets on first View ────────────────────────────
-  const loadDatasets = async (force = false) => {
+  // ── Load + cache outcome datasets ──────────────────────────────────────────
+  // Called on mount (silently) so the About card can show the full CLO list
+  // without waiting for View Graph, and again on View / Refresh.
+  const loadDatasets = async (force = false, silent = false) => {
     if (datasets && !force) return
-    setSpinner(true)
+    if (!silent) setSpinner(true)
     setGraphError('')
     try {
       const [resources, clos, pos, peos, sgs, cmos] = await Promise.all([
@@ -331,9 +333,20 @@ export default function SubjectView() {
     } catch (e) {
       setGraphError(e instanceof Error ? e.message : 'Failed to load relationships.')
     } finally {
-      setSpinner(false)
+      if (!silent) setSpinner(false)
     }
   }
+
+  // Prefetch once on mount (guarded so StrictMode's double-invoke doesn't fire
+  // two rounds of queries). Without this the About card's CLO list stays empty
+  // until the user presses View Graph.
+  const prefetched = useRef(false)
+  useEffect(() => {
+    if (prefetched.current) return
+    prefetched.current = true
+    loadDatasets(false, true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // ── Shared PO downstream leaves (PEO / SG / CMO) ──────────────────────────
   // Extracted so both Subject-rooted and PO-rooted builders stay identical.
@@ -1368,7 +1381,7 @@ export default function SubjectView() {
                     ? datasets.clos.filter((c) => cloMatchesSubject(c.course || '', normalizeCode(selectedCourse.code)))
                     : []
                   const closEmpty = !datasets
-                    ? <>Press <strong>View Graph</strong> to load the CLOs for this subject.</>
+                    ? <>Loading the course learning outcomes…</>
                     : 'No course learning outcomes for this subject.'
                   return (
                     <CourseDetails
@@ -1402,7 +1415,7 @@ export default function SubjectView() {
                   <span><strong>Status:</strong> <span className={`status-badge status-badge--${selectedPo.status}`}>{selectedPo.status}</span></span>
                 </div>
                 {(() => {
-                  if (!datasets) return <p className="subject-view__inside-hint">Press <strong>View Graph</strong> to load CLOs / subjects linked to this PO.</p>
+                  if (!datasets) return <p className="subject-view__inside-hint">Loading the linked CLOs…</p>
                   const key = normalizeCode(selectedPo.code)
                   const linked = datasets.clos.filter((c) =>
                     extractCodes(c.title || '', 'PO').map(normalizeCode).includes(key))
@@ -1411,13 +1424,12 @@ export default function SubjectView() {
                     <div className="subject-view__inside-list">
                       <strong className="subject-view__inside-list-title">CLOs targeting {selectedPo.code} ({linked.length}):</strong>
                       <ul>
-                        {linked.slice(0, 6).map((clo) => (
+                        {linked.map((clo) => (
                           <li key={clo.id} title={`${clo.course || ''} — ${clo.description || clo.title}`}>
                             <span className="subject-view__inside-code">{clo.code}</span> — {clo.description || clo.title}
                             {clo.course ? <span style={{ color: '#64748b' }}> ({clo.course})</span> : null}
                           </li>
                         ))}
-                        {linked.length > 6 && <li className="subject-view__inside-more">+ {linked.length - 6} more — see graph</li>}
                       </ul>
                     </div>
                   )

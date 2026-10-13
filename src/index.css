@@ -3742,11 +3742,6 @@ textarea.input {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-.subject-view__inside-more {
-  color: #94a3b8;
-  font-style: italic;
-}
-
 .subject-view__summary {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
