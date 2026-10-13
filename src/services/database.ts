@@ -840,12 +840,20 @@ export async function fetchTosExams(): Promise<TosExamRow[]> {
   return data as TosExamRow[]
 }
 
+/**
+ * The owner is taken from the caller rather than trusted from the payload:
+ * user_id is the value the RLS policy checks, so a caller that guessed or
+ * omitted it would either be denied (a NULL policy result reads as a
+ * violation) or claim someone else's row. Taking it as a separate argument
+ * keeps it out of the object the caller spreads.
+ */
 export async function createTosExam(
   payload: Partial<TosExamRow>,
+  userId: string,
 ): Promise<TosExamRow> {
   const { data, error } = await supabase
     .from('tos_exams')
-    .insert(payload)
+    .insert({ ...payload, user_id: userId })
     .select()
     .single()
   if (error) throw error

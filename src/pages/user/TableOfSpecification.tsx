@@ -39,6 +39,7 @@ import {
   updateTosSheet,
   type TosExamRow,
 } from '../../services/database'
+import { supabase } from '../../utils/supabaseClient'
 
 const SAVE_DEBOUNCE_MS = 600
 
@@ -51,6 +52,31 @@ const blankSheet = (): TosSheet => ({
   note: '',
   topics: [],
 })
+
+/**
+ * PostgREST puts the actionable part of a failure in `hint` and its class in
+ * `code` -- the package's own docs warn that logging only `message` hides the
+ * hint. Reading the fields structurally also avoids leaning on
+ * `instanceof Error`, which is a poor gate for a value that arrived over the wire.
+ */
+const messageOf = (e: unknown, fallback: string): string => {
+  if (typeof e === 'string') return e
+  if (!e || typeof e !== 'object') return fallback
+  const { message, hint, code } = e as Record<string, unknown>
+  const parts = [message, hint, code].filter(
+    (p): p is string => typeof p === 'string' && p.trim() !== '',
+  )
+  return parts.length > 0 ? parts.join(' — ') : fallback
+}
+
+/** The signed-in user's id, which the tos_exams insert requires. */
+const currentUserId = async (): Promise<string> => {
+  const { data, error } = await supabase!.auth.getUser()
+  if (error) throw error
+  const id = data.user?.id
+  if (!id) throw new Error('You are not signed in.')
+  return id
+}
 
 export default function TableOfSpecification() {
   const [activeId, setActiveId] = useState('')
@@ -69,8 +95,15 @@ export default function TableOfSpecification() {
 
   const issues = useMemo(() => validateSheet(sheet, exam.totalHours), [sheet, exam.totalHours])
 
+  /**
+   * Editing is only safe once the row exists: before that activeId is empty and
+   * every debounced write is a silent no-op, which looks identical to saving.
+   * A failed load therefore locks the form rather than pretending to work.
+   */
+  const ready = !loading && !error && Boolean(activeId)
+
   const fail = useCallback((e: unknown, fallback: string) => {
-    setError(e instanceof Error ? e.message : fallback)
+    setError(messageOf(e, fallback))
   }, [])
 
   const reportSaved = useCallback(() => {
@@ -129,15 +162,21 @@ export default function TableOfSpecification() {
       try {
         let rows = await fetchTosExams()
         if (rows.length === 0) {
-          const created = await createTosExam({
-            code: TOS_EXAM_META.code,
-            title: TOS_EXAM_META.title,
-            exam_type: TOS_EXAM_META.examType.replace(/^Table of Specification for\s+/i, ''),
-            term: TOS_EXAM_META.term,
-            coverage: TOS_EXAM_META.coverage,
-            prepared_by: TOS_EXAM_META.preparedBy,
-            total_hours: num(TOS_EXAM_META.totalHours),
-          })
+          const created = await createTosExam(
+            {
+              code: TOS_EXAM_META.code,
+              title: TOS_EXAM_META.title,
+              exam_type: TOS_EXAM_META.examType.replace(
+                /^Table of Specification for\s+/i,
+                '',
+              ),
+              term: TOS_EXAM_META.term,
+              coverage: TOS_EXAM_META.coverage,
+              prepared_by: TOS_EXAM_META.preparedBy,
+              total_hours: num(TOS_EXAM_META.totalHours),
+            },
+            await currentUserId(),
+          )
           const seed = TOS_SHEETS[0]
           const createdSheet = await createTosSheet({
             exam_id: created.id,
@@ -314,11 +353,12 @@ export default function TableOfSpecification() {
       <div className="panel tos-panel no-print">
         <div className="tos-field-grid">
           <label className="field">
-            <span>Course</span>
+            <span>Program</span>
             <input
               className="input input--sm"
               value={exam.code}
-              disabled={loading}
+              placeholder="- type Course -"
+              disabled={!ready}
               onChange={(e) => patchExam({ code: e.target.value })}
             />
           </label>
@@ -327,7 +367,8 @@ export default function TableOfSpecification() {
             <input
               className="input input--sm"
               value={exam.title}
-              disabled={loading}
+              placeholder="- type course title -"
+              disabled={!ready}
               onChange={(e) => patchExam({ title: e.target.value })}
             />
           </label>
@@ -336,7 +377,8 @@ export default function TableOfSpecification() {
             <input
               className="input input--sm"
               value={exam.term}
-              disabled={loading}
+              placeholder="- type term (e.g. 1st Semester, 2026-2027) -"
+              disabled={!ready}
               onChange={(e) => patchExam({ term: e.target.value })}
             />
           </label>
@@ -345,7 +387,8 @@ export default function TableOfSpecification() {
             <input
               className="input input--sm"
               value={exam.examType.replace(/^Table of Specification for\s+/i, '')}
-              disabled={loading}
+              placeholder="- type exam type -"
+              disabled={!ready}
               onChange={(e) =>
                 patchExam({ examType: `Table of Specification for ${e.target.value}` })
               }
@@ -354,10 +397,18 @@ export default function TableOfSpecification() {
         </div>
 
         <div className="tos-savestate" role="status">
-          {error && <span className="tos-savestate__error">{error}</span>}
-          {!error && loading && <span>Loading…</span>}
-          {!error && !loading && saving && <span>Saving…</span>}
-          {!error && !loading && !saving && savedAt && <span>Saved {savedAt}</span>}
+          {error ? (
+            <span className="tos-savestate__error">
+              {error}
+              {ready === false && !loading && ' — nothing is being saved. Check the database connection.'}
+            </span>
+          ) : loading ? (
+            <span>Loading…</span>
+          ) : saving ? (
+            <span>Saving…</span>
+          ) : savedAt ? (
+            <span>Saved {savedAt}</span>
+          ) : null}
         </div>
       </div>
 
@@ -365,7 +416,7 @@ export default function TableOfSpecification() {
       <TosSheetGrid
         sheet={sheet}
         issues={issues}
-        editable={!loading}
+        editable={ready}
         onPatchSheet={patchSheet}
         onPatchTopic={patchTopic}
         onSetBloom={setBloom}

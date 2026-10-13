@@ -728,7 +728,11 @@ CREATE POLICY "Admins can delete assessment_results" ON public.assessment_result
 
 CREATE TABLE IF NOT EXISTS public.tos_exams (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    -- DEFAULT auth.uid() so an insert that omits the owner still lands on the
+    -- right row. Without it a missing user_id makes the RLS policy evaluate to
+    -- NULL, which Postgres reads as a violation -- a bare 403 that looks like a
+    -- permissions problem rather than a missing field.
+    user_id UUID NOT NULL DEFAULT auth.uid() REFERENCES public.profiles(id) ON DELETE CASCADE,
     code TEXT NOT NULL,
     title TEXT NOT NULL,
     exam_type TEXT NOT NULL DEFAULT 'Prelim',
@@ -778,6 +782,8 @@ CREATE INDEX IF NOT EXISTS tos_topics_sheet_idx ON public.tos_topics (sheet_id);
 -- Shape guards, matching the pattern used for assessments above.
 ALTER TABLE public.tos_exams ADD COLUMN IF NOT EXISTS coverage TEXT;
 ALTER TABLE public.tos_exams ADD COLUMN IF NOT EXISTS prepared_by TEXT;
+-- Existing rows keep their owner; new inserts default to the caller.
+ALTER TABLE public.tos_exams ALTER COLUMN user_id SET DEFAULT auth.uid();
 ALTER TABLE public.tos_exams ADD COLUMN IF NOT EXISTS total_hours NUMERIC NOT NULL DEFAULT 8;
 ALTER TABLE public.tos_exams ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
 ALTER TABLE public.tos_sheets ADD COLUMN IF NOT EXISTS note TEXT;
