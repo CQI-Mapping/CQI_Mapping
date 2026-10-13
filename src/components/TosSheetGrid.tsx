@@ -118,6 +118,13 @@ export default function TosSheetGrid({
   return (
     <>
       <div className="panel tos-sheet">
+      {/* Sits above the table so the green/gray convention is stated before the
+          reader meets the cells it governs. */}
+      <div className="tos-foot">
+        <em>Note: Only those highlighted with green are editable cells. Gray colored cells
+        contains the formula.</em>
+      </div>
+
       <table className="tos-table">
         <thead>
           <tr>
@@ -282,11 +289,6 @@ export default function TosSheetGrid({
           </button>
         </div>
       )}
-
-      <div className="tos-foot">
-        <em>Note: Only those highlighted with green are editable cells. Gray colored cells
-        contains the formula.</em>
-      </div>
 
       {issues.length > 0 && editable && (
         <div className="tos-sheet__issues no-print">

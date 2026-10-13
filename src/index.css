@@ -3086,8 +3086,9 @@ textarea.input {
   margin-left: auto;
 }
 
+/* Caption above the table: margin below it, not above. */
 .tos-foot {
-  margin-top: 8px;
+  margin-bottom: 10px;
   font-size: 11px;
   color: #475569;
 }
