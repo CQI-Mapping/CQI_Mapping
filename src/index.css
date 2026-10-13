@@ -3045,20 +3045,26 @@ textarea.input {
   vertical-align: middle;
 }
 
-/* Row controls, in their own panel below the blueprint (never printed) -- */
-
+/* Row controls, in their own panel below the blueprint (never printed).
+   One full-width row per topic so the Delete buttons line up into a single
+   column instead of scattering with the chip widths. */
 .tos-rows {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   gap: 6px;
 }
 
+/* Keep Add topic button-sized rather than spanning the column like a row. */
+.tos-rows > .btn {
+  align-self: flex-start;
+}
+
 .tos-rows__item {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 3px 4px 3px 8px;
+  gap: 10px;
+  padding: 4px 6px 4px 10px;
   background: #fff;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -3066,15 +3072,23 @@ textarea.input {
 }
 
 .tos-rows__label {
+  flex: 0 0 auto;
+  min-width: 18px;
   color: #64748b;
+  font-variant-numeric: tabular-nums;
 }
 
 .tos-rows__name {
-  max-width: 240px;
+  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 600;
+}
+
+.tos-rows__item .btn {
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 
 .tos-foot {
