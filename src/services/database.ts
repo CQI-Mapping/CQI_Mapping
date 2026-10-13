@@ -917,23 +917,6 @@ export async function fetchTosTopics(sheetId: string): Promise<TosTopicRow[]> {
   return data as TosTopicRow[]
 }
 
-export async function upsertTosTopic(
-  payload: Partial<TosTopicRow> & { id?: string },
-): Promise<TosTopicRow> {
-  const { data, error } = await supabase
-    .from('tos_topics')
-    .upsert(payload)
-    .select()
-    .single()
-  if (error) throw error
-  return data as TosTopicRow
-}
-
-export async function deleteTosTopic(id: string): Promise<void> {
-  const { error } = await supabase.from('tos_topics').delete().eq('id', id)
-  if (error) throw error
-}
-
 /**
  * Replace a sheet's topics wholesale, in one round trip.
  *
@@ -941,6 +924,10 @@ export async function deleteTosTopic(id: string): Promise<void> {
  * collide on intermediate states. Deleting the missing ids and
  * upserting the survivors sidesteps that: the set is replaced rather
  * than transformed.
+ *
+ * This is the only topic writer the page needs -- a per-row upsert and
+ * delete were written first and then superseded once it became clear that
+ * the grid always has the whole set in hand.
  */
 export async function replaceTosTopics(
   sheetId: string,
