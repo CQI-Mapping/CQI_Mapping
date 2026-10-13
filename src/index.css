@@ -3151,6 +3151,19 @@ textarea.input {
   margin-bottom: 0;
 }
 
+/* Save indicator under the header fields. Reserves no height when empty so
+   the panel does not jump as the message cycles saving -> saved. */
+.tos-savestate {
+  min-height: 18px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.tos-savestate__error {
+  color: var(--danger);
+}
+
 
 @media print {
   .sd-actions,

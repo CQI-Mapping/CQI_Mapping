@@ -713,3 +713,116 @@ CREATE POLICY "Faculty and above can update assessment_results" ON public.assess
     WITH CHECK (public.current_user_role() IN ('admin', 'manager', 'user'));
 CREATE POLICY "Admins can delete assessment_results" ON public.assessment_results FOR DELETE
     USING (public.current_user_role() = 'admin');
+
+-- ============================================================
+-- TABLE OF SPECIFICATION (exam blueprint)
+-- The blueprint an exam is built from: syllabus topics -> hour
+-- weights -> items placed at each Bloom level. Private per user,
+-- so two faculty drafting different blueprints cannot collide.
+--
+-- The hour weighting is NOT stored. It is derived from the topic
+-- hours and the sheet total on every read, which is why only
+-- hours live here and the "Number of Item" column is always
+-- recomputed rather than saved.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.tos_exams (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    code TEXT NOT NULL,
+    title TEXT NOT NULL,
+    exam_type TEXT NOT NULL DEFAULT 'Prelim',
+    term TEXT NOT NULL,
+    coverage TEXT,
+    prepared_by TEXT,
+    total_hours NUMERIC NOT NULL DEFAULT 8,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (user_id, code, exam_type, term)
+);
+
+-- One exam carries several blueprints: 'items' for the multiple
+-- choice paper, 'points' for the performance-based paper.
+CREATE TABLE IF NOT EXISTS public.tos_sheets (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    exam_id UUID NOT NULL REFERENCES public.tos_exams(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL CHECK (kind IN ('items', 'points')),
+    label TEXT NOT NULL,
+    total NUMERIC NOT NULL CHECK (total > 0),
+    note TEXT,
+    position INT NOT NULL DEFAULT 0,
+    UNIQUE (exam_id, kind)
+);
+
+CREATE TABLE IF NOT EXISTS public.tos_topics (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sheet_id UUID NOT NULL REFERENCES public.tos_sheets(id) ON DELETE CASCADE,
+    position INT NOT NULL,
+    title TEXT NOT NULL,
+    slo TEXT,
+    hours NUMERIC NOT NULL DEFAULT 0 CHECK (hours >= 0),
+    -- {"remember":1,"apply":2} -- a level absent from the map means
+    -- no item there. jsonb keeps the six Bloom keys flexible without
+    -- a join table per level.
+    bloom JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (sheet_id, position)
+);
+
+CREATE INDEX IF NOT EXISTS tos_exams_user_idx ON public.tos_exams (user_id);
+CREATE INDEX IF NOT EXISTS tos_sheets_exam_idx ON public.tos_sheets (exam_id);
+CREATE INDEX IF NOT EXISTS tos_topics_sheet_idx ON public.tos_topics (sheet_id);
+
+-- Shape guards, matching the pattern used for assessments above.
+ALTER TABLE public.tos_exams ADD COLUMN IF NOT EXISTS coverage TEXT;
+ALTER TABLE public.tos_exams ADD COLUMN IF NOT EXISTS prepared_by TEXT;
+ALTER TABLE public.tos_exams ADD COLUMN IF NOT EXISTS total_hours NUMERIC NOT NULL DEFAULT 8;
+ALTER TABLE public.tos_exams ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
+ALTER TABLE public.tos_sheets ADD COLUMN IF NOT EXISTS note TEXT;
+ALTER TABLE public.tos_sheets ADD COLUMN IF NOT EXISTS position INT NOT NULL DEFAULT 0;
+ALTER TABLE public.tos_topics ADD COLUMN IF NOT EXISTS slo TEXT;
+ALTER TABLE public.tos_topics ADD COLUMN IF NOT EXISTS bloom JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE public.tos_topics ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
+
+ALTER TABLE public.tos_exams ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tos_sheets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tos_topics ENABLE ROW LEVEL SECURITY;
+
+-- TOS EXAMS: private. Each user drafts their own blueprint and sees
+-- only their own; no cross-user reads, so a half-finished TOS is never
+-- visible to anyone else.
+DROP POLICY IF EXISTS "Users manage own tos_exams" ON public.tos_exams;
+CREATE POLICY "Users manage own tos_exams" ON public.tos_exams FOR ALL
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
+
+-- Sheets and topics carry no user_id of their own -- ownership is
+-- inherited from the parent exam. Denormalising it would let a row
+-- claim an owner its parent disagrees with.
+DROP POLICY IF EXISTS "Users manage own tos_sheets" ON public.tos_sheets;
+CREATE POLICY "Users manage own tos_sheets" ON public.tos_sheets FOR ALL
+    USING (EXISTS (
+        SELECT 1 FROM public.tos_exams e
+        WHERE e.id = tos_sheets.exam_id AND e.user_id = auth.uid()
+    ))
+    WITH CHECK (EXISTS (
+        SELECT 1 FROM public.tos_exams e
+        WHERE e.id = tos_sheets.exam_id AND e.user_id = auth.uid()
+    ));
+
+DROP POLICY IF EXISTS "Users manage own tos_topics" ON public.tos_topics;
+CREATE POLICY "Users manage own tos_topics" ON public.tos_topics FOR ALL
+    USING (EXISTS (
+        SELECT 1
+        FROM public.tos_sheets s
+        JOIN public.tos_exams e ON e.id = s.exam_id
+        WHERE s.id = tos_topics.sheet_id AND e.user_id = auth.uid()
+    ))
+    WITH CHECK (EXISTS (
+        SELECT 1
+        FROM public.tos_sheets s
+        JOIN public.tos_exams e ON e.id = s.exam_id
+        WHERE s.id = tos_topics.sheet_id AND e.user_id = auth.uid()
+    ));

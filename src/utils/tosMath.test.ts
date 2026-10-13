@@ -20,6 +20,7 @@ import {
   type TosIssue,
   type TosSheet,
   type TosTopic,
+  blankTopic,
 } from './tosMath'
 
 const topic = (
@@ -236,6 +237,21 @@ describe('renumber', () => {
   it('closes gaps left by a delete', () => {
     const fixed = renumber([topic(1, 1, {}), topic(3, 1, {}), topic(7, 1, {})])
     expect(fixed.map((t) => t.position)).toEqual([1, 2, 3])
+  })
+})
+
+describe('blankTopic', () => {
+  it('mints a v4 UUID, because tos_topics.id is a UUID column', () => {
+    const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    const made = Array.from({ length: 20 }, () => blankTopic(1))
+    for (const t of made) expect(t.id).toMatch(UUID)
+    // Unique ids keep React keys distinct across a burst of adds.
+    expect(new Set(made.map((t) => t.id)).size).toBe(made.length)
+  })
+
+  it('starts blank at the given position', () => {
+    const t = blankTopic(4)
+    expect(t).toMatchObject({ position: 4, title: '', slo: '', hours: 0, bloom: {} })
   })
 })
 

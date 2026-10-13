@@ -263,9 +263,24 @@ export function validateSheet(
   return issues
 }
 
+/**
+ * A v4-shaped id. New topics are assigned an id client-side so React has a
+ * stable key before the server replies, and it has to be a real UUID because
+ * tos_topics.id is a UUID column — a "topic-123" placeholder would fail the
+ * insert. Falls back to a manual v4 when crypto.randomUUID is unavailable
+ * (older browsers, plain Node test runs).
+ */
+const uuid = (): string =>
+  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0
+        return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
+      })
+
 /** An empty topic row, for the "Add topic" button. */
 export const blankTopic = (position: number): TosTopic => ({
-  id: `topic-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  id: uuid(),
   position,
   title: '',
   slo: '',
