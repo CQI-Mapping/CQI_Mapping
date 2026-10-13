@@ -3055,11 +3055,6 @@ textarea.input {
   gap: 6px;
 }
 
-/* Keep Add topic button-sized rather than spanning the column like a row. */
-.tos-rows > .btn {
-  align-self: flex-start;
-}
-
 .tos-rows__item {
   display: flex;
   align-items: center;
@@ -3095,6 +3090,13 @@ textarea.input {
   margin-top: 8px;
   font-size: 11px;
   color: #475569;
+}
+
+/* Add topic, under the table it adds to, right-aligned to the table's edge. */
+.tos-addrow {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
 }
 
 /* Printing: strip the input chrome so the sheet looks like a document. */

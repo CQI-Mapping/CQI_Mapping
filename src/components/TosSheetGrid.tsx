@@ -292,6 +292,15 @@ export default function TosSheetGrid({
           ))}
         </div>
       )}
+
+      {/* Add sits under the table it adds to, right-aligned. */}
+      {editable && (
+        <div className="tos-addrow no-print">
+          <button type="button" className="btn btn--primary btn--sm" onClick={onAddTopic}>
+            Add topic
+          </button>
+        </div>
+      )}
     </div>
 
       {/* Row controls get their own panel, clear of the blueprint, so the
@@ -312,9 +321,6 @@ export default function TosSheetGrid({
               </button>
             </span>
           ))}
-          <button type="button" className="btn btn--primary btn--sm" onClick={onAddTopic}>
-            Add topic
-          </button>
         </div>
       )}
     </>
