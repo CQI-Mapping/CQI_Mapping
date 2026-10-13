@@ -19,3 +19,22 @@ export const supabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey)
 export const supabase: SupabaseClient | null = supabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null
+
+// Dev-only sanity check: the anon key embeds its project ref, so a pasted
+// URL from one project + keys from another is caught here instead of
+// surfacing later as cryptic 401s / JWT errors on every request.
+if (import.meta.env.DEV && supabaseConfigured) {
+  try {
+    const host = new URL(supabaseUrl).hostname
+    const hostRef = host.endsWith('.supabase.co') ? host.slice(0, -'.supabase.co'.length) : ''
+    const payload = JSON.parse(atob(supabaseAnonKey.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+    if (hostRef && payload?.ref && hostRef !== payload.ref) {
+      console.warn(
+        `Supabase URL and anon key look mismatched (URL project '${hostRef}' vs key project '${payload.ref}'). ` +
+          'Copy both values fresh from the same project (Dashboard > Settings > API) into .env and restart the dev server.',
+      )
+    }
+  } catch {
+    // Non-JWT keys or unparseable values — skip the check silently.
+  }
+}

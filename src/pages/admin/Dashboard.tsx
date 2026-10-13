@@ -6,30 +6,44 @@ import {
   fetchProgramOutcomesStandalone,
   fetchCourseLearningOutcomesStandalone,
   fetchChedMemoOrders,
+  fetchActivityLogs,
 } from '../../services/database'
-import type { Profile } from '../../services/database'
+import type { Profile, ActivityLogEntry } from '../../services/database'
 
 interface DashboardProps {
   profile: Profile | null
+  onNavigate?: (page: string) => void
 }
 
-function Dashboard({ profile }: DashboardProps) {
+function Dashboard({ profile, onNavigate }: DashboardProps) {
   const [stats, setStats] = useState<Array<{ label: string; value: number | null; accent: string; icon: string; sub: string }>>([])
+  const [recent, setRecent] = useState<ActivityLogEntry[]>([])
+  const loading = stats.length === 0
 
   useEffect(() => {
+    let cancelled = false
     const counters = [
-      { label: 'Users', icon: 'users', sub: 'Registered profiles in the system', accent: 'linear-gradient(135deg,#0ea5e9,#6366f1)', load: () => fetchAllProfiles() },
-      { label: 'Strategic Goals', icon: 'goals', sub: 'Institutional goals for the program', accent: 'linear-gradient(135deg,#10b981,#06b6d4)', load: () => fetchStrategicGoals() },
-      { label: 'Program Educational Objectives', icon: 'peo', sub: 'Long-term career goals for graduates', accent: 'linear-gradient(135deg,#f59e0b,#ef4444)', load: () => fetchProgramEducationalObjectives() },
-      { label: 'Program Outcomes', icon: 'po', sub: 'Skills graduates should attain', accent: 'linear-gradient(135deg,#8b5cf6,#ec4899)', load: () => fetchProgramOutcomesStandalone() },
-      { label: 'Course Learning Outcomes', icon: 'clo', sub: 'Learning targets for each course', accent: 'linear-gradient(135deg,#06b6d4,#3b82f6)', load: () => fetchCourseLearningOutcomesStandalone() },
-      { label: 'CHED Memo Orders', icon: 'ched', sub: 'CHED issuances referenced', accent: 'linear-gradient(135deg,#84cc16,#16a34a)', load: () => fetchChedMemoOrders() },
+      { label: 'Users', icon: 'users', sub: 'Registered profiles', accent: '#64748b', load: () => fetchAllProfiles() },
+      { label: 'Strategic Goals', icon: 'goals', sub: 'Institutional goals', accent: '#4d7c0f', load: () => fetchStrategicGoals() },
+      { label: 'Program Educational Objectives', icon: 'peo', sub: 'Graduate PEOs', accent: '#4d7c0f', load: () => fetchProgramEducationalObjectives() },
+      { label: 'Program Outcomes', icon: 'po', sub: 'Program outcomes mapping', accent: '#15803d', load: () => fetchProgramOutcomesStandalone() },
+      { label: 'Course Learning Outcomes', icon: 'clo', sub: 'CLOs per course', accent: '#15803d', load: () => fetchCourseLearningOutcomesStandalone() },
+      { label: 'CHED Memo Orders', icon: 'ched', sub: 'CHED policies', accent: '#4d7c0f', load: () => fetchChedMemoOrders() },
     ]
-    Promise.all(counters.map(async (c) => ({ label: c.label, value: (await c.load()).length, accent: c.accent, icon: c.icon, sub: c.sub })))
-      .then(setStats)
+    Promise.all(counters.map(async (c) => {
+      try {
+        return { label: c.label, value: (await c.load()).length, accent: c.accent, icon: c.icon, sub: c.sub }
+      } catch {
+        return { label: c.label, value: 0, accent: c.accent, icon: c.icon, sub: c.sub }
+      }
+    }))
+      .then((rows) => { if (!cancelled) setStats(rows) })
+      .catch(() => {})
+    fetchActivityLogs().then((logs) => { if (!cancelled) setRecent(logs.slice(0, 5)) }).catch(() => {})
+    return () => { cancelled = true }
   }, [])
 
-  const totalRecords = stats.length > 0 ? stats.reduce((a, s) => a + (s.value ?? 0), 0) : 0
+  const go = (id: string) => onNavigate?.(id)
 
   function getTimeGreeting(): string {
     const h = new Date().getHours()
@@ -39,8 +53,8 @@ function Dashboard({ profile }: DashboardProps) {
   }
 
   return (
-    <div className="dashboard dashboard--2026">
-      <section className="hero-modern" aria-labelledby="hero-title">
+    <div className="dashboard dashboard--2026 page-enter">
+      <section className="hero-modern hero-modern--dashboard" aria-labelledby="hero-title">
         <div className="hero-modern__bg" aria-hidden>
           <div className="hero-modern__mesh" />
           <div className="hero-modern__orb hero-modern__orb--1" />
@@ -53,40 +67,96 @@ function Dashboard({ profile }: DashboardProps) {
           <header className="hero-modern__header">
             <span className="hero-modern__time">{getTimeGreeting()}</span>
             <time className="hero-modern__date" dateTime={new Date().toISOString().split('T')[0]}>
-              {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
             </time>
           </header>
 
           <div className="hero-modern__main" id="hero-title">
             <div className="hero-modern__identity">
-              <h1 className="hero-modern__name">Welcome back, {profile?.full_name || profile?.email}</h1>
+              <div className="hero-modern__intro">
+                <h1 className="hero-modern__name">Welcome back, {profile?.full_name || profile?.email?.split('@')[0]}</h1>
+                <span className="hero-modern__rolebadge">Administrator</span>
+              </div>
             </div>
           </div>
+
         </div>
       </section>
 
-      <div className="stat-grid stat-grid--2026">
-        <div className="stat-card stat-card--2026 stat-card--role">
-          <div className="stat-card__accent" style={{ background: 'linear-gradient(135deg,#16a34a,#0ea5e9)' }} />
-          <div className="stat-card__icon" style={{ background: 'linear-gradient(135deg,#16a34a,#15803d)' }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/><path d="M6 20a6 6 0 0 1 12 0"/></svg>
-          </div>
-          <span className="stat-card__label">Your role</span>
-          <span className="stat-card__value stat-card__value--role">admin</span>
-          <span className="stat-card__sub">Controls what you can do in this app</span>
-        </div>
+      <div className="stat-grid stat-grid--2026" aria-busy={loading}>
 
-        {stats.map((s) => (
-          <div className="stat-card stat-card--2026" key={s.label}>
+        {loading
+          ? ['stat-1', 'stat-2', 'stat-3', 'stat-4', 'stat-5', 'stat-6'].map((label) => (
+            <div className="stat-card stat-card--2026 stat-card--skeleton card-enter" key={label} aria-hidden="true">
+              <span className="stat-card__label">Loading</span>
+              <span className="stat-card__value">—</span>
+              <span className="stat-card__sub">Loading</span>
+            </div>
+          ))
+          : stats.map((s) => (
+          <div className="stat-card stat-card--2026 card-enter" key={s.label}>
             <div className="stat-card__accent" style={{ background: s.accent }} />
             <div className="stat-card__icon" style={{ background: s.accent, color: '#fff' }}>
               <StatIcon type={s.icon} />
             </div>
             <span className="stat-card__label">{s.label}</span>
-            <span className="stat-card__value">{s.value ?? '...'}</span>
+            <span className="stat-card__value">{s.value ?? '—'}</span>
             <span className="stat-card__sub">{s.sub}</span>
           </div>
         ))}
+      </div>
+
+      <div className="dashboard-panels">
+        <div className="dashboard-panel">
+          <div className="dashboard-panel__header">
+            <h3>Quick actions</h3>
+            <span>One-click presentable flows</span>
+          </div>
+          <div className="quick-actions">
+            <button className="quick-action" type="button" onClick={() => go('program')}>
+              <span className="quick-action__icon" style={{ background: '#16a34a' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg>
+              </span>
+              <span className="quick-action__text"><strong>Add Program</strong><small>Create degree offering</small></span>
+              <svg className="quick-action__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+            <button className="quick-action" type="button" onClick={() => go('program-outcomes')}>
+              <span className="quick-action__icon" style={{ background: '#15803d' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"/></svg>
+              </span>
+              <span className="quick-action__text"><strong>Review Outcomes</strong><small>PO alignment check</small></span>
+              <svg className="quick-action__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+            <button className="quick-action" type="button" onClick={() => go('activity-logs')}>
+              <span className="quick-action__icon" style={{ background: '#64748b' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </span>
+              <span className="quick-action__text"><strong>Activity Logs</strong><small>Audit trail</small></span>
+              <svg className="quick-action__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div className="dashboard-panel">
+          <div className="dashboard-panel__header">
+            <h3>Recent activity</h3>
+            <span>Latest 5 actions</span>
+          </div>
+          {recent.length === 0 ? (
+            <p className="dashboard-panel__empty">No activity yet — actions will appear here.</p>
+          ) : (
+            <ul className="activity-feed">
+              {recent.map((a) => (
+                <li key={a.id} className="activity-feed__item">
+                  <span className="activity-feed__dot" />
+                  <span className="activity-feed__action">{a.action.replace(/_/g, ' ')}</span>
+                  <span className="activity-feed__user">{a.user_email || 'system'}</span>
+                  <time className="activity-feed__time">{new Date(a.created_at).toLocaleString()}</time>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
     </div>
   )

@@ -1,15 +1,20 @@
-// Admin Subject View: two-panel layout — left panel has program dropdown +
-// subject dropdown; right panel renders a D3.js outcome hierarchy graph:
+// Admin Subject View: two-panel layout — left panel has a Subject/PO root
+// toggle plus program + subject/PO dropdowns; right panel renders a D3.js
+// outcome hierarchy graph. Two roots are supported:
 //
-//   Subject (double-ring, root)
-//     ├─ Curriculum (oval)
+//   Subject (root)
+//     ├─ Curriculum
 //     ├─ Prerequisite(s)
 //     ├─ Corequisite(s)
 //     └─ CLO(s)
-//        └─ PO(s)
+//        └─ PO(s)  ← clicking a PO re-roots the visualization at that PO
 //           ├─ PEO
 //           ├─ Strategic Goal
 //           └─ CHED Memorandum Order
+//
+//   PO (root)
+//     ├─ PEO / Strategic Goal / CHED Memorandum Order (downstream)
+//     └─ CLO(s) → Subject(s) (upstream)
 //
 // The graph only renders after the user presses View. Relationships are built
 // from the standalone admn tables (admin_course_learning_outcomes,
@@ -38,6 +43,9 @@ import type {
   StrategicGoal,
   ChedMemoOrder,
 } from '../../services/database'
+import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
+import { splitReportPos, buildGroups } from '../../utils/report'
+import SyllabusReport from '../../components/SyllabusReport'
 
 type NodeKind =
   | 'curriculum'
@@ -57,8 +65,29 @@ interface GraphNodeData {
   kind: NodeKind
   placeholder: boolean
   courseId?: string
+  poId?: string
   children: GraphNodeData[]
 }
+
+type RootType = 'subject' | 'po'
+
+interface NavEntry {
+  type: RootType
+  id: string
+}
+
+const poNumber = (code: string) => {
+  const m = code.match(/(\d+)/)
+  return m ? parseInt(m[1], 10) : 9999
+}
+
+const sortPos = <T extends { code: string }>(list: T[]): T[] =>
+  [...list].sort((a, b) => {
+    const na = poNumber(a.code)
+    const nb = poNumber(b.code)
+    if (na !== nb) return na - nb
+    return String(a.code).localeCompare(String(b.code))
+  })
 
 interface OutcomeDatasets {
   resources: Resource[]
@@ -70,26 +99,18 @@ interface OutcomeDatasets {
 }
 
 const colorMap: Record<NodeKind, string> = {
-  curriculum: '#9333ea',
-  subject: '#2563eb',
-  prerequisite: '#f97316',
-  corequisite: '#22c55e',
-  clo: '#06b6d4',
-  po: '#7c3aed',
-  peo: '#db2777',
-  sg: '#d97706',
-  cmo: '#0891b2',
+  curriculum: '#4d7c0f',
+  subject: '#16a34a',
+  prerequisite: '#b45309',
+  corequisite: '#15803d',
+  clo: '#15803d',
+  po: '#3f6212',
+  peo: '#4d7c0f',
+  sg: '#64748b',
+  cmo: '#475569',
 }
 
 const isActive = <T extends { status?: string }>(x: T) => !x.status || x.status === 'active'
-
-const normalizeCode = (code: string) =>
-  code.trim().toUpperCase().replace(/[\s\-–—._/,]+/g, '')
-
-const firstToken = (s: string) => {
-  const m = s.trim().split(/[\s\-–—]+/)[0]
-  return m || ''
-}
 
 const extractCodes = (text: string, prefix: 'PO' | 'PEO' | 'SG'): string[] => {
   const re = new RegExp(`${prefix}\\s*-?\\s*(\\d+)`, 'gi')
@@ -120,19 +141,6 @@ const findSgByToken = (sgs: StrategicGoal[], tok: string): StrategicGoal | undef
         return n !== undefined && s.code.match(/\d+/)?.[0] === n
       })
   )
-}
-
-// True when a CLO record's `course` field refers to the given subject code.
-// Lenient: handles "IT 21", "IT21", "IT 21 - OOP", "IT21-OOP", "IT-21" etc.
-const cloMatchesSubject = (cloCourse: string, subjectKey: string) => {
-  const raw = (cloCourse || '').trim()
-  if (!raw) return false
-  const norm = normalizeCode(raw)
-  if (norm === subjectKey) return true
-  if (normalizeCode(firstToken(raw)) === subjectKey) return true
-  if (norm.includes(subjectKey)) return true
-  const tokens = raw.split(/[\s,;|]+/).map((s) => normalizeCode(s)).filter(Boolean)
-  return tokens.includes(subjectKey)
 }
 
 // Count unique nodes per kind plus unresolved placeholders across the tree.
@@ -185,6 +193,11 @@ export default function SubjectView() {
   const [courses, setCourses] = useState<Course[]>([])
   const [selectedProgramId, setSelectedProgramId] = useState('')
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null)
+  // '' means the user has not picked what to visualize from yet, so the select
+  // shows its "--- select to Visualize ---" placeholder.
+  const [rootType, setRootType] = useState<RootType | ''>('')
+  const [selectedPoId, setSelectedPoId] = useState<string | null>(null)
+  const [poList, setPoList] = useState<ProgramOutcomeStandalone[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showGraph, setShowGraph] = useState(false)
@@ -193,24 +206,41 @@ export default function SubjectView() {
   const [datasets, setDatasets] = useState<OutcomeDatasets | null>(null)
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 })
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set())
-  const [navStack, setNavStack] = useState<string[]>([])
+  const [navStack, setNavStack] = useState<NavEntry[]>([])
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const svgRef = useRef<SVGSVGElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null)
 
-  // Reset expand/collapse when subject changes — like branch-visualizer fresh state.
-  useEffect(() => { setCollapsedIds(new Set()) }, [selectedCourseId])
+  // Reset expand/collapse when the root changes — like branch-visualizer fresh state.
+  useEffect(() => { setCollapsedIds(new Set()) }, [selectedCourseId, selectedPoId, rootType])
+
+  // Fullscreen map: Esc exits, and the page behind stops scrolling.
+  useEffect(() => {
+    if (!isFullscreen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsFullscreen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [isFullscreen])
 
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
-        const [p, c] = await Promise.all([fetchPrograms(), fetchCourses()])
+        const [p, c, pos] = await Promise.all([fetchPrograms(), fetchCourses(), fetchProgramOutcomesStandalone()])
         if (!cancelled) {
           const sorted = [...p].sort((a, b) =>
             String(a.name || a.code).localeCompare(String(b.name || b.code)))
           setPrograms(sorted)
           setCourses(c.filter(isActive).sort((a, b) => String(a.code).localeCompare(String(b.code))))
+          setPoList(sortPos(pos.filter(isActive)))
           if (sorted.length > 0 && !selectedProgramId) setSelectedProgramId(sorted[0].id)
         }
       } catch (e) {
@@ -231,12 +261,39 @@ export default function SubjectView() {
   )
 
   const selectedCourse = useMemo(
-    () => programCourses.find((c) => c.id === selectedCourseId) ?? null,
-    [programCourses, selectedCourseId],
+    () => courses.find((c) => c.id === selectedCourseId) ?? programCourses.find((c) => c.id === selectedCourseId) ?? null,
+    [courses, programCourses, selectedCourseId],
   )
 
-  // Quick pre-req / co-req / CLO tallies shown in the left panel before View.
+  // PO options: prefer freshly-loaded datasets, fall back to the preloaded list
+  // so the PO dropdown works before the first View.
+  const allPos = useMemo(
+    () => (datasets ? sortPos(datasets.pos) : poList),
+    [datasets, poList],
+  )
+
+  const selectedPo = useMemo(
+    () => allPos.find((p) => p.id === selectedPoId) ?? null,
+    [allPos, selectedPoId],
+  )
+
+  // Quick tallies shown in the left panel before View.
+  // Subject mode: pre-req / co-req / CLO counts. PO mode: linked CLOs / subjects.
   const leftCounts = useMemo(() => {
+    if (rootType === 'po') {
+      if (!selectedPo) return null
+      const key = normalizeCode(selectedPo.code)
+      const linkedClos = (datasets ? datasets.clos : []).filter((clo) =>
+        extractCodes(clo.title || '', 'PO').map(normalizeCode).includes(key)
+      )
+      const subjectIds = new Set<string>()
+      for (const clo of linkedClos) {
+        for (const c of courses) {
+          if (cloMatchesSubject(clo.course || '', normalizeCode(c.code))) subjectIds.add(c.id)
+        }
+      }
+      return { pre: linkedClos.length, core: subjectIds.size, clos: -2 }
+    }
     if (!selectedCourse) return null
     const pre = (selectedCourse.prerequisite || '').split(',').map((s) => s.trim()).filter(Boolean).length
     const core = (selectedCourse.corequisite || '').split(',').map((s) => s.trim()).filter(Boolean).length
@@ -246,12 +303,14 @@ export default function SubjectView() {
       clos = datasets.clos.filter((clo) => cloMatchesSubject(clo.course || '', key)).length
     }
     return { pre, core, clos }
-  }, [selectedCourse, datasets])
+  }, [rootType, selectedPo, selectedCourse, datasets, courses])
 
-  // ── Load + cache outcome datasets on first View ────────────────────────────
-  const loadDatasets = async (force = false) => {
+  // ── Load + cache outcome datasets ──────────────────────────────────────────
+  // Called on mount (silently) so the About card can show the full CLO list
+  // without waiting for View Graph, and again on View / Refresh.
+  const loadDatasets = async (force = false, silent = false) => {
     if (datasets && !force) return
-    setSpinner(true)
+    if (!silent) setSpinner(true)
     setGraphError('')
     try {
       const [resources, clos, pos, peos, sgs, cmos] = await Promise.all([
@@ -262,22 +321,107 @@ export default function SubjectView() {
         fetchStrategicGoals(),
         fetchChedMemoOrders(),
       ])
+      const activePos = pos.filter(isActive)
       setDatasets({
         resources: resources.filter(isActive),
         clos: clos.filter(isActive),
-        pos: pos.filter(isActive),
+        pos: activePos,
         peos: peos.filter(isActive),
         sgs: sgs.filter(isActive),
         cmos: cmos.filter(isActive),
       })
+      setPoList(sortPos(activePos))
     } catch (e) {
       setGraphError(e instanceof Error ? e.message : 'Failed to load relationships.')
     } finally {
-      setSpinner(false)
+      if (!silent) setSpinner(false)
     }
   }
 
-  // ── Build the graph model ──────────────────────────────────────────────────
+  // Prefetch once on mount (guarded so StrictMode's double-invoke doesn't fire
+  // two rounds of queries). Without this the About card's CLO list stays empty
+  // until the user presses View Graph.
+  const prefetched = useRef(false)
+  useEffect(() => {
+    if (prefetched.current) return
+    prefetched.current = true
+    loadDatasets(false, true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ── Shared PO downstream leaves (PEO / SG / CMO) ──────────────────────────
+  // Extracted so both Subject-rooted and PO-rooted builders stay identical.
+  const attachPoLeaves = useCallback(
+    (datasetsRef: OutcomeDatasets, poNode: GraphNodeData, poRec: ProgramOutcomeStandalone) => {
+      const pushChild = (child: GraphNodeData) => {
+        if (!poNode.children.some((c) => c.id === child.id)) poNode.children.push(child)
+      }
+
+      // PEO: id-first, then text-code fallback.
+      if (poRec.peo_id) {
+        const rec = datasetsRef.peos.find((p) => p.id === poRec.peo_id)
+        if (rec) pushChild({ id: `peo-${rec.id}`, code: rec.code, title: rec.title || rec.code, kind: 'peo', placeholder: false, children: [] })
+        else {
+          const tok = poRec.peo_text ? extractCodes(poRec.peo_text, 'PEO')[0] : ''
+          pushChild({ id: `peo-missing-${poRec.peo_id}`, code: tok || 'PEO', title: 'PEO not found or archived', kind: 'peo', placeholder: true, children: [] })
+        }
+      } else if (poRec.peo_text) {
+        for (const tok of extractCodes(poRec.peo_text, 'PEO')) {
+          const rec = datasetsRef.peos.find((p) => normalizeCode(p.code) === normalizeCode(tok))
+          pushChild(rec
+            ? { id: `peo-${rec.id}`, code: rec.code, title: rec.title || rec.code, kind: 'peo', placeholder: false, children: [] }
+            : { id: `peo-missing-${tok}`, code: tok, title: 'PEO not found or archived', kind: 'peo', placeholder: true, children: [] })
+        }
+      }
+
+      // Strategic Goal: id-first, then text-code fallback.
+      if (poRec.sg_id) {
+        const rec = datasetsRef.sgs.find((s) => s.id === poRec.sg_id)
+        if (rec) pushChild({ id: `sg-${rec.id}`, code: rec.code, title: rec.title || rec.description || rec.code, kind: 'sg', placeholder: false, children: [] })
+        else {
+          const tok = poRec.sg_text ? extractSgCodes(poRec.sg_text)[0] : ''
+          pushChild({ id: `sg-missing-${poRec.sg_id}`, code: tok || 'SG', title: 'Strategic Goal not found or archived', kind: 'sg', placeholder: true, children: [] })
+        }
+      } else if (poRec.sg_text) {
+        for (const tok of extractSgCodes(poRec.sg_text)) {
+          const rec = findSgByToken(datasetsRef.sgs, tok)
+          pushChild(rec
+            ? { id: `sg-${rec.id}`, code: rec.code, title: rec.title || rec.description || rec.code, kind: 'sg', placeholder: false, children: [] }
+            : { id: `sg-missing-${tok}`, code: tok, title: 'Strategic Goal not found or archived', kind: 'sg', placeholder: true, children: [] })
+        }
+      }
+
+      // CHED Memorandum Order: id-first, then description/title text fallback.
+      if (poRec.cmo_id) {
+        const rec = datasetsRef.cmos.find((c) => c.id === poRec.cmo_id)
+        if (rec) pushChild({ id: `cmo-${rec.id}`, code: rec.code, title: rec.title || rec.code, kind: 'cmo', placeholder: false, children: [] })
+        else pushChild({ id: `cmo-missing-${poRec.cmo_id}`, code: 'CMO', title: 'CHED Memorandum Order not found or archived', kind: 'cmo', placeholder: true, children: [] })
+      } else {
+        const text = `${poRec.description || ''} ${poRec.title || ''}`.trim()
+        const hay = normalizeCode(text)
+        let cmoMatch: ChedMemoOrder | undefined
+        for (const rec of datasetsRef.cmos) {
+          const keyCode = normalizeCode(rec.code)
+          const keyTitle = normalizeCode(rec.title || '')
+          if ((keyCode && hay.includes(keyCode)) || (keyTitle && hay.includes(keyTitle))) {
+            cmoMatch = rec
+            break
+          }
+        }
+        if (cmoMatch) {
+          pushChild({ id: `cmo-${cmoMatch.id}`, code: cmoMatch.code, title: cmoMatch.title || cmoMatch.code, kind: 'cmo', placeholder: false, children: [] })
+        } else if (text) {
+          // Fixed CMO statements (e.g. "Common to all programs in all types of
+          // schools") are stored as text only, with cmo_id NULL — surface them
+          // as a resolved CMO leaf instead of dropping the alignment.
+          pushChild({ id: `cmo-text-${normalizeCode(text).slice(0, 48) || 'x'}`, code: 'CMO', title: text, kind: 'cmo', placeholder: false, children: [] })
+        }
+      }
+    },
+    [],
+  )
+
+  // ── Build the subject-rooted graph model ───────────────────────────────────
   const buildGraphModel = useCallback(
     (datasetsRef: OutcomeDatasets, subject: Course): GraphNodeData => {
       const subjectKey = normalizeCode(subject.code)
@@ -320,7 +464,8 @@ export default function SubjectView() {
       const addSat = (raw: string, kind: NodeKind) => {
         if (!raw) return
         for (const code of raw.split(',').map((s) => s.trim()).filter(Boolean)) {
-          const target = programCourses.find((c) => normalizeCode(c.code) === normalizeCode(code))
+          const target = courses.find((c) => normalizeCode(c.code) === normalizeCode(code))
+            ?? programCourses.find((c) => normalizeCode(c.code) === normalizeCode(code))
           subjectNode.children.push({
             id: target ? `course-${target.id}` : `${kind}-missing-${code}`,
             code,
@@ -341,73 +486,6 @@ export default function SubjectView() {
       )
 
       const poMap = new Map<string, GraphNodeData>()
-
-      const addLeaves = (poNode: GraphNodeData, poRec: ProgramOutcomeStandalone) => {
-        const pushChild = (child: GraphNodeData) => {
-          if (!poNode.children.some((c) => c.id === child.id)) poNode.children.push(child)
-        }
-
-        // PEO: id-first, then text-code fallback.
-        if (poRec.peo_id) {
-          const rec = datasetsRef.peos.find((p) => p.id === poRec.peo_id)
-          if (rec) pushChild({ id: `peo-${rec.id}`, code: rec.code, title: rec.title || rec.code, kind: 'peo', placeholder: false, children: [] })
-          else {
-            const tok = poRec.peo_text ? extractCodes(poRec.peo_text, 'PEO')[0] : ''
-            pushChild({ id: `peo-missing-${poRec.peo_id}`, code: tok || 'PEO', title: 'PEO not found or archived', kind: 'peo', placeholder: true, children: [] })
-          }
-        } else if (poRec.peo_text) {
-          for (const tok of extractCodes(poRec.peo_text, 'PEO')) {
-            const rec = datasetsRef.peos.find((p) => normalizeCode(p.code) === normalizeCode(tok))
-            pushChild(rec
-              ? { id: `peo-${rec.id}`, code: rec.code, title: rec.title || rec.code, kind: 'peo', placeholder: false, children: [] }
-              : { id: `peo-missing-${tok}`, code: tok, title: 'PEO not found or archived', kind: 'peo', placeholder: true, children: [] })
-          }
-        }
-
-        // Strategic Goal: id-first, then text-code fallback.
-        if (poRec.sg_id) {
-          const rec = datasetsRef.sgs.find((s) => s.id === poRec.sg_id)
-          if (rec) pushChild({ id: `sg-${rec.id}`, code: rec.code, title: rec.title || rec.description || rec.code, kind: 'sg', placeholder: false, children: [] })
-          else {
-            const tok = poRec.sg_text ? extractSgCodes(poRec.sg_text)[0] : ''
-            pushChild({ id: `sg-missing-${poRec.sg_id}`, code: tok || 'SG', title: 'Strategic Goal not found or archived', kind: 'sg', placeholder: true, children: [] })
-          }
-        } else if (poRec.sg_text) {
-          for (const tok of extractSgCodes(poRec.sg_text)) {
-            const rec = findSgByToken(datasetsRef.sgs, tok)
-            pushChild(rec
-              ? { id: `sg-${rec.id}`, code: rec.code, title: rec.title || rec.description || rec.code, kind: 'sg', placeholder: false, children: [] }
-              : { id: `sg-missing-${tok}`, code: tok, title: 'Strategic Goal not found or archived', kind: 'sg', placeholder: true, children: [] })
-          }
-        }
-
-        // CHED Memorandum Order: id-first, then description/title text fallback.
-        if (poRec.cmo_id) {
-          const rec = datasetsRef.cmos.find((c) => c.id === poRec.cmo_id)
-          if (rec) pushChild({ id: `cmo-${rec.id}`, code: rec.code, title: rec.title || rec.code, kind: 'cmo', placeholder: false, children: [] })
-          else pushChild({ id: `cmo-missing-${poRec.cmo_id}`, code: 'CMO', title: 'CHED Memorandum Order not found or archived', kind: 'cmo', placeholder: true, children: [] })
-        } else {
-          const text = `${poRec.description || ''} ${poRec.title || ''}`.trim()
-          const hay = normalizeCode(text)
-          let cmoMatch: ChedMemoOrder | undefined
-          for (const rec of datasetsRef.cmos) {
-            const keyCode = normalizeCode(rec.code)
-            const keyTitle = normalizeCode(rec.title || '')
-            if ((keyCode && hay.includes(keyCode)) || (keyTitle && hay.includes(keyTitle))) {
-              cmoMatch = rec
-              break
-            }
-          }
-          if (cmoMatch) {
-            pushChild({ id: `cmo-${cmoMatch.id}`, code: cmoMatch.code, title: cmoMatch.title || cmoMatch.code, kind: 'cmo', placeholder: false, children: [] })
-          } else if (text) {
-            // Fixed CMO statements (e.g. "Common to all programs in all types of
-            // schools") are stored as text only, with cmo_id NULL — surface them
-            // as a resolved CMO leaf instead of dropping the alignment.
-            pushChild({ id: `cmo-text-${normalizeCode(text).slice(0, 48) || 'x'}`, code: 'CMO', title: text, kind: 'cmo', placeholder: false, children: [] })
-          }
-        }
-      }
 
       for (const clo of subjectClos) {
         const cloNode: GraphNodeData = {
@@ -430,9 +508,10 @@ export default function SubjectView() {
               title: poRec ? (poRec.description || poRec.title || tok) : 'PO not found or archived',
               kind: 'po',
               placeholder: !poRec,
+              poId: poRec?.id,
               children: [],
             }
-            if (poRec) addLeaves(poNode, poRec)
+            if (poRec) attachPoLeaves(datasetsRef, poNode, poRec)
             poMap.set(key, poNode)
           }
           if (!cloNode.children.some((c) => c.id === poNode!.id)) cloNode.children.push(poNode!)
@@ -442,31 +521,123 @@ export default function SubjectView() {
 
       return subjectNode
     },
-    [programCourses],
+    [courses, programCourses, attachPoLeaves],
+  )
+
+  // ── Build the PO-rooted graph model ────────────────────────────────────────
+  // Root = PO. Upstream: CLOs that target this PO → their Subjects.
+  // Downstream: the PO's own PEO / SG / CMO leaves (shared helper).
+  const buildPoGraphModel = useCallback(
+    (datasetsRef: OutcomeDatasets, poRec: ProgramOutcomeStandalone): GraphNodeData => {
+      const poKey = normalizeCode(poRec.code)
+      const root: GraphNodeData = {
+        id: `po-${poRec.id}`,
+        code: poRec.code,
+        title: poRec.description || poRec.title || poRec.code,
+        kind: 'po',
+        placeholder: false,
+        poId: poRec.id,
+        children: [],
+      }
+
+      // Downstream first so PEO/SG/CMO order matches the subject graph.
+      attachPoLeaves(datasetsRef, root, poRec)
+
+      // Upstream: every CLO whose title references this PO code.
+      const linkedClos = datasetsRef.clos.filter((clo) =>
+        extractCodes(clo.title || '', 'PO').map(normalizeCode).includes(poKey)
+      )
+
+      if (linkedClos.length === 0) {
+        root.children.push({
+          id: `clo-none-${poRec.id}`,
+          code: 'No linked CLOs',
+          title: 'No CLO references this PO yet',
+          kind: 'clo',
+          placeholder: true,
+          children: [],
+        })
+        return root
+      }
+
+      for (const clo of linkedClos) {
+        const cloNode: GraphNodeData = {
+          id: `clo-${clo.id}`,
+          code: clo.code,
+          title: clo.description || clo.title || clo.code,
+          kind: 'clo',
+          placeholder: false,
+          children: [],
+        }
+        const rawCourse = (clo.course || '').trim()
+        const matched = rawCourse
+          ? courses.filter((c) => cloMatchesSubject(rawCourse, normalizeCode(c.code)))
+          : []
+        if (matched.length === 0) {
+          cloNode.children.push({
+            id: `subject-missing-${clo.id}-${normalizeCode(rawCourse).slice(0, 24) || 'x'}`,
+            code: rawCourse || 'Unknown subject',
+            title: 'Subject not found or archived',
+            kind: 'subject',
+            placeholder: true,
+            children: [],
+          })
+        } else {
+          for (const c of matched) {
+            if (!cloNode.children.some((s) => s.id === `course-${c.id}`)) {
+              cloNode.children.push({
+                id: `course-${c.id}`,
+                code: c.code,
+                title: c.title,
+                kind: 'subject',
+                placeholder: false,
+                courseId: c.id,
+                children: [],
+              })
+            }
+          }
+        }
+        root.children.push(cloNode)
+      }
+
+      return root
+    },
+    [courses, attachPoLeaves],
   )
 
   // Unique node counts per kind once a graph is on screen (used in the legend).
   const graphStats = useMemo(() => {
-    if (!selectedCourse || !datasets) return null
+    if (!datasets) return null
     try {
-      return countKinds(buildGraphModel(datasets, selectedCourse))
+      if (rootType === 'subject') {
+        if (!selectedCourse) return null
+        return countKinds(buildGraphModel(datasets, selectedCourse))
+      }
+      if (!selectedPo) return null
+      return countKinds(buildPoGraphModel(datasets, selectedPo))
     } catch {
       return null
     }
-  }, [selectedCourse, datasets, buildGraphModel])
+  }, [rootType, selectedCourse, selectedPo, datasets, buildGraphModel, buildPoGraphModel])
 
-  // Collapse every expandable node except the center subject.
+  const buildActiveModel = useCallback(() => {
+    if (!datasets) return null
+    if (rootType === 'subject') return selectedCourse ? buildGraphModel(datasets, selectedCourse) : null
+    return selectedPo ? buildPoGraphModel(datasets, selectedPo) : null
+  }, [datasets, rootType, selectedCourse, selectedPo, buildGraphModel, buildPoGraphModel])
+
+  // Collapse every expandable node except the center root.
   const collapseAll = useCallback(() => {
-    if (!datasets || !selectedCourse) return
-    const data = buildGraphModel(datasets, selectedCourse)
+    const data = buildActiveModel()
+    if (!data) return
     const ids = new Set<string>()
     const collect = (n: GraphNodeData) => {
       if (n.children?.length) { ids.add(n.id); n.children.forEach(collect) }
     }
     collect(data)
-    ids.delete(data.id) // keep the subject ring visible
+    ids.delete(data.id) // keep the root ring visible
     setCollapsedIds(ids)
-  }, [datasets, selectedCourse, buildGraphModel])
+  }, [buildActiveModel])
 
   // Reset the SVG zoom/pan transform to its default framed view.
   const resetZoom = useCallback(() => {
@@ -476,39 +647,80 @@ export default function SubjectView() {
   }, [])
 
   const handleRefresh = async () => {
-    if (!selectedCourse) return
+    if ((rootType === 'subject' && !selectedCourse) || (rootType === 'po' && !selectedPo)) return
     setGraphError('')
     await loadDatasets(true)
   }
 
-  // Jump back to a subject earlier in the navigation trail.
+  // Re-root helpers — push the current root onto the trail before switching.
+  const gotoPoRoot = useCallback((poId: string) => {
+    if (rootType === 'subject' && selectedCourseId) {
+      setNavStack((prev) => [...prev, { type: 'subject', id: selectedCourseId }])
+    } else if (rootType === 'po' && selectedPoId && selectedPoId !== poId) {
+      setNavStack((prev) => [...prev, { type: 'po', id: selectedPoId }])
+    }
+    setRootType('po')
+    setSelectedPoId(poId)
+    setShowGraph(true)
+    setGraphError('')
+  }, [rootType, selectedCourseId, selectedPoId])
+
+  const gotoSubjectRoot = useCallback((courseId: string) => {
+    if (rootType === 'po' && selectedPoId) {
+      setNavStack((prev) => [...prev, { type: 'po', id: selectedPoId }])
+    } else if (rootType === 'subject' && selectedCourseId && selectedCourseId !== courseId) {
+      setNavStack((prev) => [...prev, { type: 'subject', id: selectedCourseId }])
+    }
+    setRootType('subject')
+    setSelectedCourseId(courseId)
+    setShowGraph(true)
+    setGraphError('')
+  }, [rootType, selectedPoId, selectedCourseId])
+
+  // Jump back to an earlier entry in the navigation trail.
   const handleCrumb = useCallback((i: number) => {
-    if (!selectedCourseId || navStack.length === 0) return
-    const trail = [...navStack, selectedCourseId]
+    const current: NavEntry | null =
+      rootType === 'subject' && selectedCourseId ? { type: 'subject', id: selectedCourseId }
+      : rootType === 'po' && selectedPoId ? { type: 'po', id: selectedPoId }
+      : null
+    if (!current) return
+    const trail = [...navStack, current]
     if (i >= trail.length - 1) return
-    setSelectedCourseId(trail[i])
+    const target = trail[i]
+    setRootType(target.type)
+    if (target.type === 'subject') setSelectedCourseId(target.id)
+    else setSelectedPoId(target.id)
     setNavStack(navStack.slice(0, i))
     setShowGraph(true)
     setGraphError('')
-  }, [selectedCourseId, navStack])
+  }, [rootType, selectedCourseId, selectedPoId, navStack])
 
-  // ── D3 tree render (advanced branching visualization) ─────────────────────
-  // Vertical top-down tree: Subject (root) → Curriculum / CLO / Pre-req / Co-req → PO → PEO/SG/CMO
-  // Smooth curved links (d3.linkVertical with the default bumpY curve),
-  // drop-shadow nodes, keyed enter/update/exit transitions, hover, drag, zoom.
+  // ── D3 force simulation — Observable-style (width 928 / height 680) ───────
+  // Dual-root: subject mode (subject → curriculum / prereq / coreq / CLO → PO
+  // → PEO/SG/CMO) or PO mode (PO → CLOs → subjects + PEO/SG/CMO), with the
+  // existing collapse/expand and zoom behavior preserved.
   const renderGraph = useCallback(() => {
     const svgEl = svgRef.current
     const tip = tooltipRef.current
-    if (!svgEl || !tip || !selectedCourse || !datasets) return () => {}
+    if (!svgEl || !tip || !datasets) return () => {}
+    if (rootType === 'subject' && !selectedCourse) return () => {}
+    if (rootType === 'po' && !selectedPo) return () => {}
 
     const svg = d3.select(svgEl)
     svg.on('.zoom', null)
     svg.selectAll('*').remove()
 
-    const width = containerSize.w || svgEl.clientWidth || 760
+    // Dimensions as per the example — responsive via containerSize
+    const width = 928
+    const height = 680
+    const viewW = containerSize.w || svgEl.clientWidth || width
+    const viewH = containerSize.h || svgEl.clientHeight || height
 
-    // ── Build hierarchy + flatten with expand/collapse ───────────────
-    interface TreeNode {
+    // Color scale exactly as in the example (schemeCategory10)
+    const color = d3.scaleOrdinal(d3.schemeCategory10)
+
+    // ── Build hierarchy + flatten with expand/collapse (same pathKey trick) ──
+    interface ForceNode extends d3.SimulationNodeDatum {
       id: string
       rId: string
       code: string
@@ -516,21 +728,18 @@ export default function SubjectView() {
       kind: NodeKind
       placeholder: boolean
       courseId?: string
-      depth: number
-      x: number
-      y: number
+      poId?: string
+      group: number
       expandable: boolean
       collapsed: boolean
     }
-    interface TreeLink {
-      source: TreeNode
-      target: TreeNode
+    interface ForceLink extends d3.SimulationLinkDatum<ForceNode> {
+      source: ForceNode
+      target: ForceNode
       dashed: boolean
+      value: number
     }
 
-    // Nodes can share a model id (a PO aligned to several CLOs, or the same
-    // PEO/SG/CMO aligned to several POs). Position is only unique via the full
-    // ancestor chain, so join D3 data and resolve link endpoints by that.
     const pathKey = (d: d3.HierarchyNode<GraphNodeData>): string => {
       const parts: string[] = []
       let cur: d3.HierarchyNode<GraphNodeData> | null = d
@@ -538,47 +747,120 @@ export default function SubjectView() {
       return parts.join('>')
     }
 
-    const data = buildGraphModel(datasets, selectedCourse)
+    const kindGroup: Record<NodeKind, number> = {
+      curriculum: 0,
+      subject: 1,
+      prerequisite: 2,
+      corequisite: 3,
+      clo: 4,
+      po: 5,
+      peo: 6,
+      sg: 7,
+      cmo: 8,
+    }
 
+    const data = rootType === 'subject' && selectedCourse
+      ? buildGraphModel(datasets, selectedCourse)
+      : rootType === 'po' && selectedPo
+        ? buildPoGraphModel(datasets, selectedPo)
+        : null
+    if (!data) return () => {}
+    const rootId = data.id
     const root = d3.hierarchy<GraphNodeData>(data, (d) =>
       collapsedIds.has(d.id) ? undefined : d.children
     )
-    const treeLayout = d3.tree<GraphNodeData>().nodeSize([170, 128])
+
+    // Tree layout for initial left-to-right positions (subject on left, branches right)
+    // Fixed branching: wider separation so sibling branches don't collapse
+    const treeLayout = d3.tree<GraphNodeData>()
+      .nodeSize([110, 190])
+      .separation((a, b) => (a.parent === b.parent ? 1.2 : 1.9))
     treeLayout(root)
+    const initialPos = new Map<string, { x: number; y: number }>()
+    root.each((d) => {
+      const rId = pathKey(d)
+      // Horizontal: y = depth (goes right), x = breadth (vertical)
+      // Shift so subject starts near left edge (-width/2+80), vertically centered
+      const hx = -width / 2 + 80 + (d.y ?? 0)
+      const vy = (d.x ?? 0)
+      initialPos.set(rId, { x: hx, y: vy })
+    })
+    // Center vertically around 0 for the force's centered viewBox
+    const ys = Array.from(initialPos.values()).map((p) => p.y)
+    const yOffset = ys.length ? -(Math.min(...ys) + (Math.max(...ys) - Math.min(...ys)) / 2) : 0
 
-    // Center horizontally, keep a comfortable top margin.
-    const xs = root.descendants().map((d) => d.x ?? 0)
-    const minX = Math.min(...xs)
-    const maxX = Math.max(...xs)
-    const treeWidth = maxX - minX || 1
-    const offsetX = width / 2 - (minX + treeWidth / 2)
-    const offsetY = 62
+    const hierarchyNodes = root.descendants()
+    const hierarchyLinks = root.links()
 
-    const nodes: TreeNode[] = root.descendants().map((d) => ({
-      id: d.data.id,
-      rId: pathKey(d),
-      code: d.data.code,
-      title: d.data.title,
-      kind: d.data.kind,
-      placeholder: d.data.placeholder,
-      courseId: d.data.courseId,
-      depth: d.depth,
-      x: (d.x ?? 0) + offsetX,
-      y: (d.y ?? 0) + offsetY,
-      expandable: !!(d.data.children && d.data.children.length > 0),
-      collapsed: collapsedIds.has(d.data.id),
-    }))
-    const nodeById = new Map(nodes.map((n) => [n.rId, n]))
-    const links: TreeLink[] = root.links().map((l) => ({
-      source: nodeById.get(pathKey(l.source))!,
-      target: nodeById.get(pathKey(l.target))!,
+    const nodes: ForceNode[] = hierarchyNodes.map((d) => {
+      const rId = pathKey(d)
+      const pos = initialPos.get(rId) ?? { x: 0, y: 0 }
+      return {
+        id: d.data.id,
+        rId,
+        code: d.data.code,
+        title: d.data.title,
+        kind: d.data.kind,
+        placeholder: d.data.placeholder,
+        courseId: d.data.courseId,
+        poId: d.data.poId,
+        group: kindGroup[d.data.kind] ?? 4,
+        expandable: !!(d.data.children && d.data.children.length > 0),
+        collapsed: collapsedIds.has(d.data.id),
+        x: pos.x,
+        y: pos.y + yOffset,
+      }
+    })
+    const nodeByRId = new Map(nodes.map((n) => [n.rId, n]))
+    const links: ForceLink[] = hierarchyLinks.map((l) => ({
+      source: nodeByRId.get(pathKey(l.source))!,
+      target: nodeByRId.get(pathKey(l.target))!,
       dashed: l.target.data.kind === 'corequisite' || l.target.data.placeholder,
+      value: 1,
     }))
 
-    const radiusOf = (d: TreeNode) =>
-      d.depth === 1 ? 27 : d.depth === 2 ? 23 : 18
+    // Create a copy so re-evaluating produces the same result (as per example)
+    const simNodes = nodes.map((d) => ({ ...d })) as ForceNode[]
+    const simNodeByRId = new Map(simNodes.map((n) => [n.rId, n]))
+    const simLinks: ForceLink[] = links.map((l) => ({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      source: simNodeByRId.get((l.source as ForceNode).rId)! as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      target: simNodeByRId.get((l.target as ForceNode).rId)! as any,
+      dashed: l.dashed,
+      value: l.value,
+    }))
 
-    // ── Defs: drop shadow + glow for nodes ──────────────────────────
+    // Root fixed on the left, branches flow to the right (subject or PO root)
+    const rootSim = simNodes.find((n) => n.id === rootId) ?? simNodes[0]
+    if (rootSim) {
+      rootSim.fx = -width / 2 + 80
+      rootSim.fy = 0
+    }
+
+    // Branching fix: tiered link distances so root→CLO/PO fan out, PO→leaves stay tight,
+    // plus collide + weaker charge to keep sibling branches from overlapping.
+    const linkDistance = (d: ForceLink) => {
+      const targetKind = (d.target as ForceNode).kind
+      if (targetKind === 'po' || targetKind === 'clo') return 120
+      if (targetKind === 'curriculum' || targetKind === 'prerequisite' || targetKind === 'corequisite') return 95
+      return 75
+    }
+    const simulation = d3.forceSimulation<ForceNode>(simNodes)
+      .force('link', d3.forceLink<ForceNode, ForceLink>(simLinks).id((d) => d.rId).distance((d) => linkDistance(d as ForceLink)).strength(0.85))
+      .force('charge', d3.forceManyBody().strength(-420))
+      .force('x', d3.forceX(60).strength(0.08))
+      .force('y', d3.forceY(0).strength(0.12))
+      .force('collide', d3.forceCollide<ForceNode>().radius((d) => (d.kind === 'subject' ? 22 : d.kind === 'po' || d.kind === 'clo' ? 16 : 12)).strength(0.7))
+
+    // SVG container as per the example
+    svg
+      .attr('width', viewW)
+      .attr('height', viewH)
+      .attr('viewBox', [-width / 2, -height / 2, width, height] as unknown as string)
+      .attr('style', 'max-width: 100%; height: auto;')
+
+    // Defs: subtle shadow
     const defs = svg.append('defs')
     defs.append('filter')
       .attr('id', 'subject-view-shadow')
@@ -590,165 +872,142 @@ export default function SubjectView() {
 
     const zoomGroup = svg.append('g')
 
-    // ── Links: smooth vertical S-curves ─────────────────────────────
-    const linkPath = d3.linkVertical<TreeLink, TreeNode>()
-      .x((d) => d.x)
-      .y((d) => d.y)
-
+    // Links as <line> (exactly as in the example, with our dashed + color tweaks)
     const link = zoomGroup.append('g')
-      .attr('class', 'subject-view__links')
-      .selectAll<SVGPathElement, TreeLink>('path.subject-view__link')
-      .data(links, (l) => l.target.rId)
-      .join(
-        (enter) => enter
-          .append('path')
-          .attr('class', 'subject-view__link')
-          .attr('fill', 'none')
-          .attr('stroke', (l) => (l.target.placeholder ? '#a5b4c8' : '#7c8ba1'))
-          .attr('stroke-width', 2)
-          .attr('stroke-linecap', 'round')
-          .attr('stroke-dasharray', (l) => (l.dashed ? '6 4' : 'none'))
-          .attr('d', (l) => linkPath(l))
-          .style('opacity', 0)
-          .call((s) => s.transition().duration(500).delay(160).style('opacity', 1)),
-        (update) => update
-          .attr('stroke', (l) => (l.target.placeholder ? '#a5b4c8' : '#7c8ba1'))
-          .attr('stroke-dasharray', (l) => (l.dashed ? '6 4' : 'none'))
-          .call((s) => s.transition().duration(450).ease(d3.easeCubicInOut).attr('d', (l) => linkPath(l))),
-        (exit) => exit.call((s) => s.transition().duration(200).style('opacity', 0).remove()),
-      )
+      .attr('stroke', '#999')
+      .attr('stroke-opacity', 0.6)
+      .selectAll<SVGLineElement, ForceLink>('line')
+      .data(simLinks)
+      .join('line')
+      .attr('stroke-width', (d) => Math.sqrt(d.value) * 1.5)
+      .attr('stroke-dasharray', (d) => (d.dashed ? '6 4' : 'none'))
+      .attr('stroke', (d) => ((d.target as ForceNode).placeholder ? '#a5b4c8' : '#999'))
 
-    // ── Nodes: keyed <g> groups with animated transitions ───────────
-    const node = zoomGroup.append('g')
-      .attr('class', 'subject-view__nodes')
-      .selectAll<SVGGElement, TreeNode>('g.subject-view__node')
-      .data(nodes, (d) => d.rId)
-      .join(
-        (enter) => {
-          const g = enter.append('g')
-            .attr('class', 'subject-view__node')
-            .attr('transform', (d) => `translate(${d.x},${d.y + 16})`)
-            .style('opacity', 0)
-            .style('filter', 'url(#subject-view-shadow)')
-            .attr('cursor', (d) => (d.expandable || d.courseId ? 'pointer' : 'default'))
+    // Nodes as <circle> groups with outer <g> for labels/badges — keeps drag on the circle
+    const nodeGroup = zoomGroup.append('g')
+      .attr('stroke', '#fff')
+      .attr('stroke-width', 1.5)
 
-          // Subject double-ring (root)
-          g.filter((d) => d.kind === 'subject')
-            .append('circle').attr('class', 'subject-view__ring')
-            .attr('r', 42)
-            .attr('fill', 'rgba(37, 99, 235, 0.16)')
-            .attr('stroke', '#2563eb')
-            .attr('stroke-width', 1.5)
-          g.filter((d) => d.kind === 'subject')
-            .append('circle').attr('class', 'subject-view__core')
-            .attr('r', 34)
-            .attr('fill', colorMap.subject)
-            .attr('stroke', '#fff')
-            .attr('stroke-width', 2.5)
-
-          // Curriculum ellipse
-          g.filter((d) => d.kind === 'curriculum')
-            .append('ellipse').attr('class', 'subject-view__shape')
-            .attr('rx', 58).attr('ry', 25)
-            .attr('fill', (d) => (d.placeholder ? '#f8fafc' : colorMap.curriculum))
-            .attr('stroke', (d) => (d.placeholder ? '#94a3b8' : colorMap.curriculum))
-            .attr('stroke-dasharray', (d) => (d.placeholder ? '5 3' : 'none'))
-            .attr('stroke-width', '2')
-
-          // All other nodes as circles
-          g.filter((d) => d.kind !== 'subject' && d.kind !== 'curriculum')
-            .append('circle').attr('class', 'subject-view__shape')
-            .attr('r', radiusOf)
-            .attr('fill', (d) => (d.placeholder ? '#f8fafc' : colorMap[d.kind]))
-            .attr('stroke', (d) => (d.placeholder ? '#94a3b8' : colorMap[d.kind]))
-            .attr('stroke-dasharray', (d) => (d.placeholder ? '5 3' : 'none'))
-            .attr('stroke-width', '2')
-
-          // Code label inside the node
-          g.append('text').attr('class', 'subject-view__label')
-            .attr('text-anchor', 'middle')
-            .attr('dy', '0.35em')
-            .attr('fill', (d) => (d.placeholder ? '#64748b' : '#fff'))
-            .attr('font-size', (d) => (d.depth <= 1 ? 13.5 : d.depth === 2 ? 11 : 9.5))
-            .attr('font-weight', 'bold')
-            .attr('pointer-events', 'none')
-            .text((d) => {
-              const max = d.depth <= 1 ? 16 : d.depth === 2 ? 9 : 7
-              const code = d.code.length > max ? d.code.slice(0, max - 1) + '…' : d.code
-              return code + (d.placeholder && d.kind !== 'curriculum' ? '?' : '')
-            })
-
-          // Expand / collapse badge
-          g.filter((d) => d.expandable && d.depth !== 0)
-            .each(function (d) {
-              const sel = d3.select(this)
-              const bx = d.kind === 'curriculum' ? 58 : radiusOf(d)
-              const by = d.kind === 'curriculum' ? 0 : -radiusOf(d)
-              sel.append('circle').attr('class', 'subject-view__badge')
-                .attr('r', 9).attr('cx', bx).attr('cy', by)
-                .attr('fill', '#fff')
-                .attr('stroke', '#cbd5e1')
-                .attr('stroke-width', 1.5)
-              sel.append('text').attr('class', 'subject-view__badge-text')
-                .attr('x', bx).attr('y', by)
-                .attr('dy', '0.32em').attr('text-anchor', 'middle')
-                .attr('font-size', '12px').attr('font-weight', '700')
-                .attr('fill', '#334155').attr('pointer-events', 'none')
-                .text(d.collapsed ? '+' : '−')
-            })
-
-          // Entrance: rise up and fade in, staggered by depth.
-          g.transition()
-            .duration(450)
-            .delay((d) => d.depth * 60)
-            .ease(d3.easeCubicOut)
-            .style('opacity', 1)
-            .attr('transform', (d) => `translate(${d.x},${d.y})`)
-
-          return g
-        },
-        (update) => {
-          update
-            .attr('cursor', (d) => (d.expandable || d.courseId ? 'pointer' : 'default'))
-            .select('.subject-view__badge-text')
-            .text((d) => (d.collapsed ? '+' : '−'))
-          update.transition()
-            .duration(450).ease(d3.easeCubicInOut)
-            .attr('transform', (d) => `translate(${d.x},${d.y})`)
-          return update
-        },
-        (exit) => exit.call((s) => s.transition().duration(200).style('opacity', 0).remove()),
-      )
-
-    // ── Drag: fix position on drag, release on end ──────────────────
-    const drag = d3.drag<SVGGElement, TreeNode>()
-      .on('start', (event, d) => {
-        node.interrupt()
-        link.interrupt()
-        d.x = event.x
-        d.y = event.y
+    const node = nodeGroup
+      .selectAll<SVGCircleElement, ForceNode>('circle')
+      .data(simNodes, (d) => d.rId)
+      .join('circle')
+      .attr('r', (d) => {
+        if (d.id === rootId) return 14
+        if (d.kind === 'subject') return 14
+        if (d.kind === 'curriculum') return 12
+        if (d.kind === 'po' || d.kind === 'clo') return 8
+        return 5
       })
-      .on('drag', (event, d) => {
-        d.x = event.x
-        d.y = event.y
-        d3.select(event.sourceEvent.target.parentNode as Element)
-          .attr('transform', `translate(${d.x},${d.y})`)
-        link.attr('d', (l) => linkPath(l))
+      .attr('fill', (d) => (d.placeholder ? '#f8fafc' : (colorMap[d.kind] as string) || color(String(d.group))))
+      .attr('stroke', (d) => (d.placeholder ? '#94a3b8' : '#fff'))
+      .attr('cursor', (d) => (d.expandable || d.courseId || (d.kind === 'po' && d.poId) ? 'pointer' : 'grab'))
+      .attr('filter', 'url(#subject-view-shadow)')
+
+    node.append('title').text((d) => `${d.code} — ${d.title}`)
+
+    // Text labels beside each node (code) — not in the minimal example, but useful for the outcome map
+    const label = zoomGroup.append('g')
+      .selectAll<SVGTextElement, ForceNode>('text')
+      .data(simNodes, (d) => d.rId)
+      .join('text')
+      .attr('text-anchor', 'middle')
+      .attr('dy', (d) => (d.id === rootId || d.kind === 'subject' ? 26 : d.kind === 'curriculum' ? 22 : 16))
+      .attr('font-size', (d) => (d.id === rootId || d.kind === 'subject' ? '11px' : '9px'))
+      .attr('font-weight', '700')
+      .attr('fill', '#0f172a')
+      .attr('pointer-events', 'none')
+      .attr('paint-order', 'stroke')
+      .attr('stroke', 'rgba(255,255,255,0.85)')
+      .attr('stroke-width', '3')
+      .text((d) => {
+        const max = d.kind === 'subject' ? 14 : 10
+        return d.code.length > max ? d.code.slice(0, max - 1) + '…' : d.code
       })
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    node.each(function () { (d3 as any).select(this).call(drag) })
+    // Expand/collapse badge — tiny +/− circle near the node (never on the root)
+    const badge = zoomGroup.append('g')
+      .selectAll<SVGGElement, ForceNode>('g')
+      .data(simNodes.filter((d) => d.expandable && d.id !== rootId), (d) => d.rId)
+      .join('g')
+      .attr('pointer-events', 'none')
 
-    // ── Hover: highlight connected nodes + links, show tooltip ──────
-    const highlightConnections = (d: TreeNode) => {
+    badge.append('circle')
+      .attr('r', 7)
+      .attr('fill', '#fff')
+      .attr('stroke', '#cbd5e1')
+      .attr('stroke-width', 1.2)
+
+    badge.append('text')
+      .attr('text-anchor', 'middle')
+      .attr('dy', '0.32em')
+      .attr('font-size', '9px')
+      .attr('font-weight', '700')
+      .attr('fill', '#334155')
+      .text((d) => (d.collapsed ? '+' : '−'))
+
+    // Tick — keep links, circles, labels, badges in sync (core of the example)
+    simulation.on('tick', () => {
+      link
+        .attr('x1', (d) => (d.source as ForceNode).x ?? 0)
+        .attr('y1', (d) => (d.source as ForceNode).y ?? 0)
+        .attr('x2', (d) => (d.target as ForceNode).x ?? 0)
+        .attr('y2', (d) => (d.target as ForceNode).y ?? 0)
+
+      node
+        .attr('cx', (d) => d.x ?? 0)
+        .attr('cy', (d) => d.y ?? 0)
+
+      label
+        .attr('x', (d) => d.x ?? 0)
+        .attr('y', (d) => d.y ?? 0)
+
+      badge
+        .attr('transform', (d) => `translate(${(d.x ?? 0) + 10},${(d.y ?? 0) - 10})`)
+    })
+
+    // Drag behavior exactly as in the example (reheat, fix fx/fy, release)
+    function dragstarted(event: d3.D3DragEvent<SVGCircleElement, ForceNode, ForceNode>, d: ForceNode) {
+      if (!event.active) simulation.alphaTarget(0.3).restart()
+      d.fx = d.x
+      d.fy = d.y
+    }
+    function dragged(event: d3.D3DragEvent<SVGCircleElement, ForceNode, ForceNode>, d: ForceNode) {
+      d.fx = event.x
+      d.fy = event.y
+    }
+    function dragended(event: d3.D3DragEvent<SVGCircleElement, ForceNode, ForceNode>, d: ForceNode) {
+      if (!event.active) simulation.alphaTarget(0)
+      if (d.id === rootId) {
+        d.fx = -width / 2 + 80
+        d.fy = 0
+      } else {
+        d.fx = null
+        d.fy = null
+      }
+    }
+
+    node.call(
+      d3.drag<SVGCircleElement, ForceNode>()
+        .on('start', dragstarted)
+        .on('drag', dragged)
+        .on('end', dragended) as unknown as d3.DragBehavior<SVGCircleElement, ForceNode, unknown>
+    )
+
+    // Hover — keep the custom tooltip + highlight
+    const highlightConnections = (d: ForceNode) => {
       const connectedIds = new Set<string>()
-      const connectedLinks: TreeLink[] = []
-      links.forEach((l) => {
-        if (l.source.rId === d.rId) { connectedIds.add(l.target.rId); connectedLinks.push(l) }
-        else if (l.target.rId === d.rId) { connectedIds.add(l.source.rId); connectedLinks.push(l) }
+      simLinks.forEach((l) => {
+        const s = l.source as ForceNode
+        const t = l.target as ForceNode
+        if (s.rId === d.rId) connectedIds.add(t.rId)
+        else if (t.rId === d.rId) connectedIds.add(s.rId)
       })
-      node.classed('subject-view__node--highlight', (n: TreeNode) => connectedIds.has(n.rId))
-      link.classed('subject-view__link--highlight', (l: TreeLink) => connectedLinks.includes(l))
+      node.classed('subject-view__node--highlight', (n) => connectedIds.has(n.rId))
+      link.classed('subject-view__link--highlight', (l) => {
+        const s = l.source as ForceNode, t = l.target as ForceNode
+        return s.rId === d.rId || t.rId === d.rId
+      })
     }
 
     node
@@ -757,7 +1016,10 @@ export default function SubjectView() {
         tip.style.opacity = '1'
         tip.style.left = `${event.offsetX + 12}px`
         tip.style.top = `${event.offsetY - 28}px`
-        tip.innerHTML = `<strong>${d.code}</strong><br/>${d.title}`
+        const canReroot =
+          (d.kind === 'po' && d.poId && !(rootType === 'po' && d.id === rootId)) ||
+          (d.kind === 'subject' && d.courseId && !(rootType === 'subject' && d.id === rootId))
+        tip.innerHTML = `<strong>${d.code}</strong><br/>${d.title}${canReroot ? '<br/><em>Click to view as root</em>' : ''}`
       })
       .on('mousemove', (event) => {
         tip.style.left = `${event.offsetX + 12}px`
@@ -769,16 +1031,22 @@ export default function SubjectView() {
         tip.style.opacity = '0'
       })
 
-    // ── Click: expand/collapse, jump to a linked subject, or drill ──
+    // Click — cross-root re-root + drill-down + expand/collapse on force nodes
     node.on('click', (event, d) => {
       event.stopPropagation()
+      // PO node → re-root visualization at that PO (works from subject graph
+      // and from upstream CLO branches inside a PO graph).
+      if (d.kind === 'po' && d.poId && !d.placeholder) {
+        if (!((rootType === 'po' && d.id === rootId))) {
+          gotoPoRoot(d.poId)
+          return
+        }
+      }
+      // Subject leaf (prereq / coreq / PO-graph subject) → jump to that subject.
       if (d.courseId && !d.expandable) {
-        const target = programCourses.find((c) => c.id === d.courseId)
-        if (target && selectedCourseId && target.id !== selectedCourseId) {
-          // Connected subject: jump straight to its graph and remember the trail.
-          setNavStack((prev) => [...prev, selectedCourseId])
-          setSelectedCourseId(target.id)
-          setShowGraph(true)
+        const target = courses.find((c) => c.id === d.courseId)
+        if (target && target.id !== selectedCourseId) {
+          gotoSubjectRoot(target.id)
         }
         return
       }
@@ -792,15 +1060,19 @@ export default function SubjectView() {
       }
     })
 
-    // ── Zoom / pan ──────────────────────────────────────────────────
+    // Zoom / pan
     const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.2, 3])
       .on('zoom', (event) => zoomGroup.attr('transform', event.transform))
-    svg.call(zoom)
-    zoomRef.current = zoom
+    svg.call(zoom as unknown as d3.ZoomBehavior<SVGSVGElement, unknown>)
+    zoomRef.current = zoom as unknown as d3.ZoomBehavior<SVGSVGElement, unknown>
 
-    return () => { svg.on('.zoom', null); zoomRef.current = null }
-  }, [selectedCourse, datasets, containerSize, collapsedIds, buildGraphModel, programCourses, selectedCourseId, setSelectedCourseId])
+    return () => {
+      simulation.stop()
+      svg.on('.zoom', null)
+      zoomRef.current = null
+    }
+  }, [rootType, selectedCourse, selectedPo, datasets, containerSize, collapsedIds, buildGraphModel, buildPoGraphModel, courses, selectedCourseId, gotoPoRoot, gotoSubjectRoot])
 
   // ResizeObserver keeps the SVG sized responsively.
   useEffect(() => {
@@ -816,35 +1088,103 @@ export default function SubjectView() {
     ro.observe(el)
     setContainerSize({ w: el.clientWidth, h: el.clientHeight })
     return () => ro.disconnect()
-  }, [showGraph, datasets])
+  }, [showGraph, datasets, isFullscreen])
 
   // Render the graph once everything is ready.
   useEffect(() => {
-    if (!showGraph || !selectedCourse || !datasets) return
+    if (!showGraph || !datasets) return
+    if (rootType === 'subject' && !selectedCourse) return
+    if (rootType === 'po' && !selectedPo) return
     try {
       return renderGraph()
     } catch (e) {
       setGraphError(e instanceof Error ? e.message : 'Failed to render graph.')
       return undefined
     }
-  }, [showGraph, selectedCourse, datasets, containerSize, renderGraph, setGraphError])
+  }, [showGraph, rootType, selectedCourse, selectedPo, datasets, containerSize, renderGraph, setGraphError])
 
   const handleView = async () => {
-    if (!selectedCourse) return
+    if (!rootType) return
+    if (rootType === 'subject' && !selectedCourse) return
+    if (rootType === 'po' && !selectedPoId) return
     setShowGraph(true)
     setGraphError('')
     await loadDatasets()
   }
 
-  if (loading) return <p>Loading subjects...</p>
+  const crumbLabel = (entry: NavEntry): string => {
+    if (entry.type === 'subject') {
+      return courses.find((c) => c.id === entry.id)?.code ?? allPos.find((p) => p.id === entry.id)?.code ?? '…'
+    }
+    return allPos.find((p) => p.id === entry.id)?.code ?? courses.find((c) => c.id === entry.id)?.code ?? '…'
+  }
+
+  const crumbTitle = (entry: NavEntry): string => {
+    if (entry.type === 'subject') {
+      const c = courses.find((x) => x.id === entry.id)
+      return c ? `${c.code} — ${c.title}` : 'Unknown subject'
+    }
+    const p = allPos.find((x) => x.id === entry.id)
+    return p ? `${p.code} — ${p.description || p.title}` : 'Unknown outcome'
+  }
+
+  const currentEntry: NavEntry | null =
+    rootType === 'subject' && selectedCourseId ? { type: 'subject', id: selectedCourseId }
+    : rootType === 'po' && selectedPoId ? { type: 'po', id: selectedPoId }
+    : null
+
+  const graphTitle = rootType === 'subject'
+    ? (selectedCourse ? `${selectedCourse.code} — ${selectedCourse.title}` : '')
+    : (selectedPo ? `${selectedPo.code} — ${selectedPo.description || selectedPo.title}` : '')
+  const graphHint = rootType === 'subject'
+    ? 'Click a branch node to expand or collapse. Click a PO to view the graph from that PO. Click a pre-req or co-req to jump to that subject. Drag nodes to reposition. Scroll to zoom.'
+    : 'Click a branch node to expand or collapse. Click a subject to view the graph from that subject. Click a PO to switch PO root. Drag nodes to reposition. Scroll to zoom.'
+
+  // The About card for a subject renders the *exact* Curriculum Report document
+  // (letterhead, Vision/Mission/Goals/PEOs, Program Outcomes, Curriculum
+  // Mapping, CLO table, Course Details) through the shared SyllabusReport
+  // component — the same one View.tsx renders. `datasets` is prefetched on
+  // mount, so it is ready before the user presses View Graph.
+  const subjectReport = (() => {
+    if (!datasets || !selectedCourse || rootType !== 'subject') return null
+    const { adminPos, managerPos } = splitReportPos(datasets.pos)
+    return (
+      <SyllabusReport
+        course={selectedCourse}
+        courses={courses}
+        goals={datasets.sgs}
+        peos={datasets.peos}
+        adminGroups={buildGroups(adminPos, datasets.cmos)}
+        managerGroups={buildGroups(managerPos, datasets.cmos)}
+        subjectClos={datasets.clos.filter((c) =>
+          cloMatchesSubject(c.course || '', normalizeCode(selectedCourse.code)))}
+      />
+    )
+  })()
+
+  if (loading) return <p role="status">Loading subjects...</p>
 
   return (
     <div className="subject-view">
-      {error && <p className="msg msg--error">{error}</p>}
+      {error && <p className="msg msg--error" role="alert">{error}</p>}
 
       <div className="subject-view__panels">
-        {/* ── Left panel: program + subject selection ───────────────────── */}
+        {/* ── Left panel: root choice + program/subject/PO selection ─────── */}
         <div className="panel subject-view__left">
+          <h3 className="subject-view__course-heading">Visualize</h3>
+          <label className="field">
+            <span>Select</span>
+            <select
+              className="input input--sm"
+              value={rootType}
+              onChange={(e) => { setRootType(e.target.value as RootType | ''); setShowGraph(false); setNavStack([]); setGraphError('') }}
+            >
+              <option value="">--- select to Visualize ---</option>
+              <option value="subject">Subject</option>
+              <option value="po">PO</option>
+            </select>
+          </label>
+
           <h3>Program</h3>
           <label className="field">
             <span className="sr-only">Select program</span>
@@ -859,63 +1199,97 @@ export default function SubjectView() {
           </label>
           <p className="subject-view__helper">{programs.length === 0 ? 'Create a program first to get started.' : `${programCourses.length} subject${programCourses.length === 1 ? '' : 's'} in this program.`}</p>
 
-          <h3 className="subject-view__course-heading">Subject Code</h3>
-          <label className="field">
-            <span className="sr-only">Select course</span>
-            <select className="input input--sm" value={selectedCourseId ?? ''}
-              disabled={programs.length === 0 || programCourses.length === 0}
-              onChange={(e) => { setSelectedCourseId(e.target.value || null); setShowGraph(false); setNavStack([]) }}>
-              {programCourses.length === 0 ? (
-                <option value="">No subjects in this program</option>
-              ) : (
-                <>
-                  <option value="">— Select a subject —</option>
-                  {programCourses.map((c) => (
-                    <option key={c.id} value={c.id}>{c.code} — {c.title}</option>
-                  ))}
-                </>
-              )}
-            </select>
-          </label>
+          {rootType === 'subject' && (
+            <>
+              <h3 className="subject-view__course-heading">Subject Code</h3>
+              <label className="field">
+                <span className="sr-only">Select course</span>
+                <select className="input input--sm" value={selectedCourseId ?? ''}
+                  disabled={programs.length === 0 || programCourses.length === 0}
+                  onChange={(e) => { setSelectedCourseId(e.target.value || null); setShowGraph(false); setNavStack([]) }}>
+                  {programCourses.length === 0 ? (
+                    <option value="">No subjects in this program</option>
+                  ) : (
+                    <>
+                      <option value="">— Select a subject —</option>
+                      {programCourses.map((c) => (
+                        <option key={c.id} value={c.id}>{c.code} — {c.title}</option>
+                      ))}
+                    </>
+                  )}
+                </select>
+              </label>
+            </>
+          )}
+          {rootType === 'po' && (
+            <>
+              <h3 className="subject-view__course-heading">PO Code</h3>
+              <label className="field">
+                <span className="sr-only">Select program outcome</span>
+                <select className="input input--sm" value={selectedPoId ?? ''}
+                  disabled={allPos.length === 0}
+                  onChange={(e) => { setSelectedPoId(e.target.value || null); setShowGraph(false); setNavStack([]) }}>
+                  {allPos.length === 0 ? (
+                    <option value="">No program outcomes yet</option>
+                  ) : (
+                    <>
+                      <option value="">— Select a PO —</option>
+                      {allPos.map((p) => (
+                        <option key={p.id} value={p.id}>{p.code} — {(p.description || p.title || '').slice(0, 60)}</option>
+                      ))}
+                    </>
+                  )}
+                </select>
+              </label>
+              <p className="subject-view__helper">{allPos.length === 0 ? 'Add a program outcome first.' : `${allPos.length} PO${allPos.length === 1 ? '' : 's'} available as graph root.`}</p>
+            </>
+          )}
 
           {leftCounts && (
             <div className="subject-view__summary">
               <div className="subject-view__summary-item">
-                <span className="subject-view__summary-label">Pre-reqs</span>
-                <span className="subject-view__summary-value" style={{ color: '#f97316' }}>{leftCounts.pre}</span>
+                <span className="subject-view__summary-label">{rootType === 'po' ? 'CLOs' : 'Pre-reqs'}</span>
+                <span className="subject-view__summary-value" style={{ color: '#b45309' }}>{leftCounts.pre}</span>
               </div>
               <div className="subject-view__summary-item">
-                <span className="subject-view__summary-label">Co-reqs</span>
-                <span className="subject-view__summary-value" style={{ color: '#22c55e' }}>{leftCounts.core}</span>
+                <span className="subject-view__summary-label">{rootType === 'po' ? 'Subjects' : 'Co-reqs'}</span>
+                <span className="subject-view__summary-value" style={{ color: '#15803d' }}>{leftCounts.core}</span>
               </div>
-              <div className="subject-view__summary-item">
-                <span className="subject-view__summary-label">CLOs</span>
-                <span className="subject-view__summary-value" style={{ color: '#06b6d4' }}>{leftCounts.clos >= 0 ? leftCounts.clos : '–'}</span>
-              </div>
+              {rootType === 'subject' && (
+                <div className="subject-view__summary-item">
+                  <span className="subject-view__summary-label">CLOs</span>
+                  <span className="subject-view__summary-value" style={{ color: '#15803d' }}>{leftCounts.clos >= 0 ? leftCounts.clos : '–'}</span>
+                </div>
+              )}
             </div>
           )}
 
-          <button className="btn btn--sm subject-view__view-btn" disabled={!selectedCourse || loading || spinner}
+          <button
+            className="btn btn--sm subject-view__view-btn"
+            disabled={(rootType === 'subject' ? !selectedCourse : !selectedPoId) || loading || spinner}
             onClick={handleView}>
             {spinner ? 'Loading…' : 'View Graph'}
           </button>
         </div>
 
         {/* ── Right panel: D3 hierarchy graph ───────────────────────────── */}
-        <div className="panel subject-view__right" style={{ position: 'relative' }}>
+        <div
+          className={`panel subject-view__right${isFullscreen ? ' subject-view__right--fullscreen' : ''}`}
+          style={{ position: 'relative' }}
+        >
           {!showGraph ? (
             <div className="subject-view__placeholder">
               <div className="subject-view__placeholder-card">
                 <div className="subject-view__placeholder-icon">
-                  <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                     <circle cx="6" cy="6" r="2.5" />
                     <circle cx="18" cy="6" r="2.5" />
                     <circle cx="12" cy="18" r="2.5" />
                     <path d="M8 7l2.5 9M16 7l-3.5 9M6 6h12" />
                   </svg>
                 </div>
-                <h4>Outcome map for a subject</h4>
-                <p>Pick a <strong>program</strong> and a <strong>subject</strong> on the left, then press <strong>View Graph</strong> to see how its CLOs, POs, PEOs, Strategic Goals, and CMOs connect.</p>
+                <h4>Outcome map for a subject or PO</h4>
+                <p>Choose <strong>Subject</strong> or <strong>PO</strong> on the left, pick a code, then press <strong>View Graph</strong>. Clicking a PO re-roots the visualization at that PO; clicking a subject jumps back to that subject.</p>
               </div>
             </div>
           ) : graphError ? (
@@ -925,27 +1299,26 @@ export default function SubjectView() {
               <span className="subject-view__spinner" aria-hidden />
               <span>Loading relationships…</span>
             </div>
-          ) : !selectedCourse ? (
+          ) : (rootType === 'subject' && !selectedCourse) || (rootType === 'po' && !selectedPo) ? (
             <div className="subject-view__placeholder">
-              <p>Select a subject on the left, then press View.</p>
+              <p>{rootType === 'subject' ? 'Select a subject on the left, then press View.' : 'Select a PO on the left, then press View.'}</p>
             </div>
           ) : (
             <div className="subject-view__graph-area">
-              {navStack.length > 0 && (
-                <nav className="subject-view__crumbs" aria-label="Subject trail">
-                  {[...navStack, selectedCourse.id].map((id, i) => {
-                    const crumb = programCourses.find((c) => c.id === id)
+              {navStack.length > 0 && currentEntry && (
+                <nav className="subject-view__crumbs" aria-label="Outcome trail">
+                  {[...navStack, currentEntry].map((entry, i) => {
                     const isLast = i === navStack.length
                     return (
-                      <span className="subject-view__crumb-node" key={`${id}-${i}`}>
+                      <span className="subject-view__crumb-node" key={`${entry.type}-${entry.id}-${i}`}>
                         {i > 0 && <span className="subject-view__crumb-sep" aria-hidden>→</span>}
                         <button
                           type="button"
                           className={`subject-view__crumb${isLast ? ' subject-view__crumb--current' : ''}`}
                           disabled={isLast}
-                          title={crumb ? `${crumb.code} — ${crumb.title}` : 'Unknown subject'}
+                          title={crumbTitle(entry)}
                           onClick={() => handleCrumb(i)}>
-                          {crumb?.code ?? '…'}
+                          {crumbLabel(entry)}
                         </button>
                       </span>
                     )
@@ -953,15 +1326,26 @@ export default function SubjectView() {
                 </nav>
               )}
               <div className="subject-view__graph-toolbar">
-                <h3 className="subject-view__graph-title">{selectedCourse.code} — {selectedCourse.title}</h3>
+                <h3 className="subject-view__graph-title">{graphTitle}</h3>
                 <div className="subject-view__graph-actions">
-                  <button className="btn btn--ghost btn--sm" onClick={() => setCollapsedIds(new Set())} title="Expand every branch">Expand all</button>
-                  <button className="btn btn--ghost btn--sm" onClick={collapseAll} title="Collapse to the first ring">Collapse all</button>
-                  <button className="btn btn--ghost btn--sm" onClick={resetZoom} title="Center the graph and reset zoom">Reset view</button>
-                  <button className="btn btn--ghost btn--sm" onClick={handleRefresh} disabled={spinner} title="Reload relationship data">Refresh</button>
+                  <button type="button" className="btn btn--ghost btn--sm" onClick={collapseAll} title="Collapse all branches except the root">
+                    Collapse
+                  </button>
+                  <button type="button" className="btn btn--ghost btn--sm" onClick={resetZoom} title="Reset zoom and pan">
+                    Reset zoom
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm"
+                    onClick={() => setIsFullscreen((v) => !v)}
+                    aria-pressed={isFullscreen}
+                    title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Expand map to fullscreen'}
+                  >
+                    {isFullscreen ? 'Exit fullscreen' : '⤢ Fullscreen'}
+                  </button>
                 </div>
               </div>
-              <p className="subject-view__graph-hint">Click a branch node to expand or collapse. Click a pre-req or co-req to jump to that subject. Drag nodes to reposition. Scroll to zoom.</p>
+              <p className="subject-view__graph-hint">{graphHint}{isFullscreen ? ' Press Esc to exit fullscreen.' : ''}</p>
               <div className="subject-view__legend">
                 {legendDefs.map((l) => {
                   const n = graphStats?.counts[l.kind] ?? 0
@@ -983,6 +1367,62 @@ export default function SubjectView() {
           )}
         </div>
       </div>
+
+      {/* Below Program + Visualization — full-width. For a subject this is the
+          Curriculum Report document itself (no extra card frame), matching the
+          report page; for a PO it is a padded info card. */}
+      {rootType === 'subject' && selectedCourse ? (
+        <div className="subject-view__about" style={{ marginTop: 16 }}>
+          {subjectReport ?? (
+            <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
+              Loading the course report…
+            </p>
+          )}
+        </div>
+      ) : rootType === 'po' && selectedPo ? (
+        <div className="panel subject-view__about" style={{ marginTop: 16, padding: 20 }}>
+          <>
+              <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800, letterSpacing: '-0.02em' }}>
+                About {selectedPo.code} — {selectedPo.description || selectedPo.title}
+              </h3>
+              <p style={{ margin: '0 0 12px', color: '#64748b', fontSize: 13 }}>
+                Program Outcome · aligns CLOs upstream and PEO / Strategic Goal / CMO downstream
+              </p>
+              <div className="subject-view__inside" style={{ marginTop: 0, background: '#fff', border: '1px solid #e2e8f0' }}>
+                <h4 className="subject-view__inside-title">Inside {selectedPo.code}</h4>
+                <p className="subject-view__inside-subtitle">{selectedPo.description || selectedPo.title}</p>
+                <div className="subject-view__inside-grid">
+                  <span><strong>PEO:</strong> {selectedPo.peo_text?.trim() || '—'}</span>
+                  <span><strong>Strategic Goal:</strong> {selectedPo.sg_text?.trim() || '—'}</span>
+                  <span><strong>Status:</strong> <span className={`status-badge status-badge--${selectedPo.status}`}>{selectedPo.status}</span></span>
+                </div>
+                {(() => {
+                  if (!datasets) return <p className="subject-view__inside-hint">Loading the linked CLOs…</p>
+                  const key = normalizeCode(selectedPo.code)
+                  const linked = datasets.clos.filter((c) =>
+                    extractCodes(c.title || '', 'PO').map(normalizeCode).includes(key))
+                  if (linked.length === 0) return <p className="subject-view__inside-empty">No CLOs reference this PO yet.</p>
+                  return (
+                    <div className="subject-view__inside-list">
+                      <strong className="subject-view__inside-list-title">CLOs targeting {selectedPo.code} ({linked.length}):</strong>
+                      <ul>
+                        {linked.map((clo) => (
+                          <li key={clo.id} title={`${clo.course || ''} — ${clo.description || clo.title}`}>
+                            <span className="subject-view__inside-code">{clo.code}</span> — {clo.description || clo.title}
+                            {clo.course ? <span style={{ color: '#64748b' }}> ({clo.course})</span> : null}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )
+                })()}
+              </div>
+              <p style={{ margin: '12px 0 0', fontSize: 12.5, color: '#64748b' }}>
+                This is what <strong>{selectedPo.code}</strong> connects — the CLOs/subjects that target it upstream and the PEO, Strategic Goal, and CMO it aligns to downstream.
+              </p>
+          </>
+        </div>
+      ) : null}
     </div>
   )
 }

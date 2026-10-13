@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import EntityCrudPage, { type AlignmentOption, type AlignmentField } from './curriculum/EntityCrudPage.js'
+import EntityCrudPage, { type AlignmentOption, type AlignmentField } from '../admin/curriculum/EntityCrudPage.js'
 import {
   fetchProgramOutcomesStandalone,
   createProgramOutcomeStandalone,
@@ -13,9 +13,9 @@ import type { ProgramOutcomeStandalone } from '../../services/database'
 import type { SuggestionOption } from '../../components/SuggestionInput'
 
 const FIXED_OPTIONS = [
-  'Common to all programs in all types of schools',
-  'Bachelor of Science in Information Technology Program Outcomes (CMO 25 s. 2015)',
-  'SPECIFIC TO A SUB-DISCIPLINE AND A MAJOR (CMO 25 s. 2015)',
+  'COMMON TO ALL PROGRAMS IN ALL TYPES OF SCHOOLS',
+  'BACHELOR OF SCIENCE IN COMPUTER SCIENCE PROGRAM OUTCOMES ',
+  'COLLEGE DEFINED PROGRAM OUTCOME ',
 ]
 
 const toSuggestion = (i: { code: string; title: string | null }): SuggestionOption => ({
@@ -40,7 +40,7 @@ export default function ProgramOutcomes() {
     ;(async () => {
       try {
         const [pos, peos, sgs] = await Promise.all([
-          fetchProgramOutcomesStandalone(),
+          fetchProgramOutcomesStandalone('manager'),
           fetchProgramEducationalObjectives(),
           fetchStrategicGoals(),
         ])
@@ -74,16 +74,24 @@ export default function ProgramOutcomes() {
   if (loading) return <p>Loading program outcomes...</p>
 
   const alignments: AlignmentField[] = [
+    { label: 'CMO Alignment', relationField: 'cmo_id', textField: 'description', options: cmoOptions },
     { label: 'Program Educational Objectives Alignment', relationField: 'peo_text', options: [], type: 'suggest', suggestionOptions: peoSuggestions, placeholder: 'Type PEOs' },
     { label: 'Strategic Goals Alignment', relationField: 'sg_text', options: [], type: 'suggest', suggestionOptions: sgSuggestions, placeholder: 'Type Strategic Goals' },
-    { label: 'CMO Alignment', relationField: 'cmo_id', textField: 'description', options: cmoOptions },
   ]
+
+  // Manager create: stamp source='manager' so View can separate admin vs manager inputs.
+  const managerCreate = async (payload: Partial<ProgramOutcomeStandalone>) => {
+    return createProgramOutcomeStandalone({ ...payload, source: 'manager' })
+  }
+
+  // Manager load: only fetch source='manager' outcomes.
+  const managerLoad = async () => fetchProgramOutcomesStandalone('manager')
 
   return (
     <EntityCrudPage<ProgramOutcomeStandalone>
       title="Program Outcome"
-      load={fetchProgramOutcomesStandalone}
-      create={createProgramOutcomeStandalone}
+      load={managerLoad}
+      create={managerCreate}
       update={updateProgramOutcomeStandalone}
       remove={deleteProgramOutcomeStandalone}
       scope="Program Outcome"
@@ -94,16 +102,22 @@ export default function ProgramOutcomes() {
       codePlaceholder="e.g. PO-1"
       codeWidth="110px"
       titleLabel="Description"
-      alignments={alignments.slice(0, 2)}
-      tableAlignments={[alignments[2], alignments[0], alignments[1]]}
+      alignments={[alignments[1], alignments[2]]}
+      tableAlignments={[alignments[1], alignments[2]]}
       inlineForm
-      stackedAlignments={[alignments[2]]}
+      stackedAlignments={[alignments[0]]}
+      outcomeCard
+      groupOf={(i) => ((i.description || '').trim() || 'UNCATEGORIZED')}
       sort={(a, b) => {
-        // Numeric PO order: PO-1 … PO-27 (fixes lexicographic PO-1, PO-10, PO-2)
+        // Arrange by CMO Alignment group first (matching the admin page's
+        // grouping), then by numeric PO order within each group (PO-1 … PO-27).
         const n = (s: string) => {
           const m = s.match(/PO\D*(\d+)/i)
           return m ? parseInt(m[1], 10) : 9999
         }
+        const g = (p: ProgramOutcomeStandalone) => (p.description || '').trim().toUpperCase() || '\uffff'
+        const ga = g(a); const gb = g(b)
+        if (ga !== gb) return ga < gb ? -1 : 1
         const ca = String((a as { code?: string }).code || '')
         const cb = String((b as { code?: string }).code || '')
         const na = n(ca); const nb = n(cb)

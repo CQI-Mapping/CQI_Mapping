@@ -58,6 +58,7 @@ export interface Course {
     description: string | null
     program_id: string | { id: string; code: string; name: string }
     curriculum_id: string | { id: string; code: string } | null
+    instructor_id: string | { id: string; full_name: string | null; email: string } | null
     prerequisite: string
     corequisite: string
     status: string
@@ -179,12 +180,14 @@ export async function updateUserRole(profileId: string, role: UserRole): Promise
 }
 
 // Privileged account operations run through the admin-users Edge Function.
-// The service-role key stays on the server; the function verifies the caller
-// is an admin from their JWT before acting.
+// The service-role key stays on the server; the function verifies the
+// caller's role from their JWT (admins manage all accounts, managers may
+// only create faculty accounts) before acting.
 
 export interface AdminCreateUserResult {
   id: string
   email: string
+  welcomeEmailSent?: boolean
 }
 
 interface AdminUsersFunctionError {
@@ -273,6 +276,11 @@ export async function updateResource(
   return data
 }
 
+export async function deleteResource(id: string): Promise<void> {
+  const { error } = await supabase.from('resources').delete().eq('id', id)
+  if (error) throw error
+}
+
 // ---------- CQI curriculum domain ----------
 
 // PROGRAMS
@@ -317,10 +325,18 @@ export async function deleteProgram(id: string): Promise<void> {
 export async function fetchCourses(): Promise<Course[]> {
   const { data, error } = await supabase
 .from('courses')
-      .select('*, program_id ( id, code, name ), curriculum_id ( id, code )')
+      .select('*, program_id ( id, code, name ), curriculum_id ( id, code ), instructor_id ( id, full_name, email )')
       .order('code', { ascending: true })
   if (error) throw error
   return data
+}
+
+export async function assignCourseInstructor(courseId: string, instructorId: string | null): Promise<Course> {
+  // Assign (or unassign with null) the faculty user teaching a course.
+  // RLS: managers and admins can update courses; the instructor profile
+  // join resolves only where profiles RLS allows (own row, or all rows
+  // for manager/admin).
+  return updateCourse(courseId, { instructor_id: instructorId })
 }
 
 export async function createCourse(payload: Partial<Course>): Promise<Course> {
@@ -552,30 +568,24 @@ export interface ProgramOutcomeStandalone {
   title: string
   description: string | null
   cmo_id: string | null
+  cmo_text: string | null
   peo_id: string | null
   peo_text: string | null
   sg_id: string | null
   sg_text: string | null
+  source: string
   status: string
   created_at: string
   updated_at: string
 }
 
-export interface ProgramOutcomeStandalone {
-  id: string
-  code: string
-  title: string
-  description: string | null
-  status: string
-  created_at: string
-  updated_at: string
-}
-
-export async function fetchProgramOutcomesStandalone(): Promise<ProgramOutcomeStandalone[]> {
-  const { data, error } = await supabase
+export async function fetchProgramOutcomesStandalone(source?: 'admin' | 'manager'): Promise<ProgramOutcomeStandalone[]> {
+  let query = supabase
     .from('admin_program_outcomes')
     .select('*')
-    .order('code', { ascending: true })
+  if (source) query = query.eq('source', source)
+  query = query.order('code', { ascending: true })
+  const { data, error } = await query
   if (error) throw error
   return data
 }
@@ -699,6 +709,39 @@ export async function updateChedMemoOrder(id: string, updates: Partial<ChedMemoO
 export async function deleteChedMemoOrder(id: string): Promise<void> {
   const { error } = await supabase.from('ched_memorandum_orders').delete().eq('id', id)
   if (error) throw error
+}
+
+// ---------- PO feedback (shared pick/reject log for suggestion curation) ----------
+
+export type PoVerdict = 'picked' | 'rejected'
+
+export interface PoFeedback {
+  id: string
+  draft_sig: string
+  po_code: string
+  verdict: PoVerdict
+  created_at: string
+}
+
+export async function recordPoFeedback(
+  draftSig: string,
+  poCode: string,
+  verdict: PoVerdict
+): Promise<void> {
+  const { error } = await supabase
+    .from('po_feedback')
+    .insert({ draft_sig: draftSig, po_code: poCode, verdict })
+  if (error) console.warn('PO feedback not recorded:', error.message)
+}
+
+export async function fetchPoFeedback(): Promise<PoFeedback[]> {
+  const { data, error } = await supabase
+    .from('po_feedback')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(200)
+  if (error) throw error
+  return data
 }
 
 // ---------- Activity logs (server-stamped via log_activity RPC) ----------

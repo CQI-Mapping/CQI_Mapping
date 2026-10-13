@@ -6,9 +6,10 @@
 // mirroring the reference repo's per-role structure.
 //
 // Admin role pages (sidebar order):
-//   Dashboard, Program Educational Objectives, Program Outcomes,
-//   Curriculum, Course, Course Learning Outcomes, Strategic Goals,
-//   CHED Memorandum Orders, Users & Accounts, Activity Logs, Profile
+//   Dashboard, Program, CHED Memorandum Orders, Strategic Goals,
+//   Program Educational Objectives, Program Outcomes,
+//   Curriculum, Course Learning Outcomes, Subject Graph,
+//   Curriculum Report (View), Users & Accounts, Activity Logs, Profile
 
 import { useState, useEffect, useRef } from 'react'
 import Sidebar from './components/Sidebar'
@@ -19,24 +20,25 @@ import AdminActivityLogs from './pages/admin/ActivityLogs'
 import ManagerDashboard from './pages/manager/Dashboard'
 import ManagerUsers from './pages/manager/Users'
 import ManagerCurriculum from './pages/manager/Curriculum'
+import ManagerCourse from './pages/manager/Course'
 import ManagerActivityLogs from './pages/admin/ActivityLogs'
 import UserDashboard from './pages/user/Dashboard'
-import UserCurriculum from './pages/user/Curriculum'
 import AdminChedMemoOrders from './pages/admin/ChedMemoOrders'
 import AdminStrategicGoals from './pages/admin/StrategicGoals'
 import AdminPEOs from './pages/admin/ProgramEducationalObjectives'
-import AdminProgramOutcomes from './pages/admin/ProgramOutcomes'
-import AdminCourseLearningOutcomes from './pages/admin/CourseLearningOutcomes'
+import ManagerProgramOutcomes from './pages/manager/ProgramOutcomes'
+import AdminProgramOutcomesAdmin from './pages/admin/ProgramOutcomesAdmin'
+import UserCourseLearningOutcomes from './pages/user/CourseLearningOutcomes'
 import AdminUsers from './pages/admin/Users'
 import AdminProgram from './pages/admin/Program'
-import AdminCourse from './pages/admin/Course'
 import AdminSubjectView from './pages/admin/SubjectView'
+import AdminView from './pages/admin/View'
+import UserCurriculum from './pages/user/Curriculum'
 import { supabase } from './utils/supabaseClient'
 import { ensureProfile, syncDemoRole } from './services/database'
 import type { Profile as ProfileType, UserRole, NavItem } from './services/database'
 import type { Session } from '@supabase/supabase-js'
 
-// NAV map: which sidebar items each role can see.
 const NAV: Record<UserRole, NavItem[]> = {
   admin: [
     { id: 'dashboard', label: 'Dashboard' },
@@ -46,27 +48,27 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'peos', label: 'Program Educational Objectives' },
     { id: 'program-outcomes', label: 'Program Outcomes' },
     { id: 'curriculum', label: 'Curriculum' },
-    { id: 'course', label: 'Course' },
-    { id: 'clo', label: 'Course Learning Outcomes' },
     { id: 'subject-view', label: 'Subject Graph' },
+    { id: 'view', label: 'Curriculum Report' },
     { id: 'users', label: 'Users & Accounts' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
   ],
   manager: [
+    { id: 'program-outcomes', label: 'Program Outcomes' },
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'curriculum', label: 'Curriculum' },
-    { id: 'program-outcomes', label: 'Program Outcomes' },
+    { id: 'course', label: 'Course' },
     { id: 'subject-view', label: 'Subject Graph' },
-    { id: 'users', label: 'Faculty' },
+    { id: 'users', label: 'Users' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
   ],
   user: [
     { id: 'dashboard', label: 'Dashboard' },
+    { id: 'clo', label: 'Course Learning Outcomes' },
     { id: 'curriculum', label: 'Curriculum' },
     { id: 'subject-view', label: 'Subject Graph' },
-    { id: 'clo', label: 'Course Learning Outcomes' },
     { id: 'profile', label: 'Profile' },
   ],
 }
@@ -78,11 +80,10 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     dashboard: AdminDashboard,
     program: AdminProgram,
     peos: AdminPEOs,
-    'program-outcomes': AdminProgramOutcomes,
+    'program-outcomes': AdminProgramOutcomesAdmin,
     curriculum: ManagerCurriculum,
-    course: AdminCourse,
-    clo: AdminCourseLearningOutcomes,
     'subject-view': AdminSubjectView,
+    view: AdminView,
     'strategic-goals': AdminStrategicGoals,
     'ched-memo': AdminChedMemoOrders,
     users: AdminUsers,
@@ -92,7 +93,8 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
   manager: {
     dashboard: ManagerDashboard,
     curriculum: ManagerCurriculum,
-    'program-outcomes': AdminProgramOutcomes,
+    course: ManagerCourse,
+    'program-outcomes': ManagerProgramOutcomes,
     'subject-view': AdminSubjectView,
     users: ManagerUsers,
     'activity-logs': ManagerActivityLogs,
@@ -100,9 +102,9 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
   },
   user: {
     dashboard: UserDashboard,
+    clo: UserCourseLearningOutcomes,
     curriculum: UserCurriculum,
     'subject-view': AdminSubjectView,
-    clo: AdminCourseLearningOutcomes,
     profile: Profile,
   },
 }
@@ -113,17 +115,20 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [profileLoaded, setProfileLoaded] = useState(false)
   const [activePage, setActivePage] = useState('dashboard')
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth > 1024 : true
+  )
+  // Set when the profile fetch fails (e.g. flaky network). The app then shows
+  // a retry screen instead of a stale identity or a silent wrong-role fallback.
+  const [profileError, setProfileError] = useState('')
+  const [retryTick, setRetryTick] = useState(0)
   const profileUserIdRef = useRef<string | null>(null)
 
-  // On first render: restore an existing session from localStorage and subscribe to
-  // auth changes (sign-in / sign-out) so the UI updates automatically.
+  // On first render: subscribe to auth changes. Supabase emits INITIAL_SESSION
+  // on subscribe (session or null), which is the single source of truth — no
+  // separate getSession() call, so a stale cached session can never render first
+  // and flash the wrong account on slow networks.
   useEffect(() => {
-    supabase!.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      if (!session) setLoading(false)
-    })
-
     const { data: { subscription } } = supabase!.auth.onAuthStateChange((event, session) => {
       // TOKEN_REFRESHED fires when the tab regains focus (auto token refresh).
       // Ignoring it here keeps the session object identity stable, so the app
@@ -134,7 +139,10 @@ function App() {
       if (!session) {
         setProfile(null)
         setProfileLoaded(false)
+        setProfileError('')
+        profileUserIdRef.current = null
         setActivePage('dashboard')
+        setLoading(false)
       }
     })
 
@@ -155,6 +163,7 @@ function App() {
     if (profileUserIdRef.current === session.user.id && profileLoaded) return
     profileUserIdRef.current = session.user.id
     setProfileLoaded(false)
+    setProfileError('')
     setLoading(true)
     let cancelled = false
 
@@ -169,19 +178,34 @@ function App() {
           .catch((err) => { console.error('syncDemoRole failed:', err); return p })
       })
       .then((p) => {
-        if (!cancelled && p) setProfile(p)
+        if (cancelled) return
+        if (p) {
+          setProfile(p)
+          setProfileError('')
+        } else {
+          // ensureProfile resolved empty (shouldn't happen) — treat as failure
+          // so we never render another account's stale profile.
+          setProfile(null)
+          profileUserIdRef.current = null
+          setProfileError('Could not load your profile. Check your connection and retry.')
+        }
         setProfileLoaded(true)
         setLoading(false)
       })
       .catch(() => {
         if (!cancelled) {
+          // Failure (e.g. timeout on a slow network): drop any previous
+          // profile so a stale identity is never shown, and offer a retry.
+          setProfile(null)
+          profileUserIdRef.current = null
+          setProfileError('Could not load your profile. Check your connection and retry.')
           setProfileLoaded(true)
           setLoading(false)
         }
       })
 
     return () => { cancelled = true }
-  }, [session])
+  }, [session, retryTick])
 
   const handleLogout = async () => {
     await supabase!.auth.signOut()
@@ -202,6 +226,36 @@ function App() {
     return <div className="center-screen">Loading...</div>
   }
 
+  // Profile fetch failed (e.g. timeout on a slow network) → retry screen.
+  // Never fall back to another account's stale profile or a silent wrong role.
+  if (profileError || !profile) {
+    return (
+      <div className="center-screen">
+        <div className="config-error__card">
+          <h1>Connection issue</h1>
+          <p>{profileError || 'Your profile could not be loaded.'}</p>
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <button
+              type="button"
+              className="btn btn--primary btn--sm"
+              onClick={() => {
+                setProfileError('')
+                setProfileLoaded(false)
+                setLoading(true)
+                setRetryTick((t) => t + 1)
+              }}
+            >
+              Retry
+            </button>
+            <button type="button" className="btn btn--ghost btn--sm" onClick={handleLogout}>
+              Sign out
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // Role from the profile; unknown/missing roles fall back to 'user' (least privilege).
   const role: UserRole = (profile?.role ?? 'user') as UserRole
   const navItems = NAV[role] ?? NAV.user
@@ -214,10 +268,13 @@ function App() {
   const renderPage = () => {
     const Page = PAGES[role]?.[page] ?? PAGES[role]?.[navItems[0]?.id] ?? UserDashboard
 
+    if (page === 'dashboard') return <Page profile={profile} onNavigate={setActivePage} />
     if (page === 'profile') return <Page profile={profile} onSaved={setProfile} />
     if (page === 'users') return <Page />
-    if (page === 'curriculum' && role !== 'user') return <Page userEmail={profile?.email} />
-    return <Page profile={profile} />
+    if (page === 'curriculum' && role !== 'user') return <Page userEmail={profile?.email} allowDelete={role === 'admin'} />
+    if (page === 'curriculum' && role === 'user') return <Page />
+    if (page === 'view') return <Page userEmail={profile?.email} />
+    return <Page profile={profile} onNavigate={setActivePage} />
   }
 
   return (
@@ -230,6 +287,8 @@ function App() {
         role={role}
         isOpen={sidebarOpen}
         onToggle={() => setSidebarOpen((v) => !v)}
+        profileName={profile?.full_name}
+        profileEmail={profile?.email}
       />
 
       <div className="main-content">

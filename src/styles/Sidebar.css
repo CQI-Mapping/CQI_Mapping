@@ -130,6 +130,7 @@
   align-items: center;
   gap: 7px;
   white-space: nowrap;
+  max-width: 220px;
   padding: 7px 13px;
   border: 1px solid transparent;
   background: transparent;
@@ -141,6 +142,13 @@
   border-radius: 999px;
   cursor: pointer;
   transition: all 0.16s cubic-bezier(0.16,1,0.3,1);
+}
+
+.hdr__item > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .hdr__item:hover {
@@ -191,7 +199,10 @@
 
 .hdr__item:focus-visible,
 .hdr__dd-item:focus-visible,
-.hdr__logout:focus-visible {
+.hdr__logout:focus-visible,
+.hdr__profileBtn:focus-visible,
+.hdr__profile-item:focus-visible,
+.hdr__hamburger:focus-visible {
   outline: 2px solid #111;
   outline-offset: 2px;
 }
@@ -233,13 +244,13 @@
   to { opacity: 1; }
 }
 
-/* Filter-style dropdown — like awwwards.com/websites/design-agencies/ */
+/* Filter-style dropdown — unified Academics menu for all roles */
 .hdr__dd-menu {
   position: absolute;
   top: calc(100% + 12px);
   left: 0;
   transform: none;
-  width: 340px;
+  width: 360px;
   max-width: calc(100vw - 24px);
   background: #ffffff;
   border: 1px solid #ececec;
@@ -270,7 +281,7 @@
   gap: 2px;
   padding: 8px;
   background: #fff;
-  max-height: 320px;
+  max-height: 60vh;
   overflow-y: auto;
   scrollbar-width: thin;
 }
@@ -300,6 +311,7 @@
 .hdr__dd-grid .hdr__dd-item:nth-child(6) { animation-delay: 0.12s; }
 .hdr__dd-grid .hdr__dd-item:nth-child(7) { animation-delay: 0.14s; }
 .hdr__dd-grid .hdr__dd-item:nth-child(8) { animation-delay: 0.16s; }
+.hdr__dd-grid .hdr__dd-item:nth-child(9) { animation-delay: 0.18s; }
 
 .hdr__dd-item {
   display: flex;

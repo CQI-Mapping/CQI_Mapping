@@ -17,10 +17,14 @@
 --   program_educational_objectives— PEOs (admin)
 --   admin_course_learning_outcomes— standalone admin-managed CLO list
 --   ched_memorandum_orders        — CHED memo orders (admin)
+--   po_feedback                   — shared CLO→PO pick/reject log (curation)
 -- =============================================================================
 
 
 -- Cleanup
+DROP TABLE IF EXISTS public.assessment_results CASCADE;
+DROP TABLE IF EXISTS public.assessments CASCADE;
+DROP TABLE IF EXISTS public.clo_po_matrix CASCADE;
 DROP TABLE IF EXISTS public.activity_logs CASCADE;
 DROP TABLE IF EXISTS public.resources CASCADE;
 DROP TABLE IF EXISTS public.course_learning_outcomes CASCADE;
@@ -32,6 +36,7 @@ DROP TABLE IF EXISTS public.admin_program_outcomes CASCADE;
 DROP TABLE IF EXISTS public.program_educational_objectives CASCADE;
 DROP TABLE IF EXISTS public.admin_course_learning_outcomes CASCADE;
 DROP TABLE IF EXISTS public.ched_memorandum_orders CASCADE;
+DROP TABLE IF EXISTS public.po_feedback CASCADE;
 DROP TABLE IF EXISTS public.profiles CASCADE;
 DROP TYPE IF EXISTS public.user_role CASCADE;
 
@@ -87,6 +92,7 @@ CREATE TABLE public.courses (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       program_id UUID NOT NULL REFERENCES public.programs(id) ON DELETE CASCADE,
       curriculum_id UUID REFERENCES public.resources(id) ON DELETE SET NULL,
+      instructor_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
       code TEXT NOT NULL,
       title TEXT NOT NULL,
       prerequisite TEXT NOT NULL DEFAULT '',
@@ -100,6 +106,9 @@ CREATE TABLE public.courses (
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       UNIQUE (program_id, code)
   );
+
+-- Migration for existing databases (fresh setups already include instructor_id):
+-- ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS instructor_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL;
 
 CREATE TABLE public.program_outcomes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -163,10 +172,12 @@ CREATE TABLE public.admin_program_outcomes (
     title TEXT NOT NULL,
     description TEXT,
     cmo_id UUID REFERENCES public.ched_memorandum_orders(id) ON DELETE SET NULL,
+    cmo_text TEXT,
     peo_id UUID REFERENCES public.program_educational_objectives(id) ON DELETE SET NULL,
     peo_text TEXT,
     sg_id UUID REFERENCES public.strategic_goals(id) ON DELETE SET NULL,
     sg_text TEXT,
+    source TEXT NOT NULL DEFAULT 'admin' CHECK (source IN ('admin', 'manager')),
     status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -209,6 +220,18 @@ END $$;
 
 -- CHED MEMORANDUM ORDERS
 -- (definition is above, before admin_program_outcomes)
+
+-- PO FEEDBACK (shared CLO→PO pick/reject log for suggestion curation).
+-- Faculty picks/rejections on one PC improve ranking everywhere after
+-- admin review. Per-browser localStorage remains the instant UX layer.
+CREATE TABLE public.po_feedback (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    draft_sig TEXT NOT NULL,
+    po_code TEXT NOT NULL,
+    verdict TEXT NOT NULL CHECK (verdict IN ('picked', 'rejected')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS po_feedback_sig_idx ON public.po_feedback (draft_sig);
 
 -- ============================================================
 -- HELPER: current user's role (bypasses RLS, avoids recursion)
@@ -271,6 +294,7 @@ ALTER TABLE public.admin_program_outcomes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.program_educational_objectives ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_course_learning_outcomes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ched_memorandum_orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.po_feedback ENABLE ROW LEVEL SECURITY;
 
 -- PROFILES
 CREATE POLICY "Users can view own profile" ON public.profiles FOR SELECT
@@ -426,6 +450,13 @@ CREATE POLICY "Admins can manage ched_memorandum_orders" ON public.ched_memorand
     USING (public.current_user_role() = 'admin')
     WITH CHECK (public.current_user_role() = 'admin');
 
+-- PO FEEDBACK: anyone signed in may log picks/rejects; managers+admins review.
+CREATE POLICY "Authenticated users can log po_feedback" ON public.po_feedback FOR INSERT
+    WITH CHECK (auth.role() = 'authenticated');
+
+CREATE POLICY "Managers and admins can read po_feedback" ON public.po_feedback FOR SELECT
+    USING (public.current_user_role() IN ('admin', 'manager'));
+
 -- ============================================================
 -- LOGIN AUDIT
 -- ============================================================
@@ -562,3 +593,123 @@ SELECT
     END
 FROM auth.users u
 ON CONFLICT (id) DO NOTHING;
+
+-- ============================================================
+-- ASSESSMENT MONITORING (CQI Objective 1.3 + IT21 syllabus IX)
+-- Faculty single-save: assessments + aggregated results.
+-- Standardized Title/Term/Method per course fixes multi-section
+-- variance (CQI V1 1.2). Attainment% = avg/max*100.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.clo_po_matrix (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    clo_id UUID NOT NULL REFERENCES public.course_learning_outcomes(id) ON DELETE CASCADE,
+    po_id UUID NOT NULL REFERENCES public.program_outcomes(id) ON DELETE CASCADE,
+    level INTEGER NOT NULL DEFAULT 1 CHECK (level >= 1 AND level <= 3),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (clo_id, po_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.assessments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    course_id UUID NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
+    clo_id UUID NOT NULL REFERENCES public.course_learning_outcomes(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'Enabling' CHECK (type IN ('Enabling', 'Summative', 'Culminating')),
+    term TEXT NOT NULL DEFAULT 'Midterm' CHECK (term IN ('Prelim', 'Midterm', 'Finals')),
+    max_score NUMERIC NOT NULL DEFAULT 100 CHECK (max_score > 0),
+    weight NUMERIC CHECK (weight IS NULL OR (weight >= 0 AND weight <= 100)),
+    method TEXT NOT NULL DEFAULT 'direct' CHECK (method IN ('direct', 'indirect')),
+    deadline DATE,
+    created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (course_id, clo_id, title, term)
+);
+
+CREATE TABLE IF NOT EXISTS public.assessment_results (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    assessment_id UUID NOT NULL UNIQUE REFERENCES public.assessments(id) ON DELETE CASCADE,
+    students_total INTEGER NOT NULL DEFAULT 0 CHECK (students_total >= 0),
+    students_passed INTEGER NOT NULL DEFAULT 0 CHECK (students_passed >= 0),
+    avg_score NUMERIC NOT NULL DEFAULT 0 CHECK (avg_score >= 0),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CHECK (students_passed <= students_total)
+);
+
+ALTER TABLE public.clo_po_matrix ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.assessments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.assessment_results ENABLE ROW LEVEL SECURITY;
+
+-- Shape guards: if the tables pre-existed with an older shape (e.g. clo_po_matrix
+-- from a classmate's migration), add any missing columns instead of failing.
+ALTER TABLE public.clo_po_matrix ADD COLUMN IF NOT EXISTS clo_id UUID REFERENCES public.course_learning_outcomes(id) ON DELETE CASCADE;
+ALTER TABLE public.clo_po_matrix ADD COLUMN IF NOT EXISTS po_id UUID REFERENCES public.program_outcomes(id) ON DELETE CASCADE;
+ALTER TABLE public.clo_po_matrix ADD COLUMN IF NOT EXISTS level INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE public.clo_po_matrix ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
+ALTER TABLE public.assessments ADD COLUMN IF NOT EXISTS course_id UUID REFERENCES public.courses(id) ON DELETE CASCADE;
+ALTER TABLE public.assessments ADD COLUMN IF NOT EXISTS clo_id UUID REFERENCES public.course_learning_outcomes(id) ON DELETE CASCADE;
+ALTER TABLE public.assessments ADD COLUMN IF NOT EXISTS title TEXT;
+ALTER TABLE public.assessments ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'Enabling';
+ALTER TABLE public.assessments ADD COLUMN IF NOT EXISTS term TEXT NOT NULL DEFAULT 'Midterm';
+ALTER TABLE public.assessments ADD COLUMN IF NOT EXISTS max_score NUMERIC NOT NULL DEFAULT 100;
+ALTER TABLE public.assessments ADD COLUMN IF NOT EXISTS weight NUMERIC;
+ALTER TABLE public.assessments ADD COLUMN IF NOT EXISTS method TEXT NOT NULL DEFAULT 'direct';
+ALTER TABLE public.assessments ADD COLUMN IF NOT EXISTS deadline DATE;
+ALTER TABLE public.assessments ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL;
+ALTER TABLE public.assessments ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
+ALTER TABLE public.assessments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
+ALTER TABLE public.assessment_results ADD COLUMN IF NOT EXISTS assessment_id UUID UNIQUE REFERENCES public.assessments(id) ON DELETE CASCADE;
+ALTER TABLE public.assessment_results ADD COLUMN IF NOT EXISTS students_total INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE public.assessment_results ADD COLUMN IF NOT EXISTS students_passed INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE public.assessment_results ADD COLUMN IF NOT EXISTS avg_score NUMERIC NOT NULL DEFAULT 0;
+ALTER TABLE public.assessment_results ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
+
+-- CLO/PO MATRIX: read all, manage admin+manager (alignment step)
+-- DROP first: Postgres has no CREATE POLICY IF NOT EXISTS, so re-runs stay safe.
+DROP POLICY IF EXISTS "Authenticated users can read clo_po_matrix" ON public.clo_po_matrix;
+DROP POLICY IF EXISTS "Managers and admins can manage clo_po_matrix" ON public.clo_po_matrix;
+CREATE POLICY "Authenticated users can read clo_po_matrix" ON public.clo_po_matrix FOR SELECT
+    USING (auth.role() = 'authenticated');
+CREATE POLICY "Managers and admins can manage clo_po_matrix" ON public.clo_po_matrix FOR ALL
+    USING (public.current_user_role() IN ('admin', 'manager'))
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
+
+-- ASSESSMENTS: read all, create/update own course (faculty included),
+-- delete admin only. Standardized template per course solves CQI V1 1.2 variance.
+DROP POLICY IF EXISTS "Authenticated users can read assessments" ON public.assessments;
+DROP POLICY IF EXISTS "Faculty and above can create assessments" ON public.assessments;
+DROP POLICY IF EXISTS "Faculty and above can update assessments" ON public.assessments;
+DROP POLICY IF EXISTS "Admins can delete assessments" ON public.assessments;
+CREATE POLICY "Authenticated users can read assessments" ON public.assessments FOR SELECT
+    USING (auth.role() = 'authenticated');
+CREATE POLICY "Faculty and above can create assessments" ON public.assessments FOR INSERT
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager', 'user'));
+CREATE POLICY "Faculty and above can update assessments" ON public.assessments FOR UPDATE
+    USING (public.current_user_role() IN ('admin', 'manager', 'user'))
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager', 'user'));
+CREATE POLICY "Admins can delete assessments" ON public.assessments FOR DELETE
+    USING (public.current_user_role() = 'admin');
+
+-- Migration: add cmo_text column to admin_program_outcomes (for fixed CMO categories)
+ALTER TABLE public.admin_program_outcomes ADD COLUMN IF NOT EXISTS cmo_text TEXT;
+
+-- Migration: add source column to admin_program_outcomes (admin vs manager)
+ALTER TABLE public.admin_program_outcomes ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'admin' CHECK (source IN ('admin', 'manager'));
+
+-- RESULTS: read all, write faculty and above, delete admin only
+DROP POLICY IF EXISTS "Authenticated users can read assessment_results" ON public.assessment_results;
+DROP POLICY IF EXISTS "Faculty and above can create assessment_results" ON public.assessment_results;
+DROP POLICY IF EXISTS "Faculty and above can update assessment_results" ON public.assessment_results;
+DROP POLICY IF EXISTS "Admins can delete assessment_results" ON public.assessment_results;
+CREATE POLICY "Authenticated users can read assessment_results" ON public.assessment_results FOR SELECT
+    USING (auth.role() = 'authenticated');
+CREATE POLICY "Faculty and above can create assessment_results" ON public.assessment_results FOR INSERT
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager', 'user'));
+CREATE POLICY "Faculty and above can update assessment_results" ON public.assessment_results FOR UPDATE
+    USING (public.current_user_role() IN ('admin', 'manager', 'user'))
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager', 'user'));
+CREATE POLICY "Admins can delete assessment_results" ON public.assessment_results FOR DELETE
+    USING (public.current_user_role() = 'admin');
