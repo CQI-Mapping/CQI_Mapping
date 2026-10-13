@@ -44,7 +44,7 @@ import type {
   ChedMemoOrder,
 } from '../../services/database'
 import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
-import { splitReportPos, buildGroups, cmoLabel } from '../../utils/report'
+import { splitReportPos, buildGroups, cmoLabel, isManagerCmCategory } from '../../utils/report'
 import SyllabusReport from '../../components/SyllabusReport'
 import ProgramOutcomeReport from '../../components/ProgramOutcomeReport'
 import ProgramEducationalObjectiveReport from '../../components/ProgramEducationalObjectiveReport'
@@ -245,7 +245,7 @@ export default function SubjectView() {
             String(a.name || a.code).localeCompare(String(b.name || b.code)))
           setPrograms(sorted)
           setCourses(c.filter(isActive).sort((a, b) => String(a.code).localeCompare(String(b.code))))
-          setPoList(sortPos(pos.filter((p) => isActive(p) && p.source === 'manager')))
+          setPoList(sortPos(pos.filter((p) => isActive(p) && isManagerCmCategory(p))))
           if (sorted.length > 0 && !selectedProgramId) setSelectedProgramId(sorted[0].id)
         }
       } catch (e) {
@@ -272,10 +272,9 @@ export default function SubjectView() {
 
   // PO options: prefer freshly-loaded datasets, fall back to the preloaded list
   // so the PO dropdown works before the first View. Only the manager-inputted
-  // POs (source == "manager") are graph roots — those are the CURRICULUM
-  // MAPPING outcomes; the admin PO statements stay in the report only.
+  // POs (the CURRICULUM MAPPING categories for BSIT) are graph roots.
   const managerOnlyPos = useMemo(
-    () => (datasets ? datasets.pos.filter((p) => p.source === 'manager') : []),
+    () => (datasets ? datasets.pos.filter((p) => isManagerCmCategory(p)) : []),
     [datasets],
   )
 
@@ -375,7 +374,7 @@ export default function SubjectView() {
         sgs: sgs.filter(isActive),
         cmos: cmos.filter(isActive),
       })
-      setPoList(sortPos(activePos.filter((p) => p.source === 'manager')))
+      setPoList(sortPos(activePos.filter((p) => isManagerCmCategory(p))))
       setPeoList(peos.filter(isActive))
     } catch (e) {
       setGraphError(e instanceof Error ? e.message : 'Failed to load relationships.')
@@ -547,7 +546,7 @@ export default function SubjectView() {
           const key = normalizeCode(tok)
           let poNode = poMap.get(key)
           if (!poNode) {
-            const poRec = datasetsRef.pos.filter((p) => p.source === 'manager').find((p) => normalizeCode(p.code) === key)
+            const poRec = datasetsRef.pos.filter((p) => isManagerCmCategory(p)).find((p) => normalizeCode(p.code) === key)
             poNode = {
               id: poRec ? `po-${poRec.id}` : `po-missing-${tok}`,
               code: tok,
@@ -676,7 +675,7 @@ export default function SubjectView() {
       }
 
       const linkedPos = datasetsRef.pos.filter((p) => {
-        if (p.source !== 'manager') return false
+        if (!isManagerCmCategory(p)) return false
         if (p.peo_id === peoRec.id) return true
         if (p.peo_id) return false // a concrete id wins over free text
         return p.peo_text
