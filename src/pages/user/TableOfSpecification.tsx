@@ -153,34 +153,7 @@ export default function TableOfSpecification() {
               onChange={(e) => patchExam({ term: e.target.value })}
             />
           </label>
-          <label className="field">
-            <span>Total hours</span>
-            <input
-              className="input input--sm"
-              type="number"
-              min="0"
-              step="0.5"
-              value={exam.totalHours}
-              onChange={(e) => patchExam({ totalHours: num(e.target.value) })}
-            />
-          </label>
-          <label className="field">
-            <span>Prepared by</span>
-            <input
-              className="input input--sm"
-              value={exam.preparedBy}
-              onChange={(e) => patchExam({ preparedBy: e.target.value })}
-            />
-          </label>
         </div>
-        <label className="field">
-          <span>Coverage</span>
-          <input
-            className="input input--sm"
-            value={exam.coverage}
-            onChange={(e) => patchExam({ coverage: e.target.value })}
-          />
-        </label>
       </div>
 
       {/* ---- the blueprint ---- */}
