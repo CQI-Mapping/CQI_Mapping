@@ -245,7 +245,7 @@ export default function SubjectView() {
             String(a.name || a.code).localeCompare(String(b.name || b.code)))
           setPrograms(sorted)
           setCourses(c.filter(isActive).sort((a, b) => String(a.code).localeCompare(String(b.code))))
-          setPoList(sortPos(pos.filter((p) => isActive(p) && p.source !== 'manager')))
+          setPoList(sortPos(pos.filter((p) => isActive(p) && p.source === 'manager')))
           if (sorted.length > 0 && !selectedProgramId) setSelectedProgramId(sorted[0].id)
         }
       } catch (e) {
@@ -271,17 +271,17 @@ export default function SubjectView() {
   )
 
   // PO options: prefer freshly-loaded datasets, fall back to the preloaded list
-  // so the PO dropdown works before the first View. Only the real admin POs
-  // (source != "manager") are graph roots — the manager/CURRICULUM-MAPPING rows
-  // stay in the report's Curriculum Mapping table only.
-  const adminOnlyPos = useMemo(
-    () => (datasets ? datasets.pos.filter((p) => p.source !== 'manager') : []),
+  // so the PO dropdown works before the first View. Only the manager-inputted
+  // POs (source == "manager") are graph roots — those are the CURRICULUM
+  // MAPPING outcomes; the admin PO statements stay in the report only.
+  const managerOnlyPos = useMemo(
+    () => (datasets ? datasets.pos.filter((p) => p.source === 'manager') : []),
     [datasets],
   )
 
   const allPos = useMemo(
-    () => (datasets ? sortPos(adminOnlyPos) : poList),
-    [datasets, adminOnlyPos, poList],
+    () => (datasets ? sortPos(managerOnlyPos) : poList),
+    [datasets, managerOnlyPos, poList],
   )
 
   const selectedPo = useMemo(
@@ -321,7 +321,7 @@ export default function SubjectView() {
     if (rootType === 'peo') {
       if (!selectedPeo) return null
       const peoKey = normalizeCode(selectedPeo.code)
-      const linkedPos = adminOnlyPos.filter((p) => {
+      const linkedPos = managerOnlyPos.filter((p) => {
         if (p.peo_id === selectedPeo.id) return true
         if (p.peo_id) return false
         return p.peo_text ? extractCodes(p.peo_text, 'PEO').map(normalizeCode).includes(peoKey) : false
@@ -375,7 +375,7 @@ export default function SubjectView() {
         sgs: sgs.filter(isActive),
         cmos: cmos.filter(isActive),
       })
-      setPoList(sortPos(activePos.filter((p) => p.source !== 'manager')))
+      setPoList(sortPos(activePos.filter((p) => p.source === 'manager')))
       setPeoList(peos.filter(isActive))
     } catch (e) {
       setGraphError(e instanceof Error ? e.message : 'Failed to load relationships.')
@@ -547,7 +547,7 @@ export default function SubjectView() {
           const key = normalizeCode(tok)
           let poNode = poMap.get(key)
           if (!poNode) {
-            const poRec = datasetsRef.pos.filter((p) => p.source !== 'manager').find((p) => normalizeCode(p.code) === key)
+            const poRec = datasetsRef.pos.filter((p) => p.source === 'manager').find((p) => normalizeCode(p.code) === key)
             poNode = {
               id: poRec ? `po-${poRec.id}` : `po-missing-${tok}`,
               code: tok,
@@ -676,7 +676,7 @@ export default function SubjectView() {
       }
 
       const linkedPos = datasetsRef.pos.filter((p) => {
-        if (p.source === 'manager') return false
+        if (p.source !== 'manager') return false
         if (p.peo_id === peoRec.id) return true
         if (p.peo_id) return false // a concrete id wins over free text
         return p.peo_text
@@ -1342,7 +1342,7 @@ export default function SubjectView() {
   const peoReport = (() => {
     if (!datasets || !selectedPeo || rootType !== 'peo') return null
     const key = normalizeCode(selectedPeo.code)
-    const linked = adminOnlyPos.filter((p) => {
+    const linked = managerOnlyPos.filter((p) => {
       if (p.peo_id === selectedPeo.id) return true
       if (p.peo_id) return false // a concrete id wins over free text
       return p.peo_text
