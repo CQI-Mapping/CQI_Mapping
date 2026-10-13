@@ -87,17 +87,31 @@ export const buildGroups = (
   return groups
 }
 
+// The Curriculum Mapping matrix is based only on the manager-inputted CMO
+// categories for the BSIT program. Manager rows store the category in the
+// `description` column (see cmoLabel), so we match on that text.
+export const MANAGER_CM_CATEGORIES = [
+  'BACHELOR OF SCIENCE IN INFORMATION TECHNOLOGY PROGRAM OUTCOMES (CMO 25 S. 2015)',
+  'SPECIFIC TO A SUB-DISCIPLINE AND A MAJOR (CMO 25 S. 2015)',
+]
+
+export const isManagerCmCategory = (p: ProgramOutcomeStandalone) => {
+  if ((p as { source?: string }).source !== 'manager') return false
+  return MANAGER_CM_CATEGORIES.includes((p.description || '').trim().toUpperCase())
+}
+
 // The report splits active outcomes into the admin list (Program Outcomes
 // table) and the manager list (Curriculum Mapping matrix). Manager outcomes
 // are arranged by CMO Alignment group first (matching the manager's Program
-// Outcomes page), then by PO number within each group.
+// Outcomes page), then by PO number within each group, and are restricted to
+// the manager-inputted BSIT categories above.
 export const splitReportPos = (visiblePos: ProgramOutcomeStandalone[]) => {
   const adminPos = visiblePos.filter((p) => (p as { source?: string }).source !== 'manager')
 
   const cmoGroupKey = (p: ProgramOutcomeStandalone) =>
     (p.description || '').trim().toUpperCase() || '\uffff'
   const managerPos = visiblePos
-    .filter((p) => (p as { source?: string }).source === 'manager')
+    .filter((p) => isManagerCmCategory(p))
     .sort((a, b) => {
       const ka = cmoGroupKey(a)
       const kb = cmoGroupKey(b)

@@ -11,10 +11,14 @@
 //   POs (standalone) — CRUD for admin-managed Program Outcomes list
 //   CLOs (standalone) — CRUD for admin-managed Course Learning Outcomes list
 //   CMOs           — CRUD for admin-managed CHED Memorandum Orders
+//   TOS            — Table of Specification exam blueprints (private per user)
 //   Activity Logs  — fetchActivityLogs, addActivityLog (server-stamped via RPC)
 
 import { supabase as _supabase } from '../utils/supabaseClient'
 import type { User } from '@supabase/supabase-js'
+// The Bloom level union lives with the TOS maths; only the type is needed
+// here, and re-declaring it would let the two drift apart.
+import type { BloomLevel } from '../utils/tosMath'
 
 // Assert supabase client is configured (throws at runtime if not).
 const supabase = _supabase!
@@ -775,4 +779,194 @@ export async function recordLoginEvent(
 export async function addActivityLog(action: string): Promise<void> {
   const { error } = await supabase.rpc('log_activity', { p_action: action })
   if (error) console.warn('Audit log insert failed:', error.message)
+}
+
+// ---------- Table of Specification ----------
+//
+// The hour weighting is deliberately absent from these tables. It is
+// derived on read from topic hours and the sheet total (tosMath), so
+// editing either input moves every weight for free and nothing can go
+// stale in storage.
+
+export interface TosExamRow {
+  id: string
+  user_id: string
+  code: string
+  title: string
+  exam_type: string
+  term: string
+  coverage: string | null
+  prepared_by: string | null
+  total_hours: number
+  status: string
+  created_at: string
+  updated_at: string
+}
+
+export interface TosSheetRow {
+  id: string
+  exam_id: string
+  kind: 'items' | 'points'
+  label: string
+  total: number
+  note: string | null
+  position: number
+}
+
+export interface TosTopicRow {
+  id: string
+  sheet_id: string
+  position: number
+  title: string
+  slo: string | null
+  hours: number
+  bloom: Partial<Record<BloomLevel, number>>
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * The signed-in user's blueprints, newest activity first. RLS already
+ * restricts this to rows the caller owns, so no user filter is needed
+ * here and adding one would only risk disagreeing with the policy.
+ */
+export async function fetchTosExams(): Promise<TosExamRow[]> {
+  const { data, error } = await supabase
+    .from('tos_exams')
+    .select('*')
+    .eq('status', 'active')
+    .order('updated_at', { ascending: false })
+  if (error) throw error
+  return data as TosExamRow[]
+}
+
+/**
+ * The owner is taken from the caller rather than trusted from the payload:
+ * user_id is the value the RLS policy checks, so a caller that guessed or
+ * omitted it would either be denied (a NULL policy result reads as a
+ * violation) or claim someone else's row. Taking it as a separate argument
+ * keeps it out of the object the caller spreads.
+ */
+export async function createTosExam(
+  payload: Partial<TosExamRow>,
+  userId: string,
+): Promise<TosExamRow> {
+  const { data, error } = await supabase
+    .from('tos_exams')
+    .insert({ ...payload, user_id: userId })
+    .select()
+    .single()
+  if (error) throw error
+  return data as TosExamRow
+}
+
+export async function updateTosExam(
+  id: string,
+  updates: Partial<TosExamRow>,
+): Promise<TosExamRow> {
+  const { data, error } = await supabase
+    .from('tos_exams')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data as TosExamRow
+}
+
+export async function deleteTosExam(id: string): Promise<void> {
+  const { error } = await supabase.from('tos_exams').delete().eq('id', id)
+  if (error) throw error
+}
+
+export async function fetchTosSheets(examId: string): Promise<TosSheetRow[]> {
+  const { data, error } = await supabase
+    .from('tos_sheets')
+    .select('*')
+    .eq('exam_id', examId)
+    .order('position', { ascending: true })
+  if (error) throw error
+  return data as TosSheetRow[]
+}
+
+export async function createTosSheet(
+  payload: Partial<TosSheetRow>,
+): Promise<TosSheetRow> {
+  const { data, error } = await supabase
+    .from('tos_sheets')
+    .insert(payload)
+    .select()
+    .single()
+  if (error) throw error
+  return data as TosSheetRow
+}
+
+export async function updateTosSheet(
+  id: string,
+  updates: Partial<TosSheetRow>,
+): Promise<TosSheetRow> {
+  const { data, error } = await supabase
+    .from('tos_sheets')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data as TosSheetRow
+}
+
+export async function fetchTosTopics(sheetId: string): Promise<TosTopicRow[]> {
+  const { data, error } = await supabase
+    .from('tos_topics')
+    .select('*')
+    .eq('sheet_id', sheetId)
+    .order('position', { ascending: true })
+  if (error) throw error
+  return data as TosTopicRow[]
+}
+
+/**
+ * Replace a sheet's topics wholesale, in one round trip.
+ *
+ * Position is part of the unique key, so reordering in place would
+ * collide on intermediate states. Deleting the missing ids and
+ * upserting the survivors sidesteps that: the set is replaced rather
+ * than transformed.
+ *
+ * This is the only topic writer the page needs -- a per-row upsert and
+ * delete were written first and then superseded once it became clear that
+ * the grid always has the whole set in hand.
+ */
+export async function replaceTosTopics(
+  sheetId: string,
+  topics: { id?: string; title: string; slo: string; hours: number; bloom: Partial<Record<BloomLevel, number>> }[],
+): Promise<void> {
+  const keep = topics.filter((t) => t.id).map((t) => t.id as string)
+  const { data: existing } = await supabase
+    .from('tos_topics')
+    .select('id')
+    .eq('sheet_id', sheetId)
+  const stale = (existing ?? [])
+    .map((r) => r.id as string)
+    .filter((id) => !keep.includes(id))
+
+  if (stale.length > 0) {
+    const { error } = await supabase.from('tos_topics').delete().in('id', stale)
+    if (error) throw error
+  }
+
+  if (topics.length > 0) {
+    const { error } = await supabase.from('tos_topics').upsert(
+      topics.map((t, i) => ({
+        ...(t.id ? { id: t.id } : {}),
+        sheet_id: sheetId,
+        position: i + 1,
+        title: t.title,
+        slo: t.slo,
+        hours: t.hours,
+        bloom: t.bloom,
+      })),
+    )
+    if (error) throw error
+  }
 }

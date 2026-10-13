@@ -2865,6 +2865,306 @@ textarea.input {
   font-size: 12px;
 }
 
+/* ---- Table of Specification ----
+   The blueprint is laid out like the faculty workbook and edited in place.
+   The colouring is the spec, not decoration:
+
+     GREEN  = an input. Type in it.
+     GRAY   = a formula. Derived, never typed into.
+
+   A gray cell that looks focusable would be a lie, so gray cells are plain
+   text with no hit target, while green cells render as borderless inputs that
+   only reveal themselves on hover/focus. */
+
+.tos-sheet__issues {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* The table itself ------------------------------------------------- */
+
+.tos-table {
+  width: 100%;
+  margin-top: 8px;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 12px;
+  background: #fff;
+}
+
+.tos-table th,
+.tos-table td {
+  border: 1px solid #9aa4ad;
+  padding: 0;
+  vertical-align: top;
+}
+
+.tos-table thead th {
+  padding: 4px 5px;
+  background: #d7d9db;
+  color: #111827;
+  font-weight: 700;
+  text-align: center;
+}
+
+.tos-th--topic { width: 34%; }
+.tos-th--hrs,
+.tos-th--weight { width: 7%; }
+
+.tos-th--bloom {
+  width: 8.66%;
+}
+
+.tos-th__name {
+  display: block;
+}
+
+.tos-th__share {
+  display: block;
+  font-weight: 400;
+  font-size: 11px;
+}
+
+/* Green input cells ------------------------------------------------ */
+
+.tos-td--topic {
+  padding: 3px 5px;
+  background: #cbe7b7;
+}
+
+.tos-td--num {
+  text-align: center;
+  background: #cbe7b7;
+}
+
+.tos-topic__title {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-weight: 700;
+}
+
+.tos-topic__num {
+  flex: 0 0 auto;
+}
+
+.tos-topic__title .tos-cell__input {
+  font-weight: 700;
+}
+
+.tos-topic__slo {
+  display: flex;
+  gap: 4px;
+  margin-top: 3px;
+  font-size: 11px;
+  font-weight: 400;
+  color: #1f2937;
+}
+
+.tos-topic__slo strong {
+  flex: 0 0 auto;
+}
+
+/* The input is invisible until you go looking for it, so a filled grid still
+   reads as a document rather than a wall of form controls. */
+.tos-cell__input {
+  width: 100%;
+  min-width: 0;
+  padding: 1px 2px;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+}
+
+.tos-cell__input::placeholder {
+  color: #7c8b7a;
+}
+
+.tos-cell__input:hover {
+  border-color: #86a878;
+}
+
+.tos-cell__input:focus {
+  outline: 2px solid #16a34a;
+  outline-offset: -1px;
+  background: #fff;
+}
+
+.tos-cell__input--multi {
+  resize: vertical;
+  min-height: 2.2em;
+  line-height: 1.35;
+}
+
+/* Gray formula cells ------------------------------------------------ */
+
+.tos-td--formula {
+  text-align: center;
+  background: #dcdedc;
+  color: #1f2937;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+/* A total percentage short of 100% means the columns do not add up to the
+   declared total, so the cell says so rather than reading as a clean 100%. */
+.tos-td--formula--off {
+  color: var(--danger);
+}
+
+/* A row whose placement disagrees with its hour weighting. */
+.tos-row--drift .tos-td--formula {
+  box-shadow: inset 2px 0 0 #dc2626;
+}
+
+.tos-empty {
+  padding: 14px;
+  text-align: center;
+  background: #cbe7b7;
+  color: #1f2937;
+}
+
+/* Totals band ------------------------------------------------------- */
+
+.tos-table tfoot th {
+  padding: 3px 6px;
+  background: #d7d9db;
+  color: #111827;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.tos-table tfoot td {
+  vertical-align: middle;
+}
+
+/* Row controls, in their own panel below the blueprint (never printed).
+   One full-width row per topic so the Delete buttons line up into a single
+   column instead of scattering with the chip widths. */
+.tos-rows {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.tos-rows__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px 4px 10px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
+.tos-rows__label {
+  flex: 0 0 auto;
+  min-width: 18px;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+
+.tos-rows__name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.tos-rows__item .btn {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+/* Caption above the table: margin below it, not above. */
+.tos-foot {
+  margin-bottom: 10px;
+  font-size: 11px;
+  color: #475569;
+}
+
+/* Reset / Print / Add, under the table, right-aligned. */
+.tos-addrow {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+/* Printing: strip the input chrome so the sheet looks like a document. */
+@media print {
+  .tos-cell__input {
+    border-color: transparent !important;
+    outline: none !important;
+    background: transparent !important;
+  }
+
+  /* The blueprint is a .panel in the app, but a card border and drop shadow
+     on paper just reads as a smudge around the table. */
+  .tos-sheet.panel {
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    background: #fff;
+  }
+
+  .tos-table {
+    font-size: 10pt;
+  }
+
+  .tos-table thead th {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+/* ---- TOS editing chrome above the document (never printed) ---- */
+
+.tos-panel {
+  margin-bottom: 12px;
+}
+
+/* The exam's identifying fields, stacked: Course, then its title, then Term,
+   then the exam type. One column, each label under the field above it.
+   Capped so the inputs stay a readable length instead of spanning the panel. */
+.tos-field-grid {
+  display: flex;
+  flex-direction: column;
+  max-width: 460px;
+}
+
+.tos-field-grid .field {
+  margin-bottom: 10px;
+}
+
+.tos-field-grid .field:last-child {
+  margin-bottom: 0;
+}
+
+/* Save indicator under the header fields. Reserves no height when empty so
+   the panel does not jump as the message cycles saving -> saved. */
+.tos-savestate {
+  min-height: 18px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.tos-savestate__error {
+  color: var(--danger);
+}
+
+
 @media print {
   .sd-actions,
   .sd-toolbar-controls,
@@ -3636,90 +3936,8 @@ textarea.input {
   cursor: not-allowed;
 }
 
-/* Subject Graph About card — for a subject it renders the full Curriculum
-   Report document (see components/SyllabusReport). */
-.subject-view__inside {
-  margin-top: 16px;
-  padding: 16px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.subject-view__inside-title {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 700;
-  color: #0f172a;
-  letter-spacing: -0.01em;
-}
-
-.subject-view__inside-subtitle {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: #334155;
-}
-
-.subject-view__inside-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 6px;
-  font-size: 13px;
-  color: #475569;
-}
-
-.subject-view__inside-grid strong {
-  color: #0f172a;
-}
-
-.subject-view__inside-hint,
-.subject-view__inside-empty {
-  margin: 0;
-  font-size: 12.5px;
-  color: #64748b;
-  font-style: italic;
-}
-
-.subject-view__inside-list {
-  border-top: 1px solid #e2e8f0;
-  padding-top: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.subject-view__inside-list-title {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: #0f172a;
-}
-
-.subject-view__inside-list ul {
-  margin: 0;
-  padding-left: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.subject-view__inside-list li {
-  font-size: 13px;
-  color: #475569;
-  line-height: 1.4;
-}
-
-.subject-view__inside-code {
-  font-weight: 700;
-  color: #0f172a;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
+/* Subject Graph About card — both roots render the Curriculum Report document
+   (see components/SyllabusReport and components/ProgramOutcomeReport). */
 .subject-view__summary {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

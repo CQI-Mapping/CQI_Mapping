@@ -44,8 +44,10 @@ import type {
   ChedMemoOrder,
 } from '../../services/database'
 import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
-import { splitReportPos, buildGroups } from '../../utils/report'
+import { splitReportPos, buildGroups, cmoLabel, isManagerCmCategory } from '../../utils/report'
 import SyllabusReport from '../../components/SyllabusReport'
+import ProgramOutcomeReport from '../../components/ProgramOutcomeReport'
+import ProgramEducationalObjectiveReport from '../../components/ProgramEducationalObjectiveReport'
 
 type NodeKind =
   | 'curriculum'
@@ -66,10 +68,11 @@ interface GraphNodeData {
   placeholder: boolean
   courseId?: string
   poId?: string
+  peoId?: string
   children: GraphNodeData[]
 }
 
-type RootType = 'subject' | 'po'
+type RootType = 'subject' | 'po' | 'peo'
 
 interface NavEntry {
   type: RootType
@@ -198,6 +201,8 @@ export default function SubjectView() {
   const [rootType, setRootType] = useState<RootType | ''>('')
   const [selectedPoId, setSelectedPoId] = useState<string | null>(null)
   const [poList, setPoList] = useState<ProgramOutcomeStandalone[]>([])
+  const [selectedPeoId, setSelectedPeoId] = useState<string | null>(null)
+  const [peoList, setPeoList] = useState<ProgramEducationalObjective[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showGraph, setShowGraph] = useState(false)
@@ -240,7 +245,7 @@ export default function SubjectView() {
             String(a.name || a.code).localeCompare(String(b.name || b.code)))
           setPrograms(sorted)
           setCourses(c.filter(isActive).sort((a, b) => String(a.code).localeCompare(String(b.code))))
-          setPoList(sortPos(pos.filter(isActive)))
+          setPoList(sortPos(pos.filter((p) => isActive(p) && isManagerCmCategory(p))))
           if (sorted.length > 0 && !selectedProgramId) setSelectedProgramId(sorted[0].id)
         }
       } catch (e) {
@@ -266,10 +271,16 @@ export default function SubjectView() {
   )
 
   // PO options: prefer freshly-loaded datasets, fall back to the preloaded list
-  // so the PO dropdown works before the first View.
+  // so the PO dropdown works before the first View. Only the manager-inputted
+  // POs (the CURRICULUM MAPPING categories for BSIT) are graph roots.
+  const managerOnlyPos = useMemo(
+    () => (datasets ? datasets.pos.filter((p) => isManagerCmCategory(p)) : []),
+    [datasets],
+  )
+
   const allPos = useMemo(
-    () => (datasets ? sortPos(datasets.pos) : poList),
-    [datasets, poList],
+    () => (datasets ? sortPos(managerOnlyPos) : poList),
+    [datasets, managerOnlyPos, poList],
   )
 
   const selectedPo = useMemo(
@@ -277,8 +288,20 @@ export default function SubjectView() {
     [allPos, selectedPoId],
   )
 
+  // PEO options: prefer freshly-loaded datasets, fall back to the preloaded list.
+  const allPeos = useMemo(
+    () => (datasets ? [...datasets.peos].sort((a, b) => String(a.code).localeCompare(String(b.code))) : peoList),
+    [datasets, peoList],
+  )
+
+  const selectedPeo = useMemo(
+    () => allPeos.find((p) => p.id === selectedPeoId) ?? null,
+    [allPeos, selectedPeoId],
+  )
+
   // Quick tallies shown in the left panel before View.
   // Subject mode: pre-req / co-req / CLO counts. PO mode: linked CLOs / subjects.
+  // PEO mode: aligned POs / subjects reached through those POs.
   const leftCounts = useMemo(() => {
     if (rootType === 'po') {
       if (!selectedPo) return null
@@ -294,6 +317,27 @@ export default function SubjectView() {
       }
       return { pre: linkedClos.length, core: subjectIds.size, clos: -2 }
     }
+    if (rootType === 'peo') {
+      if (!selectedPeo) return null
+      const peoKey = normalizeCode(selectedPeo.code)
+      const linkedPos = managerOnlyPos.filter((p) => {
+        if (p.peo_id === selectedPeo.id) return true
+        if (p.peo_id) return false
+        return p.peo_text ? extractCodes(p.peo_text, 'PEO').map(normalizeCode).includes(peoKey) : false
+      })
+      const subjectIds = new Set<string>()
+      for (const po of linkedPos) {
+        const poKey = normalizeCode(po.code)
+        for (const clo of datasets ? datasets.clos : []) {
+          if (extractCodes(clo.title || '', 'PO').map(normalizeCode).includes(poKey)) {
+            for (const c of courses) {
+              if (cloMatchesSubject(clo.course || '', normalizeCode(c.code))) subjectIds.add(c.id)
+            }
+          }
+        }
+      }
+      return { pre: linkedPos.length, core: subjectIds.size, clos: -2 }
+    }
     if (!selectedCourse) return null
     const pre = (selectedCourse.prerequisite || '').split(',').map((s) => s.trim()).filter(Boolean).length
     const core = (selectedCourse.corequisite || '').split(',').map((s) => s.trim()).filter(Boolean).length
@@ -303,7 +347,7 @@ export default function SubjectView() {
       clos = datasets.clos.filter((clo) => cloMatchesSubject(clo.course || '', key)).length
     }
     return { pre, core, clos }
-  }, [rootType, selectedPo, selectedCourse, datasets, courses])
+  }, [rootType, selectedPo, selectedPeo, selectedCourse, datasets, courses])
 
   // ── Load + cache outcome datasets ──────────────────────────────────────────
   // Called on mount (silently) so the About card can show the full CLO list
@@ -330,7 +374,8 @@ export default function SubjectView() {
         sgs: sgs.filter(isActive),
         cmos: cmos.filter(isActive),
       })
-      setPoList(sortPos(activePos))
+      setPoList(sortPos(activePos.filter((p) => isManagerCmCategory(p))))
+      setPeoList(peos.filter(isActive))
     } catch (e) {
       setGraphError(e instanceof Error ? e.message : 'Failed to load relationships.')
     } finally {
@@ -360,7 +405,7 @@ export default function SubjectView() {
       // PEO: id-first, then text-code fallback.
       if (poRec.peo_id) {
         const rec = datasetsRef.peos.find((p) => p.id === poRec.peo_id)
-        if (rec) pushChild({ id: `peo-${rec.id}`, code: rec.code, title: rec.title || rec.code, kind: 'peo', placeholder: false, children: [] })
+        if (rec) pushChild({ id: `peo-${rec.id}`, code: rec.code, title: rec.title || rec.code, kind: 'peo', placeholder: false, peoId: rec.id, children: [] })
         else {
           const tok = poRec.peo_text ? extractCodes(poRec.peo_text, 'PEO')[0] : ''
           pushChild({ id: `peo-missing-${poRec.peo_id}`, code: tok || 'PEO', title: 'PEO not found or archived', kind: 'peo', placeholder: true, children: [] })
@@ -369,7 +414,7 @@ export default function SubjectView() {
         for (const tok of extractCodes(poRec.peo_text, 'PEO')) {
           const rec = datasetsRef.peos.find((p) => normalizeCode(p.code) === normalizeCode(tok))
           pushChild(rec
-            ? { id: `peo-${rec.id}`, code: rec.code, title: rec.title || rec.code, kind: 'peo', placeholder: false, children: [] }
+            ? { id: `peo-${rec.id}`, code: rec.code, title: rec.title || rec.code, kind: 'peo', placeholder: false, peoId: rec.id, children: [] }
             : { id: `peo-missing-${tok}`, code: tok, title: 'PEO not found or archived', kind: 'peo', placeholder: true, children: [] })
         }
       }
@@ -501,11 +546,11 @@ export default function SubjectView() {
           const key = normalizeCode(tok)
           let poNode = poMap.get(key)
           if (!poNode) {
-            const poRec = datasetsRef.pos.find((p) => normalizeCode(p.code) === key)
+            const poRec = datasetsRef.pos.filter((p) => isManagerCmCategory(p)).find((p) => normalizeCode(p.code) === key)
             poNode = {
               id: poRec ? `po-${poRec.id}` : `po-missing-${tok}`,
               code: tok,
-              title: poRec ? (poRec.description || poRec.title || tok) : 'PO not found or archived',
+              title: poRec ? (poRec.title || poRec.description || tok) : 'PO not found or archived',
               kind: 'po',
               placeholder: !poRec,
               poId: poRec?.id,
@@ -524,42 +569,15 @@ export default function SubjectView() {
     [courses, programCourses, attachPoLeaves],
   )
 
-  // ── Build the PO-rooted graph model ────────────────────────────────────────
-  // Root = PO. Upstream: CLOs that target this PO → their Subjects.
-  // Downstream: the PO's own PEO / SG / CMO leaves (shared helper).
-  const buildPoGraphModel = useCallback(
-    (datasetsRef: OutcomeDatasets, poRec: ProgramOutcomeStandalone): GraphNodeData => {
+  // ── Shared PO upstream: CLOs → their Subjects ─────────────────────────────
+  // Attaches every CLO whose title references the PO (each with the subject(s)
+  // its course matches) to an existing PO node. Returns how many CLOs attached.
+  const attachClosUpstream = useCallback(
+    (datasetsRef: OutcomeDatasets, poNode: GraphNodeData, poRec: ProgramOutcomeStandalone): number => {
       const poKey = normalizeCode(poRec.code)
-      const root: GraphNodeData = {
-        id: `po-${poRec.id}`,
-        code: poRec.code,
-        title: poRec.description || poRec.title || poRec.code,
-        kind: 'po',
-        placeholder: false,
-        poId: poRec.id,
-        children: [],
-      }
-
-      // Downstream first so PEO/SG/CMO order matches the subject graph.
-      attachPoLeaves(datasetsRef, root, poRec)
-
-      // Upstream: every CLO whose title references this PO code.
       const linkedClos = datasetsRef.clos.filter((clo) =>
         extractCodes(clo.title || '', 'PO').map(normalizeCode).includes(poKey)
       )
-
-      if (linkedClos.length === 0) {
-        root.children.push({
-          id: `clo-none-${poRec.id}`,
-          code: 'No linked CLOs',
-          title: 'No CLO references this PO yet',
-          kind: 'clo',
-          placeholder: true,
-          children: [],
-        })
-        return root
-      }
-
       for (const clo of linkedClos) {
         const cloNode: GraphNodeData = {
           id: `clo-${clo.id}`,
@@ -597,12 +615,104 @@ export default function SubjectView() {
             }
           }
         }
-        root.children.push(cloNode)
+        poNode.children.push(cloNode)
+      }
+      return linkedClos.length
+    },
+    [courses],
+  )
+
+  // ── Build the PO-rooted graph model ────────────────────────────────────────
+  // Root = PO. Upstream: CLOs that target this PO → their Subjects.
+  // Downstream: the PO's own PEO / SG / CMO leaves (shared helper).
+  const buildPoGraphModel = useCallback(
+    (datasetsRef: OutcomeDatasets, poRec: ProgramOutcomeStandalone): GraphNodeData => {
+      const root: GraphNodeData = {
+        id: `po-${poRec.id}`,
+        code: poRec.code,
+        title: poRec.title || poRec.description || poRec.code,
+        kind: 'po',
+        placeholder: false,
+        poId: poRec.id,
+        children: [],
+      }
+
+      // Downstream first so PEO/SG/CMO order matches the subject graph.
+      attachPoLeaves(datasetsRef, root, poRec)
+
+      // Upstream: every CLO whose title references this PO code.
+      if (attachClosUpstream(datasetsRef, root, poRec) === 0) {
+        root.children.push({
+          id: `clo-none-${poRec.id}`,
+          code: 'No linked CLOs',
+          title: 'No CLO references this PO yet',
+          kind: 'clo',
+          placeholder: true,
+          children: [],
+        })
       }
 
       return root
     },
-    [courses, attachPoLeaves],
+    [attachPoLeaves, attachClosUpstream],
+  )
+
+  // ── Build the PEO-rooted graph model ───────────────────────────────────────
+  // Root = PEO. Downstream: every PO aligned to this PEO (by peo_id first, then
+  // by a PEO code token in peo_text) — each PO shows its own PEO/SG/CMO leaves
+  // and upstream CLOs → subjects, so it looks like a slice of the subject graph.
+  const buildPeoGraphModel = useCallback(
+    (datasetsRef: OutcomeDatasets, peoRec: ProgramEducationalObjective): GraphNodeData => {
+      const peoKey = normalizeCode(peoRec.code)
+      const root: GraphNodeData = {
+        id: `peo-${peoRec.id}`,
+        code: peoRec.code,
+        title: peoRec.title || peoRec.code,
+        kind: 'peo',
+        placeholder: false,
+        peoId: peoRec.id,
+        children: [],
+      }
+
+      const linkedPos = datasetsRef.pos.filter((p) => {
+        if (!isManagerCmCategory(p)) return false
+        if (p.peo_id === peoRec.id) return true
+        if (p.peo_id) return false // a concrete id wins over free text
+        return p.peo_text
+          ? extractCodes(p.peo_text, 'PEO').map(normalizeCode).includes(peoKey)
+          : false
+      })
+
+      if (linkedPos.length === 0) {
+        root.children.push({
+          id: `po-none-${peoRec.id}`,
+          code: 'No aligned POs',
+          title: 'No program outcome aligns to this PEO yet',
+          kind: 'po',
+          placeholder: true,
+          children: [],
+        })
+        return root
+      }
+
+      for (const po of sortPos(linkedPos)) {
+        const poNode: GraphNodeData = {
+          id: `po-${po.id}`,
+          code: po.code,
+          title: po.title || po.description || po.code,
+          kind: 'po',
+          placeholder: false,
+          poId: po.id,
+          children: [],
+        }
+        attachPoLeaves(datasetsRef, poNode, po)
+        attachClosUpstream(datasetsRef, poNode, po)
+        root.children.push(poNode)
+      }
+
+      return root
+    },
+    [attachPoLeaves, attachClosUpstream],
   )
 
   // Unique node counts per kind once a graph is on screen (used in the legend).
@@ -613,18 +723,23 @@ export default function SubjectView() {
         if (!selectedCourse) return null
         return countKinds(buildGraphModel(datasets, selectedCourse))
       }
+      if (rootType === 'peo') {
+        if (!selectedPeo) return null
+        return countKinds(buildPeoGraphModel(datasets, selectedPeo))
+      }
       if (!selectedPo) return null
       return countKinds(buildPoGraphModel(datasets, selectedPo))
     } catch {
       return null
     }
-  }, [rootType, selectedCourse, selectedPo, datasets, buildGraphModel, buildPoGraphModel])
+  }, [rootType, selectedCourse, selectedPo, selectedPeo, datasets, buildGraphModel, buildPoGraphModel, buildPeoGraphModel])
 
   const buildActiveModel = useCallback(() => {
     if (!datasets) return null
     if (rootType === 'subject') return selectedCourse ? buildGraphModel(datasets, selectedCourse) : null
+    if (rootType === 'peo') return selectedPeo ? buildPeoGraphModel(datasets, selectedPeo) : null
     return selectedPo ? buildPoGraphModel(datasets, selectedPo) : null
-  }, [datasets, rootType, selectedCourse, selectedPo, buildGraphModel, buildPoGraphModel])
+  }, [datasets, rootType, selectedCourse, selectedPo, selectedPeo, buildGraphModel, buildPoGraphModel, buildPeoGraphModel])
 
   // Collapse every expandable node except the center root.
   const collapseAll = useCallback(() => {
@@ -647,7 +762,7 @@ export default function SubjectView() {
   }, [])
 
   const handleRefresh = async () => {
-    if ((rootType === 'subject' && !selectedCourse) || (rootType === 'po' && !selectedPo)) return
+    if ((rootType === 'subject' && !selectedCourse) || (rootType === 'po' && !selectedPo) || (rootType === 'peo' && !selectedPeo)) return
     setGraphError('')
     await loadDatasets(true)
   }
@@ -658,30 +773,49 @@ export default function SubjectView() {
       setNavStack((prev) => [...prev, { type: 'subject', id: selectedCourseId }])
     } else if (rootType === 'po' && selectedPoId && selectedPoId !== poId) {
       setNavStack((prev) => [...prev, { type: 'po', id: selectedPoId }])
+    } else if (rootType === 'peo' && selectedPeoId) {
+      setNavStack((prev) => [...prev, { type: 'peo', id: selectedPeoId }])
     }
     setRootType('po')
     setSelectedPoId(poId)
     setShowGraph(true)
     setGraphError('')
-  }, [rootType, selectedCourseId, selectedPoId])
+  }, [rootType, selectedCourseId, selectedPoId, selectedPeoId])
 
   const gotoSubjectRoot = useCallback((courseId: string) => {
     if (rootType === 'po' && selectedPoId) {
       setNavStack((prev) => [...prev, { type: 'po', id: selectedPoId }])
     } else if (rootType === 'subject' && selectedCourseId && selectedCourseId !== courseId) {
       setNavStack((prev) => [...prev, { type: 'subject', id: selectedCourseId }])
+    } else if (rootType === 'peo' && selectedPeoId) {
+      setNavStack((prev) => [...prev, { type: 'peo', id: selectedPeoId }])
     }
     setRootType('subject')
     setSelectedCourseId(courseId)
     setShowGraph(true)
     setGraphError('')
-  }, [rootType, selectedPoId, selectedCourseId])
+  }, [rootType, selectedPoId, selectedCourseId, selectedPeoId])
+
+  const gotoPeoRoot = useCallback((peoId: string) => {
+    if (rootType === 'subject' && selectedCourseId) {
+      setNavStack((prev) => [...prev, { type: 'subject', id: selectedCourseId }])
+    } else if (rootType === 'po' && selectedPoId) {
+      setNavStack((prev) => [...prev, { type: 'po', id: selectedPoId }])
+    } else if (rootType === 'peo' && selectedPeoId && selectedPeoId !== peoId) {
+      setNavStack((prev) => [...prev, { type: 'peo', id: selectedPeoId }])
+    }
+    setRootType('peo')
+    setSelectedPeoId(peoId)
+    setShowGraph(true)
+    setGraphError('')
+  }, [rootType, selectedCourseId, selectedPoId, selectedPeoId])
 
   // Jump back to an earlier entry in the navigation trail.
   const handleCrumb = useCallback((i: number) => {
     const current: NavEntry | null =
       rootType === 'subject' && selectedCourseId ? { type: 'subject', id: selectedCourseId }
       : rootType === 'po' && selectedPoId ? { type: 'po', id: selectedPoId }
+      : rootType === 'peo' && selectedPeoId ? { type: 'peo', id: selectedPeoId }
       : null
     if (!current) return
     const trail = [...navStack, current]
@@ -689,11 +823,12 @@ export default function SubjectView() {
     const target = trail[i]
     setRootType(target.type)
     if (target.type === 'subject') setSelectedCourseId(target.id)
+    else if (target.type === 'peo') setSelectedPeoId(target.id)
     else setSelectedPoId(target.id)
     setNavStack(navStack.slice(0, i))
     setShowGraph(true)
     setGraphError('')
-  }, [rootType, selectedCourseId, selectedPoId, navStack])
+  }, [rootType, selectedCourseId, selectedPoId, selectedPeoId, navStack])
 
   // ── D3 force simulation — Observable-style (width 928 / height 680) ───────
   // Dual-root: subject mode (subject → curriculum / prereq / coreq / CLO → PO
@@ -705,6 +840,7 @@ export default function SubjectView() {
     if (!svgEl || !tip || !datasets) return () => {}
     if (rootType === 'subject' && !selectedCourse) return () => {}
     if (rootType === 'po' && !selectedPo) return () => {}
+    if (rootType === 'peo' && !selectedPeo) return () => {}
 
     const svg = d3.select(svgEl)
     svg.on('.zoom', null)
@@ -729,6 +865,7 @@ export default function SubjectView() {
       placeholder: boolean
       courseId?: string
       poId?: string
+      peoId?: string
       group: number
       expandable: boolean
       collapsed: boolean
@@ -763,7 +900,9 @@ export default function SubjectView() {
       ? buildGraphModel(datasets, selectedCourse)
       : rootType === 'po' && selectedPo
         ? buildPoGraphModel(datasets, selectedPo)
-        : null
+        : rootType === 'peo' && selectedPeo
+          ? buildPeoGraphModel(datasets, selectedPeo)
+          : null
     if (!data) return () => {}
     const rootId = data.id
     const root = d3.hierarchy<GraphNodeData>(data, (d) =>
@@ -804,6 +943,7 @@ export default function SubjectView() {
         placeholder: d.data.placeholder,
         courseId: d.data.courseId,
         poId: d.data.poId,
+        peoId: d.data.peoId,
         group: kindGroup[d.data.kind] ?? 4,
         expandable: !!(d.data.children && d.data.children.length > 0),
         collapsed: collapsedIds.has(d.data.id),
@@ -901,7 +1041,7 @@ export default function SubjectView() {
       })
       .attr('fill', (d) => (d.placeholder ? '#f8fafc' : (colorMap[d.kind] as string) || color(String(d.group))))
       .attr('stroke', (d) => (d.placeholder ? '#94a3b8' : '#fff'))
-      .attr('cursor', (d) => (d.expandable || d.courseId || (d.kind === 'po' && d.poId) ? 'pointer' : 'grab'))
+      .attr('cursor', (d) => (d.expandable || d.courseId || (d.kind === 'po' && d.poId) || (d.kind === 'peo' && d.peoId) ? 'pointer' : 'grab'))
       .attr('filter', 'url(#subject-view-shadow)')
 
     node.append('title').text((d) => `${d.code} — ${d.title}`)
@@ -1018,7 +1158,8 @@ export default function SubjectView() {
         tip.style.top = `${event.offsetY - 28}px`
         const canReroot =
           (d.kind === 'po' && d.poId && !(rootType === 'po' && d.id === rootId)) ||
-          (d.kind === 'subject' && d.courseId && !(rootType === 'subject' && d.id === rootId))
+          (d.kind === 'subject' && d.courseId && !(rootType === 'subject' && d.id === rootId)) ||
+          (d.kind === 'peo' && d.peoId && !(rootType === 'peo' && d.id === rootId))
         tip.innerHTML = `<strong>${d.code}</strong><br/>${d.title}${canReroot ? '<br/><em>Click to view as root</em>' : ''}`
       })
       .on('mousemove', (event) => {
@@ -1039,6 +1180,13 @@ export default function SubjectView() {
       if (d.kind === 'po' && d.poId && !d.placeholder) {
         if (!((rootType === 'po' && d.id === rootId))) {
           gotoPoRoot(d.poId)
+          return
+        }
+      }
+      // PEO node → re-root visualization at that PEO (works from any graph).
+      if (d.kind === 'peo' && d.peoId && !d.placeholder) {
+        if (!((rootType === 'peo' && d.id === rootId))) {
+          gotoPeoRoot(d.peoId)
           return
         }
       }
@@ -1072,7 +1220,7 @@ export default function SubjectView() {
       svg.on('.zoom', null)
       zoomRef.current = null
     }
-  }, [rootType, selectedCourse, selectedPo, datasets, containerSize, collapsedIds, buildGraphModel, buildPoGraphModel, courses, selectedCourseId, gotoPoRoot, gotoSubjectRoot])
+  }, [rootType, selectedCourse, selectedPo, selectedPeo, datasets, containerSize, collapsedIds, buildGraphModel, buildPoGraphModel, buildPeoGraphModel, courses, selectedCourseId, gotoPoRoot, gotoSubjectRoot, gotoPeoRoot])
 
   // ResizeObserver keeps the SVG sized responsively.
   useEffect(() => {
@@ -1101,12 +1249,13 @@ export default function SubjectView() {
       setGraphError(e instanceof Error ? e.message : 'Failed to render graph.')
       return undefined
     }
-  }, [showGraph, rootType, selectedCourse, selectedPo, datasets, containerSize, renderGraph, setGraphError])
+  }, [showGraph, rootType, selectedCourse, selectedPo, selectedPeo, datasets, containerSize, renderGraph, setGraphError])
 
   const handleView = async () => {
     if (!rootType) return
     if (rootType === 'subject' && !selectedCourse) return
     if (rootType === 'po' && !selectedPoId) return
+    if (rootType === 'peo' && !selectedPeoId) return
     setShowGraph(true)
     setGraphError('')
     await loadDatasets()
@@ -1116,6 +1265,9 @@ export default function SubjectView() {
     if (entry.type === 'subject') {
       return courses.find((c) => c.id === entry.id)?.code ?? allPos.find((p) => p.id === entry.id)?.code ?? '…'
     }
+    if (entry.type === 'peo') {
+      return allPeos.find((p) => p.id === entry.id)?.code ?? '…'
+    }
     return allPos.find((p) => p.id === entry.id)?.code ?? courses.find((c) => c.id === entry.id)?.code ?? '…'
   }
 
@@ -1124,27 +1276,37 @@ export default function SubjectView() {
       const c = courses.find((x) => x.id === entry.id)
       return c ? `${c.code} — ${c.title}` : 'Unknown subject'
     }
+    if (entry.type === 'peo') {
+      const p = allPeos.find((x) => x.id === entry.id)
+      return p ? `${p.code} — ${p.title}` : 'Unknown PEO'
+    }
     const p = allPos.find((x) => x.id === entry.id)
-    return p ? `${p.code} — ${p.description || p.title}` : 'Unknown outcome'
+    return p ? `${p.code} — ${p.title || p.description}` : 'Unknown outcome'
   }
 
   const currentEntry: NavEntry | null =
     rootType === 'subject' && selectedCourseId ? { type: 'subject', id: selectedCourseId }
     : rootType === 'po' && selectedPoId ? { type: 'po', id: selectedPoId }
+    : rootType === 'peo' && selectedPeoId ? { type: 'peo', id: selectedPeoId }
     : null
 
   const graphTitle = rootType === 'subject'
     ? (selectedCourse ? `${selectedCourse.code} — ${selectedCourse.title}` : '')
-    : (selectedPo ? `${selectedPo.code} — ${selectedPo.description || selectedPo.title}` : '')
+    : rootType === 'peo'
+      ? (selectedPeo ? `${selectedPeo.code} — ${selectedPeo.title || selectedPeo.code}` : '')
+      : (selectedPo ? `${selectedPo.code} — ${selectedPo.title || selectedPo.description}` : '')
   const graphHint = rootType === 'subject'
     ? 'Click a branch node to expand or collapse. Click a PO to view the graph from that PO. Click a pre-req or co-req to jump to that subject. Drag nodes to reposition. Scroll to zoom.'
-    : 'Click a branch node to expand or collapse. Click a subject to view the graph from that subject. Click a PO to switch PO root. Drag nodes to reposition. Scroll to zoom.'
+    : rootType === 'peo'
+      ? 'Click a branch node to expand or collapse. Click a PO to view the graph from that PO. Click a PEO to switch PEO root. Drag nodes to reposition. Scroll to zoom.'
+      : 'Click a branch node to expand or collapse. Click a subject to view the graph from that subject. Click a PO to switch PO root. Drag nodes to reposition. Scroll to zoom.'
 
-  // The About card for a subject renders the *exact* Curriculum Report document
-  // (letterhead, Vision/Mission/Goals/PEOs, Program Outcomes, Curriculum
-  // Mapping, CLO table, Course Details) through the shared SyllabusReport
-  // component — the same one View.tsx renders. `datasets` is prefetched on
-  // mount, so it is ready before the user presses View Graph.
+  // The About card renders the *exact* Curriculum Report document — for a
+  // subject through the shared SyllabusReport component (the same one View.tsx
+  // renders), for a PO through ProgramOutcomeReport, and for a PEO through
+  // ProgramEducationalObjectiveReport; both reuse the report page's chrome.
+  // `datasets` is prefetched on mount, so the card is ready before the user
+  // presses View Graph.
   const subjectReport = (() => {
     if (!datasets || !selectedCourse || rootType !== 'subject') return null
     const { adminPos, managerPos } = splitReportPos(datasets.pos)
@@ -1159,6 +1321,35 @@ export default function SubjectView() {
         subjectClos={datasets.clos.filter((c) =>
           cloMatchesSubject(c.course || '', normalizeCode(selectedCourse.code)))}
       />
+    )
+  })()
+
+  const poReport = (() => {
+    if (!datasets || !selectedPo || rootType !== 'po') return null
+    const key = normalizeCode(selectedPo.code)
+    const linked = datasets.clos.filter((c) =>
+      extractCodes(c.title || '', 'PO').map(normalizeCode).includes(key))
+    return (
+      <ProgramOutcomeReport
+        po={selectedPo}
+        cmoLabel={cmoLabel(selectedPo, datasets.cmos)}
+        clos={linked}
+      />
+    )
+  })()
+
+  const peoReport = (() => {
+    if (!datasets || !selectedPeo || rootType !== 'peo') return null
+    const key = normalizeCode(selectedPeo.code)
+    const linked = managerOnlyPos.filter((p) => {
+      if (p.peo_id === selectedPeo.id) return true
+      if (p.peo_id) return false // a concrete id wins over free text
+      return p.peo_text
+        ? extractCodes(p.peo_text, 'PEO').map(normalizeCode).includes(key)
+        : false
+    })
+    return (
+      <ProgramEducationalObjectiveReport peo={selectedPeo} pos={sortPos(linked)} />
     )
   })()
 
@@ -1182,6 +1373,7 @@ export default function SubjectView() {
               <option value="">--- select to Visualize ---</option>
               <option value="subject">Subject</option>
               <option value="po">PO</option>
+              <option value="peo">PEO</option>
             </select>
           </label>
 
@@ -1235,7 +1427,7 @@ export default function SubjectView() {
                     <>
                       <option value="">— Select a PO —</option>
                       {allPos.map((p) => (
-                        <option key={p.id} value={p.id}>{p.code} — {(p.description || p.title || '').slice(0, 60)}</option>
+                        <option key={p.id} value={p.id}>{p.code} — {p.title || p.description || p.code}</option>
                       ))}
                     </>
                   )}
@@ -1244,15 +1436,38 @@ export default function SubjectView() {
               <p className="subject-view__helper">{allPos.length === 0 ? 'Add a program outcome first.' : `${allPos.length} PO${allPos.length === 1 ? '' : 's'} available as graph root.`}</p>
             </>
           )}
+          {rootType === 'peo' && (
+            <>
+              <h3 className="subject-view__course-heading">PEO Code</h3>
+              <label className="field">
+                <span className="sr-only">Select program educational objective</span>
+                <select className="input input--sm" value={selectedPeoId ?? ''}
+                  disabled={allPeos.length === 0}
+                  onChange={(e) => { setSelectedPeoId(e.target.value || null); setShowGraph(false); setNavStack([]) }}>
+                  {allPeos.length === 0 ? (
+                    <option value="">No PEOs yet</option>
+                  ) : (
+                    <>
+                      <option value="">— Select a PEO —</option>
+                      {allPeos.map((p) => (
+                        <option key={p.id} value={p.id}>{p.code} — {(p.title || '').slice(0, 60)}</option>
+                      ))}
+                    </>
+                  )}
+                </select>
+              </label>
+              <p className="subject-view__helper">{allPeos.length === 0 ? 'Add a program educational objective first.' : `${allPeos.length} PEO${allPeos.length === 1 ? '' : 's'} available as graph root.`}</p>
+            </>
+          )}
 
           {leftCounts && (
             <div className="subject-view__summary">
               <div className="subject-view__summary-item">
-                <span className="subject-view__summary-label">{rootType === 'po' ? 'CLOs' : 'Pre-reqs'}</span>
+                <span className="subject-view__summary-label">{rootType === 'po' ? 'CLOs' : rootType === 'peo' ? 'POs' : 'Pre-reqs'}</span>
                 <span className="subject-view__summary-value" style={{ color: '#b45309' }}>{leftCounts.pre}</span>
               </div>
               <div className="subject-view__summary-item">
-                <span className="subject-view__summary-label">{rootType === 'po' ? 'Subjects' : 'Co-reqs'}</span>
+                <span className="subject-view__summary-label">{rootType === 'po' || rootType === 'peo' ? 'Subjects' : 'Co-reqs'}</span>
                 <span className="subject-view__summary-value" style={{ color: '#15803d' }}>{leftCounts.core}</span>
               </div>
               {rootType === 'subject' && (
@@ -1266,7 +1481,7 @@ export default function SubjectView() {
 
           <button
             className="btn btn--sm subject-view__view-btn"
-            disabled={(rootType === 'subject' ? !selectedCourse : !selectedPoId) || loading || spinner}
+            disabled={(rootType === 'subject' ? !selectedCourse : rootType === 'po' ? !selectedPoId : !selectedPeoId) || loading || spinner}
             onClick={handleView}>
             {spinner ? 'Loading…' : 'View Graph'}
           </button>
@@ -1288,8 +1503,8 @@ export default function SubjectView() {
                     <path d="M8 7l2.5 9M16 7l-3.5 9M6 6h12" />
                   </svg>
                 </div>
-                <h4>Outcome map for a subject or PO</h4>
-                <p>Choose <strong>Subject</strong> or <strong>PO</strong> on the left, pick a code, then press <strong>View Graph</strong>. Clicking a PO re-roots the visualization at that PO; clicking a subject jumps back to that subject.</p>
+                <h4>Outcome map for a subject, PO, or PEO</h4>
+                <p>Choose <strong>Subject</strong>, <strong>PO</strong>, or <strong>PEO</strong> on the left, pick a code, then press <strong>View Graph</strong>. Clicking a PO or PEO re-roots the visualization at that outcome; clicking a subject jumps back to that subject.</p>
               </div>
             </div>
           ) : graphError ? (
@@ -1299,9 +1514,9 @@ export default function SubjectView() {
               <span className="subject-view__spinner" aria-hidden />
               <span>Loading relationships…</span>
             </div>
-          ) : (rootType === 'subject' && !selectedCourse) || (rootType === 'po' && !selectedPo) ? (
+          ) : (rootType === 'subject' && !selectedCourse) || (rootType === 'po' && !selectedPo) || (rootType === 'peo' && !selectedPeo) ? (
             <div className="subject-view__placeholder">
-              <p>{rootType === 'subject' ? 'Select a subject on the left, then press View.' : 'Select a PO on the left, then press View.'}</p>
+              <p>{rootType === 'subject' ? 'Select a subject on the left, then press View.' : rootType === 'po' ? 'Select a PO on the left, then press View.' : 'Select a PEO on the left, then press View.'}</p>
             </div>
           ) : (
             <div className="subject-view__graph-area">
@@ -1368,9 +1583,10 @@ export default function SubjectView() {
         </div>
       </div>
 
-      {/* Below Program + Visualization — full-width. For a subject this is the
-          Curriculum Report document itself (no extra card frame), matching the
-          report page; for a PO it is a padded info card. */}
+      {/* Below Program + Visualization — full-width. Every root renders the
+          Curriculum Report document itself (no extra card frame): a course
+          syllabus for a subject, a program-outcome page for a PO, and a
+          program-educational-objective page for a PEO. */}
       {rootType === 'subject' && selectedCourse ? (
         <div className="subject-view__about" style={{ marginTop: 16 }}>
           {subjectReport ?? (
@@ -1380,47 +1596,20 @@ export default function SubjectView() {
           )}
         </div>
       ) : rootType === 'po' && selectedPo ? (
-        <div className="panel subject-view__about" style={{ marginTop: 16, padding: 20 }}>
-          <>
-              <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800, letterSpacing: '-0.02em' }}>
-                About {selectedPo.code} — {selectedPo.description || selectedPo.title}
-              </h3>
-              <p style={{ margin: '0 0 12px', color: '#64748b', fontSize: 13 }}>
-                Program Outcome · aligns CLOs upstream and PEO / Strategic Goal / CMO downstream
-              </p>
-              <div className="subject-view__inside" style={{ marginTop: 0, background: '#fff', border: '1px solid #e2e8f0' }}>
-                <h4 className="subject-view__inside-title">Inside {selectedPo.code}</h4>
-                <p className="subject-view__inside-subtitle">{selectedPo.description || selectedPo.title}</p>
-                <div className="subject-view__inside-grid">
-                  <span><strong>PEO:</strong> {selectedPo.peo_text?.trim() || '—'}</span>
-                  <span><strong>Strategic Goal:</strong> {selectedPo.sg_text?.trim() || '—'}</span>
-                  <span><strong>Status:</strong> <span className={`status-badge status-badge--${selectedPo.status}`}>{selectedPo.status}</span></span>
-                </div>
-                {(() => {
-                  if (!datasets) return <p className="subject-view__inside-hint">Loading the linked CLOs…</p>
-                  const key = normalizeCode(selectedPo.code)
-                  const linked = datasets.clos.filter((c) =>
-                    extractCodes(c.title || '', 'PO').map(normalizeCode).includes(key))
-                  if (linked.length === 0) return <p className="subject-view__inside-empty">No CLOs reference this PO yet.</p>
-                  return (
-                    <div className="subject-view__inside-list">
-                      <strong className="subject-view__inside-list-title">CLOs targeting {selectedPo.code} ({linked.length}):</strong>
-                      <ul>
-                        {linked.map((clo) => (
-                          <li key={clo.id} title={`${clo.course || ''} — ${clo.description || clo.title}`}>
-                            <span className="subject-view__inside-code">{clo.code}</span> — {clo.description || clo.title}
-                            {clo.course ? <span style={{ color: '#64748b' }}> ({clo.course})</span> : null}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )
-                })()}
-              </div>
-              <p style={{ margin: '12px 0 0', fontSize: 12.5, color: '#64748b' }}>
-                This is what <strong>{selectedPo.code}</strong> connects — the CLOs/subjects that target it upstream and the PEO, Strategic Goal, and CMO it aligns to downstream.
-              </p>
-          </>
+        <div className="subject-view__about" style={{ marginTop: 16 }}>
+          {poReport ?? (
+            <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
+              Loading the program outcome report…
+            </p>
+          )}
+        </div>
+      ) : rootType === 'peo' && selectedPeo ? (
+        <div className="subject-view__about" style={{ marginTop: 16 }}>
+          {peoReport ?? (
+            <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
+              Loading the PEO report…
+            </p>
+          )}
         </div>
       ) : null}
     </div>
