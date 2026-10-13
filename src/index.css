@@ -2865,6 +2865,291 @@ textarea.input {
   font-size: 12px;
 }
 
+/* ---- Table of Specification ----
+   The nine-column blueprint (topic, hours, derived weight, six Bloom levels)
+   plus the editing chrome around it. The document itself reuses the .sd-*
+   report classes above, so only what they don't cover lives here. */
+
+/* The letterhead has no image asset, so show the text block instead. */
+.tos-letterhead .sd-letterhead__text {
+  display: block;
+}
+
+.tos-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.tos-table th:first-child,
+.tos-table td:first-child {
+  width: 40%;
+}
+
+.tos-table .tos-num {
+  width: 8%;
+  text-align: center;
+}
+
+.tos-table tfoot td {
+  font-weight: 700;
+  border-top: 2px solid #94a3b8;
+}
+
+.tos-table .tos-row--target td {
+  font-size: 11px;
+  font-style: italic;
+  color: #64748b;
+  background: #f8fafc;
+}
+
+.tos-table .tos-num--set {
+  font-weight: 600;
+}
+
+.tos-slo {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 400;
+  font-style: italic;
+  color: #475569;
+}
+
+.tos-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+/* ---- TOS editing chrome (never printed) ---- */
+
+.tos-panel {
+  margin-bottom: 12px;
+}
+
+.tos-field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px 14px;
+  margin-bottom: 10px;
+}
+
+.tos-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.tos-summary__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.tos-summary__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-sm);
+}
+
+.tos-summary__label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.tos-summary__value {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--text);
+}
+
+.tos-summary__value--off {
+  color: var(--danger);
+}
+
+.tos-summary__sub {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.tos-summary__bloom {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 6px 18px;
+}
+
+.tos-bloom {
+  display: grid;
+  grid-template-columns: 84px 34px 1fr 44px;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.tos-bloom__name {
+  color: #475569;
+}
+
+.tos-bloom__count {
+  font-weight: 700;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.tos-bloom__bar {
+  height: 6px;
+  min-width: 2px;
+  background: var(--primary);
+  border-radius: 3px;
+}
+
+.tos-bloom__share {
+  color: #64748b;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.tos-issues {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tos-editor {
+  margin-top: 14px;
+}
+
+.tos-editor__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.tos-editor__head h3 {
+  margin: 0;
+}
+
+.tos-editor__table {
+  min-width: 900px;
+}
+
+.tos-editor__table input,
+.tos-editor__table textarea {
+  width: 100%;
+  font-family: inherit;
+}
+
+.tos-editor__slo {
+  margin-top: 5px;
+  resize: vertical;
+}
+
+.tos-editor__num,
+.tos-editor__hours,
+.tos-editor__weighted,
+.tos-editor__bloom {
+  text-align: center;
+  vertical-align: top;
+}
+
+.tos-editor__num {
+  width: 34px;
+}
+
+.tos-editor__hours,
+.tos-editor__weighted {
+  width: 74px;
+}
+
+.tos-editor__bloom {
+  width: 62px;
+}
+
+.tos-editor__actions {
+  width: 150px;
+  white-space: nowrap;
+}
+
+.tos-editor__actions .btn + .btn {
+  margin-left: 4px;
+}
+
+.tos-editor__foot {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.tos-drift {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.tos-guide {
+  margin-top: 14px;
+}
+
+.tos-guide__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--text);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.tos-guide__chevron {
+  font-size: 18px;
+  line-height: 1;
+  color: #64748b;
+}
+
+.tos-guide__body {
+  margin-top: 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #334155;
+}
+
+.tos-guide__body p {
+  margin: 0 0 10px;
+}
+
+.tos-guide__list {
+  margin: 6px 0 10px;
+  padding-left: 20px;
+}
+
+.tos-guide__list li {
+  margin-bottom: 4px;
+}
+
+.tos-guide__body code {
+  padding: 1px 5px;
+  font-size: 12px;
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
 @media print {
   .sd-actions,
   .sd-toolbar-controls,
