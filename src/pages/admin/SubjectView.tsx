@@ -44,8 +44,9 @@ import type {
   ChedMemoOrder,
 } from '../../services/database'
 import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
-import { splitReportPos, buildGroups } from '../../utils/report'
+import { splitReportPos, buildGroups, cmoLabel } from '../../utils/report'
 import SyllabusReport from '../../components/SyllabusReport'
+import ProgramOutcomeReport from '../../components/ProgramOutcomeReport'
 
 type NodeKind =
   | 'curriculum'
@@ -1140,11 +1141,11 @@ export default function SubjectView() {
     ? 'Click a branch node to expand or collapse. Click a PO to view the graph from that PO. Click a pre-req or co-req to jump to that subject. Drag nodes to reposition. Scroll to zoom.'
     : 'Click a branch node to expand or collapse. Click a subject to view the graph from that subject. Click a PO to switch PO root. Drag nodes to reposition. Scroll to zoom.'
 
-  // The About card for a subject renders the *exact* Curriculum Report document
-  // (letterhead, Vision/Mission/Goals/PEOs, Program Outcomes, Curriculum
-  // Mapping, CLO table, Course Details) through the shared SyllabusReport
-  // component — the same one View.tsx renders. `datasets` is prefetched on
-  // mount, so it is ready before the user presses View Graph.
+  // The About card renders the *exact* Curriculum Report document — for a
+  // subject through the shared SyllabusReport component (the same one View.tsx
+  // renders), and for a PO through ProgramOutcomeReport, which reuses the
+  // report page's chrome. `datasets` is prefetched on mount, so either is ready
+  // before the user presses View Graph.
   const subjectReport = (() => {
     if (!datasets || !selectedCourse || rootType !== 'subject') return null
     const { adminPos, managerPos } = splitReportPos(datasets.pos)
@@ -1158,6 +1159,20 @@ export default function SubjectView() {
         managerGroups={buildGroups(managerPos, datasets.cmos)}
         subjectClos={datasets.clos.filter((c) =>
           cloMatchesSubject(c.course || '', normalizeCode(selectedCourse.code)))}
+      />
+    )
+  })()
+
+  const poReport = (() => {
+    if (!datasets || !selectedPo || rootType !== 'po') return null
+    const key = normalizeCode(selectedPo.code)
+    const linked = datasets.clos.filter((c) =>
+      extractCodes(c.title || '', 'PO').map(normalizeCode).includes(key))
+    return (
+      <ProgramOutcomeReport
+        po={selectedPo}
+        cmoLabel={cmoLabel(selectedPo, datasets.cmos)}
+        clos={linked}
       />
     )
   })()
@@ -1368,9 +1383,9 @@ export default function SubjectView() {
         </div>
       </div>
 
-      {/* Below Program + Visualization — full-width. For a subject this is the
-          Curriculum Report document itself (no extra card frame), matching the
-          report page; for a PO it is a padded info card. */}
+      {/* Below Program + Visualization — full-width. Either root renders the
+          Curriculum Report document itself (no extra card frame): a course
+          syllabus for a subject, a program-outcome page for a PO. */}
       {rootType === 'subject' && selectedCourse ? (
         <div className="subject-view__about" style={{ marginTop: 16 }}>
           {subjectReport ?? (
@@ -1380,47 +1395,12 @@ export default function SubjectView() {
           )}
         </div>
       ) : rootType === 'po' && selectedPo ? (
-        <div className="panel subject-view__about" style={{ marginTop: 16, padding: 20 }}>
-          <>
-              <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800, letterSpacing: '-0.02em' }}>
-                About {selectedPo.code} — {selectedPo.description || selectedPo.title}
-              </h3>
-              <p style={{ margin: '0 0 12px', color: '#64748b', fontSize: 13 }}>
-                Program Outcome · aligns CLOs upstream and PEO / Strategic Goal / CMO downstream
-              </p>
-              <div className="subject-view__inside" style={{ marginTop: 0, background: '#fff', border: '1px solid #e2e8f0' }}>
-                <h4 className="subject-view__inside-title">Inside {selectedPo.code}</h4>
-                <p className="subject-view__inside-subtitle">{selectedPo.description || selectedPo.title}</p>
-                <div className="subject-view__inside-grid">
-                  <span><strong>PEO:</strong> {selectedPo.peo_text?.trim() || '—'}</span>
-                  <span><strong>Strategic Goal:</strong> {selectedPo.sg_text?.trim() || '—'}</span>
-                  <span><strong>Status:</strong> <span className={`status-badge status-badge--${selectedPo.status}`}>{selectedPo.status}</span></span>
-                </div>
-                {(() => {
-                  if (!datasets) return <p className="subject-view__inside-hint">Loading the linked CLOs…</p>
-                  const key = normalizeCode(selectedPo.code)
-                  const linked = datasets.clos.filter((c) =>
-                    extractCodes(c.title || '', 'PO').map(normalizeCode).includes(key))
-                  if (linked.length === 0) return <p className="subject-view__inside-empty">No CLOs reference this PO yet.</p>
-                  return (
-                    <div className="subject-view__inside-list">
-                      <strong className="subject-view__inside-list-title">CLOs targeting {selectedPo.code} ({linked.length}):</strong>
-                      <ul>
-                        {linked.map((clo) => (
-                          <li key={clo.id} title={`${clo.course || ''} — ${clo.description || clo.title}`}>
-                            <span className="subject-view__inside-code">{clo.code}</span> — {clo.description || clo.title}
-                            {clo.course ? <span style={{ color: '#64748b' }}> ({clo.course})</span> : null}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )
-                })()}
-              </div>
-              <p style={{ margin: '12px 0 0', fontSize: 12.5, color: '#64748b' }}>
-                This is what <strong>{selectedPo.code}</strong> connects — the CLOs/subjects that target it upstream and the PEO, Strategic Goal, and CMO it aligns to downstream.
-              </p>
-          </>
+        <div className="subject-view__about" style={{ marginTop: 16 }}>
+          {poReport ?? (
+            <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
+              Loading the program outcome report…
+            </p>
+          )}
         </div>
       ) : null}
     </div>
