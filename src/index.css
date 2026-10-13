@@ -3131,43 +3131,21 @@ textarea.input {
   margin-bottom: 12px;
 }
 
-/* Two parent/child pairs side by side: Course over Course title,
-   Term over Exam type. The rule down the left edge of a sub-field is what
-   makes the nesting legible without an indent puzzle. */
+/* The exam's identifying fields, stacked: Course, then its title, then Term,
+   then the exam type. One column, each label under the field above it.
+   Capped so the inputs stay a readable length instead of spanning the panel. */
 .tos-field-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 10px 22px;
-}
-
-.tos-field-group {
   display: flex;
   flex-direction: column;
+  max-width: 460px;
 }
 
-.tos-field-group .field {
+.tos-field-grid .field {
+  margin-bottom: 10px;
+}
+
+.tos-field-grid .field:last-child {
   margin-bottom: 0;
-}
-
-.tos-field-group .field + .field {
-  margin-top: 10px;
-}
-
-.tos-field--sub {
-  position: relative;
-  margin-left: 12px !important;
-  padding-left: 12px;
-}
-
-.tos-field--sub::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 4px;
-  bottom: 14px;
-  width: 2px;
-  border-radius: 1px;
-  background: var(--border-strong);
 }
 
 
