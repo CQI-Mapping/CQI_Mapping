@@ -26,22 +26,19 @@ import {
 } from '../../utils/tosMath'
 import { TOS_EXAM_META, TOS_SHEETS } from '../../utils/tosSampleData'
 
-/** A deep enough copy that editing topics never mutates the sample constant. */
-const freshSheets = (): TosSheet[] =>
-  TOS_SHEETS.map((s) => ({
-    ...s,
-    topics: s.topics.map((t) => ({ ...t, bloom: { ...t.bloom } })),
-  }))
+/**
+ * A copy deep enough that editing a topic never mutates the sample constant.
+ * Both sheets stay in tosSampleData because the Supabase schema models them as
+ * rows keyed by kind; only the Multiple Choice sheet is on screen for now.
+ */
+const freshSheet = (): TosSheet => {
+  const seed = TOS_SHEETS[0]
+  return { ...seed, topics: seed.topics.map((t) => ({ ...t, bloom: { ...t.bloom } })) }
+}
 
 export default function TableOfSpecification() {
   const [exam, setExam] = useState<TosExam>(() => ({ ...TOS_EXAM_META }))
-  const [sheets, setSheets] = useState<TosSheet[]>(freshSheets)
-  const [activeId] = useState(TOS_SHEETS[0].id)
-
-  const sheet = useMemo(
-    () => sheets.find((s) => s.id === activeId) ?? sheets[0],
-    [sheets, activeId],
-  )
+  const [sheet, setSheet] = useState<TosSheet>(freshSheet)
 
   const issues = useMemo(() => validateSheet(sheet, exam.totalHours), [sheet, exam.totalHours])
 
@@ -50,29 +47,26 @@ export default function TableOfSpecification() {
   }, [])
 
   const patchSheet = useCallback((patch: Partial<TosSheet>) => {
-    setSheets((prev) =>
-      prev.map((s) => (s.id === activeId ? { ...s, ...patch } : s)),
-    )
-  }, [activeId])
+    setSheet((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  /** Back to the shipped blueprint, discarding local edits. */
+  const resetToSample = useCallback(() => {
+    setExam({ ...TOS_EXAM_META })
+    setSheet(freshSheet())
+  }, [])
 
   // ---- topic editing -------------------------------------------------
 
-  const replaceSheet = useCallback(
-    (topics: TosTopic[]) => {
-      setSheets((prev) =>
-        prev.map((s) => (s.id === activeId ? { ...s, topics } : s)),
-      )
-    },
-    [activeId],
-  )
+  const setTopics = useCallback((topics: TosTopic[]) => {
+    setSheet((prev) => ({ ...prev, topics }))
+  }, [])
 
   const patchTopic = useCallback(
     (id: string, patch: { title?: string; slo?: string; hours?: number }) => {
-      replaceSheet(
-        sheet.topics.map((t) => (t.id === id ? { ...t, ...patch } : t)),
-      )
+      setTopics(sheet.topics.map((t) => (t.id === id ? { ...t, ...patch } : t)))
     },
-    [sheet.topics, replaceSheet],
+    [sheet.topics, setTopics],
   )
 
   const setBloom = useCallback(
@@ -85,20 +79,20 @@ export default function TableOfSpecification() {
       // rather than stored as 0 — keeps the share maths and the grid honest.
       if (value > 0) bloom[level] = value
       else delete bloom[level]
-      replaceSheet(sheet.topics.map((t) => (t.id === topicId ? { ...t, bloom } : t)))
+      setTopics(sheet.topics.map((t) => (t.id === topicId ? { ...t, bloom } : t)))
     },
-    [sheet.topics, replaceSheet],
+    [sheet.topics, setTopics],
   )
 
   const addTopic = useCallback(() => {
-    replaceSheet([...sheet.topics, blankTopic(sheet.topics.length + 1)])
-  }, [sheet.topics, replaceSheet])
+    setTopics([...sheet.topics, blankTopic(sheet.topics.length + 1)])
+  }, [sheet.topics, setTopics])
 
   const removeTopic = useCallback(
     (id: string) => {
-      replaceSheet(renumber(sheet.topics.filter((t) => t.id !== id)))
+      setTopics(renumber(sheet.topics.filter((t) => t.id !== id)))
     },
-    [sheet.topics, replaceSheet],
+    [sheet.topics, setTopics],
   )
 
   return (
@@ -153,6 +147,7 @@ export default function TableOfSpecification() {
         onSetBloom={setBloom}
         onAddTopic={addTopic}
         onRemoveTopic={removeTopic}
+        onReset={resetToSample}
       />
     </div>
   )

@@ -3093,10 +3093,11 @@ textarea.input {
   color: #475569;
 }
 
-/* Add topic, under the table it adds to, right-aligned to the table's edge. */
+/* Reset / Print / Add, under the table, right-aligned. */
 .tos-addrow {
   display: flex;
   justify-content: flex-end;
+  gap: 6px;
   margin-top: 12px;
 }
 

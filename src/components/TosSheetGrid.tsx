@@ -43,6 +43,8 @@ export interface TosSheetGridProps {
   onSetBloom: (topicId: string, level: BloomLevel, value: string) => void
   onAddTopic: () => void
   onRemoveTopic: (id: string) => void
+  /** Discard local edits and return to the shipped blueprint. */
+  onReset: () => void
 }
 
 /** A green input cell that reads as a flat cell until you click it. */
@@ -98,6 +100,7 @@ export default function TosSheetGrid({
   onSetBloom,
   onAddTopic,
   onRemoveTopic,
+  onReset,
 }: TosSheetGridProps) {
   const totals = bloomTotals(sheet.topics)
   const share = shares(sheet.topics, sheet.total)
@@ -280,9 +283,20 @@ export default function TosSheetGrid({
         contains the formula.</em>
       </div>
 
-      {/* Add sits directly under the table it adds a row to, right-aligned. */}
+      {/* Add sits directly under the table it adds a row to, right-aligned.
+          Reset and Print sit alongside it. */}
       {editable && (
         <div className="tos-addrow no-print">
+          <button type="button" className="btn btn--ghost btn--sm" onClick={onReset}>
+            Reset
+          </button>
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            onClick={() => window.print()}
+          >
+            Print / Save PDF
+          </button>
           <button type="button" className="btn btn--primary btn--sm" onClick={onAddTopic}>
             Add topic
           </button>
