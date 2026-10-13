@@ -101,19 +101,6 @@ export default function TableOfSpecification() {
     [sheet.topics, replaceSheet],
   )
 
-  const moveTopic = useCallback(
-    (id: string, delta: number) => {
-      const topics = [...sheet.topics]
-      const index = topics.findIndex((t) => t.id === id)
-      const target = index + delta
-      if (index < 0 || target < 0 || target >= topics.length) return
-      const [moved] = topics.splice(index, 1)
-      topics.splice(target, 0, moved)
-      replaceSheet(renumber(topics))
-    },
-    [sheet.topics, replaceSheet],
-  )
-
   return (
     <div className="syllabus-doc">
       {/* ---- exam header ---- */}
@@ -166,7 +153,6 @@ export default function TableOfSpecification() {
         onSetBloom={setBloom}
         onAddTopic={addTopic}
         onRemoveTopic={removeTopic}
-        onMoveTopic={moveTopic}
       />
     </div>
   )

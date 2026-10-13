@@ -43,7 +43,6 @@ export interface TosSheetGridProps {
   onSetBloom: (topicId: string, level: BloomLevel, value: string) => void
   onAddTopic: () => void
   onRemoveTopic: (id: string) => void
-  onMoveTopic: (id: string, delta: number) => void
 }
 
 /** A green input cell that reads as a flat cell until you click it. */
@@ -99,7 +98,6 @@ export default function TosSheetGrid({
   onSetBloom,
   onAddTopic,
   onRemoveTopic,
-  onMoveTopic,
 }: TosSheetGridProps) {
   const totals = bloomTotals(sheet.topics)
   const share = shares(sheet.topics, sheet.total)
@@ -118,7 +116,8 @@ export default function TosSheetGrid({
   )
 
   return (
-    <div className="panel tos-sheet">
+    <>
+      <div className="panel tos-sheet">
       <table className="tos-table">
         <thead>
           <tr>
@@ -275,47 +274,6 @@ export default function TosSheetGrid({
         </tfoot>
       </table>
 
-      {/* Row controls live outside the table so they never print. */}
-      {editable && (
-        <div className="tos-rows no-print">
-          {sheet.topics.map((topic) => (
-            <span key={topic.id} className="tos-rows__item">
-              <span className="tos-rows__label">{topic.position}.</span>
-              <span className="tos-rows__name">{topic.title || 'Untitled topic'}</span>
-              <button
-                type="button"
-                className="btn btn--ghost btn--sm"
-                disabled={topic.position === 1}
-                onClick={() => onMoveTopic(topic.id, -1)}
-                aria-label={`Move topic ${topic.position} up`}
-              >
-                &uarr;
-              </button>
-              <button
-                type="button"
-                className="btn btn--ghost btn--sm"
-                disabled={topic.position === sheet.topics.length}
-                onClick={() => onMoveTopic(topic.id, 1)}
-                aria-label={`Move topic ${topic.position} down`}
-              >
-                &darr;
-              </button>
-              <button
-                type="button"
-                className="btn btn--danger btn--sm"
-                onClick={() => onRemoveTopic(topic.id)}
-                aria-label={`Delete topic ${topic.position}`}
-              >
-                Delete
-              </button>
-            </span>
-          ))}
-          <button type="button" className="btn btn--primary btn--sm" onClick={onAddTopic}>
-            Add topic
-          </button>
-        </div>
-      )}
-
       <div className="tos-foot">
         <em>Note: Only those highlighted with green are editable cells. Gray colored cells
         contains the formula.</em>
@@ -335,5 +293,30 @@ export default function TosSheetGrid({
         </div>
       )}
     </div>
+
+      {/* Row controls get their own panel, clear of the blueprint, so the
+          document above stays a document. Nothing here prints. */}
+      {editable && (
+        <div className="panel tos-rows no-print">
+          {sheet.topics.map((topic) => (
+            <span key={topic.id} className="tos-rows__item">
+              <span className="tos-rows__label">{topic.position}.</span>
+              <span className="tos-rows__name">{topic.title || 'Untitled topic'}</span>
+              <button
+                type="button"
+                className="btn btn--danger btn--sm"
+                onClick={() => onRemoveTopic(topic.id)}
+                aria-label={`Delete topic ${topic.position}`}
+              >
+                Delete
+              </button>
+            </span>
+          ))}
+          <button type="button" className="btn btn--primary btn--sm" onClick={onAddTopic}>
+            Add topic
+          </button>
+        </div>
+      )}
+    </>
   )
 }

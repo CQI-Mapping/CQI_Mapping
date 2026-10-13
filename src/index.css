@@ -3045,20 +3045,19 @@ textarea.input {
   vertical-align: middle;
 }
 
-/* Row controls, outside the table so they never print ------------- */
+/* Row controls, in their own panel below the blueprint (never printed) -- */
 
 .tos-rows {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  margin-top: 10px;
 }
 
 .tos-rows__item {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   padding: 3px 4px 3px 8px;
   background: #fff;
   border: 1px solid var(--border);
@@ -3071,15 +3070,11 @@ textarea.input {
 }
 
 .tos-rows__name {
-  max-width: 190px;
+  max-width: 240px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 600;
-}
-
-.tos-rows__item .btn + .btn {
-  margin-left: 2px;
 }
 
 .tos-foot {
