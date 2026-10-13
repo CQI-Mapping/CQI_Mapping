@@ -1368,17 +1368,20 @@ export default function SubjectView() {
         </div>
       </div>
 
-      {/* Below Program + Visualization — padded About card (full-width, outside grid) */}
-      {((rootType === 'subject' && selectedCourse) || (rootType === 'po' && selectedPo)) && (
+      {/* Below Program + Visualization — full-width. For a subject this is the
+          Curriculum Report document itself (no extra card frame), matching the
+          report page; for a PO it is a padded info card. */}
+      {rootType === 'subject' && selectedCourse ? (
+        <div className="subject-view__about" style={{ marginTop: 16 }}>
+          {subjectReport ?? (
+            <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
+              Loading the course report…
+            </p>
+          )}
+        </div>
+      ) : rootType === 'po' && selectedPo ? (
         <div className="panel subject-view__about" style={{ marginTop: 16, padding: 20 }}>
-          {rootType === 'subject' && selectedCourse ? (
-            subjectReport ?? (
-              <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
-                Loading the course report…
-              </p>
-            )
-          ) : selectedPo ? (
-            <>
+          <>
               <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800, letterSpacing: '-0.02em' }}>
                 About {selectedPo.code} — {selectedPo.description || selectedPo.title}
               </h3>
@@ -1417,10 +1420,9 @@ export default function SubjectView() {
               <p style={{ margin: '12px 0 0', fontSize: 12.5, color: '#64748b' }}>
                 This is what <strong>{selectedPo.code}</strong> connects — the CLOs/subjects that target it upstream and the PEO, Strategic Goal, and CMO it aligns to downstream.
               </p>
-            </>
-          ) : null}
+          </>
         </div>
-      )}
+      ) : null}
     </div>
   )
 }
