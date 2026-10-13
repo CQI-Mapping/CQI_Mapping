@@ -158,7 +158,6 @@ export default function TableOfSpecification() {
 
       {/* ---- the blueprint ---- */}
       <TosSheetGrid
-        exam={exam}
         sheet={sheet}
         issues={issues}
         editable

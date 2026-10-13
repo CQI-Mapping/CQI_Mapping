@@ -2876,23 +2876,6 @@ textarea.input {
    text with no hit target, while green cells render as borderless inputs that
    only reveal themselves on hover/focus. */
 
-.tos-sheet__meta {
-  font-size: 12px;
-  line-height: 1.5;
-  color: #0f172a;
-}
-
-.tos-sheet__doctitle {
-  margin-top: 4px;
-  font-weight: 700;
-  text-align: center;
-}
-
-.tos-sheet__tazon {
-  margin-top: 4px;
-  font-weight: 700;
-}
-
 .tos-sheet__issues {
   margin-top: 12px;
   display: flex;

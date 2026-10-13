@@ -27,7 +27,6 @@ import {
   totalHours,
   weightedFor,
   type BloomLevel,
-  type TosExam,
   type TosIssue,
   type TosSheet,
 } from '../utils/tosMath'
@@ -35,7 +34,6 @@ import {
 const pct = (n: number) => `${Math.round(n * 1000) / 10}%`
 
 export interface TosSheetGridProps {
-  exam: TosExam
   sheet: TosSheet
   issues: TosIssue[]
   /** False renders the document read-only for printing or review. */
@@ -93,7 +91,6 @@ function Cell({
 }
 
 export default function TosSheetGrid({
-  exam,
   sheet,
   issues,
   editable,
@@ -122,20 +119,6 @@ export default function TosSheetGrid({
 
   return (
     <div className="panel tos-sheet">
-      <div className="tos-sheet__meta">
-        <div>
-          <strong>Course Title:</strong> {exam.title}
-        </div>
-        <div>{exam.term}</div>
-        <div className="tos-sheet__doctitle">
-          {exam.examType}: {sheet.label} Type
-        </div>
-        <div className="tos-sheet__tazon">Blooms Revised Taxonomy</div>
-        <div>
-          <strong>Topic:</strong> {exam.coverage}
-        </div>
-      </div>
-
       <table className="tos-table">
         <thead>
           <tr>
