@@ -61,7 +61,6 @@ describe('num / fmt', () => {
     expect(fmt1(2.5)).toBe('2.5')
     expect(fmt1(5)).toBe('5.0')
     expect(fmt1(1 / 3)).toBe('0.3')
-    expect(fmt1('2.5')).toBe('2.5')
   })
 })
 

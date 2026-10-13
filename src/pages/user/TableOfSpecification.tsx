@@ -47,7 +47,6 @@ export default function TableOfSpecification() {
   const [exam, setExam] = useState<TosExam>(() => ({ ...TOS_EXAM_META }))
   const [sheets, setSheets] = useState<TosSheet[]>(freshSheets)
   const [activeId, setActiveId] = useState(TOS_SHEETS[0].id)
-  const [editMode, setEditMode] = useState(true)
   const [showGuide, setShowGuide] = useState(false)
 
   const sheet = useMemo(
@@ -135,30 +134,6 @@ export default function TableOfSpecification() {
 
   return (
     <div className="syllabus-doc">
-      {/* ---- toolbar ---- */}
-      <div className="syllabus-doc__toolbar no-print">
-        <span className="syllabus-doc__meta">
-          {exam.code} &middot; {exam.term}
-        </span>
-        <div className="sd-toolbar-controls">
-          <button
-            type="button"
-            className={`btn btn--sm ${editMode ? 'btn--primary' : 'btn--ghost'}`}
-            onClick={() => setEditMode((v) => !v)}
-            aria-pressed={editMode}
-          >
-            {editMode ? 'Done editing' : 'Edit'}
-          </button>
-          <button
-            type="button"
-            className="btn btn--primary btn--sm"
-            onClick={() => window.print()}
-          >
-            Print / Save PDF
-          </button>
-        </div>
-      </div>
-
       {/* ---- exam header ---- */}
       <div className="panel tos-panel no-print">
         <div className="tos-field-grid">
@@ -303,7 +278,7 @@ export default function TableOfSpecification() {
         exam={exam}
         sheet={sheet}
         issues={issues}
-        editable={editMode}
+        editable
         onPatchExam={patchExam}
         onPatchSheet={patchSheet}
         onPatchTopic={patchTopic}
