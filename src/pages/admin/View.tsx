@@ -30,68 +30,13 @@ import type {
   Course,
   ChedMemoOrder,
 } from '../../services/database'
-import { normalizeCode, cloMatchesSubject, uniqueResolvedRefs } from '../../utils/courseCodes'
-import CourseDetails from '../../components/CourseDetails'
+import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
+import { isActive, buildGroups, splitReportPos, poNumber } from '../../utils/report'
+import type { EditableItem, EditableKind, EditState } from '../../utils/report'
+import SyllabusReport from '../../components/SyllabusReport'
 
 interface ViewProps {
   userEmail: string
-}
-
-type EditableKind = 'goal' | 'peo' | 'po'
-
-interface EditState {
-  kind: EditableKind
-  id: string
-  code: string
-  title: string
-  description: string
-}
-
-// Institutional letterhead / branding (not input data).
-const SCHOOL = {
-  republic: 'Republic of the Philippines',
-  school: 'NORTHERN BUKIDNON STATE COLLEGE',
-  address: 'Manolo Fortich, 8703 Bukidnon',
-  motto: 'Creando futura, Transformationis vitae, Ductae a Deo',
-  title: 'COURSE SYLLABUS',
-  institute: 'INSTITUTE FOR COMPUTER STUDIES',
-  program: 'BACHELOR OF SCIENCE IN INFORMATION TECHNOLOGY',
-  term: 'Summer, SY: 2024 - 2025',
-}
-
-const DOC_VISION =
-  'Northern Bukidnon State College will be a college of choice, nationally recognized for having innovative and sustainable academic programs, research, extensions and services that cultivate educational, personal, and professional growth to meet the needs of our students, our society, and the global community.'
-
-const DOC_MISSION =
-  'Northern Bukidnon State College is an accessible community-based institution that provides educational opportunities to develop students into socially responsible, competent, and productive professionals.'
-
-// Fixed CMO categories (stored as cmo_text when cmo_id is null).
-const FIXED_CMO_CATEGORIES = [
-  { id: 'fixed-common', title: 'Common to All Programs in All Types of Schools' },
-  { id: 'fixed-bscs', title: 'Bachelor of Science in Computer Science Program Outcomes' },
-  { id: 'fixed-college', title: 'College Defined Program Outcome' },
-]
-
-// Numbering helpers: digits parsed from the PO code (PO-1 -> 1).
-// Codes without digits (or blank codes) have no number — they sort last
-// and display the raw code instead of "NaN".
-const poDigits = (code: string) => {
-  const m = (code || '').match(/\d+/)
-  return m ? parseInt(m[0], 10) : null
-}
-const poNumber = (code: string) => poDigits(code) ?? 9999
-const poLabel = (code: string) => {
-  const d = poDigits(code)
-  return d === null ? (code || '—') : String(d)
-}
-
-const isActive = (item: { status?: string }) => !item.status || item.status === 'active'
-
-type EditableItem = StrategicGoal | ProgramEducationalObjective
-
-interface PoGroup {
-  heading: string
-  items: ProgramOutcomeStandalone[]
 }
 
 function View({ userEmail }: ViewProps) {
@@ -211,67 +156,12 @@ function View({ userEmail }: ViewProps) {
     : []
 
   // Pre-req / co-req resolution ("IT13" → "IT13 - Fundamentals of Programming
-  // 2", one line per course) lives in utils/courseCodes so the Subject Graph's
-  // About card resolves them the same way.
-  // Program Outcomes codes, one per line — the PDF lists each PLO group on
-  // its own centered row inside the cell ("PLO1" then "PLO3, & PLO10").
-  const poLines = (v?: string | null) =>
-    (v || '').split(',').map((s) => s.trim()).filter(Boolean)
-
-  // "VIII. NUMBER OF HOURS" and "V. Credit" wording, plus the Course Details
-  // markup itself, are shared with the Subject Graph's About card via
-  // utils/courseCodes and components/CourseDetails.
-
-  // Separate admin vs manager outcomes.
-  const adminPos = visiblePos.filter((p) => (p as { source?: string }).source !== 'manager')
-
-  // Manager outcomes are arranged by CMO Alignment group first (matching the
-  // manager's Program Outcomes page), then by PO number within each group —
-  // so the CURRICULUM MAPPING sections below group cleanly by CMO.
-  const cmoGroupKey = (p: ProgramOutcomeStandalone) =>
-    (p.description || '').trim().toUpperCase() || '\uffff'
-  const managerPos = visiblePos
-    .filter((p) => (p as { source?: string }).source === 'manager')
-    .sort((a, b) => {
-      const ka = cmoGroupKey(a)
-      const kb = cmoGroupKey(b)
-      if (ka !== kb) return ka < kb ? -1 : 1
-      return poNumber(a.code) - poNumber(b.code) || a.code.localeCompare(b.code)
-    })
-
-  // Group active program outcomes by CMO category.
-  // Admin outcomes store CMO in cmo_id (UUID) / cmo_text (fixed id).
-  // Manager outcomes store CMO display text in the description column (via
-  // EntityCrudPage's textField mapping), so we read that for manager rows.
-  const cmoLabel = (po: ProgramOutcomeStandalone) => {
-    if ((po as { source?: string }).source === 'manager') {
-      const desc = (po.description || '').trim().toUpperCase()
-      return desc || 'UNCATEGORIZED'
-    }
-    const key = po.cmo_id || (po as { cmo_text?: string }).cmo_text
-    if (!key) return 'UNCATEGORIZED'
-    const fixed = FIXED_CMO_CATEGORIES.find((c) => c.id === key)
-    if (fixed) return fixed.title.toUpperCase()
-    const cmo = cmos.find((c) => c.id === key)
-    return cmo ? `${cmo.title} (${cmo.code})`.toUpperCase() : 'UNCATEGORIZED'
-  }
-
-  const buildGroups = (list: ProgramOutcomeStandalone[]): PoGroup[] => {
-    const groups: PoGroup[] = []
-    for (const po of list) {
-      const heading = cmoLabel(po)
-      const last = groups[groups.length - 1]
-      if (last && last.heading === heading) last.items.push(po)
-      else groups.push({ heading, items: [po] })
-    }
-    return groups
-  }
-
-  const adminGroups = buildGroups(adminPos)
-  const managerGroups = buildGroups(managerPos)
-
-  const programText = (c: Course) =>
-    typeof c.program_id === 'object' && c.program_id ? c.program_id.name : SCHOOL.program
+  // 2", one line per course), PO grouping and the Course Details markup are
+  // shared with the Subject Graph's About card via utils/courseCodes,
+  // utils/report and components/SyllabusReport.
+  const { adminPos, managerPos } = splitReportPos(visiblePos)
+  const adminGroups = buildGroups(adminPos, cmos)
+  const managerGroups = buildGroups(managerPos, cmos)
 
   // Inline edit controls for one record (Save / Cancel or Edit / Archive).
   const rowActions = (kind: EditableKind, id: string) => {
@@ -375,194 +265,21 @@ function View({ userEmail }: ViewProps) {
       {loading ? (
         <p>Loading curriculum map...</p>
       ) : (
-        <div className="syllabus-doc__page">
-          {/* Letterhead */}
-          <header className="sd-letterhead">
-            <img className="sd-letterhead__img" src="/nbsc-letterhead.jpg" alt="Northern Bukidnon State College" />
-            <div className="sd-letterhead__text">
-              <div>{SCHOOL.republic}</div>
-              <div className="sd-letterhead__school">{SCHOOL.school}</div>
-              <div>{SCHOOL.address}</div>
-              <div className="sd-letterhead__motto">{SCHOOL.motto}</div>
-            </div>
-          </header>
-
-          {/* Title block */}
-          <div className="sd-titleblock">
-            <div className="sd-titleblock__title">{SCHOOL.title}</div>
-            <div>{SCHOOL.institute}</div>
-            <div>{selectedCourse ? programText(selectedCourse) : SCHOOL.program}</div>
-            {selectedCourse ? (
-              <div className="sd-titleblock__course">{selectedCourse.code} - {selectedCourse.title}</div>
-            ) : (
-              <div className="sd-titleblock__course">No courses yet</div>
-            )}
-            <div>{SCHOOL.term}</div>
-          </div>
-
-          {/* Vision | Mission | Strategic Goals | PEOs */}
-          <table className="sd-table sd-table--vmgp">
-            <thead>
-              <tr>
-                <th className="sd-col-head">VISION</th>
-                <th className="sd-col-head">MISSION</th>
-                <th className="sd-col-head">STRATEGIC GOALS</th>
-                <th className="sd-col-head">PROGRAM EDUCATIONAL OBJECTIVES</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td className="sd-cell--justify">{DOC_VISION}</td>
-                <td className="sd-cell--justify">{DOC_MISSION}</td>
-                <td>
-                  {visibleGoals.map((g) =>
-                    editableListRow(
-                      'goal',
-                      g,
-                      <span className="sd-goal">{g.code.replace(/^SG-/i, 'Goal ')}: {g.description}</span>,
-                    ),
-                  )}
-                  {visibleGoals.length === 0 && <span>No strategic goals.</span>}
-                </td>
-                <td>
-                  {visiblePeos.map((p) =>
-                    editableListRow(
-                      'peo',
-                      p,
-                      <>
-                        <span>{p.code.replace(/-/, ' ')}: {p.title}</span>
-                        {p.description && <div className="sd-peo__desc">{p.description}</div>}
-                      </>,
-                    ),
-                  )}
-                  {visiblePeos.length === 0 && <span>No PEOs.</span>}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-
-          {/* Program Outcomes (ADMIN) — grouped by CMO category */}
-          <table className="sd-table sd-table--po-single">
-            <thead>
-              <tr>
-                <th className="sd-po-single-title">PROGRAM OUTCOMES</th>
-              </tr>
-            </thead>
-            <tbody>
-              {adminGroups.length === 0 && (
-                <tr>
-                  <td className="sd-po-single-section">No admin program outcomes yet.</td>
-                </tr>
-              )}
-              {adminGroups.map((group, gi) => (
-                <tr key={group.heading}>
-                  <td className="sd-po-single-section">
-                    <div className="sd-po-single-section__head">{group.heading}</div>
-                    {gi === 0 && (
-                      <div className="sd-po-single-section__sub">
-                        The NBSC graduates have the ability to:
-                      </div>
-                    )}
-                    {group.items.map((p, i, arr) => {
-                      const editingThis = edit && edit.kind === 'po' && edit.id === p.id
-                      const isLast = i === arr.length - 1
-                      const semicolon = isLast ? '.' : ';'
-                      return (
-                        <div key={p.id} className={`sd-po-single-outcome ${isActive(p) ? '' : 'sd-archived'}`}>
-                          {poLabel(p.code)}. {p.title.replace(/\.$/, '')}{semicolon}
-                          {editMode && (
-                            <span className="sd-po-single-item__actions">
-                              {rowActions('po', p.id)}
-                            </span>
-                          )}
-                          {editingThis && (
-                            <span className="sd-po-single-edit">
-                              <input
-                                className="input input--sm"
-                                value={edit.title}
-                                onChange={(e) => setEdit({ ...edit, title: e.target.value })}
-                                disabled={busy}
-                              />
-                            </span>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {/* Curriculum Mapping — MANAGER outcomes with PEO/SG alignment matrix */}
-          {managerGroups.length > 0 && (
-            <div className="sd-mapping">
-              <div className="sd-band sd-band--center">CURRICULUM MAPPING</div>
-              {/* Single continuous table (like the source PDF): each CMO group
-                  is a <tbody> whose repeated header row carries the CMO title. */}
-              <table className="sd-table sd-table--mapping">
-                {managerGroups.map((group) => (
-                  <tbody key={group.heading}>
-                    <tr>
-                      <th className="sd-mapping__col-po">{group.heading}</th>
-                      <th className="sd-mapping__col-align">Program Educational Objectives</th>
-                      <th className="sd-mapping__col-align">Strategic Goals</th>
-                    </tr>
-                    {group.items.map((p) => (
-                      <tr key={p.id}>
-                        <td>{poLabel(p.code)}. {p.title.replace(/\.$/, '')}</td>
-                        {/* Blank when unaligned — the source document leaves
-                            those cells empty rather than showing a dash. */}
-                        <td>{p.peo_text?.trim()}</td>
-                        <td>{p.sg_text?.trim()}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                ))}
-              </table>
-            </div>
-          )}
-
-          {/* Course Learning Outcomes */}
-          {selectedCourse && (
-            <table className="sd-table sd-table--clo">
-              <thead>
-                <tr>
-                  <th>Course Learning Outcomes</th>
-                  <th className="sd-map-col">Program Outcomes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {subjectClos.length === 0 && (
-                  <tr>
-                    <td colSpan={2}>No course learning outcomes for this subject.</td>
-                  </tr>
-                )}
-                {subjectClos.map((c) => (
-                  <tr key={c.id}>
-                    <td>{c.code}: {c.description}</td>
-                    <td>
-                      {poLines(c.title).length > 0 ? (
-                        poLines(c.title).map((p, i) => <div key={i}>{p}</div>)
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-
-          {/* Course Details — shared markup so the Subject Graph's About card
-              renders the identical format. */}
-          <CourseDetails
-            course={selectedCourse}
-            prereqItems={selectedCourse ? uniqueResolvedRefs(selectedCourse.prerequisite, courses) : []}
-            coreqItems={selectedCourse ? uniqueResolvedRefs(selectedCourse.corequisite, courses) : []}
-            clos={subjectClos.map((c) => ({ id: c.id, code: c.code, text: c.description || '' }))}
-          />
-        </div>
+        <SyllabusReport
+          course={selectedCourse}
+          courses={courses}
+          goals={visibleGoals}
+          peos={visiblePeos}
+          adminGroups={adminGroups}
+          managerGroups={managerGroups}
+          subjectClos={subjectClos}
+          editMode={editMode}
+          edit={edit}
+          busy={busy}
+          onEditChange={setEdit}
+          rowActions={rowActions}
+          editableListRow={editableListRow}
+        />
       )}
     </div>
   )

@@ -3636,30 +3636,8 @@ textarea.input {
   cursor: not-allowed;
 }
 
-/* Subject Graph About card — Status/Curriculum meta row above the report-style
-   Course Details block. */
-.subject-view__about-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 18px;
-  margin: 0 0 12px;
-  font-size: 12.5px;
-  color: #64748b;
-}
-
-.subject-view__about-meta strong {
-  color: #0f172a;
-}
-
-/* The Course Details inside the About card, rendered with the same serif page
-   typography as the Curriculum Report (View.tsx). */
-.subject-view__about-doc {
-  font-family: 'Times New Roman', Times, serif;
-  font-size: 14px;
-  line-height: 1.45;
-  color: #111;
-}
-
+/* Subject Graph About card — for a subject it renders the full Curriculum
+   Report document (see components/SyllabusReport). */
 .subject-view__inside {
   margin-top: 16px;
   padding: 16px;

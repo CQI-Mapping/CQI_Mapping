@@ -43,8 +43,9 @@ import type {
   StrategicGoal,
   ChedMemoOrder,
 } from '../../services/database'
-import { normalizeCode, cloMatchesSubject, uniqueResolvedRefs } from '../../utils/courseCodes'
-import CourseDetails from '../../components/CourseDetails'
+import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
+import { splitReportPos, buildGroups } from '../../utils/report'
+import SyllabusReport from '../../components/SyllabusReport'
 
 type NodeKind =
   | 'curriculum'
@@ -1127,16 +1128,6 @@ export default function SubjectView() {
     return p ? `${p.code} — ${p.description || p.title}` : 'Unknown outcome'
   }
 
-  // Curriculum label for the About card — curriculum_id is either an id string
-  // or an expanded { id, code } object depending on the query.
-  const curriculumLabel = (c: Course) => {
-    const cid = typeof c.curriculum_id === 'object'
-      ? (c.curriculum_id as any)?.code ?? (c.curriculum_id as any)?.id
-      : c.curriculum_id
-    const label = typeof c.curriculum_id === 'object' ? (c.curriculum_id as any)?.code : cid
-    return label || '—'
-  }
-
   const currentEntry: NavEntry | null =
     rootType === 'subject' && selectedCourseId ? { type: 'subject', id: selectedCourseId }
     : rootType === 'po' && selectedPoId ? { type: 'po', id: selectedPoId }
@@ -1148,6 +1139,28 @@ export default function SubjectView() {
   const graphHint = rootType === 'subject'
     ? 'Click a branch node to expand or collapse. Click a PO to view the graph from that PO. Click a pre-req or co-req to jump to that subject. Drag nodes to reposition. Scroll to zoom.'
     : 'Click a branch node to expand or collapse. Click a subject to view the graph from that subject. Click a PO to switch PO root. Drag nodes to reposition. Scroll to zoom.'
+
+  // The About card for a subject renders the *exact* Curriculum Report document
+  // (letterhead, Vision/Mission/Goals/PEOs, Program Outcomes, Curriculum
+  // Mapping, CLO table, Course Details) through the shared SyllabusReport
+  // component — the same one View.tsx renders. `datasets` is prefetched on
+  // mount, so it is ready before the user presses View Graph.
+  const subjectReport = (() => {
+    if (!datasets || !selectedCourse || rootType !== 'subject') return null
+    const { adminPos, managerPos } = splitReportPos(datasets.pos)
+    return (
+      <SyllabusReport
+        course={selectedCourse}
+        courses={courses}
+        goals={datasets.sgs}
+        peos={datasets.peos}
+        adminGroups={buildGroups(adminPos, datasets.cmos)}
+        managerGroups={buildGroups(managerPos, datasets.cmos)}
+        subjectClos={datasets.clos.filter((c) =>
+          cloMatchesSubject(c.course || '', normalizeCode(selectedCourse.code)))}
+      />
+    )
+  })()
 
   if (loading) return <p role="status">Loading subjects...</p>
 
@@ -1359,45 +1372,11 @@ export default function SubjectView() {
       {((rootType === 'subject' && selectedCourse) || (rootType === 'po' && selectedPo)) && (
         <div className="panel subject-view__about" style={{ marginTop: 16, padding: 20 }}>
           {rootType === 'subject' && selectedCourse ? (
-            <>
-              <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800, letterSpacing: '-0.02em' }}>
-                About {selectedCourse.code} — {selectedCourse.title}
-              </h3>
-              <p style={{ margin: '0 0 10px', color: '#64748b', fontSize: 13 }}>
-                {(() => {
-                  const prog = programs.find((p) => p.id === selectedProgramId)
-                  return prog ? `${prog.code} · ${prog.name}` : ''
-                })()}
+            subjectReport ?? (
+              <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
+                Loading the course report…
               </p>
-              <div className="subject-view__about-meta">
-                <span><strong>Status:</strong> <span className={`status-badge status-badge--${selectedCourse.status}`}>{selectedCourse.status}</span></span>
-                <span><strong>Curriculum:</strong> {curriculumLabel(selectedCourse)}</span>
-              </div>
-              {/* Course Details in the report's exact format (serif, numbered
-                  I–VIII) — same component the Curriculum Report renders. */}
-              <div className="subject-view__about-doc">
-                {(() => {
-                  const insideClos = datasets
-                    ? datasets.clos.filter((c) => cloMatchesSubject(c.course || '', normalizeCode(selectedCourse.code)))
-                    : []
-                  const closEmpty = !datasets
-                    ? <>Loading the course learning outcomes…</>
-                    : 'No course learning outcomes for this subject.'
-                  return (
-                    <CourseDetails
-                      course={selectedCourse}
-                      prereqItems={uniqueResolvedRefs(selectedCourse.prerequisite || '', courses)}
-                      coreqItems={uniqueResolvedRefs(selectedCourse.corequisite || '', courses)}
-                      clos={insideClos.map((c) => ({ id: c.id, code: c.code, text: c.description || c.title || '' }))}
-                      closEmpty={closEmpty}
-                    />
-                  )
-                })()}
-              </div>
-              <p style={{ margin: '12px 0 0', fontSize: 12.5, color: '#64748b' }}>
-                This is what <strong>{selectedCourse.code}</strong> is all about — its description, credits, prerequisites, curriculum, and the CLOs that drive the outcome map above.
-              </p>
-            </>
+            )
           ) : selectedPo ? (
             <>
               <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800, letterSpacing: '-0.02em' }}>
