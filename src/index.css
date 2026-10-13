@@ -3028,6 +3028,12 @@ textarea.input {
   user-select: none;
 }
 
+/* A total percentage short of 100% means the columns do not add up to the
+   declared total, so the cell says so rather than reading as a clean 100%. */
+.tos-td--formula--off {
+  color: var(--danger);
+}
+
 /* A row whose placement disagrees with its hour weighting. */
 .tos-row--drift .tos-td--formula {
   box-shadow: inset 2px 0 0 #dc2626;

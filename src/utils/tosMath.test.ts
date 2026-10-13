@@ -105,6 +105,20 @@ describe('bloomTotals / placedTotal — REALITY per column', () => {
     expect(sum).toBeCloseTo(1)
   })
 
+  it('sums the shares to less than 100% when items are unassigned', () => {
+    // The Total Percentage cell is =SUM(D12:I12), not a literal 100%. A sheet
+    // that declares 20 items with none placed has to read 0%, not 100%.
+    const empty = [topic(1, 1, {}), topic(2, 1, {})]
+    const sum = BLOOM_LEVELS.reduce((acc, l) => acc + shares(empty, 20)[l], 0)
+    expect(sum).toBe(0)
+  })
+
+  it('sums the shares to 100% only when the columns reach the total', () => {
+    const full = [topic(1, 1, oneEach), topic(2, 1, oneEach)]
+    const sum = BLOOM_LEVELS.reduce((acc, l) => acc + shares(full, 10)[l], 0)
+    expect(sum).toBeCloseTo(1)
+  })
+
   it('gives zero shares rather than NaN when total is 0', () => {
     expect(shares(topics, 0).remember).toBe(0)
   })

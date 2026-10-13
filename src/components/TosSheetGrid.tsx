@@ -106,6 +106,7 @@ export default function TosSheetGrid({
 }: TosSheetGridProps) {
   const totals = bloomTotals(sheet.topics)
   const share = shares(sheet.topics, sheet.total)
+  const shareTotal = BLOOM_LEVELS.reduce((sum, level) => sum + share[level], 0)
   const unit = sheet.kind === 'points' ? 'Point' : 'Item'
 
   // Drift per topic, so the grid can mark the offending rows without the page
@@ -266,15 +267,24 @@ export default function TosSheetGrid({
             <th scope="row">Total Number of Hours</th>
             {/* GRAY — the SUM of the hours column above, not an input. */}
             <td className="tos-td--num tos-td--formula">{fmt(totalHours(sheet.topics))}</td>
+            <td className="tos-td--formula" />
             {BLOOM_LEVELS.map((level) => (
               <td key={level} className="tos-td--formula" />
             ))}
           </tr>
 
-          {/* GRAY — always 100% by construction, so it is never an input. */}
+          {/* GRAY — SUM of the header percentages, per =SUM(D12:I12). That only reads
+            100% when the columns add up to the declared total; with items
+            unassigned it reads less, which is the point. */}
           <tr className="tos-total">
             <th scope="row">Total Percentage</th>
-            <td className="tos-td--num tos-td--formula">100%</td>
+            <td
+              className={`tos-td--num tos-td--formula${
+                Math.abs(shareTotal - 1) > 0.001 ? ' tos-td--formula--off' : ''
+              }`}
+            >
+              {pct(shareTotal)}
+            </td>
             {Array.from({ length: BLOOM_LEVELS.length + 1 }).map((_, i) => (
               <td key={i} className="tos-td--formula" />
             ))}
