@@ -34,7 +34,7 @@ import AdminProgram from './pages/admin/Program'
 import AdminSubjectView from './pages/admin/SubjectView'
 import AdminView from './pages/admin/View'
 import UserCurriculum from './pages/user/Curriculum'
-import UserTableOfSpecification from './pages/user/TableOfSpecification'
+import UserTOS from './pages/user/TOS'
 import { supabase } from './utils/supabaseClient'
 import { ensureProfile, syncDemoRole } from './services/database'
 import type { Profile as ProfileType, UserRole, NavItem } from './services/database'
@@ -70,7 +70,7 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'clo', label: 'Course Learning Outcomes' },
     { id: 'curriculum', label: 'Curriculum' },
     { id: 'subject-view', label: 'Subject Graph' },
-    { id: 'tos', label: 'Table of Specification' },
+    { id: 'tos', label: 'Generate TOS' },
     { id: 'profile', label: 'Profile' },
   ],
 }
@@ -107,7 +107,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     clo: UserCourseLearningOutcomes,
     curriculum: UserCurriculum,
     'subject-view': AdminSubjectView,
-    tos: UserTableOfSpecification,
+    tos: UserTOS,
     profile: Profile,
   },
 }
