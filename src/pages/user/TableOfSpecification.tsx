@@ -119,40 +119,45 @@ export default function TableOfSpecification() {
       {/* ---- exam header ---- */}
       <div className="panel tos-panel no-print">
         <div className="tos-field-grid">
-          <label className="field">
-            <span>Course code</span>
-            <input
-              className="input input--sm"
-              value={exam.code}
-              onChange={(e) => patchExam({ code: e.target.value })}
-            />
-          </label>
-          <label className="field">
-            <span>Course title</span>
-            <input
-              className="input input--sm"
-              value={exam.title}
-              onChange={(e) => patchExam({ title: e.target.value })}
-            />
-          </label>
-          <label className="field">
-            <span>Exam type</span>
-            <input
-              className="input input--sm"
-              value={exam.examType.replace(/^Table of Specification for\s+/i, '')}
-              onChange={(e) =>
-                patchExam({ examType: `Table of Specification for ${e.target.value}` })
-              }
-            />
-          </label>
-          <label className="field">
-            <span>Term</span>
-            <input
-              className="input input--sm"
-              value={exam.term}
-              onChange={(e) => patchExam({ term: e.target.value })}
-            />
-          </label>
+          <div className="tos-field-group">
+            <label className="field">
+              <span>Course</span>
+              <input
+                className="input input--sm"
+                value={exam.code}
+                onChange={(e) => patchExam({ code: e.target.value })}
+              />
+            </label>
+            <label className="field tos-field--sub">
+              <span>Course title</span>
+              <input
+                className="input input--sm"
+                value={exam.title}
+                onChange={(e) => patchExam({ title: e.target.value })}
+              />
+            </label>
+          </div>
+
+          <div className="tos-field-group">
+            <label className="field">
+              <span>Term</span>
+              <input
+                className="input input--sm"
+                value={exam.term}
+                onChange={(e) => patchExam({ term: e.target.value })}
+              />
+            </label>
+            <label className="field tos-field--sub">
+              <span>Exam type</span>
+              <input
+                className="input input--sm"
+                value={exam.examType.replace(/^Table of Specification for\s+/i, '')}
+                onChange={(e) =>
+                  patchExam({ examType: `Table of Specification for ${e.target.value}` })
+                }
+              />
+            </label>
+          </div>
         </div>
       </div>
 
