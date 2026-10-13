@@ -15,17 +15,9 @@
 import { useCallback, useMemo, useState } from 'react'
 import TosSheetGrid from '../../components/TosSheetGrid'
 import {
-  BLOOM_DESCRIPTIONS,
-  BLOOM_LABELS,
-  BLOOM_LEVELS,
-  bloomTotals,
   blankTopic,
-  fmt,
   num,
-  placedTotal,
   renumber,
-  shares,
-  totalHours,
   validateSheet,
   type BloomLevel,
   type TosExam,
@@ -33,8 +25,6 @@ import {
   type TosTopic,
 } from '../../utils/tosMath'
 import { TOS_EXAM_META, TOS_SHEETS } from '../../utils/tosSampleData'
-
-const pct = (n: number) => `${Math.round(n * 1000) / 10}%`
 
 /** A deep enough copy that editing topics never mutates the sample constant. */
 const freshSheets = (): TosSheet[] =>
@@ -46,18 +36,13 @@ const freshSheets = (): TosSheet[] =>
 export default function TableOfSpecification() {
   const [exam, setExam] = useState<TosExam>(() => ({ ...TOS_EXAM_META }))
   const [sheets, setSheets] = useState<TosSheet[]>(freshSheets)
-  const [activeId, setActiveId] = useState(TOS_SHEETS[0].id)
-  const [showGuide, setShowGuide] = useState(false)
+  const [activeId] = useState(TOS_SHEETS[0].id)
 
   const sheet = useMemo(
     () => sheets.find((s) => s.id === activeId) ?? sheets[0],
     [sheets, activeId],
   )
 
-  const totals = useMemo(() => bloomTotals(sheet.topics), [sheet])
-  const share = useMemo(() => shares(sheet.topics, sheet.total), [sheet, sheet.topics])
-  const hours = useMemo(() => totalHours(sheet.topics), [sheet])
-  const placed = useMemo(() => placedTotal(sheet.topics), [sheet])
   const issues = useMemo(() => validateSheet(sheet, exam.totalHours), [sheet, exam.totalHours])
 
   const patchExam = useCallback((patch: Partial<TosExam>) => {
@@ -129,9 +114,6 @@ export default function TableOfSpecification() {
     [sheet.topics, replaceSheet],
   )
 
-  const unit = sheet.kind === 'points' ? 'points' : 'items'
-  const singular = sheet.kind === 'points' ? 'Point' : 'Item'
-
   return (
     <div className="syllabus-doc">
       {/* ---- exam header ---- */}
@@ -201,78 +183,6 @@ export default function TableOfSpecification() {
         </label>
       </div>
 
-      {/* ---- sheet tabs ---- */}
-      <div className="sd-tabs no-print">
-        {sheets.map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            className={`sd-tab ${s.id === sheet.id ? 'sd-tab--active' : ''}`}
-            onClick={() => setActiveId(s.id)}
-          >
-            {s.label}
-            <span className="sd-tab__count">{placedTotal(s.topics)}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* ---- live readouts ---- */}
-      <div className="tos-summary no-print">
-        <div className="tos-summary__stats">
-          <div className="tos-summary__stat">
-            <span className="tos-summary__label">Declared total</span>
-            <span className="tos-summary__value">{fmt(sheet.total)}</span>
-            <span className="tos-summary__sub">{unit} on this sheet</span>
-          </div>
-          <div className="tos-summary__stat">
-            <span className="tos-summary__label">Placed</span>
-            <span
-              className={`tos-summary__value${
-                Math.abs(placed - num(sheet.total)) > 0.001 ? ' tos-summary__value--off' : ''
-              }`}
-            >
-              {fmt(placed)}
-            </span>
-            <span className="tos-summary__sub">sum of all Bloom columns</span>
-          </div>
-          <div className="tos-summary__stat">
-            <span className="tos-summary__label">Hours</span>
-            <span className="tos-summary__value">{fmt(hours)}</span>
-            <span className="tos-summary__sub">exam declares {fmt(exam.totalHours)}</span>
-          </div>
-        </div>
-
-        <div className="tos-summary__bloom">
-          {BLOOM_LEVELS.map((level) => (
-            <div key={level} className="tos-bloom">
-              <span className="tos-bloom__name">{BLOOM_LABELS[level]}</span>
-              <span className="tos-bloom__count">{fmt(totals[level])}</span>
-              <span
-                className="tos-bloom__bar"
-                style={{ width: `${Math.min(100, share[level] * 100)}%` }}
-              />
-              <span className="tos-bloom__share">{pct(share[level])}</span>
-            </div>
-          ))}
-        </div>
-
-        {issues.length === 0 ? (
-          <p className="msg msg--success" role="status">
-            This sheet adds up and every topic matches its hour allotment.
-          </p>
-        ) : (
-          issues.map((issue) => (
-            <p
-              key={issue.code}
-              className={`msg msg--${issue.level === 'error' ? 'error' : 'info'}`}
-              role="status"
-            >
-              {issue.message}
-            </p>
-          ))
-        )}
-      </div>
-
       {/* ---- the blueprint ---- */}
       <TosSheetGrid
         exam={exam}
@@ -287,89 +197,6 @@ export default function TableOfSpecification() {
         onRemoveTopic={removeTopic}
         onMoveTopic={moveTopic}
       />
-
-      {/* ---- explainer ---- */}
-      <div className="panel tos-guide no-print">
-        <button
-          type="button"
-          className="tos-guide__toggle"
-          onClick={() => setShowGuide((v) => !v)}
-          aria-expanded={showGuide}
-        >
-          What is a Table of Specification?
-          <span className="tos-guide__chevron">{showGuide ? '−' : '+'}</span>
-        </button>
-
-        {showGuide && (
-          <div className="tos-guide__body">
-            <p>
-              A TOS is the exam&rsquo;s blueprint, built before any question is written. It
-              maps each syllabus topic to a cognitive level and a count, so the exam is a
-              fair sample of the course rather than a test of whichever chapter was
-              covered last.
-            </p>
-
-            <div className="sd-details__section">
-              <strong>Why some cells are green and some are gray</strong>
-              <p>
-                <strong>Green</strong> cells are the ones a person decides: topic names,
-                SLOs, hours, Bloom counts, the exam total. <strong>Gray</strong> cells hold
-                formulas and are not typed into. The <em>Number of {singular}</em> column is
-                gray because it is computed from the hours —
-                <code>(total {unit} &divide; total hours) &times; topic hours</code>, the
-                workbook&rsquo;s <code>=($C$19/$B$20)*B13</code>. The percentages in the header
-                are gray because they fall out of the column sums.
-              </p>
-            </div>
-
-            <div className="sd-details__section">
-              <strong>1. Weight follows hours</strong>
-              <p>
-                Items are distributed in proportion to the time each topic gets, so a topic
-                taught for twice as long earns twice as much of the exam. Change an hour
-                figure or the total and every gray weight in the column moves with it.
-              </p>
-            </div>
-
-            <div className="sd-details__section">
-              <strong>2. Bloom&rsquo;s Revised Taxonomy sets the difficulty mix</strong>
-              <p>
-                Every item sits at one of six cognitive levels. Spreading items across the
-                ladder stops a student from passing on memorization alone.
-              </p>
-              <ul className="tos-guide__list">
-                {BLOOM_LEVELS.map((level) => (
-                  <li key={level}>
-                    <strong>{BLOOM_LABELS[level]}</strong> &mdash;{' '}
-                    {BLOOM_DESCRIPTIONS[level]}
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="sd-details__section">
-              <strong>3. Three checks keep it honest</strong>
-              <ul className="tos-guide__list">
-                <li>
-                  <strong>The columns must add up.</strong> Every item across every Bloom
-                  column has to equal the declared total, or the exam is longer or shorter
-                  than advertised.
-                </li>
-                <li>
-                  <strong>The hours must match.</strong> Topic hours should sum to the
-                  course&rsquo;s declared hours.
-                </li>
-                <li>
-                  <strong>Placement must match weight.</strong> If a topic is weighted for
-                  2.5 items but places 3, the exam over-tests it relative to the time spent
-                  on it. Drifting rows are outlined in the grid.
-                </li>
-              </ul>
-              <p>All three run on every keystroke, so mistakes surface while the sheet is being built.</p>
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   )
 }
