@@ -24,6 +24,7 @@ import {
   fmt1,
   num,
   shares,
+  totalHours,
   weightedFor,
   type BloomLevel,
   type TosExam,
@@ -39,7 +40,6 @@ export interface TosSheetGridProps {
   issues: TosIssue[]
   /** False renders the document read-only for printing or review. */
   editable: boolean
-  onPatchExam: (patch: Partial<TosExam>) => void
   onPatchSheet: (patch: Partial<TosSheet>) => void
   onPatchTopic: (id: string, patch: { title?: string; slo?: string; hours?: number }) => void
   onSetBloom: (topicId: string, level: BloomLevel, value: string) => void
@@ -97,7 +97,6 @@ export default function TosSheetGrid({
   sheet,
   issues,
   editable,
-  onPatchExam,
   onPatchSheet,
   onPatchTopic,
   onSetBloom,
@@ -265,21 +264,8 @@ export default function TosSheetGrid({
 
           <tr className="tos-total">
             <th scope="row">Total Number of Hours</th>
-            <td className="tos-td--num">
-              {editable ? (
-                <Cell
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  label="Total hours for this exam"
-                  value={exam.totalHours}
-                  onChange={(v) => onPatchExam({ totalHours: num(v) })}
-                />
-              ) : (
-                fmt(exam.totalHours)
-              )}
-            </td>
-            <td className="tos-td--formula" />
+            {/* GRAY — the SUM of the hours column above, not an input. */}
+            <td className="tos-td--num tos-td--formula">{fmt(totalHours(sheet.topics))}</td>
             {BLOOM_LEVELS.map((level) => (
               <td key={level} className="tos-td--formula" />
             ))}

@@ -162,7 +162,6 @@ export default function TableOfSpecification() {
         sheet={sheet}
         issues={issues}
         editable
-        onPatchExam={patchExam}
         onPatchSheet={patchSheet}
         onPatchTopic={patchTopic}
         onSetBloom={setBloom}
