@@ -2876,10 +2876,6 @@ textarea.input {
    text with no hit target, while green cells render as borderless inputs that
    only reveal themselves on hover/focus. */
 
-.tos-sheet {
-  padding: 14px 16px;
-}
-
 .tos-sheet__meta {
   font-size: 12px;
   line-height: 1.5;
@@ -3111,12 +3107,17 @@ textarea.input {
     background: transparent !important;
   }
 
-  .tos-table {
-    font-size: 10pt;
+  /* The blueprint is a .panel in the app, but a card border and drop shadow
+     on paper just reads as a smudge around the table. */
+  .tos-sheet.panel {
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    background: #fff;
   }
 
-  .tos-sheet {
-    padding: 0;
+  .tos-table {
+    font-size: 10pt;
   }
 
   .tos-table thead th {

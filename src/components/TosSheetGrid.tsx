@@ -121,7 +121,7 @@ export default function TosSheetGrid({
   )
 
   return (
-    <div className="syllabus-doc__page tos-sheet">
+    <div className="panel tos-sheet">
       <div className="tos-sheet__meta">
         <div>
           <strong>Course Title:</strong> {exam.title}
