@@ -551,7 +551,7 @@ export default function SubjectView() {
             poNode = {
               id: poRec ? `po-${poRec.id}` : `po-missing-${tok}`,
               code: tok,
-              title: poRec ? (poRec.description || poRec.title || tok) : 'PO not found or archived',
+              title: poRec ? (poRec.title || poRec.description || tok) : 'PO not found or archived',
               kind: 'po',
               placeholder: !poRec,
               poId: poRec?.id,
@@ -631,7 +631,7 @@ export default function SubjectView() {
       const root: GraphNodeData = {
         id: `po-${poRec.id}`,
         code: poRec.code,
-        title: poRec.description || poRec.title || poRec.code,
+        title: poRec.title || poRec.description || poRec.code,
         kind: 'po',
         placeholder: false,
         poId: poRec.id,
@@ -700,7 +700,7 @@ export default function SubjectView() {
         const poNode: GraphNodeData = {
           id: `po-${po.id}`,
           code: po.code,
-          title: po.description || po.title || po.code,
+          title: po.title || po.description || po.code,
           kind: 'po',
           placeholder: false,
           poId: po.id,
@@ -1282,7 +1282,7 @@ export default function SubjectView() {
       return p ? `${p.code} — ${p.title}` : 'Unknown PEO'
     }
     const p = allPos.find((x) => x.id === entry.id)
-    return p ? `${p.code} — ${p.description || p.title}` : 'Unknown outcome'
+    return p ? `${p.code} — ${p.title || p.description}` : 'Unknown outcome'
   }
 
   const currentEntry: NavEntry | null =
@@ -1295,7 +1295,7 @@ export default function SubjectView() {
     ? (selectedCourse ? `${selectedCourse.code} — ${selectedCourse.title}` : '')
     : rootType === 'peo'
       ? (selectedPeo ? `${selectedPeo.code} — ${selectedPeo.title || selectedPeo.code}` : '')
-      : (selectedPo ? `${selectedPo.code} — ${selectedPo.description || selectedPo.title}` : '')
+      : (selectedPo ? `${selectedPo.code} — ${selectedPo.title || selectedPo.description}` : '')
   const graphHint = rootType === 'subject'
     ? 'Click a branch node to expand or collapse. Click a PO to view the graph from that PO. Click a pre-req or co-req to jump to that subject. Drag nodes to reposition. Scroll to zoom.'
     : rootType === 'peo'
@@ -1428,7 +1428,7 @@ export default function SubjectView() {
                     <>
                       <option value="">— Select a PO —</option>
                       {allPos.map((p) => (
-                        <option key={p.id} value={p.id}>{p.code} — {(p.description || p.title || '').slice(0, 60)}</option>
+                        <option key={p.id} value={p.id}>{p.code} — {p.title || p.description || p.code}</option>
                       ))}
                     </>
                   )}

@@ -18,7 +18,7 @@ interface ProgramOutcomeReportProps {
 }
 
 export default function ProgramOutcomeReport({ po, cmoLabel, clos }: ProgramOutcomeReportProps) {
-  const text = po.description || po.title
+  const text = po.title || po.description
   return (
     <div className="syllabus-doc__page">
       {/* Letterhead */}

@@ -64,7 +64,7 @@ export default function ProgramEducationalObjectiveReport({ peo, pos }: ProgramE
           )}
           {pos.map((p) => (
             <tr key={p.id}>
-              <td>{p.description || p.title || p.code}</td>
+              <td>{p.title || p.description || p.code}</td>
               <td>{p.code}</td>
             </tr>
           ))}
