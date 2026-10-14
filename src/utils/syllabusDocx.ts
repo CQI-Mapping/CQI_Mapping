@@ -37,6 +37,7 @@ import { SCHOOL, DOC_VISION, DOC_MISSION, poLabel, poListItem, goalLine } from '
 import type { PoGroup } from './report'
 import { uniqueResolvedRefs, courseCreditLabel, courseHoursSentence } from './courseCodes'
 import { saveBlob, reportFileName } from './download'
+import { LETTERHEAD_URL, LETTERHEAD_ASPECT, LETTERHEAD_WIDTH_RATIO, headerBandIn, pageWidthIn } from './letterhead'
 import type { ReportOrientation } from './syllabusPdf'
 
 const FONT = 'Arial'
@@ -44,17 +45,10 @@ const NAVY = '002060'
 const SZ = 20 // half-points -> 10pt, matching the source document
 const MARGIN_TWIP = convertInchesToTwip(0.5)
 
-// The signed syllabus carries the letterhead on *every* page, which in Word is
-// a real page header (word/header1.xml) rather than a paragraph in the body.
-// The body therefore needs a deeper top margin than the 0.5in side margins so
-// the ~1.3in header does not collide with the first row of content.
-const HEADER_DIST_TWIP = convertInchesToTwip(0.35)
-const TOP_MARGIN_TWIP = convertInchesToTwip(1.5)
+const HEADER_DIST_TWIP = convertInchesToTwip(0.14)
 
-// The letterhead PNG is 1712 x 192px. docx needs the aspect ratio up front to
-// size the ImageRun, so it is declared rather than probed. If that artwork is
-// ever replaced with different proportions, this constant must follow it.
-const LETTERHEAD_ASPECT = 1712 / 192
+// The letterhead PNG is 1712 x 192px; LETTERHEAD_ASPECT lives in
+// ./letterhead so the PDF stamper sizes its copy identically.
 
 export interface SyllabusDocxData {
   course: Course | null
@@ -101,7 +95,7 @@ const poLines = (v?: string | null) =>
 
 async function fetchLetterhead(): Promise<Uint8Array | null> {
   try {
-    const res = await fetch('/nbsc-letterhead.png')
+    const res = await fetch(LETTERHEAD_URL)
     if (!res.ok) return null
     return new Uint8Array(await res.arrayBuffer())
   } catch {
@@ -131,7 +125,8 @@ export async function downloadSyllabusDocx(
   const letterhead = await fetchLetterhead()
   const headerChildren: Paragraph[] = []
   if (letterhead) {
-    const widthPx = isLandscape ? 1152 : 720 // usable width at 96dpi
+    // Match the PDF: 61% of page width, per the measured official layout.
+    const widthPx = Math.round(pageWidthIn(orientation) * LETTERHEAD_WIDTH_RATIO * 96)
     headerChildren.push(
       new Paragraph({
         alignment: CENTER,
@@ -324,7 +319,10 @@ export async function downloadSyllabusDocx(
           page: {
             size: pageSize,
             margin: {
-              top: TOP_MARGIN_TWIP,
+              // The signed syllabus carries the letterhead on *every* page,
+              // which in Word is a real page header (word/header1.xml). The
+              // body therefore starts below a band sized for that artwork.
+              top: convertInchesToTwip(headerBandIn(pageWidthIn(orientation))),
               right: MARGIN_TWIP,
               bottom: MARGIN_TWIP,
               left: MARGIN_TWIP,

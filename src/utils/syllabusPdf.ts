@@ -1,26 +1,58 @@
-// PDF export for the Curriculum Report document (View.tsx).
+// PDF export for the Curriculum Report (View.tsx).
 //
-// html2pdf.js rasterises the report DOM through html2canvas and lays the
-// result out with jsPDF. Two constraints drive the implementation:
+// The pipeline is three stages:
 //
-// 1. It must lazy-load. html2pdf.js is ~750 KB and nothing else needs it, so
-//    it is pulled in on first click rather than shipped in the initial
-//    bundle — same convention as poSemantic.ts loading @xenova/transformers.
-// 2. It must snapshot `.syllabus-doc__page`, never `.syllabus-doc`. html2canvas
-//    renders with screen CSS and does NOT honour the `no-print` class (that is
-//    a @media print rule), so targeting the outer wrapper would bake the
-//    toolbar — subject dropdown, Edit and Print buttons — into the PDF.
-//    The inner page wrapper holds the document only.
+// 1. html2pdf rasterises the live DOM and lays it out with jsPDF. The letterhead
+//    is *hidden* during capture (via html2canvas's `onclone`, which edits the
+//    offscreen copy rather than the live page) so it is not baked in once at
+//    the top.
+// 2. jsPDF emits the document as bytes instead of saving it.
+// 3. pdf-lib stamps the letterhead artwork onto every page.
 //
-// Page breaks are approximate: html2canvas slices the canvas at CSS-break
-// boundaries, so the `avoid` selectors mirror the `break-inside: avoid` rules
-// the stylesheet already declares for print (index.css). Tables are the
-// elements that actually get cut through, so they are the ones to protect.
+// Splitting it this way is what makes a *repeating* header possible. html2pdf
+// has no page-header concept -- it slices one tall canvas into pages -- so
+// there is no option that would repeat the letterhead on its own.
+//
+// Stage 1's `margin[0]` is applied to every page, not just the first (see
+// html2pdf's context2d paging math: `j === 1 ? posY + margin[0] : margin[0]`).
+// That reserved band is exactly where stage 3 draws, so nothing collides.
+
+import { saveBlob, reportFileName } from './download'
+import {
+  LETTERHEAD_URL,
+  LETTERHEAD_ASPECT,
+  LETTERHEAD_WIDTH_RATIO,
+  LETTERHEAD_TOP_IN,
+  headerBandIn,
+  pageWidthIn,
+} from './letterhead'
 
 export type ReportOrientation = 'portrait' | 'landscape'
 
+const SIDE_MARGIN_IN = 0.5
+
+async function fetchLetterheadBytes(): Promise<Uint8Array | null> {
+  try {
+    const res = await fetch(LETTERHEAD_URL)
+    if (!res.ok) return null
+    return new Uint8Array(await res.arrayBuffer())
+  } catch {
+    // A missing letterhead degrades the PDF but must not fail the export.
+    return null
+  }
+}
+
+/** Pulls the raw bytes out of a jsPDF `datauristring` output. */
+function dataUriToBytes(dataUri: string): Uint8Array {
+  const base64 = dataUri.slice(dataUri.indexOf(',') + 1)
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return bytes
+}
+
 /**
- * Rasterises `root` and saves it as a PDF.
+ * Rasterises `root` and saves it as a PDF carrying the letterhead on every page.
  *
  * Throws if the element is missing or the library fails, so the caller can
  * surface it through the existing error message.
@@ -33,6 +65,7 @@ export async function downloadSyllabusPdf(
   if (!root) throw new Error('Nothing to download — the report is not ready yet.')
 
   const { default: html2pdf } = await import('html2pdf.js')
+  const bandIn = headerBandIn(pageWidthIn(orientation))
 
   // Built as a variable rather than passed inline: html2pdf.js 0.14.0's bundled
   // type declarations omit `pagebreak`, and TypeScript only runs excess-property
@@ -41,24 +74,27 @@ export async function downloadSyllabusPdf(
   // (augmenting this package's ambient `declare module` does not merge).
   const config = {
     filename,
-    // Margin is expressed in the jsPDF unit below — inches here, not mm. A
-    // leftover mm value would become a 10in margin on a 13in-wide page.
-    margin: 0.5,
+    // [top, right, bottom, left] in inches. Tuple-typed for the option's
+    // 4-number overload; the top value reserves the header band on every page
+    // -- see the note at the top of this file.
+    margin: [bandIn, SIDE_MARGIN_IN, SIDE_MARGIN_IN, SIDE_MARGIN_IN] as [number, number, number, number],
     image: { type: 'jpeg' as const, quality: 0.98 },
     html2canvas: {
       scale: 2,
-      // The letterhead is a same-origin asset served from /public. `logging`
-      // stays false so a 404 on it degrades to a blank slot rather than
-      // aborting the export.
       useCORS: true,
       backgroundColor: '#ffffff',
       logging: false,
+      // Hide the letterhead in the cloned DOM only; the live page is untouched
+      // so the button causes no visible flicker.
+      onclone: (clonedDoc: Document) => {
+        clonedDoc.querySelectorAll('.sd-letterhead').forEach((el) => {
+          ;(el as HTMLElement).style.display = 'none'
+        })
+      },
     },
     // Paper matches the official signed syllabus: 8.5 x 13in. Both readings of
-    // the `format` array measure the same for a given orientation — jsPDF
-    // normalises the pair rather than blindly swapping it — so the array is
-    // constant and only the flag changes. Landscape (the document default) is
-    // what the Vision/Mission/Goals/PEO and Curriculum Mapping tables need.
+    // the `format` array measure the same for a given orientation -- jsPDF
+    // normalises the pair rather than blindly swapping it.
     jsPDF: {
       unit: 'in' as const,
       format: [8.5, 13] as [number, number],
@@ -66,9 +102,43 @@ export async function downloadSyllabusPdf(
     },
     pagebreak: {
       mode: ['css', 'legacy'],
-      avoid: ['.sd-table', '.sd-po-sections', '.sd-mapping', '.panel', '.sd-letterhead'],
+      avoid: ['.sd-table', '.sd-po-sections', '.sd-mapping', '.panel'],
     },
   }
 
-  await html2pdf().set(config).from(root).save()
+  // `toPdf()` + `outputPdf` produce the bytes instead of triggering a download.
+  const dataUri = await html2pdf().set(config).from(root).toPdf().outputPdf('datauristring')
+
+  let bytes = dataUriToBytes(dataUri)
+
+  const letterhead = await fetchLetterheadBytes()
+  if (letterhead) {
+    try {
+      // Dynamic, like html2pdf above: a static import here put ~960kB of
+      // pdf-lib into the main chunk and charged every page load for it.
+      const { PDFDocument } = await import('pdf-lib')
+      const doc = await PDFDocument.load(bytes)
+      const image = await doc.embedPng(letterhead)
+      const aspect = LETTERHEAD_ASPECT
+      for (const page of doc.getPages()) {
+        const { width, height } = page.getSize()
+        const w = width * LETTERHEAD_WIDTH_RATIO
+        const h = w / aspect
+        page.drawImage(image, {
+          x: (width - w) / 2,
+          y: height - h - LETTERHEAD_TOP_IN * 72,
+          width: w,
+          height: h,
+        })
+      }
+      bytes = await doc.save()
+    } catch {
+      // If stamping fails for any reason, fall back to the unstamped PDF
+      // rather than producing nothing at all.
+    }
+  }
+
+  // `.buffer` rather than the view itself: BlobPart wants an ArrayBuffer, and
+  // the Uint8Array that comes back from pdf-lib is typed ArrayBufferLike.
+  saveBlob(new Blob([bytes.slice().buffer], { type: 'application/pdf' }), filename)
 }

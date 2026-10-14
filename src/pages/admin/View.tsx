@@ -36,7 +36,6 @@ import type { EditableItem, EditableKind, EditState } from '../../utils/report'
 import SyllabusReport from '../../components/SyllabusReport'
 import Icon from '../../components/icons'
 import { downloadSyllabusPdf } from '../../utils/syllabusPdf'
-import { downloadSyllabusDocx } from '../../utils/syllabusDocx'
 import { reportFileName } from '../../utils/download'
 import type { ReportOrientation } from '../../utils/syllabusPdf'
 
@@ -185,6 +184,9 @@ function View({ userEmail }: ViewProps) {
           dlOrientation,
         )
       } else {
+        // Lazy: docx is ~450kB and only needed on the Word path. Importing it
+        // statically put it in the main chunk for every visitor.
+        const { downloadSyllabusDocx } = await import('../../utils/syllabusDocx')
         await downloadSyllabusDocx(
           {
             course: selectedCourse,
