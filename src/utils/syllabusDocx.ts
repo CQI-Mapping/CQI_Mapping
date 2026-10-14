@@ -14,6 +14,7 @@ import {
   AlignmentType,
   BorderStyle,
   Document,
+  Header,
   ImageRun,
   Packer,
   PageOrientation,
@@ -42,6 +43,13 @@ const FONT = 'Arial'
 const NAVY = '002060'
 const SZ = 20 // half-points -> 10pt, matching the source document
 const MARGIN_TWIP = convertInchesToTwip(0.5)
+
+// The signed syllabus carries the letterhead on *every* page, which in Word is
+// a real page header (word/header1.xml) rather than a paragraph in the body.
+// The body therefore needs a deeper top margin than the 0.5in side margins so
+// the ~1.3in header does not collide with the first row of content.
+const HEADER_DIST_TWIP = convertInchesToTwip(0.35)
+const TOP_MARGIN_TWIP = convertInchesToTwip(1.5)
 
 // The letterhead PNG is 1712 x 192px. docx needs the aspect ratio up front to
 // size the ImageRun, so it is declared rather than probed. If that artwork is
@@ -119,14 +127,14 @@ export async function downloadSyllabusDocx(
 
   const children: (Paragraph | Table)[] = []
 
-  // ---- Letterhead -------------------------------------------------------
+  // ---- Letterhead (repeats on every page, as in the signed syllabus) ------
   const letterhead = await fetchLetterhead()
+  const headerChildren: Paragraph[] = []
   if (letterhead) {
     const widthPx = isLandscape ? 1152 : 720 // usable width at 96dpi
-    children.push(
+    headerChildren.push(
       new Paragraph({
         alignment: CENTER,
-        spacing: { after: 120 },
         children: [
           new ImageRun({
             type: 'png',
@@ -315,9 +323,19 @@ export async function downloadSyllabusDocx(
         properties: {
           page: {
             size: pageSize,
-            margin: { top: MARGIN_TWIP, right: MARGIN_TWIP, bottom: MARGIN_TWIP, left: MARGIN_TWIP },
+            margin: {
+              top: TOP_MARGIN_TWIP,
+              right: MARGIN_TWIP,
+              bottom: MARGIN_TWIP,
+              left: MARGIN_TWIP,
+              header: HEADER_DIST_TWIP,
+            },
           },
         },
+        // Word repeats this on every page, matching the signed syllabus.
+        // Only the first page shows a different header if `titlePage` were set,
+        // which it is not — every page carries the letterhead.
+        ...(headerChildren.length ? { headers: { default: new Header({ children: headerChildren }) } } : {}),
         children,
       },
     ],
