@@ -35,16 +35,14 @@ const pct = (n: number) => `${Math.round(n * 1000) / 10}%`
 
 /**
  * The block that sits above the grid and identifies the blueprint, in the
- * order the faculty workbook puts it: course, term, the title line, the Bloom
- * note, then the coverage. Read-only -- it is the document, not a form.
+ * order the faculty workbook puts it: course, term, then the title line and the
+ * Bloom note. Read-only -- it is the document, not a form.
  */
 export interface TosDocHeader {
   courseTitle: string
   term: string
   /** "Table of Specification for Prelim: Multiple Choice Type" */
   title: string
-  /** The coverage sentence, already prefixed with "Topic:". */
-  topic: string
 }
 
 export interface TosSheetGridProps {
@@ -148,7 +146,6 @@ export default function TosSheetGrid({
           {header.term && <p className="tos-doc__line">{header.term}</p>}
           <p className="tos-doc__line tos-doc__title">{header.title}</p>
           <p className="tos-doc__line tos-doc__blooms">Blooms Revised Taxonomy</p>
-          {header.topic && <p className="tos-doc__line tos-doc__topic">{header.topic}</p>}
         </div>
 
         <table className="tos-table">

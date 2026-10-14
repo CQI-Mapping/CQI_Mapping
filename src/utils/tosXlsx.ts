@@ -166,7 +166,6 @@ const kindSuffix = sheet.kind === 'items' ? ': Multiple Choice Type' : ''
 const examPart = exam.examType.trim() ? ` for ${exam.examType.trim()}` : ''
 put(8, 1, `Table of Specification${examPart}${kindSuffix}`)
   put(9, 1, 'Blooms Revised Taxonomy')
-  if (exam.coverage) put(10, 1, `Topic: ${exam.coverage}`)
 
   // ---- headings (rows 11 and 12 are merged for the first three columns) ----
   put(11, 1, 'Topic with SLO')

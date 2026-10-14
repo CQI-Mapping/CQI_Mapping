@@ -82,9 +82,8 @@ const exam: TosExam = {
   code: 'BSCS - Computer Science',
   title: 'IT21 - Object Oriented Programming',
   examType: 'Prelim',
-  term: '1st Semester, 2026-2027',
-  coverage: 'Java Fundamentals, Data Types, Operators',
-  preparedBy: 'KENN MIGAN VINCENT C. GUMONAN',
+  term: '1st Semester, 20027',
+  preparedBy: '',
   totalHours: 8,
 }
 
@@ -228,11 +227,15 @@ describe('the exported header', () => {
   it('fills the letterhead and identity rows from the exam', () => {
     const { cells } = buildSheetSpec(exam, mc)
     expect(val(cells, 'A6')).toBe('Course Title: IT21 - Object Oriented Programming')
-    expect(val(cells, 'A7')).toBe('1st Semester, 2026-2027')
-    expect(val(cells, 'A10')).toBe(
-      'Topic: Java Fundamentals, Data Types, Operators',
-    )
-    expect(val(cells, 'A27')).toBe('KENN MIGAN VINCENT C. GUMONAN')
+    expect(val(cells, 'A7')).toBe(exam.term)
+    // put() skips empty values, so an unset signature is no cell at all.
+    expect(at(cells, 'A27')?.v ?? '').toBe(exam.preparedBy)
+  })
+
+  it('leaves row 10 empty now that coverage has no field', () => {
+    // The workbook's A10 is "Topic: ...". Nothing sets it any more, so the
+    // exporter must not leave a stale one behind.
+    expect(at(buildSheetSpec(exam, mc).cells, 'A10')).toBeUndefined()
   })
 
   it('writes topic rows with the SLO on its own line, as the workbook does', () => {

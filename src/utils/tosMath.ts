@@ -96,7 +96,6 @@ export interface TosExam {
    */
   examType: string
   term: string
-  coverage: string
   preparedBy: string
   totalHours: number
 }

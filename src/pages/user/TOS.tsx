@@ -149,7 +149,6 @@ export default function TOS() {
     // title line reads "Table of Specification for Prelim" and needs it.
     examType: 'Prelim',
     term: '',
-    coverage: '',
     preparedBy: '',
     totalHours: 8,
   }))
@@ -256,7 +255,6 @@ export default function TOS() {
       title: row.title,
       examType: row.exam_type,
       term: row.term,
-      coverage: row.coverage ?? '',
       preparedBy: row.prepared_by ?? '',
       totalHours: num(row.total_hours),
     })
@@ -401,7 +399,6 @@ export default function TOS() {
               code: next.code,
               title: next.title,
               term: next.term,
-              coverage: next.coverage,
               prepared_by: next.preparedBy,
               total_hours: num(next.totalHours),
             })
@@ -730,7 +727,6 @@ export default function TOS() {
           title: `Table of Specification${exam.examType.trim() ? ` for ${exam.examType.trim()}` : ''}${
             sheet.kind === 'items' ? ': Multiple Choice Type' : ''
           }`,
-          topic: exam.coverage ? `Topic: ${exam.coverage}` : '',
         }}
         issues={issues}
         editable={ready && !creatingKind}
