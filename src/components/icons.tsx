@@ -14,6 +14,7 @@ export type IconName =
   | 'grid'
   | 'plus'
   | 'x'
+  | 'download'
 
 const PATHS: Record<IconName, React.ReactNode> = {
   edit: <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />,
@@ -72,6 +73,13 @@ const PATHS: Record<IconName, React.ReactNode> = {
     <>
       <path d="M18 6 6 18" />
       <path d="m6 6 12 12" />
+    </>
+  ),
+  download: (
+    <>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" x2="12" y1="15" y2="3" />
     </>
   ),
 }

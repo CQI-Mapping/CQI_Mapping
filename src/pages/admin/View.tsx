@@ -10,7 +10,7 @@
 // (they are school branding, not input data). Records support inline editing
 // and archiving directly on this page via the "Edit" toggle.
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   fetchStrategicGoals,
   fetchProgramEducationalObjectives,
@@ -34,6 +34,8 @@ import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
 import { isActive, buildGroups, splitReportPos, poNumber } from '../../utils/report'
 import type { EditableItem, EditableKind, EditState } from '../../utils/report'
 import SyllabusReport from '../../components/SyllabusReport'
+import Icon from '../../components/icons'
+import { downloadSyllabusPdf, pdfFileSlug } from '../../utils/syllabusPdf'
 
 interface ViewProps {
   userEmail: string
@@ -54,6 +56,11 @@ function View({ userEmail }: ViewProps) {
   const [editMode, setEditMode] = useState(false)
   const [edit, setEdit] = useState<EditState | null>(null)
   const [busy, setBusy] = useState(false)
+  const [downloading, setDownloading] = useState(false)
+
+  // Snapshot target for the PDF export: the document root, not the outer
+  // wrapper (which holds the toolbar html2canvas would otherwise capture).
+  const reportRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -134,6 +141,30 @@ function View({ userEmail }: ViewProps) {
       setError('Could not change status. If this keeps happening, the status column is missing — run the archive migration SQL in the Supabase SQL Editor (see supabase-schema.sql).')
     } finally {
       setBusy(false)
+    }
+  }
+
+  // Save the report as a PDF file. Snapshotting takes a moment (the whole
+  // document is rasterised), so the button shows a working state meanwhile.
+  const downloadPdf = async () => {
+    if (!reportRef.current) return
+    setDownloading(true)
+    setError(null)
+    setNotice(null)
+    try {
+      await downloadSyllabusPdf(
+        reportRef.current,
+        pdfFileSlug(selectedCourse?.code ?? 'report'),
+      )
+      setNotice('PDF downloaded.')
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? `Could not create the PDF: ${e.message}`
+          : 'Could not create the PDF. Try the Print button instead.',
+      )
+    } finally {
+      setDownloading(false)
     }
   }
 
@@ -251,8 +282,20 @@ function View({ userEmail }: ViewProps) {
           >
             {editMode ? 'Done' : 'Edit'}
           </button>
-          <button className="btn btn--primary btn--sm" onClick={() => window.print()}>
-            Print / Save PDF
+          <button
+            className="btn btn--ghost btn--sm"
+            onClick={() => window.print()}
+          >
+            Print
+          </button>
+          <button
+            className="btn btn--primary btn--sm"
+            onClick={downloadPdf}
+            disabled={downloading || loading}
+            title="Save the report as a PDF file"
+          >
+            <Icon name="download" />
+            {downloading ? 'Preparing...' : 'Download PDF'}
           </button>
         </div>
       </div>
@@ -266,6 +309,7 @@ function View({ userEmail }: ViewProps) {
         <p>Loading curriculum map...</p>
       ) : (
         <SyllabusReport
+          rootRef={reportRef}
           course={selectedCourse}
           courses={courses}
           goals={visibleGoals}

@@ -7,7 +7,7 @@
 // inline-edit controls are optional: pass `editMode` + `rowActions` +
 // `editableListRow` + `onEditChange` (View.tsx does) for the admin editing
 // experience, or omit them for a read-only copy (SubjectView does).
-import type { ReactNode } from 'react'
+import type { ReactNode, Ref } from 'react'
 import type {
   Course,
   CourseLearningOutcomeStandalone,
@@ -34,6 +34,13 @@ interface SyllabusReportProps {
   /** Active CLOs belonging to `course`. */
   subjectClos: CourseLearningOutcomeStandalone[]
 
+  /**
+   * Points at the document root — the element the PDF export snapshots.
+   * The toolbar lives outside this node, so the exported file carries the
+   * document only. See utils/syllabusPdf.ts.
+   */
+  rootRef?: Ref<HTMLDivElement>
+
   // ── Optional inline-editing hooks (admin only) ────────────────────────────
   editMode?: boolean
   edit?: EditState | null
@@ -56,6 +63,7 @@ export default function SyllabusReport({
   adminGroups,
   managerGroups,
   subjectClos,
+  rootRef,
   editMode,
   edit,
   busy,
@@ -76,7 +84,7 @@ export default function SyllabusReport({
     ))
 
   return (
-    <div className="syllabus-doc__page">
+    <div className="syllabus-doc__page" ref={rootRef}>
       {/* Letterhead */}
       <header className="sd-letterhead">
         <img className="sd-letterhead__img" src="/nbsc-letterhead.jpg" alt="Northern Bukidnon State College" />
