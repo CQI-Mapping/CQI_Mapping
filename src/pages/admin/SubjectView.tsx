@@ -367,7 +367,7 @@ export default function SubjectView() {
 
   // ── Load + cache outcome datasets ──────────────────────────────────────────
   // Called on mount (silently) so the About card can show the full CLO list
-  // without waiting for View Graph, and again on View / Refresh.
+  // without waiting for Visualization, and again on View / Refresh.
   const loadDatasets = async (force = false, silent = false) => {
     if (datasets && !force) return
     if (!silent) setSpinner(true)
@@ -401,7 +401,7 @@ export default function SubjectView() {
 
   // Prefetch once on mount (guarded so StrictMode's double-invoke doesn't fire
   // two rounds of queries). Without this the About card's CLO list stays empty
-  // until the user presses View Graph.
+  // until the user presses Visualization.
   const prefetched = useRef(false)
   useEffect(() => {
     if (prefetched.current) return
@@ -1380,7 +1380,7 @@ export default function SubjectView() {
   // *exact* Curriculum Report document for a subject, through the shared
   // SyllabusReport component (the same one View.tsx renders), reusing the
   // report page's chrome. A PO or a PEO gets only the card.
-  // `datasets` is prefetched on mount, so it is ready before View Graph.
+  // `datasets` is prefetched on mount, so it is ready before Visualization.
   const subjectDetails = (() => {
     if (!datasets || !selectedCourse || rootType !== 'subject') return null
     return (
@@ -1566,7 +1566,7 @@ export default function SubjectView() {
             className="btn btn--sm subject-view__view-btn"
             disabled={(rootType === 'subject' ? !selectedCourse : rootType === 'po' ? !selectedPoId : !selectedPeoId) || loading || spinner}
             onClick={handleView}>
-            {spinner ? 'Loading…' : 'View Graph'}
+            {spinner ? 'Loading…' : 'Visualization'}
           </button>
         </div>
 
@@ -1586,8 +1586,8 @@ export default function SubjectView() {
                     <path d="M8 7l2.5 9M16 7l-3.5 9M6 6h12" />
                   </svg>
                 </div>
-                <h4>Outcome map for a subject, PO, or PEO</h4>
-                <p>Choose <strong>Subject</strong>, <strong>PO</strong>, or <strong>PEO</strong> on the left, pick a code, then press <strong>View Graph</strong>. Clicking a PO or PEO re-roots the visualization at that outcome; clicking a subject jumps back to that subject.</p>
+                <h4>Visualization for a subject, PO, or PEO</h4>
+                <p>Choose <strong>Subject</strong>, <strong>PO</strong>, or <strong>PEO</strong> on the left, pick a code, then press <strong>Visualization</strong>. Clicking a PO or PEO re-roots the visualization at that outcome; clicking a subject jumps back to that subject.</p>
               </div>
             </div>
           ) : graphError ? (
@@ -1599,7 +1599,7 @@ export default function SubjectView() {
             </div>
           ) : (rootType === 'subject' && !selectedCourse) || (rootType === 'po' && !selectedPo) || (rootType === 'peo' && !selectedPeo) ? (
             <div className="subject-view__placeholder">
-              <p>{rootType === 'subject' ? 'Select a subject on the left, then press View.' : rootType === 'po' ? 'Select a PO on the left, then press View.' : 'Select a PEO on the left, then press View.'}</p>
+              <p>{rootType === 'subject' ? 'Select a subject on the left, then press Visualization.' : rootType === 'po' ? 'Select a PO on the left, then press Visualization.' : 'Select a PEO on the left, then press Visualization.'}</p>
             </div>
           ) : (
             <div className="subject-view__graph-area">
