@@ -54,6 +54,39 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
   })
 }
 
+export interface AvoidRange {
+  top: number
+  bottom: number
+}
+
+/**
+ * Where the page starting at `y` should end, in canvas pixels.
+ *
+ * The nominal boundary is a full page down. If it would land inside an
+ * un-splittable block, the page ends *early* at that block's top -- the page
+ * cannot be made taller than the paper, only shorter. Blocks taller than a page
+ * cannot be satisfied at all, so they are ignored and cut like anything else.
+ *
+ * `avoid` must be sorted by `top` ascending.
+ */
+export function nextPageEnd(
+  y: number,
+  bodyPagePx: number,
+  sheetHeight: number,
+  avoid: AvoidRange[],
+): number {
+  let end = Math.min(y + bodyPagePx, sheetHeight)
+  for (const range of avoid) {
+    if (range.top >= end) break // sorted: nothing later can straddle
+    // Straddles the break, fits on a page of its own, and starts below the
+    // top of this one -- so end the page just before it.
+    if (range.bottom > end && range.top > y && range.bottom - range.top <= bodyPagePx) {
+      end = range.top
+    }
+  }
+  return end
+}
+
 /** jsPDF needs a data URL; the header is a PNG so it is re-encoded losslessly. */
 function imageToDataUrl(img: HTMLImageElement): string {
   const c = document.createElement('canvas')
@@ -63,6 +96,29 @@ function imageToDataUrl(img: HTMLImageElement): string {
   if (!ctx) throw new Error('Could not prepare the letterhead image.')
   ctx.drawImage(img, 0, 0)
   return c.toDataURL('image/png')
+}
+
+// Selectors for content that should not straddle a page break. Rows matter most:
+// a Program Outcomes group is one `<tr>`, and splitting it reads as a defect.
+const AVOID_SELECTORS = ['tr', '.sd-mapping', '.panel']
+
+/**
+ * Pixel ranges, in the rasterised sheet's coordinates, that must not be cut.
+ *
+ * Must be called with `el` already laid out in the document. `SCALE` matches
+ * the html2canvas option so the measurements line up with the canvas.
+ */
+function measureAvoidRanges(el: HTMLElement): AvoidRange[] {
+  const originTop = el.getBoundingClientRect().top
+  const ranges: AvoidRange[] = []
+  for (const selector of AVOID_SELECTORS) {
+    el.querySelectorAll(selector).forEach((node) => {
+      const r = node.getBoundingClientRect()
+      if (r.height <= 0) return
+      ranges.push({ top: (r.top - originTop) * SCALE, bottom: (r.bottom - originTop) * SCALE })
+    })
+  }
+  return ranges.sort((a, b) => a.top - b.top)
 }
 
 /**
@@ -105,6 +161,14 @@ export async function downloadSyllabusPdf(
   host.appendChild(clone)
   document.body.appendChild(host)
 
+  // Blocks that must not be split across a page boundary. html2pdf honoured a
+  // `pagebreak.avoid` list; this slicer does not, so the boundaries have to be
+  // nudged past these instead. `<tr>` is the important one -- without it a
+  // Program Outcomes group gets cut in half, stranding "6. Analyze complex
+  // problems..." at the foot of one page and "7. Apply computing..." on the
+  // next. Tables taller than a page fall back to the plain interval below.
+  const avoidRanges = measureAvoidRanges(clone)
+
   try {
     const sheet = await html2canvas(host, {
       scale: SCALE,
@@ -133,14 +197,22 @@ export async function downloadSyllabusPdf(
     })
 
     const headerUrl = letterhead ? imageToDataUrl(letterhead) : null
-    const pageCount = Math.max(1, Math.ceil(sheet.height / bodyHPx))
-    for (let i = 0; i < pageCount; i++) {
-      if (i > 0) pdf.addPage([Math.min(pageW, pageH), Math.max(pageW, pageH)], orientation)
 
+    // Walk the sheet one page at a time. The nominal boundary is `y + bodyHPx`,
+    // but if it would land inside an un-splittable block the boundary moves down
+    // to that block's end, leaving the page short rather than cutting a row in
+    // half. A block taller than a page is unsatisfiable, so the plain interval
+    // is kept and it is cut anyway.
+    let y = 0
+    let page = 0
+    let end = 0
+    for (; y < sheet.height; y = end, page++) {
+      end = nextPageEnd(y, bodyHPx, sheet.height, avoidRanges)
+
+      if (page > 0) pdf.addPage([Math.min(pageW, pageH), Math.max(pageW, pageH)], orientation)
       if (headerUrl) pdf.addImage(headerUrl, 'PNG', headerX, LETTERHEAD_TOP_IN, headerW, headerH)
 
-      const sy = i * bodyHPx
-      const sh = Math.min(bodyHPx, sheet.height - sy)
+      const sh = end - y
       if (sh <= 0) continue
 
       // The final slice is often shorter than a full page; scale it by its own
@@ -150,7 +222,7 @@ export async function downloadSyllabusPdf(
       slice.height = sh
       const ctx = slice.getContext('2d')
       if (!ctx) throw new Error('Could not prepare the PDF canvas.')
-      ctx.drawImage(sheet, 0, sy, sheet.width, sh, 0, 0, sheet.width, sh)
+      ctx.drawImage(sheet, 0, y, sheet.width, sh, 0, 0, sheet.width, sh)
 
       // Starts below the reserved header band, not at the side margin, so the
       // body never runs up into the letterhead.
