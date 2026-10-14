@@ -58,8 +58,14 @@ const SHEET_KINDS: { kind: SheetKind; label: string }[] = [
   { kind: 'points', label: 'Performance-based' },
 ]
 
-/** The terms a blueprint can be filed under. */
-const TERMS = ['Sem 1', 'Sem 2']
+/**
+ * The terms a blueprint can be filed under. Both semesters carry the same
+ * academic year -- the usual Aug-July calendar puts 1st Sem in Aug-Dec 2026 and
+ * 2nd Sem in Jan-May 2027, so they share 2026-2027. Spelled out in full because
+ * this string is what the exported workbook prints.
+ */
+const SCHOOL_YEAR = '2026-2027'
+const TERMS = [`1st Semester, ${SCHOOL_YEAR}`, `2nd Semester, ${SCHOOL_YEAR}`]
 
 /** A blank exam: identity left for the user, one empty blueprint sheet. */
 const blankSheet = (): TosSheet => ({
