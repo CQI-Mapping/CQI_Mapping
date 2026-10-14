@@ -30,12 +30,14 @@ import {
 import {
   createTosExam,
   createTosSheet,
+  fetchPrograms,
   fetchTosExams,
   fetchTosSheets,
   fetchTosTopics,
   replaceTosTopics,
   updateTosExam,
   updateTosSheet,
+  type Program,
   type TosExamRow,
 } from '../../services/database'
 import { supabase } from '../../utils/supabaseClient'
@@ -51,6 +53,13 @@ const blankSheet = (): TosSheet => ({
   note: '',
   topics: [],
 })
+
+/**
+ * The printed TOS header shows the program, so the picker stores and displays
+ * both halves -- "BSCS - Bachelor of Science in Computer Science". One string
+ * keeps tos_exams.code self-contained: no extra column, no lookup on print.
+ */
+const programLabel = (p: Program): string => `${p.code} - ${p.name}`
 
 /**
  * PostgREST puts the actionable part of a failure in `hint` and its class in
@@ -89,6 +98,7 @@ export default function TOS() {
     totalHours: 8,
   }))
   const [sheet, setSheet] = useState<TosSheet>(blankSheet)
+  const [programs, setPrograms] = useState<Program[]>([])
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -202,6 +212,39 @@ export default function TOS() {
   // Only one exam is on screen. The schema still stores many per user --
   // fetchTosExams() orders by updated_at and the page opens the first -- so
   // nothing is lost by not offering a picker yet.
+
+  // ---- program picker options ------------------------------------------
+
+  // The program list is auxiliary: the blueprint is fully usable without it, so
+  // a failed read degrades to an empty dropdown instead of locking the page the
+  // way a failed exam load does. Only active programs are offered.
+  useEffect(() => {
+    let cancelled = false
+    fetchPrograms()
+      .then((rows) => {
+        if (!cancelled) setPrograms(rows.filter((p) => p.status === 'active'))
+      })
+      .catch(() => {
+        if (!cancelled) setPrograms([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  /**
+   * A stored code that matches no listed program -- the program was archived or
+   * deleted, or the value was typed before this picker existed -- is kept as its
+   * own option. Without it the <select> would fall back to the placeholder and
+   * the next unrelated edit would overwrite the saved program.
+   */
+  const programOptions = useMemo(() => {
+    const options = programs.map((p) => ({ id: p.id, value: programLabel(p) }))
+    if (exam.code && !options.some((o) => o.value === exam.code)) {
+      options.unshift({ id: 'unlisted', value: exam.code })
+    }
+    return options
+  }, [programs, exam.code])
 
   // ---- debounced writes -----------------------------------------------
 
@@ -340,13 +383,21 @@ export default function TOS() {
         <div className="tos-field-grid">
           <label className="field">
             <span>Program</span>
-            <input
+            <select
               className="input input--sm"
               value={exam.code}
-              placeholder="- type Course -"
-              disabled={!ready}
+              disabled={!ready || programs.length === 0}
               onChange={(e) => patchExam({ code: e.target.value })}
-            />
+            >
+              <option value="">
+                {programs.length === 0 ? 'No programs available' : '- select program -'}
+              </option>
+              {programOptions.map((o) => (
+                <option key={o.id} value={o.value}>
+                  {o.value}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="field">
             <span>Course title</span>
