@@ -47,7 +47,7 @@ import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
 import { splitReportPos, buildGroups, cmoLabel, isManagerCmCategory } from '../../utils/report'
 import SyllabusReport from '../../components/SyllabusReport'
 import ProgramOutcomeReport from '../../components/ProgramOutcomeReport'
-import ProgramEducationalObjectiveReport from '../../components/ProgramEducationalObjectiveReport'
+import PeoDetailsCard from '../../components/PeoDetailsCard'
 
 type NodeKind =
   | 'curriculum'
@@ -1301,12 +1301,12 @@ export default function SubjectView() {
       ? 'Click a branch node to expand or collapse. Click a PO to view the graph from that PO. Click a PEO to switch PEO root. Drag nodes to reposition. Scroll to zoom.'
       : 'Click a branch node to expand or collapse. Click a subject to view the graph from that subject. Click a PO to switch PO root. Drag nodes to reposition. Scroll to zoom.'
 
-  // The About card renders the *exact* Curriculum Report document — for a
+  // The About area renders the *exact* Curriculum Report document — for a
   // subject through the shared SyllabusReport component (the same one View.tsx
-  // renders), for a PO through ProgramOutcomeReport, and for a PEO through
-  // ProgramEducationalObjectiveReport; both reuse the report page's chrome.
-  // `datasets` is prefetched on mount, so the card is ready before the user
-  // presses View Graph.
+  // renders) and for a PO through ProgramOutcomeReport; both reuse the report
+  // page's chrome. A PEO gets only a compact connected-details card, not a
+  // full report document. `datasets` is prefetched on mount, so the card is
+  // ready before the user presses View Graph.
   const subjectReport = (() => {
     if (!datasets || !selectedCourse || rootType !== 'subject') return null
     const { adminPos, managerPos } = splitReportPos(datasets.pos)
@@ -1338,7 +1338,7 @@ export default function SubjectView() {
     )
   })()
 
-  const peoReport = (() => {
+  const peoDetails = (() => {
     if (!datasets || !selectedPeo || rootType !== 'peo') return null
     const key = normalizeCode(selectedPeo.code)
     const linked = managerOnlyPos.filter((p) => {
@@ -1348,9 +1348,7 @@ export default function SubjectView() {
         ? extractCodes(p.peo_text, 'PEO').map(normalizeCode).includes(key)
         : false
     })
-    return (
-      <ProgramEducationalObjectiveReport peo={selectedPeo} pos={sortPos(linked)} />
-    )
+    return <PeoDetailsCard peo={selectedPeo} pos={sortPos(linked)} />
   })()
 
   if (loading) return <p role="status">Loading subjects...</p>
@@ -1583,10 +1581,10 @@ export default function SubjectView() {
         </div>
       </div>
 
-      {/* Below Program + Visualization — full-width. Every root renders the
-          Curriculum Report document itself (no extra card frame): a course
-          syllabus for a subject, a program-outcome page for a PO, and a
-          program-educational-objective page for a PEO. */}
+      {/* Below Program + Visualization — full-width. A subject renders the
+          Curriculum Report document itself (no extra card frame), as does a PO
+          (program-outcome page). A PEO renders only the compact
+          connected-details card, never the full report document. */}
       {rootType === 'subject' && selectedCourse ? (
         <div className="subject-view__about" style={{ marginTop: 16 }}>
           {subjectReport ?? (
@@ -1605,9 +1603,9 @@ export default function SubjectView() {
         </div>
       ) : rootType === 'peo' && selectedPeo ? (
         <div className="subject-view__about" style={{ marginTop: 16 }}>
-          {peoReport ?? (
+          {peoDetails ?? (
             <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
-              Loading the PEO report…
+              Loading the PEO details…
             </p>
           )}
         </div>
