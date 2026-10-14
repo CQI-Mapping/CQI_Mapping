@@ -30,6 +30,7 @@ import {
 import {
   createTosExam,
   createTosSheet,
+  fetchCourses,
   fetchPrograms,
   fetchTosExams,
   fetchTosSheets,
@@ -37,6 +38,7 @@ import {
   replaceTosTopics,
   updateTosExam,
   updateTosSheet,
+  type Course,
   type Program,
   type TosExamRow,
 } from '../../services/database'
@@ -60,6 +62,19 @@ const blankSheet = (): TosSheet => ({
  * keeps tos_exams.code self-contained: no extra column, no lookup on print.
  */
 const programLabel = (p: Program): string => `${p.code} - ${p.name}`
+
+/** The course header follows the same shape as the program one. */
+const courseLabel = (c: Course): string => `${c.code} - ${c.title}`
+
+/**
+ * fetchCourses() embeds the program join, so program_id arrives as an object on
+ * a course that came through that select and as a bare uuid elsewhere.
+ */
+const relId = (v: string | { id: string } | null | undefined) =>
+  v && typeof v === 'object' ? v.id : v || ''
+
+/** Archived rows stay in the database but out of a new pick. */
+const isActive = <T extends { status?: string }>(x: T) => !x.status || x.status === 'active'
 
 /**
  * PostgREST puts the actionable part of a failure in `hint` and its class in
@@ -99,6 +114,7 @@ export default function TOS() {
   }))
   const [sheet, setSheet] = useState<TosSheet>(blankSheet)
   const [programs, setPrograms] = useState<Program[]>([])
+  const [courses, setCourses] = useState<Course[]>([])
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -213,24 +229,29 @@ export default function TOS() {
   // fetchTosExams() orders by updated_at and the page opens the first -- so
   // nothing is lost by not offering a picker yet.
 
-  // ---- program picker options ------------------------------------------
+  // ---- picker options ---------------------------------------------------
 
-  // The program list is auxiliary: the blueprint is fully usable without it, so
-  // a failed read degrades to an empty dropdown instead of locking the page the
-  // way a failed exam load does. Only active programs are offered.
+  // The picker lists are auxiliary: the blueprint is fully usable without them,
+  // so a failed read degrades to an empty dropdown instead of locking the page
+  // the way a failed exam load does. allSettled keeps one dead table from
+  // taking the other down with it. Only active rows are offered.
   useEffect(() => {
     let cancelled = false
-    fetchPrograms()
-      .then((rows) => {
-        if (!cancelled) setPrograms(rows.filter((p) => p.status === 'active'))
-      })
-      .catch(() => {
-        if (!cancelled) setPrograms([])
-      })
+    Promise.allSettled([fetchPrograms(), fetchCourses()]).then(([p, c]) => {
+      if (cancelled) return
+      setPrograms(p.status === 'fulfilled' ? p.value.filter(isActive) : [])
+      setCourses(c.status === 'fulfilled' ? c.value.filter(isActive) : [])
+    })
     return () => {
       cancelled = true
     }
   }, [])
+
+  /** The program the exam is currently filed under, or '' when none/unlisted. */
+  const selectedProgramId = useMemo(
+    () => programs.find((p) => programLabel(p) === exam.code)?.id ?? '',
+    [programs, exam.code],
+  )
 
   /**
    * A stored code that matches no listed program -- the program was archived or
@@ -245,6 +266,25 @@ export default function TOS() {
     }
     return options
   }, [programs, exam.code])
+
+  /**
+   * Courses are scoped to the chosen program, but an exam saved before the
+   * picker existed has no program to scope by -- listing every course keeps
+   * those reachable instead of hiding them behind a prerequisite. A course that
+   * is off-list (archived, or belonging to a program the user just switched
+   * away from) stays visible as its own option, so changing Program never
+   * silently discards a course the user already picked.
+   */
+  const courseOptions = useMemo(() => {
+    const scoped = selectedProgramId
+      ? courses.filter((c) => relId(c.program_id) === selectedProgramId)
+      : courses
+    const options = scoped.map((c) => ({ id: c.id, value: courseLabel(c) }))
+    if (exam.title && !options.some((o) => o.value === exam.title)) {
+      options.unshift({ id: 'unlisted', value: exam.title })
+    }
+    return options
+  }, [courses, selectedProgramId, exam.title])
 
   // ---- debounced writes -----------------------------------------------
 
@@ -401,13 +441,25 @@ export default function TOS() {
           </label>
           <label className="field">
             <span>Course title</span>
-            <input
+            <select
               className="input input--sm"
               value={exam.title}
-              placeholder="- type course title -"
-              disabled={!ready}
+              disabled={!ready || courses.length === 0}
               onChange={(e) => patchExam({ title: e.target.value })}
-            />
+            >
+              <option value="">
+                {courses.length === 0
+                  ? 'No courses available'
+                  : selectedProgramId
+                    ? '- select course -'
+                    : '- select course (all programs) -'}
+              </option>
+              {courseOptions.map((o) => (
+                <option key={o.id} value={o.value}>
+                  {o.value}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="field">
             <span>Term</span>
