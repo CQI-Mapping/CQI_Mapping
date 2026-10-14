@@ -201,9 +201,26 @@ describe('the two papers differ only where the workbook says they do', () => {
     expect(formula(buildSheetSpec(exam, mc).cells, 'J19')).toBeUndefined()
   })
 
-  it('names each worksheet after its sheet, since that is the tab title', () => {
+  it('names each worksheet after the workbook tab, not the app label', () => {
+    // The app's switcher calls it "Performance-Based"; the workbook's tab reads
+    // "ProductPerformance-Based", typo and all. The export follows the file.
     expect(buildSheetSpec(exam, mc).name).toBe('Multiple Choice')
-    expect(buildSheetSpec(exam, pp).name).toBe('Performance-Based')
+    expect(buildSheetSpec(exam, pp).name).toBe('ProductPerformance-Based')
+  })
+
+  it('reproduces the workbook\'s own wording rather than the app\'s', () => {
+    // Mixed-case institute, "Items" on the points sheet's totals row, and the
+    // misspelled note. All three are deliberate matches to the source file.
+    expect(val(buildSheetSpec(exam, mc).cells, 'A3')).toBe('Institute for Computer Studies')
+    expect(val(buildSheetSpec(exam, pp).cells, 'A19')).toBe('Total Number of Items')
+    expect(String(val(buildSheetSpec(exam, mc).cells, 'A22'))).toMatch(
+      /^Note: Only those highligted/,
+    )
+  })
+
+  it("keeps the workbook's padded 'Remember ' heading", () => {
+    expect(val(buildSheetSpec(exam, mc).cells, 'D11')).toBe('Remember ')
+    expect(val(buildSheetSpec(exam, mc).cells, 'E11')).toBe('Understand')
   })
 })
 
@@ -220,14 +237,19 @@ describe('the exported header', () => {
 
   it('writes topic rows with the SLO on its own line, as the workbook does', () => {
     expect(val(buildSheetSpec(exam, mc).cells, 'A13')).toBe(
-      '1. Topic 1\nSLO: Outcome 1',
+      '1. Topic 1\r\nSLO: Outcome 1',
     )
   })
 
   it('places the Bloom headings across D to I', () => {
     const { cells } = buildSheetSpec(exam, mc)
     expect(['D11', 'E11', 'F11', 'G11', 'H11', 'I11'].map((a) => val(cells, a))).toEqual([
-      'Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create',
+      'Remember ',
+      'Understand',
+      'Apply',
+      'Analyze',
+      'Evaluate',
+      'Create',
     ])
   })
 
@@ -246,12 +268,12 @@ describe('the exported header', () => {
     expect(at(cells, 'D13')).toBeUndefined()
   })
 
-  it('uses the sheet note when there is one, and the default otherwise', () => {
+  it('uses the sheet note when there is one, and the workbook default otherwise', () => {
     expect(val(buildSheetSpec(exam, { ...mc, note: 'Weight 40/60.' }).cells, 'A22')).toBe(
       'Weight 40/60.',
     )
     expect(String(val(buildSheetSpec(exam, mc).cells, 'A22'))).toMatch(
-      /^Note: Only those highlighted/,
+      /^Note: Only those highligted/,
     )
   })
 })
@@ -280,10 +302,10 @@ describe('the workbook holds one worksheet, for the paper on screen', () => {
 
   it('exports the performance sheet the same way when that one is on screen', async () => {
     const wb = await buildTosWorkbook(exam, pp)
-    expect(wb.SheetNames).toEqual(['Performance-Based'])
+    expect(wb.SheetNames).toEqual(['ProductPerformance-Based'])
 
     const out = await roundTrip(pp)
-    const ws = out.Sheets['Performance-Based'] as unknown as Record<
+    const ws = out.Sheets['ProductPerformance-Based'] as unknown as Record<
       string,
       { f?: string; v?: unknown }
     >

@@ -31,6 +31,7 @@ import {
   BLOOM_LABELS,
   totalHours,
   weightedFor,
+  type BloomLevel,
   type TosExam,
   type TosSheet,
 } from './tosMath'
@@ -51,10 +52,39 @@ const LAST_BLOOM_COL = BLOOM_COL + BLOOM_LEVELS.length - 1
  */
 const SHARES_ROW = 12
 
-/** The workbook's own note, carried by the printable grid. */
-const DEFAULT_NOTE =
-  'Note: Only those highlighted with green are editable cells. ' +
-  'Gray colored cells contains the formula.'
+/**
+ * Wording copied verbatim from the faculty workbook, so the exported file is
+ * cell-for-cell the document they already know.
+ *
+ * These deliberately differ from the app's own strings -- SCHOOL.institute is
+ * upper case, the on-screen note spells "highlighted" correctly, and the UI
+ * tab is called "Performance-Based". The export follows the workbook; the app
+ * follows itself. Nothing here reaches the interface.
+ *
+ * Two of these are typos in the source ("highligted", and "Product" glued to
+ * "Performance"), and one is a copy-paste slip: the points sheet's totals row
+ * reads "Total Number of Items". They are reproduced because matching the file
+ * was the ask. Each is one line here if you would rather correct it.
+ */
+const WORKBOOK = {
+  institute: 'Institute for Computer Studies',
+  note:
+    'Note: Only those highligted with green are editable cells. ' +
+    'Gray colored cells contains the formula.',
+  /** Worksheet tab names, which are not the app's switcher labels. */
+  tabName: { items: 'Multiple Choice', points: 'ProductPerformance-Based' } as const,
+  /** Row 19 on BOTH sheets reads "Items" in the source, points sheet included. */
+  totalsLabel: 'Total Number of Items',
+} as const
+
+/**
+ * Bloom headings as the workbook spells them. "Remember" carries a trailing
+ * space there, padding it to the width of "Understand".
+ */
+const WORKBOOK_BLOOM: Record<BloomLevel, string> = {
+  ...BLOOM_LABELS,
+  remember: 'Remember ',
+}
 
 /** 0-based column index to its Excel letter. 0 -> A, 25 -> Z, 26 -> AA. */
 export const colLetter = (c: number): string => {
@@ -123,7 +153,7 @@ export function buildSheetSpec(exam: TosExam, sheet: TosSheet): SheetSpec {
 
   // ---- letterhead ----
   put(1, 1, SCHOOL.school)
-  put(3, 1, SCHOOL.institute)
+  put(3, 1, WORKBOOK.institute)
   put(6, 1, exam.title ? `Course Title: ${exam.title}` : '')
   put(7, 1, exam.term)
   // The workbook distinguishes the two papers by suffixing the multiple choice
@@ -142,13 +172,16 @@ put(8, 1, `Table of Specification${examPart}${kindSuffix}`)
   put(11, 1, 'Topic with SLO')
   put(11, 2, 'No. of hrs.')
   put(11, 3, `Number of ${unit}`)
-  BLOOM_LEVELS.forEach((level, i) => put(11, BLOOM_COL + i, BLOOM_LABELS[level]))
+  BLOOM_LEVELS.forEach((level, i) => put(11, BLOOM_COL + i, WORKBOOK_BLOOM[level]))
 
   // ---- topic rows ----
   sheet.topics.forEach((topic, i) => {
     const row = rows.firstTopic + i
     const body = `${topic.position}. ${topic.title}`.trim()
-    put(row, 1, topic.slo ? `${body}\nSLO: ${topic.slo}` : body)
+    // \r\n is what the workbook's first topic row uses. Its other rows pad with
+    // runs of spaces instead, which cannot be reproduced without knowing each
+    // title's width -- this is the evident intent of the same cell.
+    put(row, 1, topic.slo ? `${body}\r\nSLO: ${topic.slo}` : body)
     put(row, 2, topic.hours)
     // Gray: what the hours imply, never typed. Kept as a formula so the file
     // behaves like the workbook when a total is edited.
@@ -160,7 +193,7 @@ put(8, 1, `Table of Specification${examPart}${kindSuffix}`)
   })
 
   // ---- totals block ----
-  put(rows.totals, 1, `Total Number of ${unit}`)
+  put(rows.totals, 1, WORKBOOK.totalsLabel)
   put(rows.totals, 3, sheet.total)
   BLOOM_LEVELS.forEach((_, j) => {
     const L = letterAt(BLOOM_COL + j)
@@ -193,7 +226,7 @@ put(8, 1, `Table of Specification${examPart}${kindSuffix}`)
     putF(SHARES_ROW, BLOOM_COL + j, `${L}${rows.totals}/$C$${rows.totals}`)
   })
 
-  put(rows.note, 1, sheet.note.trim() || DEFAULT_NOTE)
+  put(rows.note, 1, sheet.note.trim() || WORKBOOK.note)
   put(rows.preparedBy, 1, 'Prepared by:')
   put(rows.signature, 1, exam.preparedBy)
 
@@ -205,7 +238,9 @@ put(8, 1, `Table of Specification${examPart}${kindSuffix}`)
     'B11:B12',
     'C11:C12',
   ]
-  return { name: sheet.label, cells, merges }
+  // The worksheet is named for the workbook's tab, not the app's switcher
+  // label -- they differ on the points sheet.
+  return { name: WORKBOOK.tabName[sheet.kind], cells, merges }
 }
 
 /** "tos-IT21-2026-10-14.xlsx" — same shape as reportFileName(). */
