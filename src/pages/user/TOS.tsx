@@ -754,7 +754,6 @@ export default function TOS() {
             sheet.kind === 'items' ? ': Multiple Choice Type' : ''
           }`,
           topic: exam.coverage ? `Topic: ${exam.coverage}` : '',
-          preparedBy: exam.preparedBy,
         }}
         issues={issues}
         editable={ready && !creatingKind}

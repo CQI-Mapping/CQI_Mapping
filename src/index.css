@@ -3355,23 +3355,6 @@ textarea.input {
   border-radius: 999px;
 }
 
-/* Signature block under the totals, as the workbook carries it. The label
-   sits above the name with a gap for a signature, which is why it is not a
-   single inline line. */
-.tos-signoff {
-  margin-top: 22px;
-  font-size: 12px;
-}
-
-.tos-signoff__label {
-  margin: 0 0 30px;
-}
-
-.tos-signoff__name {
-  margin: 0;
-  font-weight: 700;
-}
-
 
 @media print {
   .sd-actions,

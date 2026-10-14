@@ -45,7 +45,6 @@ export interface TosDocHeader {
   title: string
   /** The coverage sentence, already prefixed with "Topic:". */
   topic: string
-  preparedBy: string
 }
 
 export interface TosSheetGridProps {
@@ -313,14 +312,6 @@ export default function TosSheetGrid({
         <em>Note: Only those highlighted with green are editable cells. Gray colored cells
         contains the formula.</em>
       </div>
-
-      {/* Signature, as the workbook carries it under the totals. */}
-      {header.preparedBy && (
-        <div className="tos-signoff">
-          <p className="tos-signoff__label">Prepared by:</p>
-          <p className="tos-signoff__name">{header.preparedBy}</p>
-        </div>
-      )}
 
       {/* Add sits directly under the table it adds a row to, right-aligned.
           Reset and Export sit alongside it. */}
