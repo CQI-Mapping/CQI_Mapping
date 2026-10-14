@@ -2372,17 +2372,22 @@ code {
   color: #b8860b;
 }
 
-/* Title block */
+/* Title block — matches the official syllabus exactly: Arial Bold 10pt
+   throughout, #002060 navy for the first line only, italic reserved for the
+   course code line, and tight 1.15 leading. The previous rule italicised
+   "COURSE SYLLABUS" and used a near-navy #1f3864; neither matches. */
 .sd-titleblock {
   text-align: center;
+  font-family: Arial, Helvetica, sans-serif;
   font-weight: 700;
-  margin: 8px 0 14px;
-  line-height: 1.5;
+  font-size: 10pt;
+  margin: 6px 0 12px;
+  line-height: 1.15;
 }
 
 .sd-titleblock__title {
-  font-style: italic;
-  color: #1f3864;
+  font-style: normal;
+  color: #002060;
 }
 
 .sd-titleblock__course {
