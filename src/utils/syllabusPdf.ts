@@ -35,6 +35,11 @@ export type ReportOrientation = 'portrait' | 'landscape'
 
 // Paper matches the official signed syllabus: 8.5 x 13in, rotated either way.
 const PAGE = { landscape: { w: 13, h: 8.5 }, portrait: { w: 8.5, h: 13 } } as const
+// jsPDF v4 gives addImage a TOP-DOWN y (the canvas convention), unlike v2/v3
+// which measured y up from the bottom-left. Verified against this build: y=0.25
+// lands 0.25in below the page top, y=7.5 lands 7.5in below it. Every jsPDF
+// example written before v4 assumes the opposite, so "fixing" these values to
+// the documented v2 behaviour flips the letterhead to the bottom of the page.
 const SIDE_MARGIN_IN = 0.5
 const SCALE = 2
 const CSS_DPI = 96
@@ -117,8 +122,6 @@ export async function downloadSyllabusPdf(
     const headerW = pageW * LETTERHEAD_WIDTH_RATIO
     const headerH = headerW / LETTERHEAD_ASPECT
     const headerX = (pageW - headerW) / 2
-    // jsPDF's origin is the bottom-left of the page.
-    const headerY = pageH - LETTERHEAD_TOP_IN - headerH
 
     const pdf = new jsPDF({
       unit: 'in',
@@ -134,7 +137,7 @@ export async function downloadSyllabusPdf(
     for (let i = 0; i < pageCount; i++) {
       if (i > 0) pdf.addPage([Math.min(pageW, pageH), Math.max(pageW, pageH)], orientation)
 
-      if (headerUrl) pdf.addImage(headerUrl, 'PNG', headerX, headerY, headerW, headerH)
+      if (headerUrl) pdf.addImage(headerUrl, 'PNG', headerX, LETTERHEAD_TOP_IN, headerW, headerH)
 
       const sy = i * bodyHPx
       const sh = Math.min(bodyHPx, sheet.height - sy)
@@ -149,11 +152,13 @@ export async function downloadSyllabusPdf(
       if (!ctx) throw new Error('Could not prepare the PDF canvas.')
       ctx.drawImage(sheet, 0, sy, sheet.width, sh, 0, 0, sheet.width, sh)
 
+      // Starts below the reserved header band, not at the side margin, so the
+      // body never runs up into the letterhead.
       pdf.addImage(
         slice.toDataURL('image/jpeg', 0.92),
         'JPEG',
         SIDE_MARGIN_IN,
-        SIDE_MARGIN_IN,
+        bandIn,
         contentWIn,
         sh / pxPerIn,
       )
