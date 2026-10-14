@@ -48,6 +48,21 @@ export const poLabel = (code: string) => {
   return d === null ? (code || '—') : String(d)
 }
 
+// Stored program-outcome text already carries its own trailing punctuation
+// ("...specific field of practice;"). Appending ours unconditionally rendered
+// "practice;;". Only add a separator when the stored value does not already
+// end with one.
+export const poListItem = (code: string, title: string, isLast: boolean) => {
+  const text = (title || '').trim()
+  const punct = /[.;,:]$/.test(text) ? '' : isLast ? '.' : ';'
+  return `${poLabel(code)}. ${text}${punct}`
+}
+
+// Some strategic goal codes are stored as "SG-2:" with the colon already
+// attached, which rendered as "Goal 2:: Outstanding ...".
+export const goalLine = (code: string, description: string | null) =>
+  `${(code || '').trim().replace(/^SG-/i, 'Goal ').replace(/\s*:+\s*$/, '')}: ${(description || '').trim()}`
+
 export const isActive = <T extends { status?: string }>(x: T) =>
   !x.status || x.status === 'active'
 

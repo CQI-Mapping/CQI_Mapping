@@ -15,7 +15,7 @@ import type {
   StrategicGoal,
 } from '../services/database'
 import { uniqueResolvedRefs } from '../utils/courseCodes'
-import { SCHOOL, DOC_VISION, DOC_MISSION, poLabel, isActive } from '../utils/report'
+import { SCHOOL, DOC_VISION, DOC_MISSION, poLabel, poListItem, goalLine, isActive } from '../utils/report'
 import type { EditableItem, EditableKind, EditState, PoGroup } from '../utils/report'
 import CourseDetails from './CourseDetails'
 
@@ -128,7 +128,7 @@ export default function SyllabusReport({
                 listRow(
                   'goal',
                   g,
-                  <span className="sd-goal">{g.code.replace(/^SG-/i, 'Goal ')}: {g.description}</span>,
+                  <span className="sd-goal">{goalLine(g.code, g.description)}</span>,
                 ),
               )}
               {visibleGoals.length === 0 && <span>No strategic goals.</span>}
@@ -174,11 +174,9 @@ export default function SyllabusReport({
                 )}
                 {group.items.map((p, i, arr) => {
                   const editingThis = !!edit && edit.kind === 'po' && edit.id === p.id
-                  const isLast = i === arr.length - 1
-                  const semicolon = isLast ? '.' : ';'
                   return (
                     <div key={p.id} className={`sd-po-single-outcome ${isActive(p) ? '' : 'sd-archived'}`}>
-                      {poLabel(p.code)}. {p.title.replace(/\.$/, '')}{semicolon}
+                      {poListItem(p.code, p.title, i === arr.length - 1)}
                       {editMode && rowActions && (
                         <span className="sd-po-single-item__actions">
                           {rowActions('po', p.id)}

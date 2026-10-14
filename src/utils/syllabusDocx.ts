@@ -32,7 +32,7 @@ import type {
   ProgramEducationalObjective,
   StrategicGoal,
 } from '../services/database'
-import { SCHOOL, DOC_VISION, DOC_MISSION, poLabel } from './report'
+import { SCHOOL, DOC_VISION, DOC_MISSION, poLabel, poListItem, goalLine } from './report'
 import type { PoGroup } from './report'
 import { uniqueResolvedRefs, courseCreditLabel, courseHoursSentence } from './courseCodes'
 import { saveBlob, reportFileName } from './download'
@@ -69,8 +69,12 @@ const para = (text: string, o: RunOpts = {}) =>
 const BORDER = { style: BorderStyle.SINGLE, size: 4, color: '000000' }
 const CELL_BORDERS = { top: BORDER, bottom: BORDER, left: BORDER, right: BORDER }
 
-/** docx expresses percentage widths in fiftieths of a percent (50% = 2500). */
-const pct = (v: number) => ({ size: Math.round(v * 50), type: WidthType.PERCENTAGE })
+/**
+ * docx's WidthType.PERCENTAGE takes a plain 0-100 percentage and scales it
+ * internally. Do NOT pre-multiply by 50 here — doing so emits w:w="250000"
+ * (5000%) and blows every column off the page.
+ */
+const pct = (v: number) => ({ size: Math.round(v), type: WidthType.PERCENTAGE })
 
 const cell = (children: Paragraph[], widthPct?: number) =>
   new TableCell({
@@ -170,7 +174,7 @@ export async function downloadSyllabusDocx(
             cell([para(DOC_MISSION, { align: AlignmentType.JUSTIFIED })], 16),
             cell(
               goals.length
-                ? goals.map((g) => para(`${g.code.replace(/^SG-/i, 'Goal ')}: ${g.description}`, { italics: true }))
+                ? goals.map((g) => para(goalLine(g.code, g.description), { italics: true }))
                 : [para('No strategic goals.')],
               21,
             ),
@@ -207,13 +211,7 @@ export async function downloadSyllabusDocx(
               cell([
                 para(group.heading, { bold: true }),
                 ...(gi === 0 ? [para('The NBSC graduates have the ability to:')] : []),
-                ...group.items.map((p, i, arr) =>
-                  para(
-                    `${poLabel(p.code)}. ${p.title.replace(/\.$/, '')}${
-                      i === arr.length - 1 ? '.' : ';'
-                    }`,
-                  ),
-                ),
+                ...group.items.map((p, i, arr) => para(poListItem(p.code, p.title, i === arr.length - 1))),
               ]),
             ],
           }),
