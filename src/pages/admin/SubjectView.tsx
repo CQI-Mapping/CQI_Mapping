@@ -48,6 +48,7 @@ import { splitReportPos, buildGroups, cmoLabel, isManagerCmCategory } from '../.
 import SyllabusReport from '../../components/SyllabusReport'
 import ProgramOutcomeReport from '../../components/ProgramOutcomeReport'
 import PeoDetailsCard from '../../components/PeoDetailsCard'
+import type { PeoConnectedGroup, PeoConnectedItem } from '../../components/PeoDetailsCard'
 
 type NodeKind =
   | 'curriculum'
@@ -189,6 +190,17 @@ const legendDefs: Array<{ kind: NodeKind; label: string; tip: string }> = [
   { kind: 'peo', label: 'PEO', tip: 'Program Educational Objective(s)' },
   { kind: 'sg', label: 'SG', tip: 'Strategic Goal(s)' },
   { kind: 'cmo', label: 'CMO', tip: 'CHED Memorandum Order(s)' },
+]
+
+// Category order + headings for the PEO connected-details card. Every connected
+// node is bucketed by its kind; categories with nothing attached are hidden.
+const connectedCategoryDefs: Array<{ kind: PeoConnectedGroup['kind']; label: string }> = [
+  { kind: 'po', label: 'Program Outcomes' },
+  { kind: 'clo', label: 'Course Learning Outcomes' },
+  { kind: 'subject', label: 'Subjects' },
+  { kind: 'peo', label: 'Program Educational Objectives' },
+  { kind: 'sg', label: 'Strategic Goals' },
+  { kind: 'cmo', label: 'CHED Memorandum Orders' },
 ]
 
 export default function SubjectView() {
@@ -733,6 +745,41 @@ export default function SubjectView() {
       return null
     }
   }, [rootType, selectedCourse, selectedPo, selectedPeo, datasets, buildGraphModel, buildPoGraphModel, buildPeoGraphModel])
+
+  // Every node connected to the selected PEO, bucketed by category. Walks the
+  // exact model the graph renders, so the card and the map can never disagree.
+  // The root PEO is skipped (it is not "connected" to itself) and shared nodes
+  // are de-duplicated by id — a PEO aligned to several POs is listed once.
+  const peoConnected = useMemo<PeoConnectedGroup[]>(() => {
+    if (!datasets || !selectedPeo) return []
+    let root: GraphNodeData
+    try {
+      root = buildPeoGraphModel(datasets, selectedPeo)
+    } catch {
+      return []
+    }
+    const buckets = new Map<PeoConnectedGroup['kind'], Map<string, PeoConnectedItem>>()
+    const rootId = root.id
+    const walk = (n: GraphNodeData) => {
+      if (n.id !== rootId) {
+        const kind = n.kind as PeoConnectedGroup['kind']
+        if (connectedCategoryDefs.some((d) => d.kind === kind)) {
+          let bucket = buckets.get(kind)
+          if (!bucket) { bucket = new Map(); buckets.set(kind, bucket) }
+          if (!bucket.has(n.id)) {
+            bucket.set(n.id, { code: n.code, text: n.title, unresolved: n.placeholder })
+          }
+        }
+      }
+      n.children.forEach(walk)
+    }
+    walk(root)
+    return connectedCategoryDefs.map(({ kind, label }) => ({
+      kind,
+      label,
+      items: [...(buckets.get(kind)?.values() ?? [])],
+    }))
+  }, [datasets, selectedPeo, buildPeoGraphModel])
 
   const buildActiveModel = useCallback(() => {
     if (!datasets) return null
@@ -1340,15 +1387,7 @@ export default function SubjectView() {
 
   const peoDetails = (() => {
     if (!datasets || !selectedPeo || rootType !== 'peo') return null
-    const key = normalizeCode(selectedPeo.code)
-    const linked = managerOnlyPos.filter((p) => {
-      if (p.peo_id === selectedPeo.id) return true
-      if (p.peo_id) return false // a concrete id wins over free text
-      return p.peo_text
-        ? extractCodes(p.peo_text, 'PEO').map(normalizeCode).includes(key)
-        : false
-    })
-    return <PeoDetailsCard peo={selectedPeo} pos={sortPos(linked)} />
+    return <PeoDetailsCard peo={selectedPeo} groups={peoConnected} />
   })()
 
   if (loading) return <p role="status">Loading subjects...</p>
