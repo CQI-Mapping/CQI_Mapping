@@ -17,16 +17,7 @@
 // the stylesheet already declares for print (index.css). Tables are the
 // elements that actually get cut through, so they are the ones to protect.
 
-/** Turns "IT21 - Object Oriented Programming" into "IT21-Object-Oriented-Programming". */
-export function pdfFileSlug(code: string, date = new Date()): string {
-  const stamp = [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, '0'),
-    String(date.getDate()).padStart(2, '0'),
-  ].join('-')
-  const safeCode = code.trim().replace(/[^\w-]+/g, '-').replace(/-+/g, '-')
-  return `syllabus-${safeCode || 'report'}-${stamp}.pdf`
-}
+export type ReportOrientation = 'portrait' | 'landscape'
 
 /**
  * Rasterises `root` and saves it as a PDF.
@@ -34,7 +25,11 @@ export function pdfFileSlug(code: string, date = new Date()): string {
  * Throws if the element is missing or the library fails, so the caller can
  * surface it through the existing error message.
  */
-export async function downloadSyllabusPdf(root: HTMLElement, filename: string): Promise<void> {
+export async function downloadSyllabusPdf(
+  root: HTMLElement,
+  filename: string,
+  orientation: ReportOrientation = 'landscape',
+): Promise<void> {
   if (!root) throw new Error('Nothing to download — the report is not ready yet.')
 
   const { default: html2pdf } = await import('html2pdf.js')
@@ -46,7 +41,7 @@ export async function downloadSyllabusPdf(root: HTMLElement, filename: string): 
   // (augmenting this package's ambient `declare module` does not merge).
   const config = {
     filename,
-    // Margin is expressed in the jsPDF unit above — inches here, not mm. A
+    // Margin is expressed in the jsPDF unit below — inches here, not mm. A
     // leftover mm value would become a 10in margin on a 13in-wide page.
     margin: 0.5,
     image: { type: 'jpeg' as const, quality: 0.98 },
@@ -59,21 +54,15 @@ export async function downloadSyllabusPdf(root: HTMLElement, filename: string): 
       backgroundColor: '#ffffff',
       logging: false,
     },
-    // Page geometry matches the official signed syllabus, which is Legal-size
-    // landscape: 13in x 8.5in (verified as 936 x 612pt in the reference PDF).
-    // The Vision/Mission/Goals/PEO table is four columns wide and the Curriculum
-    // Mapping matrix is three, so the document is laid out landscape — A4
-    // portrait clips them.
-    //
-    // jsPDF normalises a `format` array for landscape regardless of the order
-    // given (both [8.5, 13] and [13, 8.5] measure 13 x 8.5in), so there is no
-    // double-swap to worry about here.
+    // Paper matches the official signed syllabus: 8.5 x 13in. Both readings of
+    // the `format` array measure the same for a given orientation — jsPDF
+    // normalises the pair rather than blindly swapping it — so the array is
+    // constant and only the flag changes. Landscape (the document default) is
+    // what the Vision/Mission/Goals/PEO and Curriculum Mapping tables need.
     jsPDF: {
       unit: 'in' as const,
-      // Tuple-typed so it satisfies the `[number, number]` the option expects;
-      // a plain array literal infers as `number[]`.
       format: [8.5, 13] as [number, number],
-      orientation: 'landscape' as const,
+      orientation: orientation === 'landscape' ? ('landscape' as const) : ('portrait' as const),
     },
     pagebreak: {
       mode: ['css', 'legacy'],

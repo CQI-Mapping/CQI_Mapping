@@ -2372,6 +2372,93 @@ code {
   color: #b8860b;
 }
 
+/* Download split-button: the main half saves with the current settings, the
+   caret half opens the format/orientation popover. */
+.sd-download {
+  position: relative;
+  display: inline-flex;
+}
+
+.sd-download__main {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.sd-download__toggle {
+  padding: 6px 8px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  /* Lighter divide between the two halves of the same button. */
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.35);
+}
+
+.sd-download__toggle svg {
+  transition: transform 0.18s ease;
+}
+
+.sd-download__toggle[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+
+.sd-download__menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  min-width: 186px;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
+}
+
+.sd-download__group + .sd-download__group {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.sd-download__label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.sd-download__opts {
+  display: flex;
+  gap: 6px;
+}
+
+.sd-download__opt {
+  flex: 1;
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.sd-download__opt:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.sd-download__opt.is-active {
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary-light), var(--primary));
+  border-color: rgba(34, 197, 94, 0.2);
+}
+
 /* Title block — matches the official syllabus exactly: Arial Bold 10pt
    throughout, #002060 navy for the first line only, italic reserved for the
    course code line, and tight 1.15 leading. The previous rule italicised

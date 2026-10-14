@@ -35,7 +35,10 @@ import { isActive, buildGroups, splitReportPos, poNumber } from '../../utils/rep
 import type { EditableItem, EditableKind, EditState } from '../../utils/report'
 import SyllabusReport from '../../components/SyllabusReport'
 import Icon from '../../components/icons'
-import { downloadSyllabusPdf, pdfFileSlug } from '../../utils/syllabusPdf'
+import { downloadSyllabusPdf } from '../../utils/syllabusPdf'
+import { downloadSyllabusDocx } from '../../utils/syllabusDocx'
+import { reportFileName } from '../../utils/download'
+import type { ReportOrientation } from '../../utils/syllabusPdf'
 
 interface ViewProps {
   userEmail: string
@@ -57,6 +60,28 @@ function View({ userEmail }: ViewProps) {
   const [edit, setEdit] = useState<EditState | null>(null)
   const [busy, setBusy] = useState(false)
   const [downloading, setDownloading] = useState(false)
+
+  // Download options. PDF rasterises the live DOM; Word rebuilds the document
+  // from the same data so the file stays editable.
+  const [dlOpen, setDlOpen] = useState(false)
+  const [dlFormat, setDlFormat] = useState<'pdf' | 'docx'>('pdf')
+  const [dlOrientation, setDlOrientation] = useState<ReportOrientation>('landscape')
+  const dlMenuRef = useRef<HTMLDivElement>(null)
+
+  // Close the options popover on outside click or Escape.
+  useEffect(() => {
+    if (!dlOpen) return
+    const onPointer = (e: MouseEvent) => {
+      if (dlMenuRef.current && !dlMenuRef.current.contains(e.target as Node)) setDlOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setDlOpen(false) }
+    document.addEventListener('mousedown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [dlOpen])
 
   // Snapshot target for the PDF export: the document root, not the outer
   // wrapper (which holds the toolbar html2canvas would otherwise capture).
@@ -144,24 +169,41 @@ function View({ userEmail }: ViewProps) {
     }
   }
 
-  // Save the report as a PDF file. Snapshotting takes a moment (the whole
-  // document is rasterised), so the button shows a working state meanwhile.
+  // Save the report in the chosen format. Snapshotting a PDF takes a moment
+  // (the whole document is rasterised), so the button shows a working state.
   const downloadPdf = async () => {
-    if (!reportRef.current) return
+    setDlOpen(false)
     setDownloading(true)
     setError(null)
     setNotice(null)
     try {
-      await downloadSyllabusPdf(
-        reportRef.current,
-        pdfFileSlug(selectedCourse?.code ?? 'report'),
-      )
-      setNotice('PDF downloaded.')
+      if (dlFormat === 'pdf') {
+        if (!reportRef.current) throw new Error('The report is not ready yet.')
+        await downloadSyllabusPdf(
+          reportRef.current,
+          reportFileName(selectedCourse?.code ?? 'report', 'pdf'),
+          dlOrientation,
+        )
+      } else {
+        await downloadSyllabusDocx(
+          {
+            course: selectedCourse,
+            courses,
+            goals: visibleGoals,
+            peos: visiblePeos,
+            adminGroups,
+            managerGroups,
+            subjectClos,
+          },
+          dlOrientation,
+        )
+      }
+      setNotice(dlFormat === 'pdf' ? 'PDF downloaded.' : 'Word document downloaded.')
     } catch (e) {
       setError(
         e instanceof Error
-          ? `Could not create the PDF: ${e.message}`
-          : 'Could not create the PDF. Try the Print button instead.',
+          ? `Could not create the ${dlFormat === 'pdf' ? 'PDF' : 'Word document'}: ${e.message}`
+          : `Could not create the file. Try the Print button instead.`,
       )
     } finally {
       setDownloading(false)
@@ -288,15 +330,74 @@ function View({ userEmail }: ViewProps) {
           >
             Print
           </button>
-          <button
-            className="btn btn--primary btn--sm"
-            onClick={downloadPdf}
-            disabled={downloading || loading}
-            title="Save the report as a PDF file"
-          >
-            <Icon name="download" />
-            {downloading ? 'Preparing...' : 'Download PDF'}
-          </button>
+          <div className="sd-download" ref={dlMenuRef}>
+            <button
+              className="btn btn--primary btn--sm sd-download__main"
+              onClick={downloadPdf}
+              disabled={downloading || loading}
+              title="Save the report to a file"
+            >
+              <Icon name="download" />
+              {downloading ? 'Preparing...' : `Download ${dlFormat === 'pdf' ? 'PDF' : 'Word'}`}
+            </button>
+            <button
+              className="btn btn--primary btn--sm sd-download__toggle"
+              onClick={() => setDlOpen((o) => !o)}
+              disabled={downloading || loading}
+              aria-expanded={dlOpen}
+              aria-haspopup="true"
+              aria-label="Download options"
+              title="Choose format and orientation"
+            >
+              <Icon name="chevron" />
+            </button>
+            {dlOpen && (
+              <div className="sd-download__menu no-print" role="menu">
+                <div className="sd-download__group">
+                  <span className="sd-download__label">Format</span>
+                  <div className="sd-download__opts">
+                    <button
+                      className={`sd-download__opt${dlFormat === 'pdf' ? ' is-active' : ''}`}
+                      onClick={() => setDlFormat('pdf')}
+                      role="menuitemradio"
+                      aria-checked={dlFormat === 'pdf'}
+                    >
+                      PDF
+                    </button>
+                    <button
+                      className={`sd-download__opt${dlFormat === 'docx' ? ' is-active' : ''}`}
+                      onClick={() => setDlFormat('docx')}
+                      role="menuitemradio"
+                      aria-checked={dlFormat === 'docx'}
+                    >
+                      Word
+                    </button>
+                  </div>
+                </div>
+                <div className="sd-download__group">
+                  <span className="sd-download__label">Orientation</span>
+                  <div className="sd-download__opts">
+                    <button
+                      className={`sd-download__opt${dlOrientation === 'landscape' ? ' is-active' : ''}`}
+                      onClick={() => setDlOrientation('landscape')}
+                      role="menuitemradio"
+                      aria-checked={dlOrientation === 'landscape'}
+                    >
+                      Landscape
+                    </button>
+                    <button
+                      className={`sd-download__opt${dlOrientation === 'portrait' ? ' is-active' : ''}`}
+                      onClick={() => setDlOrientation('portrait')}
+                      role="menuitemradio"
+                      aria-checked={dlOrientation === 'portrait'}
+                    >
+                      Portrait
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
