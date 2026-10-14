@@ -1,31 +1,23 @@
 // Word (.docx) export for the Curriculum Report.
 //
-// The PDF path rasterises the live DOM, which makes it faithful to the screen
-// but not editable. Word rebuilds the same document from the same data as
-// real Word constructs — paragraphs, tables, borders — so faculty can edit
-// the file they hand in. The structure below deliberately mirrors
+// The PDF path rasterises the DOM, which makes it faithful to the screen but
+// not editable. Word rebuilds the same document from the same data as real
+// Word constructs — paragraphs, tables, borders — so faculty can edit the file
+// they hand in. The structure below deliberately mirrors
 // components/SyllabusReport.tsx one-for-one; if a section changes there, it
 // needs to change here too.
 //
-// Metrics are taken from the official signed syllabus: Arial 10pt, navy
-// #002060 for headings, 8.5 x 13in paper, 0.5in margins.
+// Metrics are taken from the official signed syllabus: Arial 10pt, navy #002060
+// for headings, 8.5 x 13in paper, 0.5in margins, letterhead on every page.
+//
+// `docx` is ~450 KB, so it is imported dynamically below. A static import here
+// would drag it into the main bundle and ship it on first paint, to everyone
+// who never opens the View page.
 
-import {
-  AlignmentType,
-  BorderStyle,
-  Document,
-  Header,
-  ImageRun,
-  Packer,
-  PageOrientation,
-  Paragraph,
-  Table,
-  TableCell,
-  TableRow,
-  TextRun,
-  VerticalAlign,
-  WidthType,
-  convertInchesToTwip,
+import type {
+  Paragraph as DocxParagraph,
+  Table as DocxTable,
+  TableRow as DocxTableRow,
 } from 'docx'
 import type {
   Course,
@@ -37,18 +29,18 @@ import { SCHOOL, DOC_VISION, DOC_MISSION, poLabel, poListItem, goalLine } from '
 import type { PoGroup } from './report'
 import { uniqueResolvedRefs, courseCreditLabel, courseHoursSentence } from './courseCodes'
 import { saveBlob, reportFileName } from './download'
-import { LETTERHEAD_URL, LETTERHEAD_ASPECT, LETTERHEAD_WIDTH_RATIO, headerBandIn, pageWidthIn } from './letterhead'
+import {
+  LETTERHEAD_URL,
+  LETTERHEAD_ASPECT,
+  LETTERHEAD_WIDTH_RATIO,
+  headerBandIn,
+  pageWidthIn,
+} from './letterhead'
 import type { ReportOrientation } from './syllabusPdf'
 
 const FONT = 'Arial'
 const NAVY = '002060'
 const SZ = 20 // half-points -> 10pt, matching the source document
-const MARGIN_TWIP = convertInchesToTwip(0.5)
-
-const HEADER_DIST_TWIP = convertInchesToTwip(0.14)
-
-// The letterhead PNG is 1712 x 192px; LETTERHEAD_ASPECT lives in
-// ./letterhead so the PDF stamper sizes its copy identically.
 
 export interface SyllabusDocxData {
   course: Course | null
@@ -60,36 +52,7 @@ export interface SyllabusDocxData {
   subjectClos: CourseLearningOutcomeStandalone[]
 }
 
-type RunOpts = { bold?: boolean; italics?: boolean; color?: string; align?: (typeof AlignmentType)[keyof typeof AlignmentType] }
-
-const run = (text: string, o: RunOpts = {}) =>
-  new TextRun({ text, bold: o.bold, italics: o.italics, color: o.color, font: FONT, size: SZ })
-
-const para = (text: string, o: RunOpts = {}) =>
-  new Paragraph({ alignment: o.align ?? AlignmentType.LEFT, spacing: { after: 0 }, children: [run(text, o)] })
-
-const BORDER = { style: BorderStyle.SINGLE, size: 4, color: '000000' }
-const CELL_BORDERS = { top: BORDER, bottom: BORDER, left: BORDER, right: BORDER }
-
-/**
- * docx's WidthType.PERCENTAGE takes a plain 0-100 percentage and scales it
- * internally. Do NOT pre-multiply by 50 here — doing so emits w:w="250000"
- * (5000%) and blows every column off the page.
- */
-const pct = (v: number) => ({ size: Math.round(v), type: WidthType.PERCENTAGE })
-
-const cell = (children: Paragraph[], widthPct?: number) =>
-  new TableCell({
-    borders: CELL_BORDERS,
-    verticalAlign: VerticalAlign.TOP,
-    margins: { top: 80, bottom: 80, left: 100, right: 100 },
-    ...(widthPct === undefined ? {} : { width: pct(widthPct) }),
-    children,
-  })
-
-const CENTER = AlignmentType.CENTER
-
-/** "PLO 3, & PLO 10" -> one paragraph per comma-separated PO. */
+/** "PLO 3, & PLO 10" -> one entry per comma-separated PO. */
 const poLines = (v?: string | null) =>
   (v || '').split(',').map((s) => s.trim()).filter(Boolean)
 
@@ -108,25 +71,70 @@ export async function downloadSyllabusDocx(
   data: SyllabusDocxData,
   orientation: ReportOrientation = 'landscape',
 ): Promise<void> {
+  const {
+    AlignmentType, BorderStyle, Document, Header, ImageRun, Packer,
+    PageOrientation, Paragraph, Table, TableCell, TableRow, TextRun,
+    VerticalAlign, WidthType, convertInchesToTwip,
+  } = await import('docx')
+
+  type Align = (typeof AlignmentType)[keyof typeof AlignmentType]
+  type RunOpts = { bold?: boolean; italics?: boolean; color?: string; align?: Align }
+
+  const run = (text: string, o: RunOpts = {}) =>
+    new TextRun({ text, bold: o.bold, italics: o.italics, color: o.color, font: FONT, size: SZ })
+
+  const para = (text: string, o: RunOpts = {}) =>
+    new Paragraph({ alignment: o.align ?? AlignmentType.LEFT, spacing: { after: 0 }, children: [run(text, o)] })
+
+  const BORDER = { style: BorderStyle.SINGLE, size: 4, color: '000000' }
+  const CELL_BORDERS = { top: BORDER, bottom: BORDER, left: BORDER, right: BORDER }
+
+  /**
+   * docx's WidthType.PERCENTAGE takes a plain 0-100 percentage and scales it
+   * internally. Do NOT pre-multiply by 50 — doing so emits w:w="250000" (5000%)
+   * and blows every column off the page.
+   */
+  const pct = (v: number) => ({ size: Math.round(v), type: WidthType.PERCENTAGE })
+
+  const cell = (children: DocxParagraph[], widthPct?: number) =>
+    new TableCell({
+      borders: CELL_BORDERS,
+      verticalAlign: VerticalAlign.TOP,
+      margins: { top: 80, bottom: 80, left: 100, right: 100 },
+      ...(widthPct === undefined ? {} : { width: pct(widthPct) }),
+      children,
+    })
+
+  const CENTER = AlignmentType.CENTER
+
   const { course, courses, goals, peos, adminGroups, managerGroups, subjectClos } = data
   const isLandscape = orientation === 'landscape'
+  const inch = (v: number) => convertInchesToTwip(v)
+
+  const MARGIN_TWIP = inch(0.5)
 
   // docx swaps width/height for landscape, so both orientations are declared
   // from the same 8.5 x 13in pair and only the flag differs.
   const pageSize = {
-    width: convertInchesToTwip(8.5),
-    height: convertInchesToTwip(13),
+    width: inch(8.5),
+    height: inch(13),
     orientation: isLandscape ? PageOrientation.LANDSCAPE : PageOrientation.PORTRAIT,
   }
 
-  const children: (Paragraph | Table)[] = []
+  const children: (DocxParagraph | DocxTable)[] = []
 
-  // ---- Letterhead (repeats on every page, as in the signed syllabus) ------
+  // The letterhead sits in a real page header (word/header1.xml) so Word
+  // repeats it. Its width and the band it occupies come from utils/letterhead.ts
+  // so the Word and PDF exports place the artwork identically.
+  const pageWIn = pageWidthIn(orientation)
+  const bandTwip = Math.round(headerBandIn(pageWIn) * 1440)
+  const HEADER_DIST_TWIP = Math.round(0.14 * 1440) // LETTERHEAD_TOP_IN
+
   const letterhead = await fetchLetterhead()
-  const headerChildren: Paragraph[] = []
+  const headerChildren: DocxParagraph[] = []
   if (letterhead) {
-    // Match the PDF: 61% of page width, per the measured official layout.
-    const widthPx = Math.round(pageWidthIn(orientation) * LETTERHEAD_WIDTH_RATIO * 96)
+    // 61% of page width, expressed in the px docx's ImageRun expects.
+    const widthPx = Math.round(pageWIn * LETTERHEAD_WIDTH_RATIO * 96)
     headerChildren.push(
       new Paragraph({
         alignment: CENTER,
@@ -214,7 +222,9 @@ export async function downloadSyllabusDocx(
               cell([
                 para(group.heading, { bold: true }),
                 ...(gi === 0 ? [para('The NBSC graduates have the ability to:')] : []),
-                ...group.items.map((p, i, arr) => para(poListItem(p.code, p.title, i === arr.length - 1))),
+                ...group.items.map((p, i, arr) =>
+                  para(poListItem(p.code, p.title, i === arr.length - 1)),
+                ),
               ]),
             ],
           }),
@@ -226,7 +236,7 @@ export async function downloadSyllabusDocx(
   // ---- Curriculum Mapping (manager outcomes x PEO / SG alignment) ---------
   if (managerGroups.length > 0) {
     children.push(para('CURRICULUM MAPPING', { bold: true, align: CENTER }))
-    const mapRows: TableRow[] = []
+    const mapRows: DocxTableRow[] = []
     for (const group of managerGroups) {
       mapRows.push(
         new TableRow({
@@ -319,10 +329,7 @@ export async function downloadSyllabusDocx(
           page: {
             size: pageSize,
             margin: {
-              // The signed syllabus carries the letterhead on *every* page,
-              // which in Word is a real page header (word/header1.xml). The
-              // body therefore starts below a band sized for that artwork.
-              top: convertInchesToTwip(headerBandIn(pageWidthIn(orientation))),
+              top: bandTwip,
               right: MARGIN_TWIP,
               bottom: MARGIN_TWIP,
               left: MARGIN_TWIP,
@@ -331,8 +338,6 @@ export async function downloadSyllabusDocx(
           },
         },
         // Word repeats this on every page, matching the signed syllabus.
-        // Only the first page shows a different header if `titlePage` were set,
-        // which it is not — every page carries the letterhead.
         ...(headerChildren.length ? { headers: { default: new Header({ children: headerChildren }) } } : {}),
         children,
       },

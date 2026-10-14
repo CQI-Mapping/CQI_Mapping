@@ -1,60 +1,68 @@
 // PDF export for the Curriculum Report (View.tsx).
 //
-// The pipeline is three stages:
+// Why this does not use html2pdf.js: that library rasterises the DOM as one
+// continuous strip and slices the strip into pages, so it has no page-header
+// concept — the letterhead could only ever appear on page 1, while the
+// official signed syllabus carries it on all 12. Building the PDF page by page
+// with html2canvas + jsPDF gives exact control: the letterhead is placed at the
+// same measured position on every page, and the report body is sliced to the
+// height left below the header band.
 //
-// 1. html2pdf rasterises the live DOM and lays it out with jsPDF. The letterhead
-//    is *hidden* during capture (via html2canvas's `onclone`, which edits the
-//    offscreen copy rather than the live page) so it is not baked in once at
-//    the top.
-// 2. jsPDF emits the document as bytes instead of saving it.
-// 3. pdf-lib stamps the letterhead artwork onto every page.
+// This also drops html2pdf entirely (and pdf-lib, which the previous
+// implementation used to stamp the artwork after the fact). Placement constants
+// come from utils/letterhead.ts, which measured them from the signed syllabus:
+// the artwork spans 61% of the page width, centred, 0.14in from the top — not
+// flush to the margins. Both exporters read those constants so they cannot
+// drift apart.
 //
-// Splitting it this way is what makes a *repeating* header possible. html2pdf
-// has no page-header concept -- it slices one tall canvas into pages -- so
-// there is no option that would repeat the letterhead on its own.
-//
-// Stage 1's `margin[0]` is applied to every page, not just the first (see
-// html2pdf's context2d paging math: `j === 1 ? posY + margin[0] : margin[0]`).
-// That reserved band is exactly where stage 3 draws, so nothing collides.
+// Two behaviours the previous implementation relied on are preserved:
+//  - lazy-loading, so the rasteriser and jsPDF stay out of the initial bundle
+//  - rasterising `.syllabus-doc__page`, never `.syllabus-doc`, because
+//    html2canvas renders with screen CSS and does NOT honour `no-print` (a
+//    @media print rule). Targeting the outer wrapper would bake the toolbar —
+//    subject dropdown, Edit and Print buttons — into the PDF.
 
-import { saveBlob, reportFileName } from './download'
 import {
   LETTERHEAD_URL,
   LETTERHEAD_ASPECT,
   LETTERHEAD_WIDTH_RATIO,
   LETTERHEAD_TOP_IN,
   headerBandIn,
-  pageWidthIn,
 } from './letterhead'
+import { saveBlob } from './download'
 
 export type ReportOrientation = 'portrait' | 'landscape'
 
+// Paper matches the official signed syllabus: 8.5 x 13in, rotated either way.
+const PAGE = { landscape: { w: 13, h: 8.5 }, portrait: { w: 8.5, h: 13 } } as const
 const SIDE_MARGIN_IN = 0.5
+const SCALE = 2
+const CSS_DPI = 96
 
-async function fetchLetterheadBytes(): Promise<Uint8Array | null> {
-  try {
-    const res = await fetch(LETTERHEAD_URL)
-    if (!res.ok) return null
-    return new Uint8Array(await res.arrayBuffer())
-  } catch {
-    // A missing letterhead degrades the PDF but must not fail the export.
-    return null
-  }
+function loadImage(src: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    // A missing letterhead must not abort the export; the page just loses it.
+    img.onerror = () => resolve(null)
+    img.src = src
+  })
 }
 
-/** Pulls the raw bytes out of a jsPDF `datauristring` output. */
-function dataUriToBytes(dataUri: string): Uint8Array {
-  const base64 = dataUri.slice(dataUri.indexOf(',') + 1)
-  const binary = atob(base64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return bytes
+/** jsPDF needs a data URL; the header is a PNG so it is re-encoded losslessly. */
+function imageToDataUrl(img: HTMLImageElement): string {
+  const c = document.createElement('canvas')
+  c.width = img.naturalWidth
+  c.height = img.naturalHeight
+  const ctx = c.getContext('2d')
+  if (!ctx) throw new Error('Could not prepare the letterhead image.')
+  ctx.drawImage(img, 0, 0)
+  return c.toDataURL('image/png')
 }
 
 /**
- * Rasterises `root` and saves it as a PDF carrying the letterhead on every page.
- *
- * Throws if the element is missing or the library fails, so the caller can
+ * Rasterises `root` and saves it as a PDF carrying the letterhead on every
+ * page. Throws if the element is missing or a library fails, so the caller can
  * surface it through the existing error message.
  */
 export async function downloadSyllabusPdf(
@@ -64,81 +72,95 @@ export async function downloadSyllabusPdf(
 ): Promise<void> {
   if (!root) throw new Error('Nothing to download — the report is not ready yet.')
 
-  const { default: html2pdf } = await import('html2pdf.js')
-  const bandIn = headerBandIn(pageWidthIn(orientation))
+  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+    import('html2canvas'),
+    import('jspdf'),
+  ])
 
-  // Built as a variable rather than passed inline: html2pdf.js 0.14.0's bundled
-  // type declarations omit `pagebreak`, and TypeScript only runs excess-property
-  // checks against *fresh* object literals. Handing `set()` a pre-built object
-  // keeps the option accepted without an `as` cast or a module augmentation
-  // (augmenting this package's ambient `declare module` does not merge).
-  const config = {
-    filename,
-    // [top, right, bottom, left] in inches. Tuple-typed for the option's
-    // 4-number overload; the top value reserves the header band on every page
-    // -- see the note at the top of this file.
-    margin: [bandIn, SIDE_MARGIN_IN, SIDE_MARGIN_IN, SIDE_MARGIN_IN] as [number, number, number, number],
-    image: { type: 'jpeg' as const, quality: 0.98 },
-    html2canvas: {
-      scale: 2,
+  const { w: pageW, h: pageH } = PAGE[orientation]
+  const bandIn = headerBandIn(pageW)
+  const contentWIn = pageW - SIDE_MARGIN_IN * 2
+  const bodyHIn = pageH - bandIn - SIDE_MARGIN_IN
+  const contentWPx = Math.round(contentWIn * CSS_DPI)
+
+  // Render the report offscreen at the exact printable width so the tables
+  // reflow to the page rather than to whatever the browser window happened to
+  // be. Cloning also drops any live edit state held only in React.
+  const host = document.createElement('div')
+  host.style.cssText =
+    `position:fixed;left:-100000px;top:0;width:${contentWPx}px;background:#fff;z-index:-1;`
+  const clone = root.cloneNode(true) as HTMLElement
+  // Drop the on-screen card chrome — the printable page supplies its own
+  // margins, and the panel's padding/border would otherwise eat into them.
+  clone.style.padding = '0'
+  clone.style.border = 'none'
+  // The header is placed on every page below, so drop the in-flow copy that
+  // would otherwise put a second letterhead at the top of page 1.
+  clone.querySelector('.sd-letterhead')?.remove()
+  host.appendChild(clone)
+  document.body.appendChild(host)
+
+  try {
+    const sheet = await html2canvas(host, {
+      scale: SCALE,
       useCORS: true,
       backgroundColor: '#ffffff',
       logging: false,
-      // Hide the letterhead in the cloned DOM only; the live page is untouched
-      // so the button causes no visible flicker.
-      onclone: (clonedDoc: Document) => {
-        clonedDoc.querySelectorAll('.sd-letterhead').forEach((el) => {
-          ;(el as HTMLElement).style.display = 'none'
-        })
-      },
-    },
-    // Paper matches the official signed syllabus: 8.5 x 13in. Both readings of
-    // the `format` array measure the same for a given orientation -- jsPDF
-    // normalises the pair rather than blindly swapping it.
-    jsPDF: {
-      unit: 'in' as const,
-      format: [8.5, 13] as [number, number],
-      orientation: orientation === 'landscape' ? ('landscape' as const) : ('portrait' as const),
-    },
-    pagebreak: {
-      mode: ['css', 'legacy'],
-      avoid: ['.sd-table', '.sd-po-sections', '.sd-mapping', '.panel'],
-    },
-  }
+      width: contentWPx,
+    })
 
-  // `toPdf()` + `outputPdf` produce the bytes instead of triggering a download.
-  const dataUri = await html2pdf().set(config).from(root).toPdf().outputPdf('datauristring')
+    const pxPerIn = (sheet.width / contentWPx) * CSS_DPI
+    const bodyHPx = Math.max(1, Math.round(bodyHIn * pxPerIn))
+    const boxW = Math.round(contentWIn * pxPerIn)
 
-  let bytes = dataUriToBytes(dataUri)
+    const letterhead = await loadImage(LETTERHEAD_URL)
+    const headerW = pageW * LETTERHEAD_WIDTH_RATIO
+    const headerH = headerW / LETTERHEAD_ASPECT
+    const headerX = (pageW - headerW) / 2
+    // jsPDF's origin is the bottom-left of the page.
+    const headerY = pageH - LETTERHEAD_TOP_IN - headerH
 
-  const letterhead = await fetchLetterheadBytes()
-  if (letterhead) {
-    try {
-      // Dynamic, like html2pdf above: a static import here put ~960kB of
-      // pdf-lib into the main chunk and charged every page load for it.
-      const { PDFDocument } = await import('pdf-lib')
-      const doc = await PDFDocument.load(bytes)
-      const image = await doc.embedPng(letterhead)
-      const aspect = LETTERHEAD_ASPECT
-      for (const page of doc.getPages()) {
-        const { width, height } = page.getSize()
-        const w = width * LETTERHEAD_WIDTH_RATIO
-        const h = w / aspect
-        page.drawImage(image, {
-          x: (width - w) / 2,
-          y: height - h - LETTERHEAD_TOP_IN * 72,
-          width: w,
-          height: h,
-        })
-      }
-      bytes = await doc.save()
-    } catch {
-      // If stamping fails for any reason, fall back to the unstamped PDF
-      // rather than producing nothing at all.
+    const pdf = new jsPDF({
+      unit: 'in',
+      // jsPDF swaps a format array for landscape, so give it the short side
+      // first and let the orientation flag decide.
+      format: [Math.min(pageW, pageH), Math.max(pageW, pageH)],
+      orientation,
+      compress: true,
+    })
+
+    const headerUrl = letterhead ? imageToDataUrl(letterhead) : null
+    const pageCount = Math.max(1, Math.ceil(sheet.height / bodyHPx))
+    for (let i = 0; i < pageCount; i++) {
+      if (i > 0) pdf.addPage([Math.min(pageW, pageH), Math.max(pageW, pageH)], orientation)
+
+      if (headerUrl) pdf.addImage(headerUrl, 'PNG', headerX, headerY, headerW, headerH)
+
+      const sy = i * bodyHPx
+      const sh = Math.min(bodyHPx, sheet.height - sy)
+      if (sh <= 0) continue
+
+      // The final slice is often shorter than a full page; scale it by its own
+      // height so nothing is stretched to fill.
+      const slice = document.createElement('canvas')
+      slice.width = sheet.width
+      slice.height = sh
+      const ctx = slice.getContext('2d')
+      if (!ctx) throw new Error('Could not prepare the PDF canvas.')
+      ctx.drawImage(sheet, 0, sy, sheet.width, sh, 0, 0, sheet.width, sh)
+
+      pdf.addImage(
+        slice.toDataURL('image/jpeg', 0.92),
+        'JPEG',
+        SIDE_MARGIN_IN,
+        SIDE_MARGIN_IN,
+        contentWIn,
+        sh / pxPerIn,
+      )
     }
-  }
 
-  // `.buffer` rather than the view itself: BlobPart wants an ArrayBuffer, and
-  // the Uint8Array that comes back from pdf-lib is typed ArrayBufferLike.
-  saveBlob(new Blob([bytes.slice().buffer], { type: 'application/pdf' }), filename)
+    saveBlob(new Blob([pdf.output('arraybuffer')], { type: 'application/pdf' }), filename)
+  } finally {
+    host.remove()
+  }
 }
