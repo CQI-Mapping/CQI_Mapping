@@ -124,6 +124,15 @@ export default function TosSheetGrid({
   const shareTotal = BLOOM_LEVELS.reduce((sum, level) => sum + share[level], 0)
   const unit = sheet.kind === 'points' ? 'Point' : 'Item'
 
+  /**
+   * WEIGHT_DRIFT stays computed -- it still decides which rows get the drift
+   * highlight on the weighted column -- but it is not worth saying out loud.
+   * Hour-weighted intent and placed items disagreeing is normal while a sheet
+   * is being built, and the row marking already carries that signal without a
+   * paragraph of numbers under the table.
+   */
+  const visibleIssues = issues.filter((i) => i.code !== 'WEIGHT_DRIFT')
+
   // Drift per topic, so the grid can mark the offending rows without the page
   // having to pass a lookup table down.
   const drifted = new Set(
@@ -330,9 +339,9 @@ export default function TosSheetGrid({
         </div>
       )}
 
-      {issues.length > 0 && editable && (
+      {visibleIssues.length > 0 && editable && (
         <div className="tos-sheet__issues no-print">
-          {issues.map((issue) => (
+          {visibleIssues.map((issue) => (
             <p
               key={issue.code}
               className={`msg msg--${issue.level === 'error' ? 'error' : 'info'}`}
