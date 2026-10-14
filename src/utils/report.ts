@@ -15,7 +15,8 @@ export const SCHOOL = {
   republic: 'Republic of the Philippines',
   school: 'NORTHERN BUKIDNON STATE COLLEGE',
   address: 'Manolo Fortich, 8703 Bukidnon',
-  motto: 'Creando futura, Transformationis vitae, Ductae a Deo',
+  // Matches the letterhead artwork: "Creandi", not "Creando".
+  motto: 'Creandi futura, Transformationis vitae, Ductae a Deo',
   title: 'COURSE SYLLABUS',
   institute: 'INSTITUTE FOR COMPUTER STUDIES',
   program: 'BACHELOR OF SCIENCE IN INFORMATION TECHNOLOGY',
