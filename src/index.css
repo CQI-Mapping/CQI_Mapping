@@ -4061,9 +4061,9 @@ textarea.input {
   margin-top: 2px;
 }
 
-/* Compact connected-details card for a PEO root — replaces the full
-   Program Educational Objective report document. */
-.peo-details {
+/* Compact connected-details card for a PO or PEO root — replaces the full
+   Program Outcome / Program Educational Objective report documents. */
+.outcome-details {
   background: #fff;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -4071,32 +4071,32 @@ textarea.input {
   max-width: 720px;
 }
 
-.peo-details__title {
+.outcome-details__title {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
   color: var(--text);
 }
 
-.peo-details__code {
+.outcome-details__code {
   color: var(--primary);
   font-weight: 700;
 }
 
-.peo-details__desc {
+.outcome-details__desc {
   margin: 8px 0 0;
   font-size: 13px;
   line-height: 1.5;
   color: var(--text-muted);
 }
 
-.peo-details__section {
+.outcome-details__section {
   margin-top: 14px;
   padding-top: 12px;
   border-top: 1px solid var(--border);
 }
 
-.peo-details__label {
+.outcome-details__label {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -4107,7 +4107,7 @@ textarea.input {
   color: var(--text-muted);
 }
 
-.peo-details__count {
+.outcome-details__count {
   display: inline-block;
   min-width: 20px;
   padding: 1px 6px;
@@ -4121,7 +4121,7 @@ textarea.input {
   color: #334155;
 }
 
-.peo-details__list {
+.outcome-details__list {
   list-style: none;
   margin: 10px 0 0;
   padding: 0;
@@ -4131,18 +4131,18 @@ textarea.input {
 }
 
 /* One category block inside the card. */
-.peo-connected {
+.outcome-connected {
   display: flex;
   flex-direction: column;
   gap: 18px;
   margin-top: 12px;
 }
 
-.peo-connected__group {
+.outcome-connected__group {
   display: block;
 }
 
-.peo-details__item {
+.outcome-details__item {
   display: flex;
   align-items: baseline;
   gap: 10px;
@@ -4152,16 +4152,16 @@ textarea.input {
   padding: 7px 10px;
 }
 
-.peo-details__item--unresolved {
+.outcome-details__item--unresolved {
   background: #fffdf5;
   border-style: dashed;
 }
 
-.peo-details__item--unresolved .peo-details__item-code {
+.outcome-details__item--unresolved .outcome-details__item-code {
   color: #b45309;
 }
 
-.peo-details__item-code {
+.outcome-details__item-code {
   flex: none;
   min-width: 62px;
   font-size: 11px;
@@ -4170,13 +4170,13 @@ textarea.input {
   white-space: nowrap;
 }
 
-.peo-details__item-text {
+.outcome-details__item-text {
   font-size: 13px;
   line-height: 1.45;
   color: var(--text);
 }
 
-.peo-details__flag {
+.outcome-details__flag {
   flex: none;
   margin-left: auto;
   padding: 1px 7px;
@@ -4191,7 +4191,7 @@ textarea.input {
   white-space: nowrap;
 }
 
-.peo-details__empty {
+.outcome-details__empty {
   margin: 8px 0 0;
   font-size: 12px;
   font-style: italic;

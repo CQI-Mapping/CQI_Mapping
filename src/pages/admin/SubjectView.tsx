@@ -44,11 +44,10 @@ import type {
   ChedMemoOrder,
 } from '../../services/database'
 import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
-import { splitReportPos, buildGroups, cmoLabel, isManagerCmCategory } from '../../utils/report'
+import { splitReportPos, buildGroups, isManagerCmCategory } from '../../utils/report'
 import SyllabusReport from '../../components/SyllabusReport'
-import ProgramOutcomeReport from '../../components/ProgramOutcomeReport'
-import PeoDetailsCard from '../../components/PeoDetailsCard'
-import type { PeoConnectedGroup, PeoConnectedItem } from '../../components/PeoDetailsCard'
+import OutcomeDetailsCard from '../../components/OutcomeDetailsCard'
+import type { ConnectedGroup, ConnectedItem } from '../../components/OutcomeDetailsCard'
 
 type NodeKind =
   | 'curriculum'
@@ -192,9 +191,9 @@ const legendDefs: Array<{ kind: NodeKind; label: string; tip: string }> = [
   { kind: 'cmo', label: 'CMO', tip: 'CHED Memorandum Order(s)' },
 ]
 
-// Category order + headings for the PEO connected-details card. Every connected
+// Category order + headings for the connected-details card. Every connected
 // node is bucketed by its kind; categories with nothing attached are hidden.
-const connectedCategoryDefs: Array<{ kind: PeoConnectedGroup['kind']; label: string }> = [
+const connectedCategoryDefs: Array<{ kind: ConnectedGroup['kind']; label: string }> = [
   { kind: 'po', label: 'Program Outcomes' },
   { kind: 'clo', label: 'Course Learning Outcomes' },
   { kind: 'subject', label: 'Subjects' },
@@ -746,23 +745,15 @@ export default function SubjectView() {
     }
   }, [rootType, selectedCourse, selectedPo, selectedPeo, datasets, buildGraphModel, buildPoGraphModel, buildPeoGraphModel])
 
-  // Every node connected to the selected PEO, bucketed by category. Walks the
-  // exact model the graph renders, so the card and the map can never disagree.
-  // The root PEO is skipped (it is not "connected" to itself) and shared nodes
-  // are de-duplicated by id — a PEO aligned to several POs is listed once.
-  const peoConnected = useMemo<PeoConnectedGroup[]>(() => {
-    if (!datasets || !selectedPeo) return []
-    let root: GraphNodeData
-    try {
-      root = buildPeoGraphModel(datasets, selectedPeo)
-    } catch {
-      return []
-    }
-    const buckets = new Map<PeoConnectedGroup['kind'], Map<string, PeoConnectedItem>>()
-    const rootId = root.id
+  // Every node connected to a graph root, bucketed by category. Walks the exact
+  // model the graph renders, so a details card and the map can never disagree.
+  // The root is skipped (it is not "connected" to itself) and shared nodes are
+  // de-duplicated by id — a PEO aligned to several POs is listed once.
+  const collectConnected = useCallback((root: GraphNodeData): ConnectedGroup[] => {
+    const buckets = new Map<ConnectedGroup['kind'], Map<string, ConnectedItem>>()
     const walk = (n: GraphNodeData) => {
-      if (n.id !== rootId) {
-        const kind = n.kind as PeoConnectedGroup['kind']
+      if (n.id !== root.id) {
+        const kind = n.kind as ConnectedGroup['kind']
         if (connectedCategoryDefs.some((d) => d.kind === kind)) {
           let bucket = buckets.get(kind)
           if (!bucket) { bucket = new Map(); buckets.set(kind, bucket) }
@@ -779,7 +770,27 @@ export default function SubjectView() {
       label,
       items: [...(buckets.get(kind)?.values() ?? [])],
     }))
-  }, [datasets, selectedPeo, buildPeoGraphModel])
+  }, [])
+
+  // PO root: downstream PEO / SG / CMO leaves plus upstream CLOs → subjects.
+  const poConnected = useMemo<ConnectedGroup[]>(() => {
+    if (!datasets || !selectedPo) return []
+    try {
+      return collectConnected(buildPoGraphModel(datasets, selectedPo))
+    } catch {
+      return []
+    }
+  }, [datasets, selectedPo, buildPoGraphModel, collectConnected])
+
+  // PEO root: the aligned POs, then everything hanging off those POs.
+  const peoConnected = useMemo<ConnectedGroup[]>(() => {
+    if (!datasets || !selectedPeo) return []
+    try {
+      return collectConnected(buildPeoGraphModel(datasets, selectedPeo))
+    } catch {
+      return []
+    }
+  }, [datasets, selectedPeo, buildPeoGraphModel, collectConnected])
 
   const buildActiveModel = useCallback(() => {
     if (!datasets) return null
@@ -1348,12 +1359,11 @@ export default function SubjectView() {
       ? 'Click a branch node to expand or collapse. Click a PO to view the graph from that PO. Click a PEO to switch PEO root. Drag nodes to reposition. Scroll to zoom.'
       : 'Click a branch node to expand or collapse. Click a subject to view the graph from that subject. Click a PO to switch PO root. Drag nodes to reposition. Scroll to zoom.'
 
-  // The About area renders the *exact* Curriculum Report document — for a
-  // subject through the shared SyllabusReport component (the same one View.tsx
-  // renders) and for a PO through ProgramOutcomeReport; both reuse the report
-  // page's chrome. A PEO gets only a compact connected-details card, not a
-  // full report document. `datasets` is prefetched on mount, so the card is
-  // ready before the user presses View Graph.
+  // The About area renders the *exact* Curriculum Report document for a subject,
+  // through the shared SyllabusReport component (the same one View.tsx renders),
+  // reusing the report page's chrome. A PO or a PEO gets only a compact
+  // connected-details card, not a full report document. `datasets` is prefetched
+  // on mount, so the card is ready before the user presses View Graph.
   const subjectReport = (() => {
     if (!datasets || !selectedCourse || rootType !== 'subject') return null
     const { adminPos, managerPos } = splitReportPos(datasets.pos)
@@ -1371,23 +1381,30 @@ export default function SubjectView() {
     )
   })()
 
-  const poReport = (() => {
+  const poDetails = (() => {
     if (!datasets || !selectedPo || rootType !== 'po') return null
-    const key = normalizeCode(selectedPo.code)
-    const linked = datasets.clos.filter((c) =>
-      extractCodes(c.title || '', 'PO').map(normalizeCode).includes(key))
     return (
-      <ProgramOutcomeReport
-        po={selectedPo}
-        cmoLabel={cmoLabel(selectedPo, datasets.cmos)}
-        clos={linked}
+      <OutcomeDetailsCard
+        heading={selectedPo.code}
+        title={selectedPo.title}
+        description={selectedPo.description}
+        groups={poConnected}
+        emptyHint="No course learning outcome references this program outcome yet."
       />
     )
   })()
 
   const peoDetails = (() => {
     if (!datasets || !selectedPeo || rootType !== 'peo') return null
-    return <PeoDetailsCard peo={selectedPeo} groups={peoConnected} />
+    return (
+      <OutcomeDetailsCard
+        heading={selectedPeo.code}
+        title={selectedPeo.title}
+        description={selectedPeo.description}
+        groups={peoConnected}
+        emptyHint="Nothing is connected to this PEO yet. Add aligned program outcomes to build the map."
+      />
+    )
   })()
 
   if (loading) return <p role="status">Loading subjects...</p>
@@ -1621,9 +1638,9 @@ export default function SubjectView() {
       </div>
 
       {/* Below Program + Visualization — full-width. A subject renders the
-          Curriculum Report document itself (no extra card frame), as does a PO
-          (program-outcome page). A PEO renders only the compact
-          connected-details card, never the full report document. */}
+          Curriculum Report document itself (no extra card frame). A PO or a PEO
+          renders only the compact connected-details card, never the full
+          report document. */}
       {rootType === 'subject' && selectedCourse ? (
         <div className="subject-view__about" style={{ marginTop: 16 }}>
           {subjectReport ?? (
@@ -1634,9 +1651,9 @@ export default function SubjectView() {
         </div>
       ) : rootType === 'po' && selectedPo ? (
         <div className="subject-view__about" style={{ marginTop: 16 }}>
-          {poReport ?? (
+          {poDetails ?? (
             <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
-              Loading the program outcome report…
+              Loading the program outcome details…
             </p>
           )}
         </div>
