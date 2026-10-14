@@ -33,8 +33,24 @@ import {
 
 const pct = (n: number) => `${Math.round(n * 1000) / 10}%`
 
+/**
+ * The block that sits above the grid and identifies the blueprint, in the
+ * order the faculty workbook puts it: course, term, the title line, the Bloom
+ * note, then the coverage. Read-only -- it is the document, not a form.
+ */
+export interface TosDocHeader {
+  courseTitle: string
+  term: string
+  /** "Table of Specification for Prelim: Multiple Choice Type" */
+  title: string
+  /** The coverage sentence, already prefixed with "Topic:". */
+  topic: string
+  preparedBy: string
+}
+
 export interface TosSheetGridProps {
   sheet: TosSheet
+  header: TosDocHeader
   issues: TosIssue[]
   /** False renders the document read-only for printing or review. */
   editable: boolean
@@ -95,6 +111,7 @@ function Cell({
 
 export default function TosSheetGrid({
   sheet,
+  header,
   issues,
   editable,
   onPatchSheet,
@@ -124,7 +141,18 @@ export default function TosSheetGrid({
   return (
     <>
       <div className="panel tos-sheet">
-      <table className="tos-table">
+        {/* ---- letterhead ---- */}
+        <div className="tos-doc">
+          {header.courseTitle && (
+            <p className="tos-doc__line tos-doc__course">Course Title: {header.courseTitle}</p>
+          )}
+          {header.term && <p className="tos-doc__line">{header.term}</p>}
+          <p className="tos-doc__line tos-doc__title">{header.title}</p>
+          <p className="tos-doc__line tos-doc__blooms">Blooms Revised Taxonomy</p>
+          {header.topic && <p className="tos-doc__line tos-doc__topic">{header.topic}</p>}
+        </div>
+
+        <table className="tos-table">
         <thead>
           <tr>
             <th className="tos-th--topic">Topic with SLO</th>
@@ -285,6 +313,14 @@ export default function TosSheetGrid({
         <em>Note: Only those highlighted with green are editable cells. Gray colored cells
         contains the formula.</em>
       </div>
+
+      {/* Signature, as the workbook carries it under the totals. */}
+      {header.preparedBy && (
+        <div className="tos-signoff">
+          <p className="tos-signoff__label">Prepared by:</p>
+          <p className="tos-signoff__name">{header.preparedBy}</p>
+        </div>
+      )}
 
       {/* Add sits directly under the table it adds a row to, right-aligned.
           Reset and Export sit alongside it. */}

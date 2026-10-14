@@ -2975,6 +2975,40 @@ textarea.input {
   gap: 6px;
 }
 
+/* The document's own header block ------------------------------------- */
+
+/* Five short lines above the grid, in the order the faculty workbook sets
+   them: course, term, the title, the Bloom note, then the coverage. Reads as
+   a heading, not as form fields, so it inherits the document's type rather
+   than the app's controls. */
+.tos-doc {
+  margin-bottom: 10px;
+}
+
+.tos-doc__line {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.tos-doc__course {
+  font-weight: 700;
+}
+
+.tos-doc__title {
+  font-weight: 700;
+  text-align: center;
+}
+
+.tos-doc__blooms {
+  font-weight: 700;
+}
+
+.tos-doc__topic {
+  font-size: 11px;
+  font-style: italic;
+}
+
 /* The table itself ------------------------------------------------- */
 
 .tos-table {
@@ -2993,10 +3027,13 @@ textarea.input {
   vertical-align: top;
 }
 
+/* Black with white type, as the workbook's heading rows are. The column
+   percentages sit underneath in the same block and must stay legible, so the
+   share inherits rather than restating a colour. */
 .tos-table thead th {
   padding: 4px 5px;
-  background: #d7d9db;
-  color: #111827;
+  background: #000;
+  color: #fff;
   font-weight: 700;
   text-align: center;
 }
@@ -3316,6 +3353,23 @@ textarea.input {
   color: var(--primary-dark);
   background: rgba(34, 197, 94, 0.12);
   border-radius: 999px;
+}
+
+/* Signature block under the totals, as the workbook carries it. The label
+   sits above the name with a gap for a signature, which is why it is not a
+   single inline line. */
+.tos-signoff {
+  margin-top: 22px;
+  font-size: 12px;
+}
+
+.tos-signoff__label {
+  margin: 0 0 30px;
+}
+
+.tos-signoff__name {
+  margin: 0;
+  font-weight: 700;
 }
 
 

@@ -648,6 +648,29 @@ export default function TOS() {
               ))}
             </select>
           </label>
+          {/* Coverage and the signature already have columns and are already
+              written on every save -- they had no inputs, so the letterhead
+              below could only ever render them blank. */}
+          <label className="field">
+            <span>Topic coverage</span>
+            <input
+              className="input input--sm"
+              value={exam.coverage}
+              placeholder="- topics this exam covers -"
+              disabled={!ready}
+              onChange={(e) => patchExam({ coverage: e.target.value })}
+            />
+          </label>
+          <label className="field">
+            <span>Prepared by</span>
+            <input
+              className="input input--sm"
+              value={exam.preparedBy}
+              placeholder="- name and title -"
+              disabled={!ready}
+              onChange={(e) => patchExam({ preparedBy: e.target.value })}
+            />
+          </label>
         </div>
 
         <div className="tos-savestate" role="status">
@@ -723,6 +746,16 @@ export default function TOS() {
           into a null sheet id and drop silently. */}
       <TosSheetGrid
         sheet={sheet}
+        header={{
+          courseTitle: exam.title,
+          term: exam.term,
+          // Same line the exported workbook writes at A8.
+          title: `Table of Specification${exam.examType.trim() ? ` for ${exam.examType.trim()}` : ''}${
+            sheet.kind === 'items' ? ': Multiple Choice Type' : ''
+          }`,
+          topic: exam.coverage ? `Topic: ${exam.coverage}` : '',
+          preparedBy: exam.preparedBy,
+        }}
         issues={issues}
         editable={ready && !creatingKind}
         onPatchSheet={(patch) => patchSheet(activeKind, patch)}
