@@ -43,6 +43,8 @@ export interface TosSheetGridProps {
   onSetBloom: (topicId: string, level: BloomLevel, value: string) => void
   onAddTopic: () => void
   onRemoveTopic: (id: string) => void
+  /** Write every paper out as a workbook, one worksheet per sheet. */
+  onExportExcel: () => void
   /** Discard local edits and return to the shipped blueprint. */
   onReset: () => void
 }
@@ -100,6 +102,7 @@ export default function TosSheetGrid({
   onSetBloom,
   onAddTopic,
   onRemoveTopic,
+  onExportExcel,
   onReset,
 }: TosSheetGridProps) {
   const totals = bloomTotals(sheet.topics)
@@ -289,6 +292,13 @@ export default function TosSheetGrid({
         <div className="tos-addrow no-print">
           <button type="button" className="btn btn--ghost btn--sm" onClick={onReset}>
             Reset
+          </button>
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            onClick={onExportExcel}
+          >
+            Export Excel
           </button>
           <button
             type="button"

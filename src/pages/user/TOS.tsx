@@ -44,6 +44,7 @@ import {
   type TosExamRow,
 } from '../../services/database'
 import { supabase } from '../../utils/supabaseClient'
+import { downloadTosExcel } from '../../utils/tosXlsx'
 
 const SAVE_DEBOUNCE_MS = 600
 
@@ -564,6 +565,18 @@ export default function TOS() {
     [activeId, activeKind, creatingKind, fail, reportSaved],
   )
 
+  /**
+   * Export writes every paper the exam has, not just the one on screen -- the
+   * workbook is the exam, and the two sheets travel together.
+   */
+  const exportExcel = useCallback(async () => {
+    try {
+      await downloadTosExcel(exam, sheets)
+    } catch (e) {
+      fail(e, 'Could not build the Excel file.')
+    }
+  }, [exam, sheets, fail])
+
   return (
     <div className="syllabus-doc">
       {/* ---- exam header ---- */}
@@ -707,6 +720,7 @@ export default function TOS() {
         onSetBloom={setBloom}
         onAddTopic={addTopic}
         onRemoveTopic={removeTopic}
+        onExportExcel={exportExcel}
         onReset={() => window.location.reload()}
       />
     </div>
