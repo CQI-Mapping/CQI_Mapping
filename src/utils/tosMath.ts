@@ -69,9 +69,16 @@ export interface TosTopic {
   bloom: BloomCounts
 }
 
+/**
+ * Which of the two papers a sheet describes. Mirrors the CHECK on tos_sheets
+ * and the UNIQUE (exam_id, kind): one exam carries at most one of each, and the
+ * two are side by side rather than alternatives.
+ */
+export type SheetKind = 'items' | 'points'
+
 export interface TosSheet {
   id: string
-  kind: 'items' | 'points'
+  kind: SheetKind
   label: string
   total: number
   note: string
