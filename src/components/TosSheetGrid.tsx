@@ -287,7 +287,7 @@ export default function TosSheetGrid({
       </div>
 
       {/* Add sits directly under the table it adds a row to, right-aligned.
-          Reset and Print sit alongside it. */}
+          Reset and Export sit alongside it. */}
       {editable && (
         <div className="tos-addrow no-print">
           <button type="button" className="btn btn--ghost btn--sm" onClick={onReset}>
@@ -299,13 +299,6 @@ export default function TosSheetGrid({
             onClick={onExportExcel}
           >
             Export Excel
-          </button>
-          <button
-            type="button"
-            className="btn btn--ghost btn--sm"
-            onClick={() => window.print()}
-          >
-            Print / Save PDF
           </button>
           <button type="button" className="btn btn--primary btn--sm" onClick={onAddTopic}>
             Add topic
