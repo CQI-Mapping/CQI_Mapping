@@ -57,6 +57,9 @@ const SHEET_KINDS: { kind: SheetKind; label: string }[] = [
   { kind: 'points', label: 'Performance-based' },
 ]
 
+/** The terms a blueprint can be filed under. */
+const TERMS = ['Sem 1', 'Sem 2']
+
 /** A blank exam: identity left for the user, one empty blueprint sheet. */
 const blankSheet = (): TosSheet => ({
   id: '',
@@ -356,6 +359,18 @@ export default function TOS() {
     return options
   }, [courses, selectedProgramId, exam.title])
 
+  /**
+   * Terms saved before this picker existed read like "1st Semester, 2026-2027"
+   * and match neither option, so the stored value stays as its own entry.
+   * Dropping it would leave the select on the placeholder and overwrite the
+   * saved term on the next unrelated edit.
+   */
+  const termOptions = useMemo(() => {
+    const options = [...TERMS]
+    if (exam.term && !options.includes(exam.term)) options.unshift(exam.term)
+    return options
+  }, [exam.term])
+
   // ---- debounced writes -----------------------------------------------
 
   // Every setter updates local state immediately and schedules a write, so a
@@ -596,13 +611,19 @@ export default function TOS() {
           </label>
           <label className="field">
             <span>Term</span>
-            <input
+            <select
               className="input input--sm"
               value={exam.term}
-              placeholder="- type term (e.g. 1st Semester, 2026-2027) -"
               disabled={!ready}
               onChange={(e) => patchExam({ term: e.target.value })}
-            />
+            >
+              <option value="">- select term -</option>
+              {termOptions.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
           </label>
         </div>
 
