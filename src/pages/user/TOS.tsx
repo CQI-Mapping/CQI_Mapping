@@ -139,6 +139,9 @@ export default function TOS() {
   const [exam, setExam] = useState<TosExam>(() => ({
     code: '',
     title: '',
+    // Read-only: there is no field for it any more, but the exported workbook's
+    // title line reads "Table of Specification for Prelim" and needs it.
+    examType: 'Prelim',
     term: '',
     coverage: '',
     preparedBy: '',
@@ -245,6 +248,7 @@ export default function TOS() {
     setExam({
       code: row.code,
       title: row.title,
+      examType: row.exam_type,
       term: row.term,
       coverage: row.coverage ?? '',
       preparedBy: row.prepared_by ?? '',

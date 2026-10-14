@@ -31,13 +31,15 @@ const topic = (
   bloom,
 })
 
+// Topics 4-6 carry one item in every level except Create -- the workbook's
+// Create column is empty from row 16 down, which is why its distribution ends
+// in 0 rather than 3.
 const oneEach = {
   remember: 1,
   understand: 1,
   apply: 1,
   analyze: 1,
   evaluate: 1,
-  create: 1,
 }
 
 // Straight out of the workbook's "Multiple Choice" tab.
@@ -77,6 +79,7 @@ const pp: TosSheet = {
 const exam: TosExam = {
   code: 'BSCS - Computer Science',
   title: 'IT21 - Object Oriented Programming',
+  examType: 'Prelim',
   term: '1st Semester, 2026-2027',
   coverage: 'Java Fundamentals, Data Types, Operators',
   preparedBy: 'KENN MIGAN VINCENT C. GUMONAN',
@@ -176,11 +179,19 @@ describe('the two papers differ only where the workbook says they do', () => {
     expect(val(buildSheetSpec(exam, pp).cells, 'C19')).toBe(30)
   })
 
-  it('suffixes the multiple choice title and leaves the performance one plain', () => {
+  it('titles each sheet the way the workbook does', () => {
     expect(val(buildSheetSpec(exam, mc).cells, 'A8')).toBe(
+      'Table of Specification for Prelim: Multiple Choice Type',
+    )
+    expect(val(buildSheetSpec(exam, pp).cells, 'A8')).toBe(
+      'Table of Specification for Prelim',
+    )
+  })
+
+  it('drops the "for ..." clause when there is no exam type', () => {
+    expect(val(buildSheetSpec({ ...exam, examType: '' }, mc).cells, 'A8')).toBe(
       'Table of Specification: Multiple Choice Type',
     )
-    expect(val(buildSheetSpec(exam, pp).cells, 'A8')).toBe('Table of Specification')
   })
 
   it('gives the performance sheet the extra grand total the MC one lacks', () => {

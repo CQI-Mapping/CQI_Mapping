@@ -125,7 +125,13 @@ export function buildSheetSpec(exam: TosExam, sheet: TosSheet): SheetSpec {
   put(7, 1, exam.term)
   // The workbook distinguishes the two papers by suffixing the multiple choice
   // title; the performance sheet keeps the plain form.
-  put(8, 1, `Table of Specification${sheet.kind === 'items' ? ': Multiple Choice Type' : ''}`)
+  // The workbook titles its sheets "Table of Specification for Prelim", adding
+// ": Multiple Choice Type" on the multiple choice one and nothing on the
+// performance one. The exam type is no longer editable but the column still
+// holds it, so the exported header can match.
+const kindSuffix = sheet.kind === 'items' ? ': Multiple Choice Type' : ''
+const examPart = exam.examType.trim() ? ` for ${exam.examType.trim()}` : ''
+put(8, 1, `Table of Specification${examPart}${kindSuffix}`)
   put(9, 1, 'Blooms Revised Taxonomy')
   if (exam.coverage) put(10, 1, `Topic: ${exam.coverage}`)
 

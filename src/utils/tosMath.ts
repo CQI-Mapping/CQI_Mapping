@@ -88,6 +88,13 @@ export interface TosSheet {
 export interface TosExam {
   code: string
   title: string
+  /**
+   * The stored exam type, e.g. "Prelim". Not editable -- the header field was
+   * removed -- but kept because the exported workbook's title line needs it,
+   * reading "Table of Specification for Prelim" exactly as the faculty workbook
+   * does. The column still exists and is still written on create.
+   */
+  examType: string
   term: string
   coverage: string
   preparedBy: string
