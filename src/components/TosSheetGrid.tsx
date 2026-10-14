@@ -43,7 +43,7 @@ export interface TosSheetGridProps {
   onSetBloom: (topicId: string, level: BloomLevel, value: string) => void
   onAddTopic: () => void
   onRemoveTopic: (id: string) => void
-  /** Write every paper out as a workbook, one worksheet per sheet. */
+  /** Write the paper on screen out as a workbook. */
   onExportExcel: () => void
   /** Discard local edits and return to the shipped blueprint. */
   onReset: () => void

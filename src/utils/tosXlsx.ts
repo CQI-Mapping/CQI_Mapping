@@ -1,10 +1,13 @@
 // Excel export for the Table of Specification.
 //
-// This reproduces the faculty workbook it was modelled on: one worksheet per
-// paper (Multiple Choice, Performance-Based), same row positions, and -- the
-// part that matters -- the gray cells go out as real formulas, not as computed
-// numbers. A blueprint whose totals are formulas can still be checked and
-// corrected in Excel, which a file of frozen values cannot.
+// This reproduces the faculty workbook it was modelled on: the same row
+// positions, the same merges, and -- the part that matters -- the gray cells go
+// out as real formulas, not as computed numbers. A blueprint whose totals are
+// formulas can still be checked and corrected in Excel, which a file of frozen
+// values cannot.
+//
+// One worksheet per file, carrying whichever paper is on screen. The workbook
+// keeps both, but the page prints one, and a file holding both would print two.
 //
 // The formula set is the workbook's, unchanged:
 //
@@ -220,17 +223,21 @@ const XLSX_MIME =
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
 /**
- * Build the workbook: one worksheet per paper, formulas emitted uncached so
- * Excel computes them on open.
+ * Build a single-worksheet workbook, formulas emitted uncached so Excel
+ * computes them on open.
+ *
+ * One sheet, not one per paper: the page prints the blueprint that is on
+ * screen, so the file carries that paper and nothing else. The other paper
+ * stays in the database and can be exported by switching to it first.
  *
  * Split from downloadTosExcel() so the file can be produced and inspected
  * without a DOM -- saveBlob is the only part that needs a browser.
  */
-export async function buildTosWorkbook(exam: TosExam, sheets: TosSheet[]) {
+export async function buildTosWorkbook(exam: TosExam, sheet: TosSheet) {
   const XLSX = await import('xlsx')
   const wb = XLSX.utils.book_new()
 
-  for (const sheet of sheets) {
+  {
     const spec = buildSheetSpec(exam, sheet)
     const ws: Record<string, unknown> = {}
 
@@ -275,7 +282,7 @@ export async function buildTosWorkbook(exam: TosExam, sheets: TosSheet[]) {
 }
 
 /**
- * Write every paper out as its own worksheet and hand it to the browser.
+ * Write the visible paper out and hand it to the browser.
  *
  * Formulas are emitted without cached values, so Excel computes them on open.
  * A viewer that does not evaluate formulas shows them as 0 — that is a property
@@ -283,11 +290,11 @@ export async function buildTosWorkbook(exam: TosExam, sheets: TosSheet[]) {
  */
 export async function downloadTosExcel(
   exam: TosExam,
-  sheets: TosSheet[],
+  sheet: TosSheet,
   date = new Date(),
 ): Promise<void> {
   const XLSX = await import('xlsx')
-  const wb = await buildTosWorkbook(exam, sheets)
+  const wb = await buildTosWorkbook(exam, sheet)
   const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer
   saveBlob(new Blob([out], { type: XLSX_MIME }), tosFileName(exam.title, date))
 }

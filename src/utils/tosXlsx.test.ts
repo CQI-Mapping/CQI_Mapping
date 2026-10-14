@@ -9,8 +9,10 @@
 // keeps them floating, and it gets its own tests.
 
 import { describe, expect, it } from 'vitest'
+import * as XLSX from 'xlsx'
 import {
   buildSheetSpec,
+  buildTosWorkbook,
   colLetter,
   layoutFor,
   tosFileName,
@@ -251,6 +253,49 @@ describe('the exported header', () => {
     expect(String(val(buildSheetSpec(exam, mc).cells, 'A22'))).toMatch(
       /^Note: Only those highlighted/,
     )
+  })
+})
+
+/** Serialise a built workbook and read it back, so assertions see real cells. */
+const roundTrip = async (sheet: TosSheet) => {
+  const wb = await buildTosWorkbook(exam, sheet)
+  const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer
+  return XLSX.read(new Uint8Array(buf), { type: 'array' })
+}
+
+describe('the workbook holds one worksheet, for the paper on screen', () => {
+  it('names it after that sheet and carries its formulas', async () => {
+    const wb = await buildTosWorkbook(exam, mc)
+    expect(wb.SheetNames).toEqual(['Multiple Choice'])
+
+    const out = await roundTrip(mc)
+    const ws = out.Sheets['Multiple Choice'] as unknown as Record<
+      string,
+      { f?: string; v?: unknown }
+    >
+    expect(ws.C13.f).toBe('($C$19/$B$20)*B13')
+    expect(ws.D19.f).toBe('SUM(D13:D18)')
+    expect(ws.C19.v).toBe(20)
+  })
+
+  it('exports the performance sheet the same way when that one is on screen', async () => {
+    const wb = await buildTosWorkbook(exam, pp)
+    expect(wb.SheetNames).toEqual(['Performance-Based'])
+
+    const out = await roundTrip(pp)
+    const ws = out.Sheets['Performance-Based'] as unknown as Record<
+      string,
+      { f?: string; v?: unknown }
+    >
+    expect(ws.J19.f).toBe('SUM(D19:I19)')
+    expect(ws.C19.v).toBe(30)
+  })
+
+  it('asks Excel to recalculate rather than showing the placeholder zeros', async () => {
+    const wb = await buildTosWorkbook(exam, mc)
+    const calc = (wb as unknown as { Workbook?: { CalcPr?: { fullCalcOnLoad?: boolean } } })
+      .Workbook?.CalcPr
+    expect(calc?.fullCalcOnLoad).toBe(true)
   })
 })
 

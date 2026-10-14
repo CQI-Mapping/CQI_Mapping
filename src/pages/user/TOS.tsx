@@ -570,16 +570,16 @@ export default function TOS() {
   )
 
   /**
-   * Export writes every paper the exam has, not just the one on screen -- the
-   * workbook is the exam, and the two sheets travel together.
-   */
+ * Export carries the paper on screen, and only that one. The other sheet stays
+ * in the database and can be exported by switching to it first.
+ */
   const exportExcel = useCallback(async () => {
     try {
-      await downloadTosExcel(exam, sheets)
+      await downloadTosExcel(exam, sheet)
     } catch (e) {
       fail(e, 'Could not build the Excel file.')
     }
-  }, [exam, sheets, fail])
+  }, [exam, sheet, fail])
 
   return (
     <div className="syllabus-doc">
