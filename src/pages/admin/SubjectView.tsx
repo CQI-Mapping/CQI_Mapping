@@ -192,10 +192,15 @@ const legendDefs: Array<{ kind: NodeKind; label: string; tip: string }> = [
 ]
 
 // Category order + headings for the connected-details card. Every connected
-// node is bucketed by its kind; categories with nothing attached are hidden.
+// node is bucketed by its kind; categories with nothing attached are hidden, so
+// one list serves all three roots — a PO/PEO tree simply has no curriculum,
+// pre-req or co-req nodes to bucket.
 const connectedCategoryDefs: Array<{ kind: ConnectedGroup['kind']; label: string }> = [
-  { kind: 'po', label: 'Program Outcomes' },
+  { kind: 'curriculum', label: 'Curriculum' },
+  { kind: 'prerequisite', label: 'Prerequisites' },
+  { kind: 'corequisite', label: 'Corequisites' },
   { kind: 'clo', label: 'Course Learning Outcomes' },
+  { kind: 'po', label: 'Program Outcomes' },
   { kind: 'subject', label: 'Subjects' },
   { kind: 'peo', label: 'Program Educational Objectives' },
   { kind: 'sg', label: 'Strategic Goals' },
@@ -792,6 +797,17 @@ export default function SubjectView() {
     }
   }, [datasets, selectedPeo, buildPeoGraphModel, collectConnected])
 
+  // Subject root: curriculum, pre-reqs, co-reqs and the CLO → PO → PEO/SG/CMO
+  // cascade hanging off the course.
+  const subjectConnected = useMemo<ConnectedGroup[]>(() => {
+    if (!datasets || !selectedCourse) return []
+    try {
+      return collectConnected(buildGraphModel(datasets, selectedCourse))
+    } catch {
+      return []
+    }
+  }, [datasets, selectedCourse, buildGraphModel, collectConnected])
+
   const buildActiveModel = useCallback(() => {
     if (!datasets) return null
     if (rootType === 'subject') return selectedCourse ? buildGraphModel(datasets, selectedCourse) : null
@@ -1359,11 +1375,24 @@ export default function SubjectView() {
       ? 'Click a branch node to expand or collapse. Click a PO to view the graph from that PO. Click a PEO to switch PEO root. Drag nodes to reposition. Scroll to zoom.'
       : 'Click a branch node to expand or collapse. Click a subject to view the graph from that subject. Click a PO to switch PO root. Drag nodes to reposition. Scroll to zoom.'
 
-  // The About area renders the *exact* Curriculum Report document for a subject,
-  // through the shared SyllabusReport component (the same one View.tsx renders),
-  // reusing the report page's chrome. A PO or a PEO gets only a compact
-  // connected-details card, not a full report document. `datasets` is prefetched
-  // on mount, so the card is ready before the user presses View Graph.
+  // The About area leads with the compact connected-details card for every
+  // root, then follows it with the full report document where one exists — the
+  // *exact* Curriculum Report document for a subject, through the shared
+  // SyllabusReport component (the same one View.tsx renders), reusing the
+  // report page's chrome. A PO or a PEO gets only the card.
+  // `datasets` is prefetched on mount, so it is ready before View Graph.
+  const subjectDetails = (() => {
+    if (!datasets || !selectedCourse || rootType !== 'subject') return null
+    return (
+      <OutcomeDetailsCard
+        heading={selectedCourse.code}
+        title={selectedCourse.title}
+        groups={subjectConnected}
+        emptyHint="Nothing is connected to this subject yet. Add a curriculum, prerequisites or course learning outcomes to build the map."
+      />
+    )
+  })()
+
   const subjectReport = (() => {
     if (!datasets || !selectedCourse || rootType !== 'subject') return null
     const { adminPos, managerPos } = splitReportPos(datasets.pos)
@@ -1637,17 +1666,24 @@ export default function SubjectView() {
         </div>
       </div>
 
-      {/* Below Program + Visualization — full-width. A subject renders the
-          Curriculum Report document itself (no extra card frame). A PO or a PEO
-          renders only the compact connected-details card, never the full
-          report document. */}
+      {/* Below Program + Visualization — full-width. Every root leads with the
+          compact connected-details card. A subject then follows it with the
+          Curriculum Report document itself (no extra card frame); a PO or a
+          PEO stops at the card. */}
       {rootType === 'subject' && selectedCourse ? (
         <div className="subject-view__about" style={{ marginTop: 16 }}>
-          {subjectReport ?? (
+          {subjectDetails ?? (
             <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
-              Loading the course report…
+              Loading the course details…
             </p>
           )}
+          <div className="subject-view__report">
+            {subjectReport ?? (
+              <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
+                Loading the course report…
+              </p>
+            )}
+          </div>
         </div>
       ) : rootType === 'po' && selectedPo ? (
         <div className="subject-view__about" style={{ marginTop: 16 }}>

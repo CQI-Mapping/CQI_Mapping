@@ -1,9 +1,10 @@
 // OutcomeDetailsCard: the compact connected-details panel the Subject Graph
-// shows when the graph is rooted at a Program Outcome or a Program Educational
-// Objective. Deliberately not a report document (no letterhead, title block,
-// bands or tables) — just the root's own code, title and description, followed
-// by every node connected to it grouped by category (POs, CLOs, Subjects,
-// PEOs, Strategic Goals, CHED Memorandum Orders).
+// shows for whichever node is the root — a subject, a Program Outcome or a
+// Program Educational Objective. Deliberately not a report document (no
+// letterhead, title block, bands or tables) — just the root's own code, title
+// and description, followed by every node connected to it grouped by category
+// (curriculum, pre-reqs, co-reqs, CLOs, POs, Subjects, PEOs, Strategic Goals,
+// CHED Memorandum Orders).
 
 export interface ConnectedItem {
   code: string
@@ -12,7 +13,16 @@ export interface ConnectedItem {
   unresolved: boolean
 }
 
-export type ConnectedKind = 'po' | 'clo' | 'subject' | 'peo' | 'sg' | 'cmo'
+export type ConnectedKind =
+  | 'curriculum'
+  | 'prerequisite'
+  | 'corequisite'
+  | 'clo'
+  | 'po'
+  | 'subject'
+  | 'peo'
+  | 'sg'
+  | 'cmo'
 
 export interface ConnectedGroup {
   kind: ConnectedKind

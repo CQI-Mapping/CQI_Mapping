@@ -4061,8 +4061,12 @@ textarea.input {
   margin-top: 2px;
 }
 
-/* Compact connected-details card for a PO or PEO root — replaces the full
-   Program Outcome / Program Educational Objective report documents. */
+/* Compact connected-details card — heads every root's About area. A subject
+   follows it with the full Curriculum Report document. */
+.subject-view__report {
+  margin-top: 16px;
+}
+
 .outcome-details {
   background: #fff;
   border: 1px solid var(--border);
