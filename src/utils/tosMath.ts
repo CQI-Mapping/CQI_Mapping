@@ -88,7 +88,6 @@ export interface TosSheet {
 export interface TosExam {
   code: string
   title: string
-  examType: string
   term: string
   coverage: string
   preparedBy: string

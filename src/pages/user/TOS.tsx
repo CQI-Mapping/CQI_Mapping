@@ -135,7 +135,6 @@ export default function TOS() {
   const [exam, setExam] = useState<TosExam>(() => ({
     code: '',
     title: '',
-    examType: 'Table of Specification for Prelim',
     term: '',
     coverage: '',
     preparedBy: '',
@@ -242,7 +241,6 @@ export default function TOS() {
     setExam({
       code: row.code,
       title: row.title,
-      examType: `Table of Specification for ${row.exam_type}`,
       term: row.term,
       coverage: row.coverage ?? '',
       preparedBy: row.prepared_by ?? '',
@@ -264,6 +262,10 @@ export default function TOS() {
       try {
         let rows = await fetchTosExams()
         if (rows.length === 0) {
+          // exam_type is NOT NULL and sits in UNIQUE (user_id, code,
+          // exam_type, term), but the header no longer offers a field for it.
+          // A constant is therefore what every exam gets, and updates never
+          // write the column again -- existing rows keep the value they had.
           const created = await createTosExam(
             { code: '', title: '', exam_type: 'Prelim', term: '', total_hours: 8 },
             await currentUserId(),
@@ -372,7 +374,6 @@ export default function TOS() {
             await updateTosExam(activeId, {
               code: next.code,
               title: next.title,
-              exam_type: next.examType.replace(/^Table of Specification for\s+/i, ''),
               term: next.term,
               coverage: next.coverage,
               prepared_by: next.preparedBy,
@@ -601,18 +602,6 @@ export default function TOS() {
               placeholder="- type term (e.g. 1st Semester, 2026-2027) -"
               disabled={!ready}
               onChange={(e) => patchExam({ term: e.target.value })}
-            />
-          </label>
-          <label className="field">
-            <span>Exam type</span>
-            <input
-              className="input input--sm"
-              value={exam.examType.replace(/^Table of Specification for\s+/i, '')}
-              placeholder="- type exam type -"
-              disabled={!ready}
-              onChange={(e) =>
-                patchExam({ examType: `Table of Specification for ${e.target.value}` })
-              }
             />
           </label>
         </div>
