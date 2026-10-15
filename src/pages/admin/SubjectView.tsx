@@ -236,6 +236,11 @@ export default function SubjectView() {
   const svgRef = useRef<SVGSVGElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null)
+  // Read inside the render effect without appearing in its dependency list. The
+  // render effect wipes and rebuilds the whole SVG, so rings created during it
+  // need the current focus to light correctly — but putting the focus in the
+  // deps would rebuild the simulation on every click.
+  const focusedIdRef = useRef<string | null>(null)
 
   // Reset expand/collapse and branch inspection when the root changes — like
   // branch-visualizer fresh state.
@@ -1131,14 +1136,21 @@ export default function SubjectView() {
 
     // Outer ring layer, one per node, drawn before the circles so only the band
     // around them shows — an actual double ring rather than a thicker stroke.
-    // `subject-view__ring--on` is added by the inspection effect below to mark
-    // the node the connected-details card is describing.
-    // The class is set in the enter function only: a blanket .attr('class', …)
-    // would also rewrite on update and wipe --on every time the map re-renders.
+    // The ring for the focused node is lit here, at creation: this effect wipes
+    // and rebuilds the SVG on resize / collapse / root change, and the separate
+    // inspection effect only re-runs when the focus itself changes, so a rebuilt
+    // map would otherwise come up with every ring dark.
+    // Both classes are set in the enter function only — a blanket .attr('class', …)
+    // would also rewrite on update and wipe --on.
     const checkedRing = nodeGroup
       .selectAll<SVGCircleElement, ForceNode>('circle.subject-view__ring')
       .data(simNodes, (d) => d.rId)
-      .join((enter) => enter.append('circle').attr('class', 'subject-view__ring'), (update) => update)
+      .join(
+        (enter) => enter.append('circle')
+          .attr('class', 'subject-view__ring')
+          .classed('subject-view__ring--on', (d: ForceNode) => focusedIdRef.current === d.id),
+        (update) => update,
+      )
       .attr('fill', 'none')
       .attr('stroke-width', 2.5)
       .attr('r', (d) => nodeRadius(d) + 6)
@@ -1348,6 +1360,9 @@ export default function SubjectView() {
   // is always exactly one checked circle — including after a re-root, which is
   // when inspectedNodeId gets cleared.
   const focusedId = inspectedNodeId ?? activeModel?.id ?? null
+  // Assigned during render, which always runs before any effect — so the render
+  // effect above reads the current focus even though it does not depend on it.
+  focusedIdRef.current = focusedId
 
   // Lights the checked ring around that node. Deliberately a separate effect
   // from the render above: adding the focus to that dependency list would tear
