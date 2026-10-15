@@ -4215,17 +4215,25 @@ textarea.input {
   color: var(--text-muted);
 }
 
+/* The border-top is the separator; margin and padding together set how far the
+   rule sits from the title. 14px + 12px = 26px was the only gap in the card
+   off the 4/8/12/16 scale the rest of it uses. */
 .outcome-details__section {
-  margin-top: 14px;
+  margin-top: 12px;
   padding-top: 12px;
   border-top: 1px solid var(--border);
 }
 
+/* Explicit line-height so the label's box height is deterministic rather than
+   inherited — the count badge is taller than the 11px text, and without this the
+   flex row's height (and therefore where the 12px/8px gaps are measured from)
+   depends on the inherited body line-height. */
 .outcome-details__label {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 11px;
+  line-height: 1.4;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -4257,10 +4265,13 @@ textarea.input {
 }
 
 /* One category block inside the card. */
+/* Category groups. 18px -> 16px: a clean double of the 8px chip gap, so a group
+   boundary reads as twice the spacing of a row boundary without the 2.25x
+   stumble. */
 .outcome-connected {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
   margin-top: 12px;
 }
 
