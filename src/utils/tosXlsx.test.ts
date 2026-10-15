@@ -281,46 +281,87 @@ describe('the exported header', () => {
   })
 })
 
-/** Serialise a built workbook and read it back, so assertions see real cells. */
+/**
+ * Serialise the built workbook and read it back through SheetJS, so the
+ * assertions see real cells in a real file rather than the in-memory object.
+ * SheetJS is still a fine *reader* -- it is only writing styles it cannot do.
+ */
 const roundTrip = async (sheet: TosSheet) => {
   const wb = await buildTosWorkbook(exam, sheet)
-  const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer
-  return XLSX.read(new Uint8Array(buf), { type: 'array' })
+  const buf = await wb.xlsx.writeBuffer()
+  return XLSX.read(new Uint8Array(buf), { type: 'array', cellStyles: true })
 }
+
+const cellsOf = (out: { Sheets: Record<string, unknown> }, name: string) =>
+  out.Sheets[name] as unknown as Record<string, { f?: string; v?: unknown }>
 
 describe('the workbook holds one worksheet, for the paper on screen', () => {
   it('names it after that sheet and carries its formulas', async () => {
-    const wb = await buildTosWorkbook(exam, mc)
-    expect(wb.SheetNames).toEqual(['Multiple Choice'])
-
     const out = await roundTrip(mc)
-    const ws = out.Sheets['Multiple Choice'] as unknown as Record<
-      string,
-      { f?: string; v?: unknown }
-    >
+    expect(Object.keys(out.Sheets)).toEqual(['Multiple Choice'])
+
+    const ws = cellsOf(out, 'Multiple Choice')
     expect(ws.C13.f).toBe('($C$19/$B$20)*B13')
     expect(ws.D19.f).toBe('SUM(D13:D18)')
     expect(ws.C19.v).toBe(20)
   })
 
   it('exports the performance sheet the same way when that one is on screen', async () => {
-    const wb = await buildTosWorkbook(exam, pp)
-    expect(wb.SheetNames).toEqual(['ProductPerformance-Based'])
-
     const out = await roundTrip(pp)
-    const ws = out.Sheets['ProductPerformance-Based'] as unknown as Record<
-      string,
-      { f?: string; v?: unknown }
-    >
+    expect(Object.keys(out.Sheets)).toEqual(['ProductPerformance-Based'])
+
+    const ws = cellsOf(out, 'ProductPerformance-Based')
     expect(ws.J19.f).toBe('SUM(D19:I19)')
     expect(ws.C19.v).toBe(30)
   })
 
   it('asks Excel to recalculate rather than showing the placeholder zeros', async () => {
     const wb = await buildTosWorkbook(exam, mc)
-    const calc = (wb as unknown as { Workbook?: { CalcPr?: { fullCalcOnLoad?: boolean } } })
-      .Workbook?.CalcPr
-    expect(calc?.fullCalcOnLoad).toBe(true)
+    expect(wb.calcProperties?.fullCalcOnLoad).toBe(true)
+  })
+
+  // SheetJS reads styles back, so these prove the colouring survived the write.
+  // The whole point of moving off SheetJS for writing was that it dropped them.
+  // It reports fills as fgColor.rgb -- six hex digits, no alpha.
+  it('fills the editable cells green and the formula cells gray', async () => {
+    const out = await roundTrip(mc)
+    const ws = out.Sheets['Multiple Choice'] as unknown as Record<
+      string,
+      { s?: { fgColor?: { rgb?: string } } }
+    >
+    const fill = (addr: string) => ws[addr]?.s?.fgColor?.rgb?.toUpperCase()
+
+    expect(fill('D13')).toBe('A9D18E') // a Bloom count: typed into
+    expect(fill('B13')).toBe('A9D18E') // hours: typed into
+    expect(fill('A13')).toBe('A9D18E') // the topic and its SLO
+    expect(fill('C13')).toBe('AFABAB') // the weighting: computed
+    expect(fill('D19')).toBe('AFABAB') // column sum: computed
+    expect(fill('B20')).toBe('AFABAB') // total hours: computed
+    expect(fill('B21')).toBe('AFABAB') // total percentage: computed
+    // The declared total is the one number in the block a person types.
+    expect(fill('C19')).toBe('A9D18E')
+  })
+
+  it('paints the heading rows black', async () => {
+    const out = await roundTrip(mc)
+    const ws = out.Sheets['Multiple Choice'] as unknown as Record<
+      string,
+      { s?: { fgColor?: { rgb?: string } } }
+    >
+    expect(ws.A11?.s?.fgColor?.rgb?.toUpperCase()).toBe('000000')
+    expect(ws.I12?.s?.fgColor?.rgb?.toUpperCase()).toBe('000000')
+  })
+
+  // Font colour is asked of ExcelJS rather than SheetJS, which does not surface
+  // font styling on read -- white-on-black only works if the type is set too.
+  it('sets the heading rows in white bold type', async () => {
+    const wb = await buildTosWorkbook(exam, mc)
+    const ws = wb.worksheets[0]
+    const heading = ws.getCell(11, 1)
+    expect(heading.font?.color?.argb).toBe('FFFFFFFF')
+    expect(heading.font?.bold).toBe(true)
+    // The share row is not bold in the source.
+    expect(ws.getCell(12, 4).font?.bold).toBeFalsy()
   })
 })
 

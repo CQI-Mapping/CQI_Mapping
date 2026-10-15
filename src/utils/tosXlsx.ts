@@ -257,60 +257,177 @@ const XLSX_MIME =
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
 /**
- * Build a single-worksheet workbook, formulas emitted uncached so Excel
- * computes them on open.
+ * The workbook's colour scheme, read off the source file: editable cells are
+ * green, formula cells gray. The sheet's own footer states the rule -- "Only
+ * those highlighted with green are editable cells. Gray colored cells contains
+ * the formula" -- so the two are opposites of each other by design.
+ */
+const CELL = {
+  /** An input: typed into. */
+  input: 'FFA9D18E',
+  /** A formula: recomputed, never typed. */
+  formula: 'FFAFABAB',
+  /** The heading band across rows 11 and 12. */
+  heading: 'FF000000',
+  /** Grid lines, the gray the source draws its borders in. */
+  border: 'FF9AA4AD',
+} as const
+
+// Type-only import: erased at compile time, so ExcelJS is still only loaded
+// when an export actually runs.
+type Fill = import('exceljs').Fill
+type Borders = import('exceljs').Borders
+
+const THIN: NonNullable<Partial<Borders>['top']> = {
+  style: 'thin',
+  color: { argb: CELL.border },
+}
+
+/**
+ * Build a single-worksheet workbook with the source file's formatting.
  *
  * One sheet, not one per paper: the page prints the blueprint that is on
  * screen, so the file carries that paper and nothing else. The other paper
  * stays in the database and can be exported by switching to it first.
  *
- * Split from downloadTosExcel() so the file can be produced and inspected
- * without a DOM -- saveBlob is the only part that needs a browser.
+ * ExcelJS rather than SheetJS, and not for preference: the community build of
+ * SheetJS reads styles but silently discards them on write, so every cell came
+ * out unformatted. That is a style property the workbook cannot do without --
+ * green inputs and gray formulas are the whole point of the document.
+ *
+ * Formulas are written without cached results and fullCalcOnLoad is set, so
+ * Excel computes them on open rather than showing zeros.
  */
 export async function buildTosWorkbook(exam: TosExam, sheet: TosSheet) {
-  const XLSX = await import('xlsx')
-  const wb = XLSX.utils.book_new()
+  const { default: ExcelJS } = await import('exceljs')
+  const spec = buildSheetSpec(exam, sheet)
+  const rows = layoutFor(sheet.topics.length)
 
-  {
-    const spec = buildSheetSpec(exam, sheet)
-    const ws: Record<string, unknown> = {}
+  const wb = new ExcelJS.Workbook()
+  wb.calcProperties = { fullCalcOnLoad: true }
+  const ws = wb.addWorksheet(spec.name)
 
-    for (const cell of spec.cells) {
-      const addr = XLSX.utils.encode_cell({ r: cell.r, c: cell.c })
-      if (cell.f !== undefined) {
-        // SheetJS drops a cell that has a formula but no value, so the cached
-        // result is written as a placeholder and fullCalcOnLoad below makes
-        // Excel recompute it the moment the file opens. Without the
-        // placeholder the formula never reaches the file at all.
-        ws[addr] = { t: 'n', f: cell.f, v: 0 }
-      } else {
-        ws[addr] = { t: typeof cell.v === 'number' ? 'n' : 's', v: cell.v }
-      }
+  const at = (r: number, c: number) => ws.getCell(r, c)
+  const fill = (argb: string): Fill => ({
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb },
+  })
+  const border: Partial<Borders> = {
+    top: THIN,
+    left: THIN,
+    bottom: THIN,
+    right: THIN,
+  }
+
+  // ---- values and formulas straight off the spec ----
+  for (const cell of spec.cells) {
+    const target = at(cell.r + 1, cell.c + 1)
+    target.value =
+      cell.f !== undefined ? { formula: cell.f } : (cell.v as string | number)
+  }
+
+  // ---- widths, taken from the source file ----
+  ws.getColumn(1).width = 32
+  ws.getColumn(2).width = 10
+  ws.getColumn(3).width = 16
+  for (let c = BLOOM_COL; c <= LAST_BLOOM_COL; c++) ws.getColumn(c).width = 11
+
+  for (const m of spec.merges) ws.mergeCells(m)
+
+  // ---- letterhead ----
+  at(1, 1).font = { bold: true, size: 14 }
+  at(1, 1).alignment = { horizontal: 'center' }
+  at(3, 1).font = { bold: true, size: 12 }
+  at(3, 1).alignment = { horizontal: 'center' }
+  at(6, 1).font = { bold: true }
+  at(8, 1).font = { bold: true, size: 12 }
+  at(8, 1).alignment = { horizontal: 'center' }
+  at(9, 1).font = { bold: true }
+  at(rows.note, 1).font = { italic: true, size: 10 }
+  at(rows.signature, 1).font = { bold: true }
+
+  // ---- the heading band: black with white type, rows 11 and 12 ----
+  for (let c = 1; c <= LAST_BLOOM_COL; c++) {
+    for (const r of [11, SHARES_ROW]) {
+      const cell = at(r, c)
+      cell.fill = fill(CELL.heading)
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 }
+      cell.alignment = { horizontal: 'center', vertical: 'middle' }
+      cell.border = border
     }
-
-    // Excel refuses to open a sheet with no dimension, so the range is set to
-    // the cells actually written rather than left to the reader to infer.
-    const lastR = spec.cells.reduce((m, c) => Math.max(m, c.r), 0)
-    const lastC = spec.cells.reduce((m, c) => Math.max(m, c.c), 0)
-    ws['!ref'] = `A1:${XLSX.utils.encode_cell({ r: lastR, c: lastC })}`
-    ws['!merges'] = spec.merges.map((m) => XLSX.utils.decode_range(m))
-    ws['!cols'] = [
-      { wch: 58 },
-      { wch: 9 },
-      { wch: 15 },
-      ...BLOOM_LEVELS.map(() => ({ wch: 11 })),
-    ]
-
-    XLSX.utils.book_append_sheet(wb, ws as never, spec.name)
+  }
+  // The share percentages sit under the names and are not bold in the source.
+  for (let c = BLOOM_COL; c <= LAST_BLOOM_COL; c++) {
+    at(SHARES_ROW, c).font = { color: { argb: 'FFFFFFFF' }, size: 10 }
   }
 
-  // Force Excel to recalculate on open, so the placeholder cached values above
-  // are replaced by real results rather than being displayed as zeros.
-  // CalcPr is absent from SheetJS's own Workbook type but is read on write.
-  const withCalc = wb as unknown as {
-    Workbook?: Record<string, unknown>
+  // ---- topic rows: green inputs, gray formula ----
+  for (let i = 0; i < sheet.topics.length; i++) {
+    const r = rows.firstTopic + i
+
+    const topic = at(r, 1)
+    topic.fill = fill(CELL.input)
+    topic.border = border
+    topic.alignment = { vertical: 'top', wrapText: true }
+    topic.font = { size: 10 }
+
+    const hours = at(r, 2)
+    hours.fill = fill(CELL.input)
+    hours.border = border
+    hours.alignment = { horizontal: 'center', vertical: 'top' }
+
+    // Gray: the weighting the hours imply. Never typed into.
+    const weighted = at(r, 3)
+    weighted.fill = fill(CELL.formula)
+    weighted.border = border
+    weighted.alignment = { horizontal: 'center', vertical: 'top' }
+    weighted.font = { bold: true, size: 11 }
+    // One decimal, the way the source formats the column.
+    weighted.numFmt = '0.0'
+
+    for (let c = BLOOM_COL; c <= LAST_BLOOM_COL; c++) {
+      const cell = at(r, c)
+      cell.fill = fill(CELL.input)
+      cell.border = border
+      cell.alignment = { horizontal: 'center', vertical: 'top' }
+    }
   }
-  withCalc.Workbook = { ...withCalc.Workbook, CalcPr: { fullCalcOnLoad: true } }
+
+  // ---- totals block ----
+  // The declared total is green because it is typed; every other number in this
+  // block is computed, so it is gray.
+  const totalsRow = [
+    { c: 1, label: true },
+    { c: 3, label: false },
+    ...BLOOM_LEVELS.map((_, i) => ({ c: BLOOM_COL + i, label: false })),
+  ]
+  for (const { c, label } of totalsRow) {
+    const cell = at(rows.totals, c)
+    cell.fill = fill(label ? CELL.formula : c === 3 ? CELL.input : CELL.formula)
+    cell.border = border
+    cell.alignment = { horizontal: label ? 'left' : 'center' }
+    cell.font = { bold: true, size: 11 }
+  }
+  // The performance sheet's extra grand-total cell sits outside the band.
+  const grand = at(rows.totals, LAST_BLOOM_COL + 1)
+  grand.fill = fill(CELL.formula)
+  grand.border = border
+  grand.alignment = { horizontal: 'center' }
+  grand.font = { bold: true, size: 11 }
+
+  for (const r of [rows.hours, rows.pct]) {
+    const label = at(r, 1)
+    label.fill = fill(CELL.formula)
+    label.border = border
+    label.font = { bold: true, size: 11 }
+    label.alignment = { horizontal: 'left' }
+    const value = at(r, 2)
+    value.fill = fill(CELL.formula)
+    value.border = border
+    value.alignment = { horizontal: 'center' }
+    value.font = { bold: true, size: 11 }
+  }
 
   return wb
 }
@@ -327,8 +444,8 @@ export async function downloadTosExcel(
   sheet: TosSheet,
   date = new Date(),
 ): Promise<void> {
-  const XLSX = await import('xlsx')
   const wb = await buildTosWorkbook(exam, sheet)
-  const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer
+  const out = await (wb as unknown as { xlsx: { writeBuffer: () => Promise<ArrayBuffer> } })
+    .xlsx.writeBuffer()
   saveBlob(new Blob([out], { type: XLSX_MIME }), tosFileName(exam.title, date))
 }
