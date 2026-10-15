@@ -1671,7 +1671,7 @@ export default function SubjectView() {
           Curriculum Report document itself (no extra card frame); a PO or a
           PEO stops at the card. */}
       {rootType === 'subject' && selectedCourse ? (
-        <div className="subject-view__about" style={{ marginTop: 16 }}>
+        <div className="subject-view__about">
           {subjectDetails ?? (
             <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
               Loading the course details…
@@ -1686,7 +1686,7 @@ export default function SubjectView() {
           </div>
         </div>
       ) : rootType === 'po' && selectedPo ? (
-        <div className="subject-view__about" style={{ marginTop: 16 }}>
+        <div className="subject-view__about">
           {poDetails ?? (
             <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
               Loading the program outcome details…
@@ -1694,7 +1694,7 @@ export default function SubjectView() {
           )}
         </div>
       ) : rootType === 'peo' && selectedPeo ? (
-        <div className="subject-view__about" style={{ marginTop: 16 }}>
+        <div className="subject-view__about">
           {peoDetails ?? (
             <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
               Loading the PEO details…

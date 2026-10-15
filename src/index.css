@@ -2827,6 +2827,19 @@ textarea.input {
   list-style: none;
 }
 
+/* Vertical rhythm for the roman-numeral rows. The list itself carries none, so
+   I–V and VIII were running flush together while only VI/VII (the
+   .sd-details__block rows) were spaced — the block spacing below was doing all
+   the work. Longhand `margin-bottom` on purpose: a shorthand here would outrank
+   .sd-details__block on specificity and erase its `margin-top`. */
+.sd-details__list > li {
+  margin-bottom: 4px;
+}
+
+.sd-details__list > li:last-child {
+  margin-bottom: 0;
+}
+
 /* One pre-requisite / co-requisite per line, hanging under the label */
 .sd-details__items {
   margin: 2px 0 0 1.5em;
@@ -2839,9 +2852,11 @@ textarea.input {
 }
 
 /* VI / VII are list items whose label sits on the numeral's line and whose
-   content runs onto the lines below, indented to the label column. */
+   content runs onto the lines below, indented to the label column. Only the
+   extra space above is declared — the row's bottom spacing is the shared
+   `margin-bottom` on .sd-details__list > li, so all eight rows step evenly. */
 .sd-details__block {
-  margin: 10px 0 4px;
+  margin-top: 10px;
 }
 
 .sd-details__block > strong {
@@ -4158,6 +4173,13 @@ textarea.input {
   font-weight: 700;
   line-height: 1.2;
   margin-top: 2px;
+}
+
+/* The full-width About area below the Program + Visualization row. Lived as
+   `style={{ marginTop: 16 }}` on all three branches (subject / PO / PEO); a
+   real rule keeps the spacing in one place and overridable. */
+.subject-view__about {
+  margin-top: 16px;
 }
 
 /* Compact connected-details card — heads every root's About area. A subject
