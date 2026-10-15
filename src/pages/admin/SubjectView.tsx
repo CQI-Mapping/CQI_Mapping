@@ -1343,20 +1343,25 @@ export default function SubjectView() {
     }
   }, [rootType, selectedCourse, selectedPo, selectedPeo, datasets, containerSize, collapsedIds, buildGraphModel, buildPoGraphModel, buildPeoGraphModel, courses, selectedCourseId, gotoPoRoot, gotoSubjectRoot, gotoPeoRoot])
 
-  // Rings the node the connected-details card is describing — the "checked"
-  // state that matches the card below the map. Deliberately a separate effect
-  // from the render above: adding inspectedNodeId to that dependency list would
-  // tear down and rebuild the entire force simulation on every click, throwing
-  // away node positions. Toggling one class leaves the layout alone.
+  // The node the connected-details card is describing: an inspected branch when
+  // the user has picked one, otherwise the root. Falls back to the root so there
+  // is always exactly one checked circle — including after a re-root, which is
+  // when inspectedNodeId gets cleared.
+  const focusedId = inspectedNodeId ?? activeModel?.id ?? null
+
+  // Lights the checked ring around that node. Deliberately a separate effect
+  // from the render above: adding the focus to that dependency list would tear
+  // down and rebuild the entire force simulation on every click, throwing away
+  // node positions. Toggling one class leaves the layout alone.
   // Typed structurally rather than as ForceNode — that interface is declared
   // inside the render effect and is not visible out here; only the id matters.
   useEffect(() => {
     const svg = svgRef.current
-    if (!svg) return
+    if (!svg || !focusedId) return
     d3.select(svg)
       .selectAll<SVGCircleElement, { id: string }>('circle.subject-view__ring')
-      .classed('subject-view__ring--on', (d) => !!inspectedNodeId && d.id === inspectedNodeId)
-  }, [inspectedNodeId, showGraph])
+      .classed('subject-view__ring--on', (d) => d.id === focusedId)
+  }, [focusedId, showGraph])
 
   // ResizeObserver keeps the SVG sized responsively.
   useEffect(() => {
