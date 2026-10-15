@@ -4188,12 +4188,16 @@ textarea.input {
   margin-top: 16px;
 }
 
+/* Full width on purpose. This card sits directly above the Curriculum Report
+   document (.syllabus-doc__page), which sets no width cap of its own — the old
+   `max-width: 720px` was the only thing stopping the card short, leaving an
+   empty gutter down the right side beside the report's own edge. Both are now
+   plain blocks in the same .subject-view__about column, so their edges align. */
 .outcome-details {
   background: #fff;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 16px 18px;
-  max-width: 720px;
 }
 
 .outcome-details__title {
