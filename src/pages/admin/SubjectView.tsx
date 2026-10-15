@@ -44,10 +44,10 @@ import type {
   ChedMemoOrder,
 } from '../../services/database'
 import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
-import { splitReportPos, buildGroups, cmoLabel, isManagerCmCategory } from '../../utils/report'
+import { splitReportPos, buildGroups, isManagerCmCategory } from '../../utils/report'
 import SyllabusReport from '../../components/SyllabusReport'
-import ProgramOutcomeReport from '../../components/ProgramOutcomeReport'
-import ProgramEducationalObjectiveReport from '../../components/ProgramEducationalObjectiveReport'
+import OutcomeDetailsCard from '../../components/OutcomeDetailsCard'
+import type { ConnectedGroup, ConnectedItem } from '../../components/OutcomeDetailsCard'
 
 type NodeKind =
   | 'curriculum'
@@ -189,6 +189,22 @@ const legendDefs: Array<{ kind: NodeKind; label: string; tip: string }> = [
   { kind: 'peo', label: 'PEO', tip: 'Program Educational Objective(s)' },
   { kind: 'sg', label: 'SG', tip: 'Strategic Goal(s)' },
   { kind: 'cmo', label: 'CMO', tip: 'CHED Memorandum Order(s)' },
+]
+
+// Category order + headings for the connected-details card. Every connected
+// node is bucketed by its kind; categories with nothing attached are hidden, so
+// one list serves all three roots — a PO/PEO tree simply has no curriculum,
+// pre-req or co-req nodes to bucket.
+const connectedCategoryDefs: Array<{ kind: ConnectedGroup['kind']; label: string }> = [
+  { kind: 'curriculum', label: 'Curriculum' },
+  { kind: 'prerequisite', label: 'Prerequisites' },
+  { kind: 'corequisite', label: 'Corequisites' },
+  { kind: 'clo', label: 'Course Learning Outcomes' },
+  { kind: 'po', label: 'Program Outcomes' },
+  { kind: 'subject', label: 'Subjects' },
+  { kind: 'peo', label: 'Program Educational Objectives' },
+  { kind: 'sg', label: 'Strategic Goals' },
+  { kind: 'cmo', label: 'CHED Memorandum Orders' },
 ]
 
 export default function SubjectView() {
@@ -351,7 +367,7 @@ export default function SubjectView() {
 
   // ── Load + cache outcome datasets ──────────────────────────────────────────
   // Called on mount (silently) so the About card can show the full CLO list
-  // without waiting for View Graph, and again on View / Refresh.
+  // without waiting for Visualization, and again on View / Refresh.
   const loadDatasets = async (force = false, silent = false) => {
     if (datasets && !force) return
     if (!silent) setSpinner(true)
@@ -385,7 +401,7 @@ export default function SubjectView() {
 
   // Prefetch once on mount (guarded so StrictMode's double-invoke doesn't fire
   // two rounds of queries). Without this the About card's CLO list stays empty
-  // until the user presses View Graph.
+  // until the user presses Visualization.
   const prefetched = useRef(false)
   useEffect(() => {
     if (prefetched.current) return
@@ -733,6 +749,64 @@ export default function SubjectView() {
       return null
     }
   }, [rootType, selectedCourse, selectedPo, selectedPeo, datasets, buildGraphModel, buildPoGraphModel, buildPeoGraphModel])
+
+  // Every node connected to a graph root, bucketed by category. Walks the exact
+  // model the graph renders, so a details card and the map can never disagree.
+  // The root is skipped (it is not "connected" to itself) and shared nodes are
+  // de-duplicated by id — a PEO aligned to several POs is listed once.
+  const collectConnected = useCallback((root: GraphNodeData): ConnectedGroup[] => {
+    const buckets = new Map<ConnectedGroup['kind'], Map<string, ConnectedItem>>()
+    const walk = (n: GraphNodeData) => {
+      if (n.id !== root.id) {
+        const kind = n.kind as ConnectedGroup['kind']
+        if (connectedCategoryDefs.some((d) => d.kind === kind)) {
+          let bucket = buckets.get(kind)
+          if (!bucket) { bucket = new Map(); buckets.set(kind, bucket) }
+          if (!bucket.has(n.id)) {
+            bucket.set(n.id, { code: n.code, text: n.title, unresolved: n.placeholder })
+          }
+        }
+      }
+      n.children.forEach(walk)
+    }
+    walk(root)
+    return connectedCategoryDefs.map(({ kind, label }) => ({
+      kind,
+      label,
+      items: [...(buckets.get(kind)?.values() ?? [])],
+    }))
+  }, [])
+
+  // PO root: downstream PEO / SG / CMO leaves plus upstream CLOs → subjects.
+  const poConnected = useMemo<ConnectedGroup[]>(() => {
+    if (!datasets || !selectedPo) return []
+    try {
+      return collectConnected(buildPoGraphModel(datasets, selectedPo))
+    } catch {
+      return []
+    }
+  }, [datasets, selectedPo, buildPoGraphModel, collectConnected])
+
+  // PEO root: the aligned POs, then everything hanging off those POs.
+  const peoConnected = useMemo<ConnectedGroup[]>(() => {
+    if (!datasets || !selectedPeo) return []
+    try {
+      return collectConnected(buildPeoGraphModel(datasets, selectedPeo))
+    } catch {
+      return []
+    }
+  }, [datasets, selectedPeo, buildPeoGraphModel, collectConnected])
+
+  // Subject root: curriculum, pre-reqs, co-reqs and the CLO → PO → PEO/SG/CMO
+  // cascade hanging off the course.
+  const subjectConnected = useMemo<ConnectedGroup[]>(() => {
+    if (!datasets || !selectedCourse) return []
+    try {
+      return collectConnected(buildGraphModel(datasets, selectedCourse))
+    } catch {
+      return []
+    }
+  }, [datasets, selectedCourse, buildGraphModel, collectConnected])
 
   const buildActiveModel = useCallback(() => {
     if (!datasets) return null
@@ -1301,12 +1375,24 @@ export default function SubjectView() {
       ? 'Click a branch node to expand or collapse. Click a PO to view the graph from that PO. Click a PEO to switch PEO root. Drag nodes to reposition. Scroll to zoom.'
       : 'Click a branch node to expand or collapse. Click a subject to view the graph from that subject. Click a PO to switch PO root. Drag nodes to reposition. Scroll to zoom.'
 
-  // The About card renders the *exact* Curriculum Report document — for a
-  // subject through the shared SyllabusReport component (the same one View.tsx
-  // renders), for a PO through ProgramOutcomeReport, and for a PEO through
-  // ProgramEducationalObjectiveReport; both reuse the report page's chrome.
-  // `datasets` is prefetched on mount, so the card is ready before the user
-  // presses View Graph.
+  // The About area leads with the compact connected-details card for every
+  // root, then follows it with the full report document where one exists — the
+  // *exact* Curriculum Report document for a subject, through the shared
+  // SyllabusReport component (the same one View.tsx renders), reusing the
+  // report page's chrome. A PO or a PEO gets only the card.
+  // `datasets` is prefetched on mount, so it is ready before Visualization.
+  const subjectDetails = (() => {
+    if (!datasets || !selectedCourse || rootType !== 'subject') return null
+    return (
+      <OutcomeDetailsCard
+        heading={selectedCourse.code}
+        title={selectedCourse.title}
+        groups={subjectConnected}
+        emptyHint="Nothing is connected to this subject yet. Add a curriculum, prerequisites or course learning outcomes to build the map."
+      />
+    )
+  })()
+
   const subjectReport = (() => {
     if (!datasets || !selectedCourse || rootType !== 'subject') return null
     const { adminPos, managerPos } = splitReportPos(datasets.pos)
@@ -1324,32 +1410,29 @@ export default function SubjectView() {
     )
   })()
 
-  const poReport = (() => {
+  const poDetails = (() => {
     if (!datasets || !selectedPo || rootType !== 'po') return null
-    const key = normalizeCode(selectedPo.code)
-    const linked = datasets.clos.filter((c) =>
-      extractCodes(c.title || '', 'PO').map(normalizeCode).includes(key))
     return (
-      <ProgramOutcomeReport
-        po={selectedPo}
-        cmoLabel={cmoLabel(selectedPo, datasets.cmos)}
-        clos={linked}
+      <OutcomeDetailsCard
+        heading={selectedPo.code}
+        title={selectedPo.title}
+        description={selectedPo.description}
+        groups={poConnected}
+        emptyHint="No course learning outcome references this program outcome yet."
       />
     )
   })()
 
-  const peoReport = (() => {
+  const peoDetails = (() => {
     if (!datasets || !selectedPeo || rootType !== 'peo') return null
-    const key = normalizeCode(selectedPeo.code)
-    const linked = managerOnlyPos.filter((p) => {
-      if (p.peo_id === selectedPeo.id) return true
-      if (p.peo_id) return false // a concrete id wins over free text
-      return p.peo_text
-        ? extractCodes(p.peo_text, 'PEO').map(normalizeCode).includes(key)
-        : false
-    })
     return (
-      <ProgramEducationalObjectiveReport peo={selectedPeo} pos={sortPos(linked)} />
+      <OutcomeDetailsCard
+        heading={selectedPeo.code}
+        title={selectedPeo.title}
+        description={selectedPeo.description}
+        groups={peoConnected}
+        emptyHint="Nothing is connected to this PEO yet. Add aligned program outcomes to build the map."
+      />
     )
   })()
 
@@ -1483,7 +1566,7 @@ export default function SubjectView() {
             className="btn btn--sm subject-view__view-btn"
             disabled={(rootType === 'subject' ? !selectedCourse : rootType === 'po' ? !selectedPoId : !selectedPeoId) || loading || spinner}
             onClick={handleView}>
-            {spinner ? 'Loading…' : 'View Graph'}
+            {spinner ? 'Loading…' : 'Visualization'}
           </button>
         </div>
 
@@ -1503,8 +1586,8 @@ export default function SubjectView() {
                     <path d="M8 7l2.5 9M16 7l-3.5 9M6 6h12" />
                   </svg>
                 </div>
-                <h4>Outcome map for a subject, PO, or PEO</h4>
-                <p>Choose <strong>Subject</strong>, <strong>PO</strong>, or <strong>PEO</strong> on the left, pick a code, then press <strong>View Graph</strong>. Clicking a PO or PEO re-roots the visualization at that outcome; clicking a subject jumps back to that subject.</p>
+                <h4>Visualization for a subject, PO, or PEO</h4>
+                <p>Choose <strong>Subject</strong>, <strong>PO</strong>, or <strong>PEO</strong> on the left, pick a code, then press <strong>Visualization</strong>. Clicking a PO or PEO re-roots the visualization at that outcome; clicking a subject jumps back to that subject.</p>
               </div>
             </div>
           ) : graphError ? (
@@ -1516,7 +1599,7 @@ export default function SubjectView() {
             </div>
           ) : (rootType === 'subject' && !selectedCourse) || (rootType === 'po' && !selectedPo) || (rootType === 'peo' && !selectedPeo) ? (
             <div className="subject-view__placeholder">
-              <p>{rootType === 'subject' ? 'Select a subject on the left, then press View.' : rootType === 'po' ? 'Select a PO on the left, then press View.' : 'Select a PEO on the left, then press View.'}</p>
+              <p>{rootType === 'subject' ? 'Select a subject on the left, then press Visualization.' : rootType === 'po' ? 'Select a PO on the left, then press Visualization.' : 'Select a PEO on the left, then press Visualization.'}</p>
             </div>
           ) : (
             <div className="subject-view__graph-area">
@@ -1583,31 +1666,38 @@ export default function SubjectView() {
         </div>
       </div>
 
-      {/* Below Program + Visualization — full-width. Every root renders the
-          Curriculum Report document itself (no extra card frame): a course
-          syllabus for a subject, a program-outcome page for a PO, and a
-          program-educational-objective page for a PEO. */}
+      {/* Below Program + Visualization — full-width. Every root leads with the
+          compact connected-details card. A subject then follows it with the
+          Curriculum Report document itself (no extra card frame); a PO or a
+          PEO stops at the card. */}
       {rootType === 'subject' && selectedCourse ? (
         <div className="subject-view__about" style={{ marginTop: 16 }}>
-          {subjectReport ?? (
+          {subjectDetails ?? (
             <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
-              Loading the course report…
+              Loading the course details…
             </p>
           )}
+          <div className="subject-view__report">
+            {subjectReport ?? (
+              <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
+                Loading the course report…
+              </p>
+            )}
+          </div>
         </div>
       ) : rootType === 'po' && selectedPo ? (
         <div className="subject-view__about" style={{ marginTop: 16 }}>
-          {poReport ?? (
+          {poDetails ?? (
             <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
-              Loading the program outcome report…
+              Loading the program outcome details…
             </p>
           )}
         </div>
       ) : rootType === 'peo' && selectedPeo ? (
         <div className="subject-view__about" style={{ marginTop: 16 }}>
-          {peoReport ?? (
+          {peoDetails ?? (
             <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
-              Loading the PEO report…
+              Loading the PEO details…
             </p>
           )}
         </div>

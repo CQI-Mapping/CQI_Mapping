@@ -33,8 +33,21 @@ import {
 
 const pct = (n: number) => `${Math.round(n * 1000) / 10}%`
 
+/**
+ * The block that sits above the grid and identifies the blueprint, in the
+ * order the faculty workbook puts it: course, term, then the title line and the
+ * Bloom note. Read-only -- it is the document, not a form.
+ */
+export interface TosDocHeader {
+  courseTitle: string
+  term: string
+  /** "Table of Specification for Prelim: Multiple Choice Type" */
+  title: string
+}
+
 export interface TosSheetGridProps {
   sheet: TosSheet
+  header: TosDocHeader
   issues: TosIssue[]
   /** False renders the document read-only for printing or review. */
   editable: boolean
@@ -43,6 +56,8 @@ export interface TosSheetGridProps {
   onSetBloom: (topicId: string, level: BloomLevel, value: string) => void
   onAddTopic: () => void
   onRemoveTopic: (id: string) => void
+  /** Write the paper on screen out as a workbook. */
+  onExportExcel: () => void
   /** Discard local edits and return to the shipped blueprint. */
   onReset: () => void
 }
@@ -93,6 +108,7 @@ function Cell({
 
 export default function TosSheetGrid({
   sheet,
+  header,
   issues,
   editable,
   onPatchSheet,
@@ -100,12 +116,22 @@ export default function TosSheetGrid({
   onSetBloom,
   onAddTopic,
   onRemoveTopic,
+  onExportExcel,
   onReset,
 }: TosSheetGridProps) {
   const totals = bloomTotals(sheet.topics)
   const share = shares(sheet.topics, sheet.total)
   const shareTotal = BLOOM_LEVELS.reduce((sum, level) => sum + share[level], 0)
   const unit = sheet.kind === 'points' ? 'Point' : 'Item'
+
+  /**
+   * WEIGHT_DRIFT stays computed -- it still decides which rows get the drift
+   * highlight on the weighted column -- but it is not worth saying out loud.
+   * Hour-weighted intent and placed items disagreeing is normal while a sheet
+   * is being built, and the row marking already carries that signal without a
+   * paragraph of numbers under the table.
+   */
+  const visibleIssues = issues.filter((i) => i.code !== 'WEIGHT_DRIFT')
 
   // Drift per topic, so the grid can mark the offending rows without the page
   // having to pass a lookup table down.
@@ -121,7 +147,17 @@ export default function TosSheetGrid({
   return (
     <>
       <div className="panel tos-sheet">
-      <table className="tos-table">
+        {/* ---- letterhead ---- */}
+        <div className="tos-doc">
+          {header.courseTitle && (
+            <p className="tos-doc__line tos-doc__course">Course Title: {header.courseTitle}</p>
+          )}
+          {header.term && <p className="tos-doc__line">{header.term}</p>}
+          <p className="tos-doc__line tos-doc__title">{header.title}</p>
+          <p className="tos-doc__line tos-doc__blooms">Blooms Revised Taxonomy</p>
+        </div>
+
+        <table className="tos-table">
         <thead>
           <tr>
             <th className="tos-th--topic">Topic with SLO</th>
@@ -284,7 +320,7 @@ export default function TosSheetGrid({
       </div>
 
       {/* Add sits directly under the table it adds a row to, right-aligned.
-          Reset and Print sit alongside it. */}
+          Reset and Export sit alongside it. */}
       {editable && (
         <div className="tos-addrow no-print">
           <button type="button" className="btn btn--ghost btn--sm" onClick={onReset}>
@@ -293,9 +329,9 @@ export default function TosSheetGrid({
           <button
             type="button"
             className="btn btn--ghost btn--sm"
-            onClick={() => window.print()}
+            onClick={onExportExcel}
           >
-            Print / Save PDF
+            Export Excel
           </button>
           <button type="button" className="btn btn--primary btn--sm" onClick={onAddTopic}>
             Add topic
@@ -303,9 +339,9 @@ export default function TosSheetGrid({
         </div>
       )}
 
-      {issues.length > 0 && editable && (
+      {visibleIssues.length > 0 && editable && (
         <div className="tos-sheet__issues no-print">
-          {issues.map((issue) => (
+          {visibleIssues.map((issue) => (
             <p
               key={issue.code}
               className={`msg msg--${issue.level === 'error' ? 'error' : 'info'}`}

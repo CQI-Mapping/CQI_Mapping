@@ -7,7 +7,7 @@
 // inline-edit controls are optional: pass `editMode` + `rowActions` +
 // `editableListRow` + `onEditChange` (View.tsx does) for the admin editing
 // experience, or omit them for a read-only copy (SubjectView does).
-import type { ReactNode } from 'react'
+import type { ReactNode, Ref } from 'react'
 import type {
   Course,
   CourseLearningOutcomeStandalone,
@@ -15,7 +15,7 @@ import type {
   StrategicGoal,
 } from '../services/database'
 import { uniqueResolvedRefs } from '../utils/courseCodes'
-import { SCHOOL, DOC_VISION, DOC_MISSION, poLabel, isActive } from '../utils/report'
+import { SCHOOL, DOC_VISION, DOC_MISSION, poLabel, poListItem, goalLine, isActive } from '../utils/report'
 import type { EditableItem, EditableKind, EditState, PoGroup } from '../utils/report'
 import CourseDetails from './CourseDetails'
 
@@ -33,6 +33,13 @@ interface SyllabusReportProps {
   managerGroups: PoGroup[]
   /** Active CLOs belonging to `course`. */
   subjectClos: CourseLearningOutcomeStandalone[]
+
+  /**
+   * Points at the document root — the element the PDF export snapshots.
+   * The toolbar lives outside this node, so the exported file carries the
+   * document only. See utils/syllabusPdf.ts.
+   */
+  rootRef?: Ref<HTMLDivElement>
 
   // ── Optional inline-editing hooks (admin only) ────────────────────────────
   editMode?: boolean
@@ -56,6 +63,7 @@ export default function SyllabusReport({
   adminGroups,
   managerGroups,
   subjectClos,
+  rootRef,
   editMode,
   edit,
   busy,
@@ -76,10 +84,10 @@ export default function SyllabusReport({
     ))
 
   return (
-    <div className="syllabus-doc__page">
+    <div className="syllabus-doc__page" ref={rootRef}>
       {/* Letterhead */}
       <header className="sd-letterhead">
-        <img className="sd-letterhead__img" src="/nbsc-letterhead.jpg" alt="Northern Bukidnon State College" />
+        <img className="sd-letterhead__img" src="/nbsc-letterhead.png" alt="Northern Bukidnon State College" />
         <div className="sd-letterhead__text">
           <div>{SCHOOL.republic}</div>
           <div className="sd-letterhead__school">{SCHOOL.school}</div>
@@ -120,7 +128,7 @@ export default function SyllabusReport({
                 listRow(
                   'goal',
                   g,
-                  <span className="sd-goal">{g.code.replace(/^SG-/i, 'Goal ')}: {g.description}</span>,
+                  <span className="sd-goal">{goalLine(g.code, g.description)}</span>,
                 ),
               )}
               {visibleGoals.length === 0 && <span>No strategic goals.</span>}
@@ -166,11 +174,9 @@ export default function SyllabusReport({
                 )}
                 {group.items.map((p, i, arr) => {
                   const editingThis = !!edit && edit.kind === 'po' && edit.id === p.id
-                  const isLast = i === arr.length - 1
-                  const semicolon = isLast ? '.' : ';'
                   return (
                     <div key={p.id} className={`sd-po-single-outcome ${isActive(p) ? '' : 'sd-archived'}`}>
-                      {poLabel(p.code)}. {p.title.replace(/\.$/, '')}{semicolon}
+                      {poListItem(p.code, p.title, i === arr.length - 1)}
                       {editMode && rowActions && (
                         <span className="sd-po-single-item__actions">
                           {rowActions('po', p.id)}

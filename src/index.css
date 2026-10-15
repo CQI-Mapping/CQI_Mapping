@@ -2372,17 +2372,109 @@ code {
   color: #b8860b;
 }
 
-/* Title block */
+/* Download split-button: the main half saves with the current settings, the
+   caret half opens the format/orientation popover. */
+.sd-download {
+  position: relative;
+  display: inline-flex;
+}
+
+.sd-download__main {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.sd-download__toggle {
+  padding: 6px 8px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  /* Lighter divide between the two halves of the same button. */
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.35);
+}
+
+.sd-download__toggle svg {
+  transition: transform 0.18s ease;
+}
+
+.sd-download__toggle[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+
+.sd-download__menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  min-width: 186px;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
+}
+
+.sd-download__group + .sd-download__group {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.sd-download__label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.sd-download__opts {
+  display: flex;
+  gap: 6px;
+}
+
+.sd-download__opt {
+  flex: 1;
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.sd-download__opt:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.sd-download__opt.is-active {
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary-light), var(--primary));
+  border-color: rgba(34, 197, 94, 0.2);
+}
+
+/* Title block — matches the official syllabus exactly: Arial Bold 10pt
+   throughout, #002060 navy for the first line only, italic reserved for the
+   course code line, and tight 1.15 leading. The previous rule italicised
+   "COURSE SYLLABUS" and used a near-navy #1f3864; neither matches. */
 .sd-titleblock {
   text-align: center;
+  font-family: Arial, Helvetica, sans-serif;
   font-weight: 700;
-  margin: 8px 0 14px;
-  line-height: 1.5;
+  font-size: 10pt;
+  margin: 6px 0 12px;
+  line-height: 1.15;
 }
 
 .sd-titleblock__title {
-  font-style: italic;
-  color: #1f3864;
+  font-style: normal;
+  color: #002060;
 }
 
 .sd-titleblock__course {
@@ -2883,6 +2975,40 @@ textarea.input {
   gap: 6px;
 }
 
+/* The document's own header block ------------------------------------- */
+
+/* Five short lines above the grid, in the order the faculty workbook sets
+   them: course, term, the title, the Bloom note, then the coverage. Reads as
+   a heading, not as form fields, so it inherits the document's type rather
+   than the app's controls. */
+.tos-doc {
+  margin-bottom: 10px;
+}
+
+.tos-doc__line {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.tos-doc__course {
+  font-weight: 700;
+}
+
+.tos-doc__title {
+  font-weight: 700;
+  text-align: center;
+}
+
+.tos-doc__blooms {
+  font-weight: 700;
+}
+
+.tos-doc__topic {
+  font-size: 11px;
+  font-style: italic;
+}
+
 /* The table itself ------------------------------------------------- */
 
 .tos-table {
@@ -2901,10 +3027,13 @@ textarea.input {
   vertical-align: top;
 }
 
+/* Black with white type, as the workbook's heading rows are. The column
+   percentages sit underneath in the same block and must stay legible, so the
+   share inherits rather than restating a colour. */
 .tos-table thead th {
   padding: 4px 5px;
-  background: #d7d9db;
-  color: #111827;
+  background: #000;
+  color: #fff;
   font-weight: 700;
   text-align: center;
 }
@@ -3162,6 +3291,68 @@ textarea.input {
 
 .tos-savestate__error {
   color: var(--danger);
+}
+
+/* Which paper of the exam is on screen. Sits between the header and the grid,
+   reads as a tab bar rather than a toolbar: the active tab is underlined and
+   tinted, the rest stay quiet. Both papers belong to one exam, so switching
+   never changes the header above. */
+.tos-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: -1px;
+}
+
+.tos-tab {
+  position: relative;
+  padding: 9px 16px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: 2px solid transparent;
+  border-radius: 8px 8px 0 0;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tos-tab:hover:not(:disabled) {
+  color: #334155;
+  background: #f8fafc;
+}
+
+.tos-tab--on {
+  color: var(--primary-dark);
+  background: #fff;
+  border-color: #e2e8f0;
+  border-bottom-color: var(--primary);
+  box-shadow: 0 -1px 3px rgba(15, 23, 42, 0.04);
+}
+
+.tos-tab--on:hover:not(:disabled) {
+  color: var(--primary-dark);
+  background: #fff;
+}
+
+.tos-tab:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Marks a paper that has never been opened — the tab exists, the row behind it
+   does not yet. */
+.tos-tab__new {
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--primary-dark);
+  background: rgba(34, 197, 94, 0.12);
+  border-radius: 999px;
 }
 
 
@@ -3967,6 +4158,147 @@ textarea.input {
   font-weight: 700;
   line-height: 1.2;
   margin-top: 2px;
+}
+
+/* Compact connected-details card — heads every root's About area. A subject
+   follows it with the full Curriculum Report document. */
+.subject-view__report {
+  margin-top: 16px;
+}
+
+.outcome-details {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  max-width: 720px;
+}
+
+.outcome-details__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.outcome-details__code {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.outcome-details__desc {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.outcome-details__section {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.outcome-details__label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.outcome-details__count {
+  display: inline-block;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  border: 1px solid var(--border);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+  text-align: center;
+  color: #334155;
+}
+
+.outcome-details__list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* One category block inside the card. */
+.outcome-connected {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 12px;
+}
+
+.outcome-connected__group {
+  display: block;
+}
+
+.outcome-details__item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+}
+
+.outcome-details__item--unresolved {
+  background: #fffdf5;
+  border-style: dashed;
+}
+
+.outcome-details__item--unresolved .outcome-details__item-code {
+  color: #b45309;
+}
+
+.outcome-details__item-code {
+  flex: none;
+  min-width: 62px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #15803d;
+  white-space: nowrap;
+}
+
+.outcome-details__item-text {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.outcome-details__flag {
+  flex: none;
+  margin-left: auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #b45309;
+  white-space: nowrap;
+}
+
+.outcome-details__empty {
+  margin: 8px 0 0;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--text-muted);
 }
 
 .subject-view__graph-area {

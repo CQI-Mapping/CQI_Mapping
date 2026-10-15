@@ -10,7 +10,7 @@
 // (they are school branding, not input data). Records support inline editing
 // and archiving directly on this page via the "Edit" toggle.
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   fetchStrategicGoals,
   fetchProgramEducationalObjectives,
@@ -34,6 +34,10 @@ import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
 import { isActive, buildGroups, splitReportPos, poNumber } from '../../utils/report'
 import type { EditableItem, EditableKind, EditState } from '../../utils/report'
 import SyllabusReport from '../../components/SyllabusReport'
+import Icon from '../../components/icons'
+import { downloadSyllabusPdf } from '../../utils/syllabusPdf'
+import { reportFileName } from '../../utils/download'
+import type { ReportOrientation } from '../../utils/syllabusPdf'
 
 interface ViewProps {
   userEmail: string
@@ -54,6 +58,33 @@ function View({ userEmail }: ViewProps) {
   const [editMode, setEditMode] = useState(false)
   const [edit, setEdit] = useState<EditState | null>(null)
   const [busy, setBusy] = useState(false)
+  const [downloading, setDownloading] = useState(false)
+
+  // Download options. PDF rasterises the live DOM; Word rebuilds the document
+  // from the same data so the file stays editable.
+  const [dlOpen, setDlOpen] = useState(false)
+  const [dlFormat, setDlFormat] = useState<'pdf' | 'docx'>('pdf')
+  const [dlOrientation, setDlOrientation] = useState<ReportOrientation>('landscape')
+  const dlMenuRef = useRef<HTMLDivElement>(null)
+
+  // Close the options popover on outside click or Escape.
+  useEffect(() => {
+    if (!dlOpen) return
+    const onPointer = (e: MouseEvent) => {
+      if (dlMenuRef.current && !dlMenuRef.current.contains(e.target as Node)) setDlOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setDlOpen(false) }
+    document.addEventListener('mousedown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [dlOpen])
+
+  // Snapshot target for the PDF export: the document root, not the outer
+  // wrapper (which holds the toolbar html2canvas would otherwise capture).
+  const reportRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -134,6 +165,50 @@ function View({ userEmail }: ViewProps) {
       setError('Could not change status. If this keeps happening, the status column is missing — run the archive migration SQL in the Supabase SQL Editor (see supabase-schema.sql).')
     } finally {
       setBusy(false)
+    }
+  }
+
+  // Save the report in the chosen format. Snapshotting a PDF takes a moment
+  // (the whole document is rasterised), so the button shows a working state.
+  const downloadPdf = async () => {
+    setDlOpen(false)
+    setDownloading(true)
+    setError(null)
+    setNotice(null)
+    try {
+      if (dlFormat === 'pdf') {
+        if (!reportRef.current) throw new Error('The report is not ready yet.')
+        await downloadSyllabusPdf(
+          reportRef.current,
+          reportFileName(selectedCourse?.code ?? 'report', 'pdf'),
+          dlOrientation,
+        )
+      } else {
+        // Lazy: docx is ~450kB and only needed on the Word path. Importing it
+        // statically put it in the main chunk for every visitor.
+        const { downloadSyllabusDocx } = await import('../../utils/syllabusDocx')
+        await downloadSyllabusDocx(
+          {
+            course: selectedCourse,
+            courses,
+            goals: visibleGoals,
+            peos: visiblePeos,
+            adminGroups,
+            managerGroups,
+            subjectClos,
+          },
+          dlOrientation,
+        )
+      }
+      setNotice(dlFormat === 'pdf' ? 'PDF downloaded.' : 'Word document downloaded.')
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? `Could not create the ${dlFormat === 'pdf' ? 'PDF' : 'Word document'}: ${e.message}`
+          : `Could not create the file. Try the Print button instead.`,
+      )
+    } finally {
+      setDownloading(false)
     }
   }
 
@@ -251,9 +326,80 @@ function View({ userEmail }: ViewProps) {
           >
             {editMode ? 'Done' : 'Edit'}
           </button>
-          <button className="btn btn--primary btn--sm" onClick={() => window.print()}>
-            Print / Save PDF
+          <button
+            className="btn btn--ghost btn--sm"
+            onClick={() => window.print()}
+          >
+            Print
           </button>
+          <div className="sd-download" ref={dlMenuRef}>
+            <button
+              className="btn btn--primary btn--sm sd-download__main"
+              onClick={downloadPdf}
+              disabled={downloading || loading}
+              title="Save the report to a file"
+            >
+              <Icon name="download" />
+              {downloading ? 'Preparing...' : `Download ${dlFormat === 'pdf' ? 'PDF' : 'Word'}`}
+            </button>
+            <button
+              className="btn btn--primary btn--sm sd-download__toggle"
+              onClick={() => setDlOpen((o) => !o)}
+              disabled={downloading || loading}
+              aria-expanded={dlOpen}
+              aria-haspopup="true"
+              aria-label="Download options"
+              title="Choose format and orientation"
+            >
+              <Icon name="chevron" />
+            </button>
+            {dlOpen && (
+              <div className="sd-download__menu no-print" role="menu">
+                <div className="sd-download__group">
+                  <span className="sd-download__label">Format</span>
+                  <div className="sd-download__opts">
+                    <button
+                      className={`sd-download__opt${dlFormat === 'pdf' ? ' is-active' : ''}`}
+                      onClick={() => setDlFormat('pdf')}
+                      role="menuitemradio"
+                      aria-checked={dlFormat === 'pdf'}
+                    >
+                      PDF
+                    </button>
+                    <button
+                      className={`sd-download__opt${dlFormat === 'docx' ? ' is-active' : ''}`}
+                      onClick={() => setDlFormat('docx')}
+                      role="menuitemradio"
+                      aria-checked={dlFormat === 'docx'}
+                    >
+                      Word
+                    </button>
+                  </div>
+                </div>
+                <div className="sd-download__group">
+                  <span className="sd-download__label">Orientation</span>
+                  <div className="sd-download__opts">
+                    <button
+                      className={`sd-download__opt${dlOrientation === 'landscape' ? ' is-active' : ''}`}
+                      onClick={() => setDlOrientation('landscape')}
+                      role="menuitemradio"
+                      aria-checked={dlOrientation === 'landscape'}
+                    >
+                      Landscape
+                    </button>
+                    <button
+                      className={`sd-download__opt${dlOrientation === 'portrait' ? ' is-active' : ''}`}
+                      onClick={() => setDlOrientation('portrait')}
+                      role="menuitemradio"
+                      aria-checked={dlOrientation === 'portrait'}
+                    >
+                      Portrait
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -266,6 +412,7 @@ function View({ userEmail }: ViewProps) {
         <p>Loading curriculum map...</p>
       ) : (
         <SyllabusReport
+          rootRef={reportRef}
           course={selectedCourse}
           courses={courses}
           goals={visibleGoals}
