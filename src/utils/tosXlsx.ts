@@ -126,7 +126,6 @@ export const layoutFor = (topicCount: number) => {
     pct: totals + 2,
     note: totals + 3,
     preparedBy: totals + 5,
-    signature: totals + 8,
   }
 }
 
@@ -227,7 +226,6 @@ put(8, 1, `Table of Specification${examPart}${kindSuffix}`)
 
   put(rows.note, 1, sheet.note.trim() || WORKBOOK.note)
   put(rows.preparedBy, 1, 'Prepared by:')
-  put(rows.signature, 1, exam.preparedBy)
 
   const merges = [
     'A1:I1',
@@ -345,7 +343,6 @@ export async function buildTosWorkbook(exam: TosExam, sheet: TosSheet) {
   at(8, 1).alignment = { horizontal: 'center' }
   at(9, 1).font = { bold: true }
   at(rows.note, 1).font = { italic: true, size: 10 }
-  at(rows.signature, 1).font = { bold: true }
 
   // ---- the heading band: black with white type, rows 11 and 12 ----
   for (let c = 1; c <= LAST_BLOOM_COL; c++) {

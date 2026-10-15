@@ -228,8 +228,14 @@ describe('the exported header', () => {
     const { cells } = buildSheetSpec(exam, mc)
     expect(val(cells, 'A6')).toBe('Course Title: IT21 - Object Oriented Programming')
     expect(val(cells, 'A7')).toBe(exam.term)
-    // put() skips empty values, so an unset signature is no cell at all.
-    expect(at(cells, 'A27')?.v ?? '').toBe(exam.preparedBy)
+  })
+
+  it('keeps the "Prepared by:" label but writes no name under it', () => {
+    // The workbook has a name at A27. Only the label is wanted now, so the row
+    // below it must stay empty rather than carry a stale signature.
+    const { cells } = buildSheetSpec({ ...exam, preparedBy: 'Somebody' }, mc)
+    expect(val(cells, 'A24')).toBe('Prepared by:')
+    expect(at(cells, 'A27')).toBeUndefined()
   })
 
   it('leaves row 10 empty now that coverage has no field', () => {
