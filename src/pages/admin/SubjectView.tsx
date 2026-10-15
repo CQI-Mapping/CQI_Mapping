@@ -227,6 +227,11 @@ export default function SubjectView() {
   const [datasets, setDatasets] = useState<OutcomeDatasets | null>(null)
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 })
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set())
+  // Curriculum branches open into every subject in that curriculum plus each
+  // one's CLO → PO → PEO/SG/CMO sub-tree — easily hundreds of nodes — so they
+  // start closed. Semantics are deliberately inverted from collapsedIds, where
+  // absent means open: here a node is closed until it appears in this set.
+  const [openCurriculumIds, setOpenCurriculumIds] = useState<Set<string>>(() => new Set())
   const [navStack, setNavStack] = useState<NavEntry[]>([])
   // Graph node the connected-details card describes. null = the root itself.
   // Set on every node click so the card answers "what hangs off *that* branch"
@@ -246,6 +251,7 @@ export default function SubjectView() {
   // branch-visualizer fresh state.
   useEffect(() => {
     setCollapsedIds(new Set())
+    setOpenCurriculumIds(new Set())
     setInspectedNodeId(null)
   }, [selectedCourseId, selectedPoId, rootType])
 
@@ -495,6 +501,57 @@ export default function SubjectView() {
     [],
   )
 
+  // ── Outcome sub-tree for one course code ───────────────────────────────────
+  // Every CLO whose course matches `courseKey`, each carrying the POs its title
+  // names and those POs' PEO / SG / CMO leaves. Extracted so the subject itself
+  // and its sibling subjects under the curriculum branch cannot drift into
+  // producing different sub-trees for the same course.
+  const buildCourseClos = useCallback(
+    (datasetsRef: OutcomeDatasets, courseKey: string): GraphNodeData[] => {
+      const subjectClos = datasetsRef.clos.filter((clo) =>
+        cloMatchesSubject(clo.course || '', courseKey)
+      )
+      const poMap = new Map<string, GraphNodeData>()
+      const out: GraphNodeData[] = []
+
+      for (const clo of subjectClos) {
+        const cloNode: GraphNodeData = {
+          id: `clo-${clo.id}`,
+          code: clo.code,
+          title: clo.description || clo.code,
+          kind: 'clo',
+          placeholder: false,
+          children: [],
+        }
+        for (const tok of extractCodes(clo.title || '', 'PO')) {
+          const key = normalizeCode(tok)
+          let poNode = poMap.get(key)
+          if (!poNode) {
+            const poRec = datasetsRef.pos
+              .filter((p) => isManagerCmCategory(p))
+              .find((p) => normalizeCode(p.code) === key)
+            poNode = {
+              id: poRec ? `po-${poRec.id}` : `po-missing-${tok}`,
+              code: tok,
+              title: poRec ? (poRec.title || poRec.description || tok) : 'PO not found or archived',
+              kind: 'po',
+              placeholder: !poRec,
+              poId: poRec?.id,
+              children: [],
+            }
+            if (poRec) attachPoLeaves(datasetsRef, poNode, poRec)
+            poMap.set(key, poNode)
+          }
+          if (!cloNode.children.some((c) => c.id === poNode!.id)) cloNode.children.push(poNode!)
+        }
+        out.push(cloNode)
+      }
+
+      return out
+    },
+    [attachPoLeaves],
+  )
+
   // ── Build the subject-rooted graph model ───────────────────────────────────
   const buildGraphModel = useCallback(
     (datasetsRef: OutcomeDatasets, subject: Course): GraphNodeData => {
@@ -510,10 +567,35 @@ export default function SubjectView() {
         children: [],
       }
 
-      // Curriculum as a child of subject
+      // Curriculum as a child of subject. It carries every other subject in the same
+      // curriculum, each with its own CLO → PO → PEO/SG/CMO sub-tree, so the
+      // branch opens into the whole curriculum instead of a dead end. Having
+      // children makes the node `expandable` on its own — expandable is derived
+      // from childCount — which gives it the +/− badge and click-to-toggle for
+      // free. Pre-requisites are deliberately not pulled in here: at curriculum
+      // breadth they would drag in the rest of the program and swamp the map.
       const cidOpt = subject.curriculum_id
       const cid = cidOpt && typeof cidOpt === 'object' ? cidOpt.id : cidOpt
       const curRec = cid ? datasetsRef.resources.find((r) => r.id === cid) : undefined
+
+      const curriculumSiblings = curRec
+        ? courses
+            .filter((c) => {
+              const opt = c.curriculum_id
+              const other = opt && typeof opt === 'object' ? opt.id : opt
+              return other != null && other === curRec.id && c.id !== subject.id
+            })
+            .map<GraphNodeData>((c) => ({
+              id: `course-${c.id}`,
+              code: c.code,
+              title: c.title,
+              kind: 'subject',
+              placeholder: false,
+              courseId: c.id,
+              children: buildCourseClos(datasetsRef, normalizeCode(c.code)),
+            }))
+        : []
+
       subjectNode.children.push(
         curRec
           ? {
@@ -522,7 +604,7 @@ export default function SubjectView() {
               title: curRec.title,
               kind: 'curriculum',
               placeholder: false,
-              children: [],
+              children: curriculumSiblings,
             }
           : {
               id: `cur-none-${cid || 'x'}`,
@@ -555,47 +637,11 @@ export default function SubjectView() {
       addSat(subject.corequisite, 'corequisite')
 
       // CLOs whose course matches the selected subject code.
-      const subjectClos = datasetsRef.clos.filter((clo) =>
-        cloMatchesSubject(clo.course || '', subjectKey)
-      )
-
-      const poMap = new Map<string, GraphNodeData>()
-
-      for (const clo of subjectClos) {
-        const cloNode: GraphNodeData = {
-          id: `clo-${clo.id}`,
-          code: clo.code,
-          title: clo.description || clo.code,
-          kind: 'clo',
-          placeholder: false,
-          children: [],
-        }
-        const poTokens = extractCodes(clo.title || '', 'PO')
-        for (const tok of poTokens) {
-          const key = normalizeCode(tok)
-          let poNode = poMap.get(key)
-          if (!poNode) {
-            const poRec = datasetsRef.pos.filter((p) => isManagerCmCategory(p)).find((p) => normalizeCode(p.code) === key)
-            poNode = {
-              id: poRec ? `po-${poRec.id}` : `po-missing-${tok}`,
-              code: tok,
-              title: poRec ? (poRec.title || poRec.description || tok) : 'PO not found or archived',
-              kind: 'po',
-              placeholder: !poRec,
-              poId: poRec?.id,
-              children: [],
-            }
-            if (poRec) attachPoLeaves(datasetsRef, poNode, poRec)
-            poMap.set(key, poNode)
-          }
-          if (!cloNode.children.some((c) => c.id === poNode!.id)) cloNode.children.push(poNode!)
-        }
-        subjectNode.children.push(cloNode)
-      }
+      subjectNode.children.push(...buildCourseClos(datasetsRef, subjectKey))
 
       return subjectNode
     },
-    [courses, programCourses, attachPoLeaves],
+    [courses, programCourses, buildCourseClos],
   )
 
   // ── Shared PO upstream: CLOs → their Subjects ─────────────────────────────
@@ -792,6 +838,24 @@ export default function SubjectView() {
 
   
 
+  // True when a node's children are hidden. Curriculum branches are closed until
+  // explicitly opened; everything else is open until explicitly collapsed.
+  const isNodeCollapsed = useCallback(
+    (id: string, kind: NodeKind) => (kind === 'curriculum' ? !openCurriculumIds.has(id) : collapsedIds.has(id)),
+    [collapsedIds, openCurriculumIds],
+  )
+
+  const toggleNode = useCallback((id: string, kind: NodeKind) => {
+    const swap = (prev: Set<string>) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    }
+    if (kind === 'curriculum') setOpenCurriculumIds(swap)
+    else setCollapsedIds(swap)
+  }, [])
+
   const buildActiveModel = useCallback(() => {
     if (!datasets) return null
     if (rootType === 'subject') return selectedCourse ? buildGraphModel(datasets, selectedCourse) : null
@@ -847,6 +911,9 @@ export default function SubjectView() {
     collect(data)
     ids.delete(data.id) // keep the root ring visible
     setCollapsedIds(ids)
+    // Curriculum branches are closed unless open, so clearing this closes any
+    // that were opened — otherwise Collapse All would leave them hanging open.
+    setOpenCurriculumIds(new Set())
   }, [buildActiveModel])
 
   // Reset the SVG zoom/pan transform to its default framed view.
@@ -1001,7 +1068,7 @@ export default function SubjectView() {
     if (!data) return () => {}
     const rootId = data.id
     const root = d3.hierarchy<GraphNodeData>(data, (d) =>
-      collapsedIds.has(d.id) ? undefined : d.children
+      isNodeCollapsed(d.id, d.kind) ? undefined : d.children
     )
 
     // Tree layout for initial left-to-right positions (subject on left, branches right)
@@ -1041,7 +1108,7 @@ export default function SubjectView() {
         peoId: d.data.peoId,
         group: kindGroup[d.data.kind] ?? 4,
         expandable: !!(d.data.children && d.data.children.length > 0),
-        collapsed: collapsedIds.has(d.data.id),
+        collapsed: isNodeCollapsed(d.data.id, d.data.kind),
         x: pos.x,
         y: pos.y + yOffset,
       }
@@ -1332,12 +1399,7 @@ export default function SubjectView() {
         return
       }
       if (d.expandable) {
-        setCollapsedIds((prev) => {
-          const next = new Set(prev)
-          if (next.has(d.id)) next.delete(d.id)
-          else next.add(d.id)
-          return next
-        })
+        toggleNode(d.id, d.kind)
       }
     })
 
@@ -1353,7 +1415,7 @@ export default function SubjectView() {
       svg.on('.zoom', null)
       zoomRef.current = null
     }
-  }, [rootType, selectedCourse, selectedPo, selectedPeo, datasets, containerSize, collapsedIds, buildGraphModel, buildPoGraphModel, buildPeoGraphModel, courses, selectedCourseId, gotoPoRoot, gotoSubjectRoot, gotoPeoRoot])
+  }, [rootType, selectedCourse, selectedPo, selectedPeo, datasets, containerSize, collapsedIds, isNodeCollapsed, toggleNode, buildGraphModel, buildPoGraphModel, buildPeoGraphModel, courses, selectedCourseId, gotoPoRoot, gotoSubjectRoot, gotoPeoRoot])
 
   // The node the connected-details card is describing: an inspected branch when
   // the user has picked one, otherwise the root. Falls back to the root so there
