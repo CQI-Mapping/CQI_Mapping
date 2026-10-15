@@ -1115,20 +1115,41 @@ export default function SubjectView() {
 
     // Nodes as <circle> groups with outer <g> for labels/badges — keeps drag on the circle
     const nodeGroup = zoomGroup.append('g')
+      .attr('class', 'subject-view__nodes')
       .attr('stroke', '#fff')
       .attr('stroke-width', 1.5)
 
-    const node = nodeGroup
-      .selectAll<SVGCircleElement, ForceNode>('circle')
+    // Circle radius per node kind. A root reads larger than its kind so the
+    // focus of the map is obvious (a PO root would otherwise be 8 like any PO).
+    const nodeRadius = (d: ForceNode) => {
+      if (d.id === rootId) return 14
+      if (d.kind === 'subject') return 14
+      if (d.kind === 'curriculum') return 12
+      if (d.kind === 'po' || d.kind === 'clo') return 8
+      return 5
+    }
+
+    // Outer ring layer, one per node, drawn before the circles so only the band
+    // around them shows — an actual double ring rather than a thicker stroke.
+    // `subject-view__ring--on` is added by the inspection effect below to mark
+    // the node the connected-details card is describing.
+    // The class is set in the enter function only: a blanket .attr('class', …)
+    // would also rewrite on update and wipe --on every time the map re-renders.
+    const checkedRing = nodeGroup
+      .selectAll<SVGCircleElement, ForceNode>('circle.subject-view__ring')
       .data(simNodes, (d) => d.rId)
-      .join('circle')
-      .attr('r', (d) => {
-        if (d.id === rootId) return 14
-        if (d.kind === 'subject') return 14
-        if (d.kind === 'curriculum') return 12
-        if (d.kind === 'po' || d.kind === 'clo') return 8
-        return 5
-      })
+      .join((enter) => enter.append('circle').attr('class', 'subject-view__ring'), (update) => update)
+      .attr('fill', 'none')
+      .attr('stroke-width', 2.5)
+      .attr('r', (d) => nodeRadius(d) + 6)
+      .attr('pointer-events', 'none')
+
+    // `:not(.subject-view__ring)` keeps the ring layer out of this selection.
+    const node = nodeGroup
+      .selectAll<SVGCircleElement, ForceNode>('circle:not(.subject-view__ring)')
+      .data(simNodes, (d) => d.rId)
+      .join((enter) => enter.append('circle').attr('class', 'subject-view__node'), (update) => update)
+      .attr('r', nodeRadius)
       .attr('fill', (d) => (d.placeholder ? '#f8fafc' : (colorMap[d.kind] as string) || color(String(d.group))))
       .attr('stroke', (d) => (d.placeholder ? '#94a3b8' : '#fff'))
       .attr('cursor', (d) => (d.expandable || d.courseId || (d.kind === 'po' && d.poId) || (d.kind === 'peo' && d.peoId) ? 'pointer' : 'grab'))
@@ -1185,6 +1206,10 @@ export default function SubjectView() {
         .attr('y2', (d) => (d.target as ForceNode).y ?? 0)
 
       node
+        .attr('cx', (d) => d.x ?? 0)
+        .attr('cy', (d) => d.y ?? 0)
+
+      checkedRing
         .attr('cx', (d) => d.x ?? 0)
         .attr('cy', (d) => d.y ?? 0)
 
@@ -1317,6 +1342,21 @@ export default function SubjectView() {
       zoomRef.current = null
     }
   }, [rootType, selectedCourse, selectedPo, selectedPeo, datasets, containerSize, collapsedIds, buildGraphModel, buildPoGraphModel, buildPeoGraphModel, courses, selectedCourseId, gotoPoRoot, gotoSubjectRoot, gotoPeoRoot])
+
+  // Rings the node the connected-details card is describing — the "checked"
+  // state that matches the card below the map. Deliberately a separate effect
+  // from the render above: adding inspectedNodeId to that dependency list would
+  // tear down and rebuild the entire force simulation on every click, throwing
+  // away node positions. Toggling one class leaves the layout alone.
+  // Typed structurally rather than as ForceNode — that interface is declared
+  // inside the render effect and is not visible out here; only the id matters.
+  useEffect(() => {
+    const svg = svgRef.current
+    if (!svg) return
+    d3.select(svg)
+      .selectAll<SVGCircleElement, { id: string }>('circle.subject-view__ring')
+      .classed('subject-view__ring--on', (d) => !!inspectedNodeId && d.id === inspectedNodeId)
+  }, [inspectedNodeId, showGraph])
 
   // ResizeObserver keeps the SVG sized responsively.
   useEffect(() => {

@@ -4669,24 +4669,39 @@ textarea.input {
    stroke: #16a34a !important;
    stroke-width: 3px !important;
 }
-.subject-view__node--highlight circle,
-.subject-view__node--highlight ellipse {
-   stroke: #16a34a !important;
-   stroke-width: 3px !important;
-}
 .subject-view__link--highlight {
    stroke: rgb(0, 174, 255) !important;
    stroke-width: 3px !important;
    stroke-opacity: 1 !important;
 }
 
- /* Subtle grow feedback when hovering a node. */
-.subject-view__node:hover .subject-view__shape,
-.subject-view__node:hover .subject-view__core {
-   transform-box: fill-box;
-   transform-origin: center;
-   transform: scale(1.08);
-   transition: transform 0.18s ease;
+ /* Ring around the node the connected-details card is describing — the checked
+   state, delivering the double ring the legend promises for the root. One
+   circle per node always exists but stays fully transparent until the
+   inspection effect adds --on, so the layer costs nothing while nothing is
+   being inspected. */
+.subject-view__ring {
+  stroke: #0f172a;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.subject-view__ring--on {
+  opacity: 1;
+}
+
+/* Subtle grow feedback when hovering a node. The node circles carry
+   .subject-view__node themselves — the old rule targeted .subject-view__shape
+   and .subject-view__core, neither of which exists anywhere in the codebase, so
+   it never applied. */
+.subject-view__node {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 0.18s ease;
+}
+
+.subject-view__node:hover {
+  transform: scale(1.08);
 }
 
 .resource-card--selected {
