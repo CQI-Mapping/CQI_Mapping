@@ -358,6 +358,25 @@ describe('the workbook holds one worksheet, for the paper on screen', () => {
     expect(ws.I12?.s?.fgColor?.rgb?.toUpperCase()).toBe('000000')
   })
 
+  // A styled-but-empty cell still counts as used, so formatting the grand-total
+  // box unconditionally pushed the sheet's dimension out to column J and left a
+  // stray grey cell past the last real column on a multiple choice sheet.
+  it('adds no column past the grid on a multiple choice sheet', async () => {
+    const wb = await buildTosWorkbook(exam, mc)
+    const model = (wb.worksheets[0].dimensions as unknown as { model: { right: number } }).model
+    expect(model.right).toBe(9)
+    expect(wb.worksheets[0].getCell('J19').value).toBeNull()
+    expect(wb.worksheets[0].getCell('J19').fill).toBeUndefined()
+  })
+
+  it('still gives the performance sheet its grand total in J', async () => {
+    const wb = await buildTosWorkbook(exam, pp)
+    const grand = wb.worksheets[0].getCell('J19')
+    expect(grand.value).toEqual({ formula: 'SUM(D19:I19)' })
+    const shade = (grand.fill as { fgColor?: { argb?: string } }).fgColor?.argb
+    expect(shade).toBe('FFAFABAB')
+  })
+
   // Font colour is asked of ExcelJS rather than SheetJS, which does not surface
   // font styling on read -- white-on-black only works if the type is set too.
   it('sets the heading rows in white bold type', async () => {

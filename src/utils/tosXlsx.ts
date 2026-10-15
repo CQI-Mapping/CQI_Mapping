@@ -407,11 +407,16 @@ export async function buildTosWorkbook(exam: TosExam, sheet: TosSheet) {
     cell.font = { bold: true, size: 11 }
   }
   // The performance sheet's extra grand-total cell sits outside the band.
-  const grand = at(rows.totals, LAST_BLOOM_COL + 1)
-  grand.fill = fill(CELL.formula)
-  grand.border = border
-  grand.alignment = { horizontal: 'center' }
-  grand.font = { bold: true, size: 11 }
+  // Styling it unconditionally would create an empty but formatted cell in
+  // column J on a multiple choice sheet, which extends the sheet's dimension
+  // and leaves a stray grey box past the last real column.
+  if (sheet.kind === 'points') {
+    const grand = at(rows.totals, LAST_BLOOM_COL + 1)
+    grand.fill = fill(CELL.formula)
+    grand.border = border
+    grand.alignment = { horizontal: 'center' }
+    grand.font = { bold: true, size: 11 }
+  }
 
   for (const r of [rows.hours, rows.pct]) {
     const label = at(r, 1)
