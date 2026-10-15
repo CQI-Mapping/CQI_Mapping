@@ -207,6 +207,29 @@ const connectedCategoryDefs: Array<{ kind: ConnectedGroup['kind']; label: string
   { kind: 'cmo', label: 'CHED Memorandum Orders' },
 ]
 
+// One neighbour of a clicked node, captured at click time.
+interface NodeDetailItem {
+  code: string
+  title: string
+  label: string
+  unresolved: boolean
+}
+
+// A clicked node's details, pinned until dismissed. Deliberately plain data
+// rather than a live ForceNode: the simulation rebuilds on every collapse or
+// re-root, so holding the node reference would go stale immediately.
+interface NodeDetail {
+  code: string
+  title: string
+  label: string
+  unresolved: boolean
+  connections: NodeDetailItem[]
+}
+
+// Compact per-kind heading, reused from the legend so a node's category reads
+// the same in the popover as it does above the graph.
+const nodeKindLabel = (k: NodeKind): string => legendDefs.find((l) => l.kind === k)?.label ?? k
+
 export default function SubjectView() {
   const [programs, setPrograms] = useState<Program[]>([])
   const [courses, setCourses] = useState<Course[]>([])
@@ -229,12 +252,32 @@ export default function SubjectView() {
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set())
   const [navStack, setNavStack] = useState<NavEntry[]>([])
   const [isFullscreen, setIsFullscreen] = useState(false)
+  // Details for the last clicked node. Nodes that can't be re-rooted into
+  // (curriculum, CLO, SG, CMO, unresolved placeholders) have no view to
+  // navigate to, so a click pins their details and connections here instead of
+  // being silently discarded.
+  const [nodeDetail, setNodeDetail] = useState<NodeDetail | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null)
 
   // Reset expand/collapse when the root changes — like branch-visualizer fresh state.
   useEffect(() => { setCollapsedIds(new Set()) }, [selectedCourseId, selectedPoId, rootType])
+
+  // Pinned node details belong to the graph they were clicked in — drop them
+  // when the root moves or the graph is otherwise replaced.
+  useEffect(() => { setNodeDetail(null) }, [selectedCourseId, selectedPoId, selectedPeoId, rootType])
+
+  // Esc closes the pinned details. Only bound while one is open, so it can't
+  // collide with the fullscreen Esc handler above.
+  useEffect(() => {
+    if (!nodeDetail) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setNodeDetail(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [nodeDetail])
 
   // Fullscreen map: Esc exits, and the page behind stops scrolling.
   useEffect(() => {
@@ -1115,7 +1158,11 @@ export default function SubjectView() {
       })
       .attr('fill', (d) => (d.placeholder ? '#f8fafc' : (colorMap[d.kind] as string) || color(String(d.group))))
       .attr('stroke', (d) => (d.placeholder ? '#94a3b8' : '#fff'))
-      .attr('cursor', (d) => (d.expandable || d.courseId || (d.kind === 'po' && d.poId) || (d.kind === 'peo' && d.peoId) ? 'pointer' : 'grab'))
+      // Every node responds to a click now — navigate, collapse/expand, or pin
+      // details — so 'pointer' is honest everywhere. It used to fall back to
+      // 'grab', advertising a node-drag that was never implemented (d3-zoom is
+      // bound to the <svg>, not to nodes).
+      .attr('cursor', 'pointer')
       .attr('filter', 'url(#subject-view-shadow)')
 
     node.append('title').text((d) => `${d.code} — ${d.title}`)
@@ -1246,6 +1293,36 @@ export default function SubjectView() {
         tip.style.opacity = '0'
       })
 
+    // Pin a clicked node's details + its direct connections. Built from the
+    // live links at click time; `seen` guards against a node linked twice in
+    // the flattened tree. Nodes with no view to re-root into (curriculum, CLO,
+    // SG, CMO and unresolved placeholders) land here, as do the root itself
+    // and a subject already current — previously all silently did nothing.
+    const pinNodeDetail = (n: ForceNode) => {
+      const seen = new Set<string>()
+      const connections: NodeDetailItem[] = []
+      for (const l of simLinks) {
+        const s = l.source as ForceNode
+        const t = l.target as ForceNode
+        const other = s.rId === n.rId ? t : t.rId === n.rId ? s : null
+        if (!other || seen.has(other.rId)) continue
+        seen.add(other.rId)
+        connections.push({
+          code: other.code,
+          title: other.title,
+          label: nodeKindLabel(other.kind),
+          unresolved: other.placeholder,
+        })
+      }
+      setNodeDetail({
+        code: n.code,
+        title: n.title,
+        label: nodeKindLabel(n.kind),
+        unresolved: n.placeholder,
+        connections,
+      })
+    }
+
     // Click — cross-root re-root + drill-down + expand/collapse on force nodes
     node.on('click', (event, d) => {
       event.stopPropagation()
@@ -1269,7 +1346,11 @@ export default function SubjectView() {
         const target = courses.find((c) => c.id === d.courseId)
         if (target && target.id !== selectedCourseId) {
           gotoSubjectRoot(target.id)
+          return
         }
+        // Already the current root, or the record is gone — still show what it
+        // connects to rather than swallowing the click.
+        pinNodeDetail(d)
         return
       }
       if (d.expandable) {
@@ -1280,6 +1361,7 @@ export default function SubjectView() {
           return next
         })
       }
+      pinNodeDetail(d)
     })
 
     // Zoom / pan
@@ -1661,6 +1743,61 @@ export default function SubjectView() {
                 <svg ref={svgRef} className="subject-view__svg" />
               </div>
               <div ref={tooltipRef} className="subject-view__tooltip" />
+              {nodeDetail && (
+                <div
+                  className="subject-view__nodedetail"
+                  role="dialog"
+                  aria-label={`Details for ${nodeDetail.code}`}
+                >
+                  <div className="subject-view__nodedetail-head">
+                    <span className="subject-view__nodedetail-kind">{nodeDetail.label}</span>
+                    <button
+                      type="button"
+                      className="subject-view__nodedetail-close"
+                      onClick={() => setNodeDetail(null)}
+                      aria-label="Close details"
+                      title="Close (Esc)"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="subject-view__nodedetail-code">
+                    <strong>{nodeDetail.code}</strong>
+                    {nodeDetail.title && <span>{nodeDetail.title}</span>}
+                  </div>
+                  {nodeDetail.unresolved && (
+                    <p className="subject-view__nodedetail-unresolved">
+                      Unresolved — no matching record in the dataset.
+                    </p>
+                  )}
+                  {nodeDetail.connections.length === 0 ? (
+                    <p className="subject-view__nodedetail-empty">
+                      Nothing else is connected to this node.
+                    </p>
+                  ) : (
+                    <>
+                      <span className="subject-view__nodedetail-label">
+                        Connected
+                        <em className="subject-view__nodedetail-count">
+                          {nodeDetail.connections.length}
+                        </em>
+                      </span>
+                      <ul className="subject-view__nodedetail-list">
+                        {nodeDetail.connections.map((c) => (
+                          <li
+                            key={`${c.label}-${c.code}-${c.title}`}
+                            className={c.unresolved ? 'subject-view__nodedetail-item--unresolved' : ''}
+                          >
+                            <span className="subject-view__nodedetail-item-code">{c.code}</span>
+                            <span className="subject-view__nodedetail-item-text">{c.title}</span>
+                            <span className="subject-view__nodedetail-item-kind">{c.label}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
