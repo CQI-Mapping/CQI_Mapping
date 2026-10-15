@@ -651,7 +651,11 @@ export default function TOS() {
           {error ? (
             <span className="tos-savestate__error">
               {error}
-              {ready === false && !loading && ' — nothing is being saved. Check the database connection.'}
+              {/* Only when the exam row itself never loaded. The old test was
+                  `ready === false`, and ready already includes `!error` -- so it
+                  fired on *every* failure, appending a database diagnosis to
+                  things like a failed Excel export, which is not one. */}
+              {!loading && !activeId && ' — nothing is being saved. Check the database connection.'}
             </span>
           ) : loading ? (
             <span>Loading…</span>
