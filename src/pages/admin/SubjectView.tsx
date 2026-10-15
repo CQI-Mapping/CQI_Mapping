@@ -207,29 +207,6 @@ const connectedCategoryDefs: Array<{ kind: ConnectedGroup['kind']; label: string
   { kind: 'cmo', label: 'CHED Memorandum Orders' },
 ]
 
-// One neighbour of a clicked node, captured at click time.
-interface NodeDetailItem {
-  code: string
-  title: string
-  label: string
-  unresolved: boolean
-}
-
-// A clicked node's details, pinned until dismissed. Deliberately plain data
-// rather than a live ForceNode: the simulation rebuilds on every collapse or
-// re-root, so holding the node reference would go stale immediately.
-interface NodeDetail {
-  code: string
-  title: string
-  label: string
-  unresolved: boolean
-  connections: NodeDetailItem[]
-}
-
-// Compact per-kind heading, reused from the legend so a node's category reads
-// the same in the popover as it does above the graph.
-const nodeKindLabel = (k: NodeKind): string => legendDefs.find((l) => l.kind === k)?.label ?? k
-
 export default function SubjectView() {
   const [programs, setPrograms] = useState<Program[]>([])
   const [courses, setCourses] = useState<Course[]>([])
@@ -251,33 +228,21 @@ export default function SubjectView() {
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 })
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set())
   const [navStack, setNavStack] = useState<NavEntry[]>([])
+  // Graph node the connected-details card describes. null = the root itself.
+  // Set on every node click so the card answers "what hangs off *that* branch"
+  // and not just the root; cleared whenever the root changes.
+  const [inspectedNodeId, setInspectedNodeId] = useState<string | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  // Details for the last clicked node. Nodes that can't be re-rooted into
-  // (curriculum, CLO, SG, CMO, unresolved placeholders) have no view to
-  // navigate to, so a click pins their details and connections here instead of
-  // being silently discarded.
-  const [nodeDetail, setNodeDetail] = useState<NodeDetail | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null)
 
-  // Reset expand/collapse when the root changes — like branch-visualizer fresh state.
-  useEffect(() => { setCollapsedIds(new Set()) }, [selectedCourseId, selectedPoId, rootType])
-
-  // Pinned node details belong to the graph they were clicked in — drop them
-  // when the root moves or the graph is otherwise replaced.
-  useEffect(() => { setNodeDetail(null) }, [selectedCourseId, selectedPoId, selectedPeoId, rootType])
-
-  // Esc closes the pinned details. Only bound while one is open, so it can't
-  // collide with the fullscreen Esc handler above.
+  // Reset expand/collapse and branch inspection when the root changes — like
+  // branch-visualizer fresh state.
   useEffect(() => {
-    if (!nodeDetail) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setNodeDetail(null)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [nodeDetail])
+    setCollapsedIds(new Set())
+    setInspectedNodeId(null)
+  }, [selectedCourseId, selectedPoId, rootType])
 
   // Fullscreen map: Esc exits, and the page behind stops scrolling.
   useEffect(() => {
@@ -820,36 +785,7 @@ export default function SubjectView() {
     }))
   }, [])
 
-  // PO root: downstream PEO / SG / CMO leaves plus upstream CLOs → subjects.
-  const poConnected = useMemo<ConnectedGroup[]>(() => {
-    if (!datasets || !selectedPo) return []
-    try {
-      return collectConnected(buildPoGraphModel(datasets, selectedPo))
-    } catch {
-      return []
-    }
-  }, [datasets, selectedPo, buildPoGraphModel, collectConnected])
-
-  // PEO root: the aligned POs, then everything hanging off those POs.
-  const peoConnected = useMemo<ConnectedGroup[]>(() => {
-    if (!datasets || !selectedPeo) return []
-    try {
-      return collectConnected(buildPeoGraphModel(datasets, selectedPeo))
-    } catch {
-      return []
-    }
-  }, [datasets, selectedPeo, buildPeoGraphModel, collectConnected])
-
-  // Subject root: curriculum, pre-reqs, co-reqs and the CLO → PO → PEO/SG/CMO
-  // cascade hanging off the course.
-  const subjectConnected = useMemo<ConnectedGroup[]>(() => {
-    if (!datasets || !selectedCourse) return []
-    try {
-      return collectConnected(buildGraphModel(datasets, selectedCourse))
-    } catch {
-      return []
-    }
-  }, [datasets, selectedCourse, buildGraphModel, collectConnected])
+  
 
   const buildActiveModel = useCallback(() => {
     if (!datasets) return null
@@ -857,6 +793,43 @@ export default function SubjectView() {
     if (rootType === 'peo') return selectedPeo ? buildPeoGraphModel(datasets, selectedPeo) : null
     return selectedPo ? buildPoGraphModel(datasets, selectedPo) : null
   }, [datasets, rootType, selectedCourse, selectedPo, selectedPeo, buildGraphModel, buildPoGraphModel, buildPeoGraphModel])
+
+  // Memoized so the derived card state below keeps a stable identity between
+  // renders — buildActiveModel() rebuilds the entire tree on every call.
+  const activeModel = useMemo(() => buildActiveModel(), [buildActiveModel])
+
+  const findNodeById = useCallback((id: string): GraphNodeData | null => {
+    if (!activeModel || !id) return null
+    const stack: GraphNodeData[] = [activeModel]
+    while (stack.length > 0) {
+      const n = stack.pop() as GraphNodeData
+      if (n.id === id) return n
+      for (let i = n.children.length - 1; i >= 0; i -= 1) stack.push(n.children[i])
+    }
+    return null
+  }, [activeModel])
+
+  // What the card describes: the clicked branch if there is one, else the root.
+  // A stale id (root changed, node dropped out of the tree) falls back to the
+  // root rather than leaving the card blank.
+  const inspectedNode = useMemo(() => {
+    if (!inspectedNodeId || inspectedNodeId === activeModel?.id) return activeModel
+    return findNodeById(inspectedNodeId) ?? activeModel
+  }, [inspectedNodeId, activeModel, findNodeById])
+
+  // True while the card is pointed at something below the root.
+  const isInspecting = !!inspectedNode && !!activeModel && inspectedNode.id !== activeModel.id
+
+  // Buckets for whichever node is in focus, so the card and the map are always
+  // walking the same tree.
+  const inspectedConnected = useMemo<ConnectedGroup[]>(() => {
+    if (!inspectedNode) return []
+    try {
+      return collectConnected(inspectedNode)
+    } catch {
+      return []
+    }
+  }, [inspectedNode, collectConnected])
 
   // Collapse every expandable node except the center root.
   const collapseAll = useCallback(() => {
@@ -1158,11 +1131,7 @@ export default function SubjectView() {
       })
       .attr('fill', (d) => (d.placeholder ? '#f8fafc' : (colorMap[d.kind] as string) || color(String(d.group))))
       .attr('stroke', (d) => (d.placeholder ? '#94a3b8' : '#fff'))
-      // Every node responds to a click now — navigate, collapse/expand, or pin
-      // details — so 'pointer' is honest everywhere. It used to fall back to
-      // 'grab', advertising a node-drag that was never implemented (d3-zoom is
-      // bound to the <svg>, not to nodes).
-      .attr('cursor', 'pointer')
+      .attr('cursor', (d) => (d.expandable || d.courseId || (d.kind === 'po' && d.poId) || (d.kind === 'peo' && d.peoId) ? 'pointer' : 'grab'))
       .attr('filter', 'url(#subject-view-shadow)')
 
     node.append('title').text((d) => `${d.code} — ${d.title}`)
@@ -1281,7 +1250,7 @@ export default function SubjectView() {
           (d.kind === 'po' && d.poId && !(rootType === 'po' && d.id === rootId)) ||
           (d.kind === 'subject' && d.courseId && !(rootType === 'subject' && d.id === rootId)) ||
           (d.kind === 'peo' && d.peoId && !(rootType === 'peo' && d.id === rootId))
-        tip.innerHTML = `<strong>${d.code}</strong><br/>${d.title}${canReroot ? '<br/><em>Click to view as root</em>' : ''}`
+        tip.innerHTML = `<strong>${d.code}</strong><br/>${d.title}${canReroot ? '<br/><em>Click to view as root</em>' : ''}<br/><em>Click to see its connections</em>`
       })
       .on('mousemove', (event) => {
         tip.style.left = `${event.offsetX + 12}px`
@@ -1293,39 +1262,15 @@ export default function SubjectView() {
         tip.style.opacity = '0'
       })
 
-    // Pin a clicked node's details + its direct connections. Built from the
-    // live links at click time; `seen` guards against a node linked twice in
-    // the flattened tree. Nodes with no view to re-root into (curriculum, CLO,
-    // SG, CMO and unresolved placeholders) land here, as do the root itself
-    // and a subject already current — previously all silently did nothing.
-    const pinNodeDetail = (n: ForceNode) => {
-      const seen = new Set<string>()
-      const connections: NodeDetailItem[] = []
-      for (const l of simLinks) {
-        const s = l.source as ForceNode
-        const t = l.target as ForceNode
-        const other = s.rId === n.rId ? t : t.rId === n.rId ? s : null
-        if (!other || seen.has(other.rId)) continue
-        seen.add(other.rId)
-        connections.push({
-          code: other.code,
-          title: other.title,
-          label: nodeKindLabel(other.kind),
-          unresolved: other.placeholder,
-        })
-      }
-      setNodeDetail({
-        code: n.code,
-        title: n.title,
-        label: nodeKindLabel(n.kind),
-        unresolved: n.placeholder,
-        connections,
-      })
-    }
-
     // Click — cross-root re-root + drill-down + expand/collapse on force nodes
     node.on('click', (event, d) => {
       event.stopPropagation()
+      // Every click inspects, recorded before any re-root below: the
+      // connected-details card describes whatever was clicked, including the
+      // expandable Curriculum/CLO nodes that have no re-root of their own.
+      // Re-rooting clears this again (see the root-change effect), so the card
+      // and the tree never disagree about what "current" means.
+      setInspectedNodeId(d.id)
       // PO node → re-root visualization at that PO (works from subject graph
       // and from upstream CLO branches inside a PO graph).
       if (d.kind === 'po' && d.poId && !d.placeholder) {
@@ -1346,11 +1291,7 @@ export default function SubjectView() {
         const target = courses.find((c) => c.id === d.courseId)
         if (target && target.id !== selectedCourseId) {
           gotoSubjectRoot(target.id)
-          return
         }
-        // Already the current root, or the record is gone — still show what it
-        // connects to rather than swallowing the click.
-        pinNodeDetail(d)
         return
       }
       if (d.expandable) {
@@ -1361,7 +1302,6 @@ export default function SubjectView() {
           return next
         })
       }
-      pinNodeDetail(d)
     })
 
     // Zoom / pan
@@ -1452,31 +1392,63 @@ export default function SubjectView() {
       ? (selectedPeo ? `${selectedPeo.code} — ${selectedPeo.title || selectedPeo.code}` : '')
       : (selectedPo ? `${selectedPo.code} — ${selectedPo.title || selectedPo.description}` : '')
   const graphHint = rootType === 'subject'
-    ? 'Click a branch node to expand or collapse. Click a PO to view the graph from that PO. Click a pre-req or co-req to jump to that subject. Drag nodes to reposition. Scroll to zoom.'
+    ? 'Click any branch node to see what is connected to it in the panel below. Click a PO to view the graph from that PO. Click a pre-req or co-req to jump to that subject. Drag nodes to reposition. Scroll to zoom.'
     : rootType === 'peo'
-      ? 'Click a branch node to expand or collapse. Click a PO to view the graph from that PO. Click a PEO to switch PEO root. Drag nodes to reposition. Scroll to zoom.'
-      : 'Click a branch node to expand or collapse. Click a subject to view the graph from that subject. Click a PO to switch PO root. Drag nodes to reposition. Scroll to zoom.'
+      ? 'Click any branch node to see what is connected to it in the panel below. Click a PO to view the graph from that PO. Click a PEO to switch PEO root. Drag nodes to reposition. Scroll to zoom.'
+      : 'Click any branch node to see what is connected to it in the panel below. Click a subject to view the graph from that subject. Click a PO to switch PO root. Drag nodes to reposition. Scroll to zoom.'
 
   // The About area leads with the compact connected-details card for every
   // root, then follows it with the full report document where one exists — the
   // *exact* Curriculum Report document for a subject, through the shared
   // SyllabusReport component (the same one View.tsx renders), reusing the
   // report page's chrome. A PO or a PEO gets only the card.
+  // The card follows `inspectedNode`, so it describes whichever branch was last
+  // clicked rather than only the root.
   // `datasets` is prefetched on mount, so it is ready before Visualization.
-  const subjectDetails = (() => {
-    if (!datasets || !selectedCourse || rootType !== 'subject') return null
+  const detailsCard = (() => {
+    if (!datasets || !inspectedNode) return null
+    // While the root is in focus, use the source record's own code, title and
+    // description verbatim so none of the three root views change. Inspecting a
+    // branch below it falls back to that graph node's own code and title.
+    const rootProps = (() => {
+      if (isInspecting) return null
+      if (rootType === 'subject' && selectedCourse) {
+        return { heading: selectedCourse.code, title: selectedCourse.title, description: null }
+      }
+      if (rootType === 'po' && selectedPo) {
+        return { heading: selectedPo.code, title: selectedPo.title, description: selectedPo.description }
+      }
+      if (rootType === 'peo' && selectedPeo) {
+        return { heading: selectedPeo.code, title: selectedPeo.title, description: selectedPeo.description }
+      }
+      return null
+    })()
+    const props = rootProps ?? { heading: inspectedNode.code, title: inspectedNode.title, description: null }
     return (
       <OutcomeDetailsCard
-        heading={selectedCourse.code}
-        title={selectedCourse.title}
-        groups={subjectConnected}
-        emptyHint="Nothing is connected to this subject yet. Add a curriculum, prerequisites or course learning outcomes to build the map."
+        {...props}
+        groups={inspectedConnected}
+        inspecting={isInspecting}
+        rootCode={activeModel?.code}
+        onBackToRoot={() => setInspectedNodeId(null)}
+        emptyHint={
+          isInspecting
+            ? `Nothing is connected to ${inspectedNode.code} yet.`
+            : rootType === 'po'
+              ? 'No course learning outcome references this program outcome yet.'
+              : rootType === 'peo'
+                ? 'Nothing is connected to this PEO yet. Add aligned program outcomes to build the map.'
+                : 'Nothing is connected to this subject yet. Add a curriculum, prerequisites or course learning outcomes to build the map.'
+        }
       />
     )
   })()
 
+  // The Curriculum Report belongs to the subject root alone. While a branch
+  // below it is being inspected the card stands on its own, so the syllabus on
+  // screen always matches the card above it.
   const subjectReport = (() => {
-    if (!datasets || !selectedCourse || rootType !== 'subject') return null
+    if (!datasets || !selectedCourse || rootType !== 'subject' || isInspecting) return null
     const { adminPos, managerPos } = splitReportPos(datasets.pos)
     return (
       <SyllabusReport
@@ -1488,32 +1460,6 @@ export default function SubjectView() {
         managerGroups={buildGroups(managerPos, datasets.cmos)}
         subjectClos={datasets.clos.filter((c) =>
           cloMatchesSubject(c.course || '', normalizeCode(selectedCourse.code)))}
-      />
-    )
-  })()
-
-  const poDetails = (() => {
-    if (!datasets || !selectedPo || rootType !== 'po') return null
-    return (
-      <OutcomeDetailsCard
-        heading={selectedPo.code}
-        title={selectedPo.title}
-        description={selectedPo.description}
-        groups={poConnected}
-        emptyHint="No course learning outcome references this program outcome yet."
-      />
-    )
-  })()
-
-  const peoDetails = (() => {
-    if (!datasets || !selectedPeo || rootType !== 'peo') return null
-    return (
-      <OutcomeDetailsCard
-        heading={selectedPeo.code}
-        title={selectedPeo.title}
-        description={selectedPeo.description}
-        groups={peoConnected}
-        emptyHint="Nothing is connected to this PEO yet. Add aligned program outcomes to build the map."
       />
     )
   })()
@@ -1743,61 +1689,6 @@ export default function SubjectView() {
                 <svg ref={svgRef} className="subject-view__svg" />
               </div>
               <div ref={tooltipRef} className="subject-view__tooltip" />
-              {nodeDetail && (
-                <div
-                  className="subject-view__nodedetail"
-                  role="dialog"
-                  aria-label={`Details for ${nodeDetail.code}`}
-                >
-                  <div className="subject-view__nodedetail-head">
-                    <span className="subject-view__nodedetail-kind">{nodeDetail.label}</span>
-                    <button
-                      type="button"
-                      className="subject-view__nodedetail-close"
-                      onClick={() => setNodeDetail(null)}
-                      aria-label="Close details"
-                      title="Close (Esc)"
-                    >
-                      ×
-                    </button>
-                  </div>
-                  <div className="subject-view__nodedetail-code">
-                    <strong>{nodeDetail.code}</strong>
-                    {nodeDetail.title && <span>{nodeDetail.title}</span>}
-                  </div>
-                  {nodeDetail.unresolved && (
-                    <p className="subject-view__nodedetail-unresolved">
-                      Unresolved — no matching record in the dataset.
-                    </p>
-                  )}
-                  {nodeDetail.connections.length === 0 ? (
-                    <p className="subject-view__nodedetail-empty">
-                      Nothing else is connected to this node.
-                    </p>
-                  ) : (
-                    <>
-                      <span className="subject-view__nodedetail-label">
-                        Connected
-                        <em className="subject-view__nodedetail-count">
-                          {nodeDetail.connections.length}
-                        </em>
-                      </span>
-                      <ul className="subject-view__nodedetail-list">
-                        {nodeDetail.connections.map((c) => (
-                          <li
-                            key={`${c.label}-${c.code}-${c.title}`}
-                            className={c.unresolved ? 'subject-view__nodedetail-item--unresolved' : ''}
-                          >
-                            <span className="subject-view__nodedetail-item-code">{c.code}</span>
-                            <span className="subject-view__nodedetail-item-text">{c.title}</span>
-                            <span className="subject-view__nodedetail-item-kind">{c.label}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -1807,35 +1698,25 @@ export default function SubjectView() {
           compact connected-details card. A subject then follows it with the
           Curriculum Report document itself (no extra card frame); a PO or a
           PEO stops at the card. */}
-      {rootType === 'subject' && selectedCourse ? (
+      {(rootType === 'subject' && selectedCourse) ||
+      (rootType === 'po' && selectedPo) ||
+      (rootType === 'peo' && selectedPeo) ? (
         <div className="subject-view__about">
-          {subjectDetails ?? (
+          {detailsCard ?? (
             <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
-              Loading the course details…
+              Loading the connected details…
             </p>
           )}
-          <div className="subject-view__report">
-            {subjectReport ?? (
-              <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
-                Loading the course report…
-              </p>
-            )}
-          </div>
-        </div>
-      ) : rootType === 'po' && selectedPo ? (
-        <div className="subject-view__about">
-          {poDetails ?? (
-            <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
-              Loading the program outcome details…
-            </p>
-          )}
-        </div>
-      ) : rootType === 'peo' && selectedPeo ? (
-        <div className="subject-view__about">
-          {peoDetails ?? (
-            <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
-              Loading the PEO details…
-            </p>
+          {rootType === 'subject' && (
+            <div className="subject-view__report">
+              {subjectReport ?? (
+                <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
+                  {isInspecting
+                    ? 'Click “Back to root” above to return to the full Curriculum Report.'
+                    : 'Loading the course report…'}
+                </p>
+              )}
+            </div>
           )}
         </div>
       ) : null}

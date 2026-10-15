@@ -4200,6 +4200,47 @@ textarea.input {
   padding: 16px 18px;
 }
 
+/* Shown only while a branch below the root is in focus, so it is always clear
+   that the card describes a sub-branch and how to get back to the root. */
+.outcome-details__inspect {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  padding: 5px 8px 5px 10px;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  background: #f0f9ff;
+}
+
+.outcome-details__inspect-text {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #0369a1;
+}
+
+.outcome-details__inspect-btn {
+  flex: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid #7dd3fc;
+  background: #fff;
+  color: #0369a1;
+}
+
+.outcome-details__inspect-btn:hover {
+  background: #e0f2fe;
+  border-color: #38bdf8;
+}
+
 .outcome-details__title {
   margin: 0;
   font-size: 15px;
@@ -4621,174 +4662,6 @@ textarea.input {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-/* Details for the last clicked node. Sits in normal flow below the graph rather
-   than floating over it — the graph wrap is `overflow: hidden` and a long
-   connection list would be clipped, and this panel scrolls instead. */
-.subject-view__nodedetail {
-  margin-top: 12px;
-  padding: 12px 14px;
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-}
-
-.subject-view__nodedetail-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.subject-view__nodedetail-kind {
-  font-size: 11px;
-  line-height: 1.4;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-}
-
-.subject-view__nodedetail-close {
-  flex: none;
-  border: 0;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 18px;
-  line-height: 1;
-  padding: 0 2px;
-  cursor: pointer;
-  border-radius: 4px;
-}
-
-.subject-view__nodedetail-close:hover {
-  background: #f1f5f9;
-  color: var(--text);
-}
-
-.subject-view__nodedetail-code {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-top: 6px;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--text);
-}
-
-.subject-view__nodedetail-code strong {
-  flex: none;
-  color: var(--primary);
-  font-weight: 700;
-}
-
-.subject-view__nodedetail-unresolved {
-  margin: 8px 0 0;
-  padding: 5px 9px;
-  background: #fffdf5;
-  border: 1px dashed #fcd34d;
-  border-radius: 6px;
-  font-size: 12px;
-  color: #b45309;
-}
-
-.subject-view__nodedetail-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 12px;
-  font-size: 11px;
-  line-height: 1.4;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-}
-
-.subject-view__nodedetail-count {
-  display: inline-block;
-  min-width: 20px;
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: #f1f5f9;
-  border: 1px solid var(--border);
-  font-size: 10px;
-  line-height: 1.4;
-  font-style: normal;
-  font-weight: 700;
-  text-align: center;
-  color: #334155;
-}
-
-.subject-view__nodedetail-list {
-  list-style: none;
-  margin: 8px 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 260px;
-  overflow-y: auto;
-}
-
-/* align-items:flex-start, not baseline: most connection statements wrap to two
-   or three lines and baseline alignment left the 11px code floating. */
-.subject-view__nodedetail-item-code,
-.subject-view__nodedetail-item-text,
-.subject-view__nodedetail-item-kind {
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.subject-view__nodedetail-list li {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 8px 12px;
-  background: #f8fafc;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-
-.subject-view__nodedetail-item--unresolved {
-  background: #fffdf5 !important;
-  border-style: dashed !important;
-}
-
-.subject-view__nodedetail-item-code {
-  flex: 0 0 auto;
-  min-width: 58px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #15803d;
-  white-space: nowrap;
-}
-
-.subject-view__nodedetail-item-text {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow-wrap: break-word;
-  color: var(--text);
-}
-
-.subject-view__nodedetail-item-kind {
-  flex: none;
-  align-self: flex-start;
-  margin-left: auto;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
-.subject-view__nodedetail-empty {
-  margin: 8px 0 0;
-  font-size: 12px;
-  font-style: italic;
-  color: var(--text-muted);
 }
 
  /* Hover highlight: connected node + link (from branch visualizer). */
