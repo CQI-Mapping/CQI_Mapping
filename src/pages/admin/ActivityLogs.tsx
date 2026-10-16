@@ -34,6 +34,15 @@ interface ActivityLogsViewProps {
   description?: string
 }
 
+/**
+ * First 8 characters of a UUID, for recognising the same record across rows.
+ * Kept short enough to sit inline without pushing the action badge around;
+ * the full value stays in the title attribute.
+ */
+function shortId(id: string): string {
+  return id.length > 8 ? `${id.slice(0, 8)}…` : id
+}
+
 /** "3 Courses · 2 Sign-ins · 1 Outcomes" — busiest categories first. */
 function summarise(row: ActivityRollupRow): string {
   return Object.entries(row.byCategory)
@@ -152,17 +161,79 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
     setDateTo('')
   }
 
-  // Details rendered as the secondary line under the action badge.
+  // Declared before drillInto() so the ref it touches is already in scope where
+  // the function is defined, rather than relying on hoisting order.
+  const rowsRef = useRef<HTMLDivElement>(null)
+  const scrollToRowsPending = useRef(false)
+
+  useEffect(() => {
+    if (loading || !scrollToRowsPending.current) return
+    scrollToRowsPending.current = false
+    rowsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [loading, entries])
+
+  /**
+   * Drill into one actor from the summary.
+   *
+   * Sets the same filter the dropdown uses, rather than a separate piece of
+   * state — so the summary, the stat cards and the table can never disagree
+   * about who is being shown. Tapping the active actor again clears it, which
+   * makes the summary row a toggle rather than a one-way door.
+   *
+   * The actor may not be in the dropdown yet (it is read once, on mount), so it
+   * is added to the option list too rather than silently failing to select.
+   */
+  const drillInto = (email: string) => {
+    if (userFilter === email) {
+      setUserFilter('')
+      return
+    }
+    setActors((prev) => (prev.includes(email) ? prev : [...prev, email].sort()))
+    setUserFilter(email)
+    // The table sits below the summary, so on a tall summary the rows the
+    // click just filtered to can be off-screen. Scrolling before the fetch
+    // resolves would land on the old rows, so wait for the loading state to
+    // clear and the new content to be in the DOM.
+    scrollToRowsPending.current = true
+  }
+
+  /** Free-text detail: the record's name at the time, and any failure reason. */
   function DetailLine({ entry }: { entry: ActivityLogEntry }) {
     const d = entry.details
     if (!d) return null
     const reason = d.reason ? labelReason(d.reason) : ''
-    const label = d.label
-    if (!label && !reason) return null
+    if (!d.label && !reason) return null
     return (
       <span className="activity-detail">
-        {label && <span className="activity-detail__label">{label}</span>}
+        {d.label && <span className="activity-detail__label">{d.label}</span>}
         {reason && <span className="activity-detail__reason">reason: {reason}</span>}
+      </span>
+    )
+  }
+
+  /**
+   * The record's machine identity: family and primary key.
+   *
+   * Kept in its own column rather than under the badge because it is the part
+   * that is *evidence*. The label is a name a human chose — free text, so two
+   * records can share one, and it changes if someone edits the record. The
+   * entity and id are what actually tie an entry to one row in the database.
+   *
+   * The id is shortened rather than hidden: enough to recognise the same record
+   * across two entries, without a 36-character string wrecking the layout. The
+   * full value stays in the title attribute for copying.
+   */
+  function RecordCell({ entry }: { entry: ActivityLogEntry }) {
+    const d = entry.details
+    if (!d?.entity && !d?.entity_id) return <span className="activity-record__none">—</span>
+    return (
+      <span className="activity-record">
+        <span className="activity-record__entity">{d.entity || 'record'}</span>
+        {d.entity_id && (
+          <span className="activity-record__id" title={d.entity_id}>
+            {shortId(d.entity_id)}
+          </span>
+        )}
       </span>
     )
   }
@@ -303,23 +374,43 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
                   <th>Activity</th>
                   <th>Last seen</th>
                 </tr>
+                {/* Click a user to filter the table below to just them. */}
               </thead>
               <tbody>
-                {rollup.map((r) => (
-                  <tr key={r.user_email}>
-                    <td>
-                      <strong>{r.user_email}</strong>
-                      {r.failedLogins > 0 && (
-                        <span className="activity-rollup__flag">
-                          {r.failedLogins} failed sign-in{r.failedLogins === 1 ? '' : 's'}
-                        </span>
-                      )}
-                    </td>
-                    <td>{r.total}</td>
-                    <td className="activity-rollup__summary">{summarise(r)}</td>
-                    <td>{new Date(r.lastSeen).toLocaleString()}</td>
-                  </tr>
-                ))}
+                {rollup.map((r) => {
+                  const active = userFilter === r.user_email
+                  return (
+                    <tr
+                      key={r.user_email}
+                      className={`activity-rollup__row${active ? ' is-active' : ''}`}
+                      aria-selected={active}
+                    >
+                      <td>
+                        {/* The control is the button, not the row: a handler on
+                            <tr> would also catch this button's click and
+                            bubble, firing drillInto twice and toggling the
+                            filter straight back off. */}
+                        <button
+                          type="button"
+                          className="activity-rollup__actor"
+                          aria-pressed={active}
+                          onClick={() => drillInto(r.user_email)}
+                          title={active ? 'Show all activity again' : `Show only ${r.user_email}`}
+                        >
+                          {r.user_email}
+                        </button>
+                        {r.failedLogins > 0 && (
+                          <span className="activity-rollup__flag">
+                            {r.failedLogins} failed sign-in{r.failedLogins === 1 ? '' : 's'}
+                          </span>
+                        )}
+                      </td>
+                      <td>{r.total}</td>
+                      <td className="activity-rollup__summary">{summarise(r)}</td>
+                      <td>{new Date(r.lastSeen).toLocaleString()}</td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -329,19 +420,20 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
       {loading ? (
         <p>Loading activity logs...</p>
       ) : (
-        <div className="panel table-wrap program-panel">
+        <div className="panel table-wrap program-panel" ref={rowsRef}>
           <table className="table">
             <thead>
               <tr>
                 <th>When</th>
                 <th>User</th>
                 <th>Action</th>
+                <th>Record</th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={3}>
+                  <td colSpan={4}>
                     {entries.length === 0
                       ? 'No activity recorded for these filters.'
                       : 'No entries match the current filters.'}
@@ -358,6 +450,7 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
                     </span>
                     <DetailLine entry={entry} />
                   </td>
+                  <td><RecordCell entry={entry} /></td>
                 </tr>
               ))}
             </tbody>

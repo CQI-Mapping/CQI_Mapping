@@ -2322,6 +2322,65 @@ code {
   white-space: nowrap;
 }
 
+/* The actor cell is the drill-down control. It looks like text until hovered,
+   so the summary reads as a table first and as controls second. */
+.activity-rollup__actor {
+  font-weight: 700;
+  font-size: 13px;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.activity-rollup__actor:hover {
+  color: var(--primary, #15803d);
+  text-decoration: underline;
+}
+
+.activity-rollup__actor:focus-visible {
+  outline: 2px solid var(--primary, #15803d);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* The actor currently filtering the table below. */
+.activity-rollup__row.is-active {
+  background: #f0fdf4;
+}
+
+.activity-rollup__row.is-active .activity-rollup__actor {
+  color: #15803d;
+}
+
+/* Record identity on a log row: entity family plus a short id. */
+.activity-record {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.activity-record__entity {
+  font-weight: 600;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+}
+
+.activity-record__id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: #64748b;
+  cursor: help;
+}
+
+.activity-record__none {
+  color: #cbd5e1;
+}
+
 /* Failed sign-ins sit under the actor's name rather than adding a column, so
    the summary stays four columns wide on a narrow screen. */
 .activity-rollup__flag {
