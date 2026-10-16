@@ -2301,6 +2301,37 @@ code {
 /* Secondary line under an action badge: the record that was touched, and
    the reason a sign-in failed. Sits inside the action cell so the table
    stays three columns wide. */
+/* ---- Activity log: per-actor summary ---- */
+
+.activity-rollup {
+  margin-bottom: 16px;
+}
+
+.activity-rollup .table-wrap {
+  padding: 0;
+}
+
+.activity-rollup td,
+.activity-rollup th {
+  font-size: 13px;
+  padding: 9px 14px;
+}
+
+.activity-rollup__summary {
+  color: #475569;
+  white-space: nowrap;
+}
+
+/* Failed sign-ins sit under the actor's name rather than adding a column, so
+   the summary stays four columns wide on a narrow screen. */
+.activity-rollup__flag {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #b91c1c;
+}
+
 .activity-detail {
   display: flex;
   flex-wrap: wrap;

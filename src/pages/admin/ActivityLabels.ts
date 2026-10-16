@@ -84,9 +84,37 @@ export const ACTION_LABELS: Record<string, string> = {
   'profile.updated': 'Updated profile',
 }
 
+/**
+ * Readable names for an action's prefix — the entity family.
+ *
+ * The per-user summary needs to say "3 courses, 2 sign-ins" rather than
+ * "course 3, auth 2". Keys must match the prefixes ACTION_LABELS uses.
+ */
+export const CATEGORY_LABELS: Record<string, string> = {
+  auth: 'Sign-ins',
+  resource: 'Curriculum',
+  program: 'Programs',
+  course: 'Courses',
+  program_outcome: 'Outcomes',
+  clo: 'Learning outcomes',
+  clo_po_mapping: 'Mapping',
+  peo: 'Objectives',
+  strategic_goal: 'Strategic goals',
+  ched_memo_order: 'Memo orders',
+  user: 'User accounts',
+  role: 'Roles',
+  profile: 'Profiles',
+}
+
 /** Turn a raw action into something a person can read. */
 export function labelAction(raw: string): string {
   return ACTION_LABELS[raw] ?? raw.replace(/[._]/g, ' ')
+}
+
+/** The entity family an action belongs to, e.g. 'course.viewed' -> 'course'. */
+export function labelCategory(action: string): string {
+  const prefix = action.split('.')[0]
+  return CATEGORY_LABELS[prefix] ?? prefix.replace(/_/g, ' ')
 }
 
 /** Human-readable text for a failure reason recorded on `auth.login_failed`. */

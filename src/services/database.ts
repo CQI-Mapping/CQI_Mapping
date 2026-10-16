@@ -771,14 +771,195 @@ export async function fetchPoFeedback(): Promise<PoFeedback[]> {
 
 // ---------- Activity logs (server-stamped via log_activity RPC) ----------
 
-export async function fetchActivityLogs(): Promise<ActivityLogEntry[]> {
+/**
+ * Server-side filters for the activity log.
+ *
+ * These used to be applied in the browser over a fixed 100-row page, which
+ * meant the filters could only ever narrow what was already in memory — a
+ * record whose entry sat at position 101 was invisible no matter what you typed.
+ * Pushing them into the query is what makes the log usable for oversight.
+ */
+export interface ActivityLogFilters {
+  /** Exact actor. The log is global, so this is how you isolate one person. */
+  userEmail?: string
+  /** Exact action string, e.g. 'course.viewed'. */
+  action?: string
+  /**
+   * Free text, matched server-side against the actor and the action only.
+   *
+   * PostgREST's `or()` takes a comma-separated grammar, so the term has to be
+   * stripped of the characters that would end the condition early — an
+   * unescaped comma in the box would otherwise turn one search into two
+   * unrelated ones. The record's `details.label` is NOT searched here: it is
+   * jsonb, and reaching into it costs a cast that fails loudly rather than
+   * quietly. The page still matches labels over the rows it fetched.
+   */
+  search?: string
+  /** Inclusive start, 'YYYY-MM-DD'. Interpreted in the browser's timezone. */
+  from?: string
+  /** Inclusive end, 'YYYY-MM-DD'. Covers the whole day, not just midnight. */
+  to?: string
+  limit?: number
+}
+
+/** Default page size once filtering is server-side. */
+export const ACTIVITY_LOG_LIMIT = 500
+
+/**
+ * 'YYYY-MM-DD' to an ISO instant, in local time.
+ *
+ * `new Date('2026-10-14')` alone parses as UTC midnight, which in a timezone
+ * behind UTC lands the "From" boundary on the following day and silently drops
+ * that day's entries. Pinning the time component makes the boundary local,
+ * matching what the date input shows the user.
+ */
+function localDayBoundary(date: string, endOfDay: boolean): string {
+  const d = new Date(`${date}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}`)
+  return isNaN(d.getTime()) ? '' : d.toISOString()
+}
+
+/**
+ * Applies the filter set to a query. Shared so the log and the rollup cannot
+ * drift on what "filtered by these dates" means.
+ */
+interface ActivityQuery {
+  eq(column: string, value: string): ActivityQuery
+  or(condition: string): ActivityQuery
+  gte(column: string, value: string): ActivityQuery
+  lte(column: string, value: string): ActivityQuery
+}
+
+interface ActivityQueryResult {
+  data: ActivityLogEntry[] | null
+  error: { message: string } | null
+}
+
+function applyActivityFilters(
+  query: ActivityQuery,
+  filters: ActivityLogFilters,
+): ActivityQuery {
+  let q = query
+  if (filters.userEmail) q = q.eq('user_email', filters.userEmail)
+  if (filters.action) q = q.eq('action', filters.action)
+  if (filters.search) {
+    // Strip the characters PostgREST's or() grammar treats as structure, so a
+    // pasted email or a label with a comma cannot rewrite the query.
+    const term = filters.search.replace(/[,()%*'"\s]+/g, ' ').trim()
+    if (term) {
+      q = q.or(`user_email.ilike.%${term}%,action.ilike.%${term}%`)
+    }
+  }
+  if (filters.from) {
+    const iso = localDayBoundary(filters.from, false)
+    if (iso) q = q.gte('created_at', iso)
+  }
+  if (filters.to) {
+    const iso = localDayBoundary(filters.to, true)
+    if (iso) q = q.lte('created_at', iso)
+  }
+  return q
+}
+
+/**
+ * Audit entries, newest first.
+ *
+ * With no filters this returns the latest page for the dashboards. Callers that
+ * pass filters get a query narrowed by the database, so a search for one user
+ * or one week reaches entries the old fixed 100-row page could not.
+ */
+export async function fetchActivityLogs(
+  filters: ActivityLogFilters = {},
+): Promise<ActivityLogEntry[]> {
+  const composed = applyActivityFilters(
+    // The Postgrest builder's inferred type is enormous and is re-evaluated on
+    // every chain step, which TypeScript gives up on (TS2589). Going through
+    // `unknown` short-circuits that inference entirely: the filter helpers only
+    // ever need eq/or/gte/lte, and awaiting only needs the result shape.
+    supabase
+      .from('activity_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(filters.limit ?? ACTIVITY_LOG_LIMIT) as unknown as ActivityQuery,
+    filters,
+  )
+  const { data, error } = await (composed as unknown as Promise<ActivityQueryResult>)
+  if (error) throw error
+  return data ?? []
+}
+
+/** One actor's activity, summarised. */
+export interface ActivityRollupRow {
+  user_email: string
+  total: number
+  /** Failed sign-in attempts by this actor — the number worth flagging. */
+  failedLogins: number
+  successfulLogins: number
+  /** Most recent entry's timestamp, ISO. */
+  lastSeen: string
+  /** Entry counts keyed by the action prefix: 'course', 'auth', 'peo', … */
+  byCategory: Record<string, number>
+}
+
+/**
+ * Per-actor totals over the filtered window.
+ *
+ * Aggregated in the browser rather than in SQL: PostgREST cannot GROUP BY, so
+ * this would need either a database view or a round trip per row. Fetching the
+ * window once and folding it here is one query and is well within budget at
+ * this table's size.
+ *
+ * `user_email` can be null for a row whose writer could not resolve a profile,
+ * which would otherwise collapse into one nameless bucket.
+ */
+export async function fetchActivityRollup(
+  filters: ActivityLogFilters = {},
+): Promise<ActivityRollupRow[]> {
+  const entries = await fetchActivityLogs({ ...filters, limit: ACTIVITY_LOG_LIMIT })
+  const byUser = new Map<string, ActivityRollupRow>()
+
+  for (const entry of entries) {
+    const key = entry.user_email || '(unknown actor)'
+    let row = byUser.get(key)
+    if (!row) {
+      row = {
+        user_email: key,
+        total: 0,
+        failedLogins: 0,
+        successfulLogins: 0,
+        lastSeen: entry.created_at,
+        byCategory: {},
+      }
+      byUser.set(key, row)
+    }
+    row.total += 1
+    if (entry.action === 'auth.login_failed') row.failedLogins += 1
+    if (entry.action === 'auth.login') row.successfulLogins += 1
+    // Entries arrive newest-first, so the first one seen is the latest.
+    if (entry.created_at > row.lastSeen) row.lastSeen = entry.created_at
+    const category = entry.action.split('.')[0]
+    row.byCategory[category] = (row.byCategory[category] ?? 0) + 1
+  }
+
+  return [...byUser.values()].sort((a, b) => b.total - a.total || a.user_email.localeCompare(b.user_email))
+}
+
+/**
+ * The distinct actors present in the log, for the user filter's dropdown.
+ *
+ * Read separately from the table so the options do not shrink as the other
+ * filters narrow the rows on screen — a filter that can only ever offer the
+ * values currently visible cannot be widened.
+ */
+export async function fetchActivityActors(): Promise<string[]> {
   const { data, error } = await supabase
     .from('activity_logs')
-    .select('*')
+    .select('user_email')
     .order('created_at', { ascending: false })
-    .limit(100)
+    .limit(ACTIVITY_LOG_LIMIT)
   if (error) throw error
-  return data
+  const set = new Set<string>()
+  for (const row of data ?? []) if (row.user_email) set.add(row.user_email)
+  return [...set].sort((a, b) => a.localeCompare(b))
 }
 
 export async function recordLoginEvent(
