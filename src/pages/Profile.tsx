@@ -29,7 +29,11 @@ function Profile({ profile, onSaved }: ProfileProps) {
     setSaving(true)
     try {
       const updated = await updateProfile(profile!.id, { full_name: fullName.trim() })
-      await addActivityLog('profile.updated')
+      await addActivityLog('profile.updated', {
+        entity: 'profile',
+        entity_id: updated.id,
+        label: updated.full_name || updated.email,
+      })
       onSaved(updated)
       setDraft({ fullName: updated.full_name || '' })
       setMessage('Profile saved.')

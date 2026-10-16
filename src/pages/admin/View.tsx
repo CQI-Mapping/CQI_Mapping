@@ -21,6 +21,7 @@ import {
   updateStrategicGoal,
   updateProgramEducationalObjective,
   updateProgramOutcomeStandalone,
+  addActivityLog,
 } from '../../services/database'
 import type {
   StrategicGoal,
@@ -157,9 +158,16 @@ function View({ userEmail }: ViewProps) {
     setNotice(null)
     const next = isActive(item) ? 'archived' : 'active'
     try {
-      if (kind === 'goal') await updateStrategicGoal(id, { status: next })
-      else if (kind === 'peo') await updateProgramEducationalObjective(id, { status: next })
-      else await updateProgramOutcomeStandalone(id, { status: next })
+      if (kind === 'goal') {
+        await updateStrategicGoal(id, { status: next })
+        await addActivityLog(`strategic_goal.${next}`, { entity: 'strategic_goal', entity_id: id })
+      } else if (kind === 'peo') {
+        await updateProgramEducationalObjective(id, { status: next })
+        await addActivityLog(`peo.${next}`, { entity: 'peo', entity_id: id })
+      } else {
+        await updateProgramOutcomeStandalone(id, { status: next })
+        await addActivityLog(`program_outcome.${next}`, { entity: 'program_outcome', entity_id: id })
+      }
       await load()
     } catch {
       setError('Could not change status. If this keeps happening, the status column is missing — run the archive migration SQL in the Supabase SQL Editor (see supabase-schema.sql).')

@@ -32,6 +32,7 @@ import {
   fetchProgramEducationalObjectives,
   fetchStrategicGoals,
   fetchChedMemoOrders,
+  addActivityLog,
 } from '../../services/database'
 import type {
   Program,
@@ -227,14 +228,33 @@ export default function SubjectView() {
   const [datasets, setDatasets] = useState<OutcomeDatasets | null>(null)
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 })
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set())
+  // Curriculum branches open into every subject in that curriculum plus each
+  // one's CLO → PO → PEO/SG/CMO sub-tree — easily hundreds of nodes — so they
+  // start closed. Semantics are deliberately inverted from collapsedIds, where
+  // absent means open: here a node is closed until it appears in this set.
+  const [openCurriculumIds, setOpenCurriculumIds] = useState<Set<string>>(() => new Set())
   const [navStack, setNavStack] = useState<NavEntry[]>([])
+  // Graph node the connected-details card describes. null = the root itself.
+  // Set on every node click so the card answers "what hangs off *that* branch"
+  // and not just the root; cleared whenever the root changes.
+  const [inspectedNodeId, setInspectedNodeId] = useState<string | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const svgRef = useRef<SVGSVGElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null)
+  // Read inside the render effect without appearing in its dependency list. The
+  // render effect wipes and rebuilds the whole SVG, so rings created during it
+  // need the current focus to light correctly — but putting the focus in the
+  // deps would rebuild the simulation on every click.
+  const focusedIdRef = useRef<string | null>(null)
 
-  // Reset expand/collapse when the root changes — like branch-visualizer fresh state.
-  useEffect(() => { setCollapsedIds(new Set()) }, [selectedCourseId, selectedPoId, rootType])
+  // Reset expand/collapse and branch inspection when the root changes — like
+  // branch-visualizer fresh state.
+  useEffect(() => {
+    setCollapsedIds(new Set())
+    setOpenCurriculumIds(new Set())
+    setInspectedNodeId(null)
+  }, [selectedCourseId, selectedPoId, rootType])
 
   // Fullscreen map: Esc exits, and the page behind stops scrolling.
   useEffect(() => {
@@ -482,6 +502,57 @@ export default function SubjectView() {
     [],
   )
 
+  // ── Outcome sub-tree for one course code ───────────────────────────────────
+  // Every CLO whose course matches `courseKey`, each carrying the POs its title
+  // names and those POs' PEO / SG / CMO leaves. Extracted so the subject itself
+  // and its sibling subjects under the curriculum branch cannot drift into
+  // producing different sub-trees for the same course.
+  const buildCourseClos = useCallback(
+    (datasetsRef: OutcomeDatasets, courseKey: string): GraphNodeData[] => {
+      const subjectClos = datasetsRef.clos.filter((clo) =>
+        cloMatchesSubject(clo.course || '', courseKey)
+      )
+      const poMap = new Map<string, GraphNodeData>()
+      const out: GraphNodeData[] = []
+
+      for (const clo of subjectClos) {
+        const cloNode: GraphNodeData = {
+          id: `clo-${clo.id}`,
+          code: clo.code,
+          title: clo.description || clo.code,
+          kind: 'clo',
+          placeholder: false,
+          children: [],
+        }
+        for (const tok of extractCodes(clo.title || '', 'PO')) {
+          const key = normalizeCode(tok)
+          let poNode = poMap.get(key)
+          if (!poNode) {
+            const poRec = datasetsRef.pos
+              .filter((p) => isManagerCmCategory(p))
+              .find((p) => normalizeCode(p.code) === key)
+            poNode = {
+              id: poRec ? `po-${poRec.id}` : `po-missing-${tok}`,
+              code: tok,
+              title: poRec ? (poRec.title || poRec.description || tok) : 'PO not found or archived',
+              kind: 'po',
+              placeholder: !poRec,
+              poId: poRec?.id,
+              children: [],
+            }
+            if (poRec) attachPoLeaves(datasetsRef, poNode, poRec)
+            poMap.set(key, poNode)
+          }
+          if (!cloNode.children.some((c) => c.id === poNode!.id)) cloNode.children.push(poNode!)
+        }
+        out.push(cloNode)
+      }
+
+      return out
+    },
+    [attachPoLeaves],
+  )
+
   // ── Build the subject-rooted graph model ───────────────────────────────────
   const buildGraphModel = useCallback(
     (datasetsRef: OutcomeDatasets, subject: Course): GraphNodeData => {
@@ -497,10 +568,35 @@ export default function SubjectView() {
         children: [],
       }
 
-      // Curriculum as a child of subject
+      // Curriculum as a child of subject. It carries every other subject in the same
+      // curriculum, each with its own CLO → PO → PEO/SG/CMO sub-tree, so the
+      // branch opens into the whole curriculum instead of a dead end. Having
+      // children makes the node `expandable` on its own — expandable is derived
+      // from childCount — which gives it the +/− badge and click-to-toggle for
+      // free. Pre-requisites are deliberately not pulled in here: at curriculum
+      // breadth they would drag in the rest of the program and swamp the map.
       const cidOpt = subject.curriculum_id
       const cid = cidOpt && typeof cidOpt === 'object' ? cidOpt.id : cidOpt
       const curRec = cid ? datasetsRef.resources.find((r) => r.id === cid) : undefined
+
+      const curriculumSiblings = curRec
+        ? courses
+            .filter((c) => {
+              const opt = c.curriculum_id
+              const other = opt && typeof opt === 'object' ? opt.id : opt
+              return other != null && other === curRec.id && c.id !== subject.id
+            })
+            .map<GraphNodeData>((c) => ({
+              id: `course-${c.id}`,
+              code: c.code,
+              title: c.title,
+              kind: 'subject',
+              placeholder: false,
+              courseId: c.id,
+              children: buildCourseClos(datasetsRef, normalizeCode(c.code)),
+            }))
+        : []
+
       subjectNode.children.push(
         curRec
           ? {
@@ -509,7 +605,7 @@ export default function SubjectView() {
               title: curRec.title,
               kind: 'curriculum',
               placeholder: false,
-              children: [],
+              children: curriculumSiblings,
             }
           : {
               id: `cur-none-${cid || 'x'}`,
@@ -542,47 +638,11 @@ export default function SubjectView() {
       addSat(subject.corequisite, 'corequisite')
 
       // CLOs whose course matches the selected subject code.
-      const subjectClos = datasetsRef.clos.filter((clo) =>
-        cloMatchesSubject(clo.course || '', subjectKey)
-      )
-
-      const poMap = new Map<string, GraphNodeData>()
-
-      for (const clo of subjectClos) {
-        const cloNode: GraphNodeData = {
-          id: `clo-${clo.id}`,
-          code: clo.code,
-          title: clo.description || clo.code,
-          kind: 'clo',
-          placeholder: false,
-          children: [],
-        }
-        const poTokens = extractCodes(clo.title || '', 'PO')
-        for (const tok of poTokens) {
-          const key = normalizeCode(tok)
-          let poNode = poMap.get(key)
-          if (!poNode) {
-            const poRec = datasetsRef.pos.filter((p) => isManagerCmCategory(p)).find((p) => normalizeCode(p.code) === key)
-            poNode = {
-              id: poRec ? `po-${poRec.id}` : `po-missing-${tok}`,
-              code: tok,
-              title: poRec ? (poRec.title || poRec.description || tok) : 'PO not found or archived',
-              kind: 'po',
-              placeholder: !poRec,
-              poId: poRec?.id,
-              children: [],
-            }
-            if (poRec) attachPoLeaves(datasetsRef, poNode, poRec)
-            poMap.set(key, poNode)
-          }
-          if (!cloNode.children.some((c) => c.id === poNode!.id)) cloNode.children.push(poNode!)
-        }
-        subjectNode.children.push(cloNode)
-      }
+      subjectNode.children.push(...buildCourseClos(datasetsRef, subjectKey))
 
       return subjectNode
     },
-    [courses, programCourses, attachPoLeaves],
+    [courses, programCourses, buildCourseClos],
   )
 
   // ── Shared PO upstream: CLOs → their Subjects ─────────────────────────────
@@ -777,36 +837,25 @@ export default function SubjectView() {
     }))
   }, [])
 
-  // PO root: downstream PEO / SG / CMO leaves plus upstream CLOs → subjects.
-  const poConnected = useMemo<ConnectedGroup[]>(() => {
-    if (!datasets || !selectedPo) return []
-    try {
-      return collectConnected(buildPoGraphModel(datasets, selectedPo))
-    } catch {
-      return []
-    }
-  }, [datasets, selectedPo, buildPoGraphModel, collectConnected])
+  
 
-  // PEO root: the aligned POs, then everything hanging off those POs.
-  const peoConnected = useMemo<ConnectedGroup[]>(() => {
-    if (!datasets || !selectedPeo) return []
-    try {
-      return collectConnected(buildPeoGraphModel(datasets, selectedPeo))
-    } catch {
-      return []
-    }
-  }, [datasets, selectedPeo, buildPeoGraphModel, collectConnected])
+  // True when a node's children are hidden. Curriculum branches are closed until
+  // explicitly opened; everything else is open until explicitly collapsed.
+  const isNodeCollapsed = useCallback(
+    (id: string, kind: NodeKind) => (kind === 'curriculum' ? !openCurriculumIds.has(id) : collapsedIds.has(id)),
+    [collapsedIds, openCurriculumIds],
+  )
 
-  // Subject root: curriculum, pre-reqs, co-reqs and the CLO → PO → PEO/SG/CMO
-  // cascade hanging off the course.
-  const subjectConnected = useMemo<ConnectedGroup[]>(() => {
-    if (!datasets || !selectedCourse) return []
-    try {
-      return collectConnected(buildGraphModel(datasets, selectedCourse))
-    } catch {
-      return []
+  const toggleNode = useCallback((id: string, kind: NodeKind) => {
+    const swap = (prev: Set<string>) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
     }
-  }, [datasets, selectedCourse, buildGraphModel, collectConnected])
+    if (kind === 'curriculum') setOpenCurriculumIds(swap)
+    else setCollapsedIds(swap)
+  }, [])
 
   const buildActiveModel = useCallback(() => {
     if (!datasets) return null
@@ -814,6 +863,43 @@ export default function SubjectView() {
     if (rootType === 'peo') return selectedPeo ? buildPeoGraphModel(datasets, selectedPeo) : null
     return selectedPo ? buildPoGraphModel(datasets, selectedPo) : null
   }, [datasets, rootType, selectedCourse, selectedPo, selectedPeo, buildGraphModel, buildPoGraphModel, buildPeoGraphModel])
+
+  // Memoized so the derived card state below keeps a stable identity between
+  // renders — buildActiveModel() rebuilds the entire tree on every call.
+  const activeModel = useMemo(() => buildActiveModel(), [buildActiveModel])
+
+  const findNodeById = useCallback((id: string): GraphNodeData | null => {
+    if (!activeModel || !id) return null
+    const stack: GraphNodeData[] = [activeModel]
+    while (stack.length > 0) {
+      const n = stack.pop() as GraphNodeData
+      if (n.id === id) return n
+      for (let i = n.children.length - 1; i >= 0; i -= 1) stack.push(n.children[i])
+    }
+    return null
+  }, [activeModel])
+
+  // What the card describes: the clicked branch if there is one, else the root.
+  // A stale id (root changed, node dropped out of the tree) falls back to the
+  // root rather than leaving the card blank.
+  const inspectedNode = useMemo(() => {
+    if (!inspectedNodeId || inspectedNodeId === activeModel?.id) return activeModel
+    return findNodeById(inspectedNodeId) ?? activeModel
+  }, [inspectedNodeId, activeModel, findNodeById])
+
+  // True while the card is pointed at something below the root.
+  const isInspecting = !!inspectedNode && !!activeModel && inspectedNode.id !== activeModel.id
+
+  // Buckets for whichever node is in focus, so the card and the map are always
+  // walking the same tree.
+  const inspectedConnected = useMemo<ConnectedGroup[]>(() => {
+    if (!inspectedNode) return []
+    try {
+      return collectConnected(inspectedNode)
+    } catch {
+      return []
+    }
+  }, [inspectedNode, collectConnected])
 
   // Collapse every expandable node except the center root.
   const collapseAll = useCallback(() => {
@@ -826,6 +912,9 @@ export default function SubjectView() {
     collect(data)
     ids.delete(data.id) // keep the root ring visible
     setCollapsedIds(ids)
+    // Curriculum branches are closed unless open, so clearing this closes any
+    // that were opened — otherwise Collapse All would leave them hanging open.
+    setOpenCurriculumIds(new Set())
   }, [buildActiveModel])
 
   // Reset the SVG zoom/pan transform to its default framed view.
@@ -980,7 +1069,7 @@ export default function SubjectView() {
     if (!data) return () => {}
     const rootId = data.id
     const root = d3.hierarchy<GraphNodeData>(data, (d) =>
-      collapsedIds.has(d.id) ? undefined : d.children
+      isNodeCollapsed(d.id, d.kind) ? undefined : d.children
     )
 
     // Tree layout for initial left-to-right positions (subject on left, branches right)
@@ -1020,7 +1109,7 @@ export default function SubjectView() {
         peoId: d.data.peoId,
         group: kindGroup[d.data.kind] ?? 4,
         expandable: !!(d.data.children && d.data.children.length > 0),
-        collapsed: collapsedIds.has(d.data.id),
+        collapsed: isNodeCollapsed(d.data.id, d.data.kind),
         x: pos.x,
         y: pos.y + yOffset,
       }
@@ -1099,20 +1188,48 @@ export default function SubjectView() {
 
     // Nodes as <circle> groups with outer <g> for labels/badges — keeps drag on the circle
     const nodeGroup = zoomGroup.append('g')
+      .attr('class', 'subject-view__nodes')
       .attr('stroke', '#fff')
       .attr('stroke-width', 1.5)
 
-    const node = nodeGroup
-      .selectAll<SVGCircleElement, ForceNode>('circle')
+    // Circle radius per node kind. A root reads larger than its kind so the
+    // focus of the map is obvious (a PO root would otherwise be 8 like any PO).
+    const nodeRadius = (d: ForceNode) => {
+      if (d.id === rootId) return 14
+      if (d.kind === 'subject') return 14
+      if (d.kind === 'curriculum') return 12
+      if (d.kind === 'po' || d.kind === 'clo') return 8
+      return 5
+    }
+
+    // Outer ring layer, one per node, drawn before the circles so only the band
+    // around them shows — an actual double ring rather than a thicker stroke.
+    // The ring for the focused node is lit here, at creation: this effect wipes
+    // and rebuilds the SVG on resize / collapse / root change, and the separate
+    // inspection effect only re-runs when the focus itself changes, so a rebuilt
+    // map would otherwise come up with every ring dark.
+    // Both classes are set in the enter function only — a blanket .attr('class', …)
+    // would also rewrite on update and wipe --on.
+    const checkedRing = nodeGroup
+      .selectAll<SVGCircleElement, ForceNode>('circle.subject-view__ring')
       .data(simNodes, (d) => d.rId)
-      .join('circle')
-      .attr('r', (d) => {
-        if (d.id === rootId) return 14
-        if (d.kind === 'subject') return 14
-        if (d.kind === 'curriculum') return 12
-        if (d.kind === 'po' || d.kind === 'clo') return 8
-        return 5
-      })
+      .join(
+        (enter) => enter.append('circle')
+          .attr('class', 'subject-view__ring')
+          .classed('subject-view__ring--on', (d: ForceNode) => focusedIdRef.current === d.id),
+        (update) => update,
+      )
+      .attr('fill', 'none')
+      .attr('stroke-width', 2.5)
+      .attr('r', (d) => nodeRadius(d) + 6)
+      .attr('pointer-events', 'none')
+
+    // `:not(.subject-view__ring)` keeps the ring layer out of this selection.
+    const node = nodeGroup
+      .selectAll<SVGCircleElement, ForceNode>('circle:not(.subject-view__ring)')
+      .data(simNodes, (d) => d.rId)
+      .join((enter) => enter.append('circle').attr('class', 'subject-view__node'), (update) => update)
+      .attr('r', nodeRadius)
       .attr('fill', (d) => (d.placeholder ? '#f8fafc' : (colorMap[d.kind] as string) || color(String(d.group))))
       .attr('stroke', (d) => (d.placeholder ? '#94a3b8' : '#fff'))
       .attr('cursor', (d) => (d.expandable || d.courseId || (d.kind === 'po' && d.poId) || (d.kind === 'peo' && d.peoId) ? 'pointer' : 'grab'))
@@ -1169,6 +1286,10 @@ export default function SubjectView() {
         .attr('y2', (d) => (d.target as ForceNode).y ?? 0)
 
       node
+        .attr('cx', (d) => d.x ?? 0)
+        .attr('cy', (d) => d.y ?? 0)
+
+      checkedRing
         .attr('cx', (d) => d.x ?? 0)
         .attr('cy', (d) => d.y ?? 0)
 
@@ -1234,7 +1355,7 @@ export default function SubjectView() {
           (d.kind === 'po' && d.poId && !(rootType === 'po' && d.id === rootId)) ||
           (d.kind === 'subject' && d.courseId && !(rootType === 'subject' && d.id === rootId)) ||
           (d.kind === 'peo' && d.peoId && !(rootType === 'peo' && d.id === rootId))
-        tip.innerHTML = `<strong>${d.code}</strong><br/>${d.title}${canReroot ? '<br/><em>Click to view as root</em>' : ''}`
+        tip.innerHTML = `<strong>${d.code}</strong><br/>${d.title}${canReroot ? '<br/><em>Click to view as root</em>' : ''}<br/><em>Click to see its connections</em>`
       })
       .on('mousemove', (event) => {
         tip.style.left = `${event.offsetX + 12}px`
@@ -1249,6 +1370,12 @@ export default function SubjectView() {
     // Click — cross-root re-root + drill-down + expand/collapse on force nodes
     node.on('click', (event, d) => {
       event.stopPropagation()
+      // Every click inspects, recorded before any re-root below: the
+      // connected-details card describes whatever was clicked, including the
+      // expandable Curriculum/CLO nodes that have no re-root of their own.
+      // Re-rooting clears this again (see the root-change effect), so the card
+      // and the tree never disagree about what "current" means.
+      setInspectedNodeId(d.id)
       // PO node → re-root visualization at that PO (works from subject graph
       // and from upstream CLO branches inside a PO graph).
       if (d.kind === 'po' && d.poId && !d.placeholder) {
@@ -1273,12 +1400,7 @@ export default function SubjectView() {
         return
       }
       if (d.expandable) {
-        setCollapsedIds((prev) => {
-          const next = new Set(prev)
-          if (next.has(d.id)) next.delete(d.id)
-          else next.add(d.id)
-          return next
-        })
+        toggleNode(d.id, d.kind)
       }
     })
 
@@ -1294,7 +1416,30 @@ export default function SubjectView() {
       svg.on('.zoom', null)
       zoomRef.current = null
     }
-  }, [rootType, selectedCourse, selectedPo, selectedPeo, datasets, containerSize, collapsedIds, buildGraphModel, buildPoGraphModel, buildPeoGraphModel, courses, selectedCourseId, gotoPoRoot, gotoSubjectRoot, gotoPeoRoot])
+  }, [rootType, selectedCourse, selectedPo, selectedPeo, datasets, containerSize, collapsedIds, isNodeCollapsed, toggleNode, buildGraphModel, buildPoGraphModel, buildPeoGraphModel, courses, selectedCourseId, gotoPoRoot, gotoSubjectRoot, gotoPeoRoot])
+
+  // The node the connected-details card is describing: an inspected branch when
+  // the user has picked one, otherwise the root. Falls back to the root so there
+  // is always exactly one checked circle — including after a re-root, which is
+  // when inspectedNodeId gets cleared.
+  const focusedId = inspectedNodeId ?? activeModel?.id ?? null
+  // Assigned during render, which always runs before any effect — so the render
+  // effect above reads the current focus even though it does not depend on it.
+  focusedIdRef.current = focusedId
+
+  // Lights the checked ring around that node. Deliberately a separate effect
+  // from the render above: adding the focus to that dependency list would tear
+  // down and rebuild the entire force simulation on every click, throwing away
+  // node positions. Toggling one class leaves the layout alone.
+  // Typed structurally rather than as ForceNode — that interface is declared
+  // inside the render effect and is not visible out here; only the id matters.
+  useEffect(() => {
+    const svg = svgRef.current
+    if (!svg || !focusedId) return
+    d3.select(svg)
+      .selectAll<SVGCircleElement, { id: string }>('circle.subject-view__ring')
+      .classed('subject-view__ring--on', (d) => d.id === focusedId)
+  }, [focusedId, showGraph])
 
   // ResizeObserver keeps the SVG sized responsively.
   useEffect(() => {
@@ -1333,6 +1478,23 @@ export default function SubjectView() {
     setShowGraph(true)
     setGraphError('')
     await loadDatasets()
+    // Logged after the data is in hand so the audit RPC never sits in front of
+    // the graph. addActivityLog() swallows its own errors (console.warn only),
+    // so a failed insert cannot break the visualization.
+    //
+    // Only the Visualization button is logged. Re-rooting by clicking a PO or
+    // PEO node inside an open graph is browsing within one run, not a new run,
+    // and logging every click would bury the log in one browsing session's
+    // worth of entries.
+    const root =
+      rootType === 'subject' && selectedCourse
+        ? { action: 'course.viewed', entity: 'course', entity_id: selectedCourse.id, label: `${selectedCourse.code} — ${selectedCourse.title}` }
+        : rootType === 'po' && selectedPo
+          ? { action: 'program_outcome.viewed', entity: 'program_outcome', entity_id: selectedPo.id, label: `${selectedPo.code} — ${selectedPo.title}` }
+          : rootType === 'peo' && selectedPeo
+            ? { action: 'peo.viewed', entity: 'peo', entity_id: selectedPeo.id, label: `${selectedPeo.code} — ${selectedPeo.title}` }
+            : null
+    if (root) await addActivityLog(root.action, root)
   }
 
   const crumbLabel = (entry: NavEntry): string => {
@@ -1370,31 +1532,63 @@ export default function SubjectView() {
       ? (selectedPeo ? `${selectedPeo.code} — ${selectedPeo.title || selectedPeo.code}` : '')
       : (selectedPo ? `${selectedPo.code} — ${selectedPo.title || selectedPo.description}` : '')
   const graphHint = rootType === 'subject'
-    ? 'Click a branch node to expand or collapse. Click a PO to view the graph from that PO. Click a pre-req or co-req to jump to that subject. Drag nodes to reposition. Scroll to zoom.'
+    ? 'Click any branch node to see what is connected to it in the panel below. Click a PO to view the graph from that PO. Click a pre-req or co-req to jump to that subject. Drag nodes to reposition. Scroll to zoom.'
     : rootType === 'peo'
-      ? 'Click a branch node to expand or collapse. Click a PO to view the graph from that PO. Click a PEO to switch PEO root. Drag nodes to reposition. Scroll to zoom.'
-      : 'Click a branch node to expand or collapse. Click a subject to view the graph from that subject. Click a PO to switch PO root. Drag nodes to reposition. Scroll to zoom.'
+      ? 'Click any branch node to see what is connected to it in the panel below. Click a PO to view the graph from that PO. Click a PEO to switch PEO root. Drag nodes to reposition. Scroll to zoom.'
+      : 'Click any branch node to see what is connected to it in the panel below. Click a subject to view the graph from that subject. Click a PO to switch PO root. Drag nodes to reposition. Scroll to zoom.'
 
   // The About area leads with the compact connected-details card for every
   // root, then follows it with the full report document where one exists — the
   // *exact* Curriculum Report document for a subject, through the shared
   // SyllabusReport component (the same one View.tsx renders), reusing the
   // report page's chrome. A PO or a PEO gets only the card.
+  // The card follows `inspectedNode`, so it describes whichever branch was last
+  // clicked rather than only the root.
   // `datasets` is prefetched on mount, so it is ready before Visualization.
-  const subjectDetails = (() => {
-    if (!datasets || !selectedCourse || rootType !== 'subject') return null
+  const detailsCard = (() => {
+    if (!datasets || !inspectedNode) return null
+    // While the root is in focus, use the source record's own code, title and
+    // description verbatim so none of the three root views change. Inspecting a
+    // branch below it falls back to that graph node's own code and title.
+    const rootProps = (() => {
+      if (isInspecting) return null
+      if (rootType === 'subject' && selectedCourse) {
+        return { heading: selectedCourse.code, title: selectedCourse.title, description: null }
+      }
+      if (rootType === 'po' && selectedPo) {
+        return { heading: selectedPo.code, title: selectedPo.title, description: selectedPo.description }
+      }
+      if (rootType === 'peo' && selectedPeo) {
+        return { heading: selectedPeo.code, title: selectedPeo.title, description: selectedPeo.description }
+      }
+      return null
+    })()
+    const props = rootProps ?? { heading: inspectedNode.code, title: inspectedNode.title, description: null }
     return (
       <OutcomeDetailsCard
-        heading={selectedCourse.code}
-        title={selectedCourse.title}
-        groups={subjectConnected}
-        emptyHint="Nothing is connected to this subject yet. Add a curriculum, prerequisites or course learning outcomes to build the map."
+        {...props}
+        groups={inspectedConnected}
+        inspecting={isInspecting}
+        rootCode={activeModel?.code}
+        onBackToRoot={() => setInspectedNodeId(null)}
+        emptyHint={
+          isInspecting
+            ? `Nothing is connected to ${inspectedNode.code} yet.`
+            : rootType === 'po'
+              ? 'No course learning outcome references this program outcome yet.'
+              : rootType === 'peo'
+                ? 'Nothing is connected to this PEO yet. Add aligned program outcomes to build the map.'
+                : 'Nothing is connected to this subject yet. Add a curriculum, prerequisites or course learning outcomes to build the map.'
+        }
       />
     )
   })()
 
+  // The Curriculum Report belongs to the subject root alone. While a branch
+  // below it is being inspected the card stands on its own, so the syllabus on
+  // screen always matches the card above it.
   const subjectReport = (() => {
-    if (!datasets || !selectedCourse || rootType !== 'subject') return null
+    if (!datasets || !selectedCourse || rootType !== 'subject' || isInspecting) return null
     const { adminPos, managerPos } = splitReportPos(datasets.pos)
     return (
       <SyllabusReport
@@ -1406,32 +1600,6 @@ export default function SubjectView() {
         managerGroups={buildGroups(managerPos, datasets.cmos)}
         subjectClos={datasets.clos.filter((c) =>
           cloMatchesSubject(c.course || '', normalizeCode(selectedCourse.code)))}
-      />
-    )
-  })()
-
-  const poDetails = (() => {
-    if (!datasets || !selectedPo || rootType !== 'po') return null
-    return (
-      <OutcomeDetailsCard
-        heading={selectedPo.code}
-        title={selectedPo.title}
-        description={selectedPo.description}
-        groups={poConnected}
-        emptyHint="No course learning outcome references this program outcome yet."
-      />
-    )
-  })()
-
-  const peoDetails = (() => {
-    if (!datasets || !selectedPeo || rootType !== 'peo') return null
-    return (
-      <OutcomeDetailsCard
-        heading={selectedPeo.code}
-        title={selectedPeo.title}
-        description={selectedPeo.description}
-        groups={peoConnected}
-        emptyHint="Nothing is connected to this PEO yet. Add aligned program outcomes to build the map."
       />
     )
   })()
@@ -1670,35 +1838,25 @@ export default function SubjectView() {
           compact connected-details card. A subject then follows it with the
           Curriculum Report document itself (no extra card frame); a PO or a
           PEO stops at the card. */}
-      {rootType === 'subject' && selectedCourse ? (
-        <div className="subject-view__about" style={{ marginTop: 16 }}>
-          {subjectDetails ?? (
+      {(rootType === 'subject' && selectedCourse) ||
+      (rootType === 'po' && selectedPo) ||
+      (rootType === 'peo' && selectedPeo) ? (
+        <div className="subject-view__about">
+          {detailsCard ?? (
             <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
-              Loading the course details…
+              Loading the connected details…
             </p>
           )}
-          <div className="subject-view__report">
-            {subjectReport ?? (
-              <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
-                Loading the course report…
-              </p>
-            )}
-          </div>
-        </div>
-      ) : rootType === 'po' && selectedPo ? (
-        <div className="subject-view__about" style={{ marginTop: 16 }}>
-          {poDetails ?? (
-            <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
-              Loading the program outcome details…
-            </p>
-          )}
-        </div>
-      ) : rootType === 'peo' && selectedPeo ? (
-        <div className="subject-view__about" style={{ marginTop: 16 }}>
-          {peoDetails ?? (
-            <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
-              Loading the PEO details…
-            </p>
+          {rootType === 'subject' && (
+            <div className="subject-view__report">
+              {subjectReport ?? (
+                <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
+                  {isInspecting
+                    ? 'Click “Back to root” above to return to the full Curriculum Report.'
+                    : 'Loading the course report…'}
+                </p>
+              )}
+            </div>
           )}
         </div>
       ) : null}

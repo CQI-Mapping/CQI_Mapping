@@ -2298,6 +2298,112 @@ code {
   color: #065f46;
 }
 
+/* Secondary line under an action badge: the record that was touched, and
+   the reason a sign-in failed. Sits inside the action cell so the table
+   stays three columns wide. */
+/* ---- Activity log: per-actor summary ---- */
+
+.activity-rollup {
+  margin-bottom: 16px;
+}
+
+.activity-rollup .table-wrap {
+  padding: 0;
+}
+
+.activity-rollup td,
+.activity-rollup th {
+  font-size: 13px;
+  padding: 9px 14px;
+}
+
+.activity-rollup__summary {
+  color: #475569;
+  white-space: nowrap;
+}
+
+/* The actor cell is the drill-down control. It looks like text until hovered,
+   so the summary reads as a table first and as controls second. */
+.activity-rollup__actor {
+  font-weight: 700;
+  font-size: 13px;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.activity-rollup__actor:hover {
+  color: var(--primary, #15803d);
+  text-decoration: underline;
+}
+
+.activity-rollup__actor:focus-visible {
+  outline: 2px solid var(--primary, #15803d);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* The actor currently filtering the table below. */
+.activity-rollup__row.is-active {
+  background: #f0fdf4;
+}
+
+.activity-rollup__row.is-active .activity-rollup__actor {
+  color: #15803d;
+}
+
+/* Record identity on a log row: entity family plus a short id. */
+.activity-record {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.activity-record__entity {
+  font-weight: 600;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+}
+
+.activity-record__none {
+  color: #cbd5e1;
+}
+
+/* Failed sign-ins sit under the actor's name rather than adding a column, so
+   the summary stays four columns wide on a narrow screen. */
+.activity-rollup__flag {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #b91c1c;
+}
+
+.activity-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 3px;
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+.activity-detail__label {
+  color: #475569;
+  font-weight: 500;
+}
+
+.activity-detail__reason {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
 .action-badge--clo_po_mapping {
   background: #dcfce7;
   color: #065f46;
@@ -2827,6 +2933,19 @@ textarea.input {
   list-style: none;
 }
 
+/* Vertical rhythm for the roman-numeral rows. The list itself carries none, so
+   I–V and VIII were running flush together while only VI/VII (the
+   .sd-details__block rows) were spaced — the block spacing below was doing all
+   the work. Longhand `margin-bottom` on purpose: a shorthand here would outrank
+   .sd-details__block on specificity and erase its `margin-top`. */
+.sd-details__list > li {
+  margin-bottom: 4px;
+}
+
+.sd-details__list > li:last-child {
+  margin-bottom: 0;
+}
+
 /* One pre-requisite / co-requisite per line, hanging under the label */
 .sd-details__items {
   margin: 2px 0 0 1.5em;
@@ -2839,9 +2958,11 @@ textarea.input {
 }
 
 /* VI / VII are list items whose label sits on the numeral's line and whose
-   content runs onto the lines below, indented to the label column. */
+   content runs onto the lines below, indented to the label column. Only the
+   extra space above is declared — the row's bottom spacing is the shared
+   `margin-bottom` on .sd-details__list > li, so all eight rows step evenly. */
 .sd-details__block {
-  margin: 10px 0 4px;
+  margin-top: 10px;
 }
 
 .sd-details__block > strong {
@@ -3355,6 +3476,79 @@ textarea.input {
   border-radius: 999px;
 }
 
+
+/* ---- Reports (pages/shared/Reports.tsx) ----
+   Laid out with the app's own .panel / .table / .page-heading chrome rather
+   than the Curriculum Report's document framing, so only the parts the other
+   list pages do not already provide are defined here. */
+
+.reports-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.reports-search {
+  flex: 1;
+  min-width: 220px;
+  margin-bottom: 0 !important;
+}
+
+.reports-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  /* Matches the input's own height so the row reads as one line of controls. */
+  height: 38px;
+  font-size: 13.5px;
+  color: #475569;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.reports-toggle input {
+  cursor: pointer;
+}
+
+.reports-export {
+  white-space: nowrap;
+}
+
+.reports-summary {
+  margin-bottom: 12px;
+}
+
+.reports-summary th:not(:first-child),
+.reports-summary td:not(:first-child),
+.reports-num {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.reports-shown {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.reports-section {
+  margin-bottom: 16px;
+}
+
+.reports-empty {
+  color: #94a3b8;
+  font-style: italic;
+  text-align: center;
+}
+
+/* An archived record, shown only when the toggle is on. Muted rather than
+   struck through: an archived record still exists, it is just not current. */
+.reports-row--archived td {
+  color: #94a3b8;
+  font-style: italic;
+}
 
 @media print {
   .sd-actions,
@@ -4160,18 +4354,70 @@ textarea.input {
   margin-top: 2px;
 }
 
+/* The full-width About area below the Program + Visualization row. Lived as
+   `style={{ marginTop: 16 }}` on all three branches (subject / PO / PEO); a
+   real rule keeps the spacing in one place and overridable. */
+.subject-view__about {
+  margin-top: 16px;
+}
+
 /* Compact connected-details card — heads every root's About area. A subject
    follows it with the full Curriculum Report document. */
 .subject-view__report {
   margin-top: 16px;
 }
 
+/* Full width on purpose. This card sits directly above the Curriculum Report
+   document (.syllabus-doc__page), which sets no width cap of its own — the old
+   `max-width: 720px` was the only thing stopping the card short, leaving an
+   empty gutter down the right side beside the report's own edge. Both are now
+   plain blocks in the same .subject-view__about column, so their edges align. */
 .outcome-details {
   background: #fff;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 16px 18px;
-  max-width: 720px;
+}
+
+/* Shown only while a branch below the root is in focus, so it is always clear
+   that the card describes a sub-branch and how to get back to the root. */
+.outcome-details__inspect {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  padding: 5px 8px 5px 10px;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  background: #f0f9ff;
+}
+
+.outcome-details__inspect-text {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #0369a1;
+}
+
+.outcome-details__inspect-btn {
+  flex: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid #7dd3fc;
+  background: #fff;
+  color: #0369a1;
+}
+
+.outcome-details__inspect-btn:hover {
+  background: #e0f2fe;
+  border-color: #38bdf8;
 }
 
 .outcome-details__title {
@@ -4193,17 +4439,25 @@ textarea.input {
   color: var(--text-muted);
 }
 
+/* The border-top is the separator; margin and padding together set how far the
+   rule sits from the title. 14px + 12px = 26px was the only gap in the card
+   off the 4/8/12/16 scale the rest of it uses. */
 .outcome-details__section {
-  margin-top: 14px;
+  margin-top: 12px;
   padding-top: 12px;
   border-top: 1px solid var(--border);
 }
 
+/* Explicit line-height so the label's box height is deterministic rather than
+   inherited — the count badge is taller than the 11px text, and without this the
+   flex row's height (and therefore where the 12px/8px gaps are measured from)
+   depends on the inherited body line-height. */
 .outcome-details__label {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 11px;
+  line-height: 1.4;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -4213,11 +4467,12 @@ textarea.input {
 .outcome-details__count {
   display: inline-block;
   min-width: 20px;
-  padding: 1px 6px;
+  padding: 2px 6px;
   border-radius: 999px;
   background: #f1f5f9;
   border: 1px solid var(--border);
-  font-size: 11px;
+  font-size: 10px;
+  line-height: 1.4;
   font-style: normal;
   font-weight: 700;
   text-align: center;
@@ -4226,18 +4481,21 @@ textarea.input {
 
 .outcome-details__list {
   list-style: none;
-  margin: 10px 0 0;
+  margin: 8px 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 /* One category block inside the card. */
+/* Category groups. 18px -> 16px: a clean double of the 8px chip gap, so a group
+   boundary reads as twice the spacing of a row boundary without the 2.25x
+   stumble. */
 .outcome-connected {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
   margin-top: 12px;
 }
 
@@ -4245,14 +4503,18 @@ textarea.input {
   display: block;
 }
 
+/* One connected row. Cells align to the top edge rather than to a text
+   baseline: most statements wrap to two or three lines, and baseline alignment
+   parked the 11px code on the first line's baseline, which left the row looking
+   lopsided — too much room under the code, too little above the text. */
 .outcome-details__item {
   display: flex;
-  align-items: baseline;
-  gap: 10px;
+  align-items: flex-start;
+  gap: 12px;
   background: #f8fafc;
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 7px 10px;
+  padding: 9px 12px;
 }
 
 .outcome-details__item--unresolved {
@@ -4265,28 +4527,36 @@ textarea.input {
 }
 
 .outcome-details__item-code {
-  flex: none;
-  min-width: 62px;
+  flex: 0 0 auto;
+  min-width: 58px;
   font-size: 11px;
+  line-height: 1.5;
   font-weight: 700;
   color: #15803d;
   white-space: nowrap;
 }
 
+/* flex:1 + min-width:0 lets this column absorb whatever the code and badge
+   leave behind and still wrap, instead of forcing the chip wider. */
 .outcome-details__item-text {
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: 13px;
-  line-height: 1.45;
+  line-height: 1.5;
   color: var(--text);
+  overflow-wrap: break-word;
 }
 
 .outcome-details__flag {
   flex: none;
+  align-self: flex-start;
   margin-left: auto;
-  padding: 1px 7px;
+  padding: 2px 8px;
   border-radius: 999px;
   background: #fef3c7;
   border: 1px solid #fcd34d;
   font-size: 10px;
+  line-height: 1.4;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -4578,24 +4848,39 @@ textarea.input {
    stroke: #16a34a !important;
    stroke-width: 3px !important;
 }
-.subject-view__node--highlight circle,
-.subject-view__node--highlight ellipse {
-   stroke: #16a34a !important;
-   stroke-width: 3px !important;
-}
 .subject-view__link--highlight {
    stroke: rgb(0, 174, 255) !important;
    stroke-width: 3px !important;
    stroke-opacity: 1 !important;
 }
 
- /* Subtle grow feedback when hovering a node. */
-.subject-view__node:hover .subject-view__shape,
-.subject-view__node:hover .subject-view__core {
-   transform-box: fill-box;
-   transform-origin: center;
-   transform: scale(1.08);
-   transition: transform 0.18s ease;
+ /* Ring around the node the connected-details card is describing — the checked
+   state, delivering the double ring the legend promises for the root. One
+   circle per node always exists but stays fully transparent until the
+   inspection effect adds --on, so the layer costs nothing while nothing is
+   being inspected. */
+.subject-view__ring {
+  stroke: #0f172a;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.subject-view__ring--on {
+  opacity: 1;
+}
+
+/* Subtle grow feedback when hovering a node. The node circles carry
+   .subject-view__node themselves — the old rule targeted .subject-view__shape
+   and .subject-view__core, neither of which exists anywhere in the codebase, so
+   it never applied. */
+.subject-view__node {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 0.18s ease;
+}
+
+.subject-view__node:hover {
+  transform: scale(1.08);
 }
 
 .resource-card--selected {

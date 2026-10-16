@@ -12,11 +12,12 @@
 --   programs / courses            — academic programs and their courses
 --   program_outcomes              — program outcomes tied to programs
 --   course_learning_outcomes      — CLOs tied to courses
---   strategic_goals               — institutional strategic goals (admin)
+--   strategic_goals               — institutional strategic goals (admin/manager)
 --   admin_program_outcomes        — standalone admin-managed PO list
---   program_educational_objectives— PEOs (admin)
+--   program_educational_objectives— PEOs (admin/manager)
 --   admin_course_learning_outcomes— standalone admin-managed CLO list
---   ched_memorandum_orders        — CHED memo orders (admin)
+--   ched_memorandum_orders        — CHED memo orders (admin/manager)
+--   (admins and managers may create/edit/archive these; only admins delete)
 --   po_feedback                   — shared CLO→PO pick/reject log (curation)
 -- =============================================================================
 
@@ -71,8 +72,16 @@ CREATE TABLE public.activity_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_email TEXT,
     action TEXT NOT NULL,
+    -- Optional context for the entry: {entity, entity_id, label, reason}.
+    -- The actor is deliberately NOT stored here — user_email is stamped
+    -- server-side from the caller's JWT by log_activity().
+    details JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- The log is always read newest-first and filtered by action/date.
+CREATE INDEX activity_logs_created_at_idx ON public.activity_logs (created_at DESC);
+CREATE INDEX activity_logs_action_idx ON public.activity_logs (action);
 
 -- CQI curriculum domain: academic programs, their courses, program outcomes
 -- (PO), and course learning outcomes (CLO). These feed the CLO/PO mapping
@@ -398,6 +407,17 @@ CREATE POLICY "Admins and managers can view activity logs" ON public.activity_lo
 CREATE POLICY "Authenticated users can read strategic_goals" ON public.strategic_goals FOR SELECT
     USING (auth.role() = 'authenticated');
 
+-- Managers may create/edit/archive strategic goals; only admins delete them.
+CREATE POLICY "Managers and admins can create strategic_goals" ON public.strategic_goals FOR INSERT
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
+
+CREATE POLICY "Managers and admins can update strategic_goals" ON public.strategic_goals FOR UPDATE
+    USING (public.current_user_role() IN ('admin', 'manager'))
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
+
+CREATE POLICY "Admins can delete strategic_goals" ON public.strategic_goals FOR DELETE
+    USING (public.current_user_role() = 'admin');
+
 CREATE POLICY "Admins can manage strategic_goals" ON public.strategic_goals FOR ALL
     USING (public.current_user_role() = 'admin')
     WITH CHECK (public.current_user_role() = 'admin');
@@ -422,6 +442,17 @@ CREATE POLICY "Managers and admins can update admin_program_outcomes" ON public.
 CREATE POLICY "Authenticated users can read program_educational_objectives" ON public.program_educational_objectives FOR SELECT
     USING (auth.role() = 'authenticated');
 
+-- Managers may create/edit/archive PEOs; only admins delete them.
+CREATE POLICY "Managers and admins can create program_educational_objectives" ON public.program_educational_objectives FOR INSERT
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
+
+CREATE POLICY "Managers and admins can update program_educational_objectives" ON public.program_educational_objectives FOR UPDATE
+    USING (public.current_user_role() IN ('admin', 'manager'))
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
+
+CREATE POLICY "Admins can delete program_educational_objectives" ON public.program_educational_objectives FOR DELETE
+    USING (public.current_user_role() = 'admin');
+
 CREATE POLICY "Admins can manage program_educational_objectives" ON public.program_educational_objectives FOR ALL
     USING (public.current_user_role() = 'admin')
     WITH CHECK (public.current_user_role() = 'admin');
@@ -445,6 +476,17 @@ CREATE POLICY "Authenticated users can update admin_course_learning_outcomes" ON
 -- CHED MEMORANDUM ORDERS
 CREATE POLICY "Authenticated users can read ched_memorandum_orders" ON public.ched_memorandum_orders FOR SELECT
     USING (auth.role() = 'authenticated');
+
+-- Managers may create/edit/archive CHED memo orders; only admins delete them.
+CREATE POLICY "Managers and admins can create ched_memorandum_orders" ON public.ched_memorandum_orders FOR INSERT
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
+
+CREATE POLICY "Managers and admins can update ched_memorandum_orders" ON public.ched_memorandum_orders FOR UPDATE
+    USING (public.current_user_role() IN ('admin', 'manager'))
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
+
+CREATE POLICY "Admins can delete ched_memorandum_orders" ON public.ched_memorandum_orders FOR DELETE
+    USING (public.current_user_role() = 'admin');
 
 CREATE POLICY "Admins can manage ched_memorandum_orders" ON public.ched_memorandum_orders FOR ALL
     USING (public.current_user_role() = 'admin')
@@ -472,10 +514,17 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-    INSERT INTO public.activity_logs (user_email, action)
+    -- p_reason was previously accepted and discarded, which made every
+    -- failed sign-in indistinguishable. It is kept in details.reason.
+    INSERT INTO public.activity_logs (user_email, action, details)
     VALUES (
         p_email,
         CASE WHEN p_success THEN 'auth.login' ELSE 'auth.login_failed' END
+        , CASE
+            WHEN NOT p_success AND p_reason IS NOT NULL AND btrim(p_reason) <> ''
+                THEN jsonb_build_object('reason', btrim(p_reason))
+            ELSE NULL
+          END
     );
 END;
 $$;
@@ -489,7 +538,7 @@ GRANT EXECUTE ON FUNCTION public.record_login_event(TEXT, BOOLEAN, TEXT) TO anon
 -- so the client never supplies (or spoofs) user_email.
 -- ============================================================
 
-CREATE OR REPLACE FUNCTION public.log_activity(p_action TEXT)
+CREATE OR REPLACE FUNCTION public.log_activity(p_action TEXT, p_details JSONB DEFAULT NULL)
 RETURNS VOID
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -504,13 +553,23 @@ BEGIN
 
     SELECT email INTO v_email FROM public.profiles WHERE id = auth.uid();
 
-    INSERT INTO public.activity_logs (user_email, action)
-    VALUES (v_email, btrim(p_action));
+    -- Details are stored verbatim so future fields need no function change.
+    -- An empty object is normalised to NULL so the UI can treat "no context"
+    -- as a single falsy case.
+    INSERT INTO public.activity_logs (user_email, action, details)
+    VALUES (
+        v_email,
+        btrim(p_action),
+        CASE
+            WHEN p_details IS NULL OR p_details = '{}'::jsonb THEN NULL
+            ELSE p_details
+        END
+    );
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.log_activity(TEXT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.log_activity(TEXT) TO authenticated;
+REVOKE ALL ON FUNCTION public.log_activity(TEXT, JSONB) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.log_activity(TEXT, JSONB) TO authenticated;
 
 -- ============================================================
 -- ROLE RESTORE / FIRST ADMIN BOOTSTRAP

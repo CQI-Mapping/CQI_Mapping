@@ -25,7 +25,11 @@ type ProgramForm = {
 
 const blank: ProgramForm = { code: '', name: '', description: '' }
 
-export default function Program() {
+interface ProgramProps {
+  allowDelete?: boolean
+}
+
+export default function Program({ allowDelete = true }: ProgramProps) {
   const createWithName = async (payload: Partial<Program>) =>
     createProgram({ ...payload, name: (payload as Program).name || payload.code || '' })
   const updateWithName = async (id: string, payload: Partial<Program>) =>
@@ -126,13 +130,16 @@ export default function Program() {
     }
     if (!payload.code || !payload.name) return
     const ok = editing
-      ? await handleUpdate(editing.id, payload, 'program.updated')
+      ? await handleUpdate(editing.id, payload, 'program.updated', editing)
       : await handleCreate(payload, 'program.created')
     if (ok) closeModal()
   }
 
   const handleArchive = async (item: Program) => {
-    await handleUpdate(item.id, { status: isActive(item) ? 'archived' : 'active' }, 'program.updated')
+    // Archive/restore are logged under their own actions, not as a plain
+    // update — otherwise the log cannot distinguish a rename from a removal.
+    const next = isActive(item) ? 'archived' : 'active'
+    await handleUpdate(item.id, { status: next }, `program.${next}`, item)
   }
 
   return (
@@ -303,7 +310,7 @@ export default function Program() {
                   >
                     <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} />
                   </button>
-                  {!isActive(item) && (
+                  {!isActive(item) && allowDelete && (
                     <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'program.deleted')} disabled={busy} style={{ marginLeft: 'auto' }} aria-label={`Delete ${item.code}`} title="Delete">
                       <Icon name="trash" size={13} />
                     </button>
@@ -343,7 +350,7 @@ export default function Program() {
                   >
                     <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} />
                   </button>
-                  {!isActive(item) && (
+                  {!isActive(item) && allowDelete && (
                     <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'program.deleted')} disabled={busy} style={{ marginLeft: 'auto' }} aria-label={`Delete ${item.code}`} title="Delete">
                       <Icon name="trash" size={13} />
                     </button>

@@ -31,6 +31,7 @@ import {
 import {
   createTosExam,
   createTosSheet,
+  addActivityLog,
   fetchCourses,
   fetchPrograms,
   fetchTosExams,
@@ -164,6 +165,15 @@ export default function TOS() {
 
   const sheetIds = useRef<Record<SheetKind, string | null>>({ items: null, points: null })
   const examTimer = useRef<number | null>(null)
+  /**
+   * True only for the blueprint this session auto-created on first visit.
+   *
+   * Creating an empty exam is a page-load side effect, not something the user
+   * did, so it is not logged from the loader. It exists to let the first
+   * debounced write in patchExam be recorded as tos_exam.created — the first
+   * moment there is a code or title worth recording.
+   */
+  const createdThisSession = useRef(false)
   // One timer per sheet, not one per field: a pending write belongs to the
   // sheet it was made on, so switching tabs must not cancel it.
   const sheetTimer = useRef<Record<SheetKind, number | null>>({ items: null, points: null })
@@ -290,6 +300,10 @@ export default function TOS() {
             position: 0,
           })
           rows = [created]
+          // Marks the next debounced write as the create. The exam exists at
+          // this point, but it is empty and nothing has been typed, so there is
+          // no code or title worth putting in the entry yet.
+          createdThisSession.current = true
         }
         if (cancelled) return
         setActiveId(rows[0].id)
@@ -402,6 +416,19 @@ export default function TOS() {
               prepared_by: next.preparedBy,
               total_hours: num(next.totalHours),
             })
+            // Debounced, so this fires once per burst of typing rather than per
+            // keystroke. `created` covers the first write of a freshly
+            // auto-created exam, which has no meaningful edit to describe.
+            await addActivityLog(
+              createdThisSession.current ? 'tos_exam.created' : 'tos_exam.updated',
+              {
+                entity: 'tos_exam',
+                entity_id: activeId,
+                label: [next.code, next.title].filter(Boolean).join(' — ') || 'Table of Specification',
+              },
+            )
+            // Only the first save reports a create; every later one is an edit.
+            createdThisSession.current = false
             reportSaved()
           } catch (e) {
             fail(e, 'Could not save the exam details.')
@@ -579,10 +606,20 @@ export default function TOS() {
   const exportExcel = useCallback(async () => {
     try {
       await downloadTosExcel(exam, sheet)
+      // An export is the most defensible thing a blueprint page can be asked to
+      // do — it is the point where the work leaves the app — so it is recorded
+      // rather than treated as a read.
+      await addActivityLog('tos_exam.exported', {
+        entity: 'tos_exam',
+        // The on-screen TosExam is the form's shape, not the row — it carries no
+        // id. activeId is the row's primary key and the only id available here.
+        entity_id: activeId ?? undefined,
+        label: [exam?.code, exam?.title].filter(Boolean).join(' — ') || 'Table of Specification',
+      })
     } catch (e) {
       fail(e, 'Could not build the Excel file.')
     }
-  }, [exam, sheet, fail])
+  }, [exam, sheet, fail, activeId])
 
   return (
     <div className="syllabus-doc">

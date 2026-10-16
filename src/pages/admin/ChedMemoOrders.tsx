@@ -9,7 +9,11 @@ import {
 } from '../../services/database'
 import type { ChedMemoOrder } from '../../services/database'
 
-export default function ChedMemoOrders() {
+interface ChedMemoOrdersProps {
+  allowDelete?: boolean
+}
+
+export default function ChedMemoOrders({ allowDelete = true }: ChedMemoOrdersProps) {
   const [counts, setCounts] = useState<Record<string, number>>({})
 
   useEffect(() => {
@@ -42,6 +46,7 @@ export default function ChedMemoOrders() {
       titleMultiline
       counts={counts}
       countLabel="Linked POs"
+      allowDelete={allowDelete}
     />
   )
 }

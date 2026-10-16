@@ -7,7 +7,11 @@ import {
 } from '../../services/database'
 import type { ProgramEducationalObjective } from '../../services/database'
 
-export default function ProgramEducationalObjectives() {
+interface ProgramEducationalObjectivesProps {
+  allowDelete?: boolean
+}
+
+export default function ProgramEducationalObjectives({ allowDelete = true }: ProgramEducationalObjectivesProps) {
   return (
     <EntityCrudPage<ProgramEducationalObjective>
       title="Program Educational Objective"
@@ -21,6 +25,7 @@ export default function ProgramEducationalObjectives() {
       deleteAction="peo.deleted"
       codeLabel="Code"
       codePlaceholder="e.g. PEO-1"
+      allowDelete={allowDelete}
     />
   )
 }

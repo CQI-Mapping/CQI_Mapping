@@ -12,6 +12,7 @@ import {
   updateProgramOutcomeStandalone,
   deleteProgramOutcomeStandalone,
   fetchChedMemoOrders,
+  addActivityLog,
 } from '../../services/database'
 import type { ProgramOutcomeStandalone, ChedMemoOrder } from '../../services/database'
 
@@ -77,7 +78,7 @@ export default function ProgramOutcomesAdmin() {
     try {
       const code = `PO-${number.trim()}`
       const isFixed = FIXED_CMO_OPTIONS.some((c) => c.id === cmoId)
-      await createProgramOutcomeStandalone({
+      const created = await createProgramOutcomeStandalone({
         code,
         title: description.trim(),
         description: description.trim(),
@@ -89,6 +90,16 @@ export default function ProgramOutcomesAdmin() {
       setCmoId('')
       setNumber('')
       setDescription('')
+      // This page hand-rolls its handlers instead of using useEntityCrud, so
+      // it needs its own audit calls — without them, program-outcome changes
+      // made here left no trace in the activity log at all.
+      await addActivityLog('program_outcome.created', {
+        entity: 'program_outcome',
+        // Only available from the insert's return value, which is why this
+        // entry used to be the one create with no traceable id.
+        entity_id: created.id,
+        label: `${code} — ${description.trim()}`,
+      })
       await load()
     } catch (e) {
       const msg = e instanceof Error ? e.message
@@ -108,6 +119,11 @@ export default function ProgramOutcomesAdmin() {
     try {
       await updateProgramOutcomeStandalone(item.id, { status: next })
       setError2(`Program Outcome ${next}.`)
+      await addActivityLog(`program_outcome.${next}`, {
+        entity: 'program_outcome',
+        entity_id: item.id,
+        label: item.code || item.title || undefined,
+      })
       await load()
     } catch (e) {
       setError('Failed to update: ' + (e instanceof Error ? e.message : String(e)))
@@ -124,6 +140,11 @@ export default function ProgramOutcomesAdmin() {
     try {
       await deleteProgramOutcomeStandalone(item.id)
       setError2('Program Outcome deleted.')
+      await addActivityLog('program_outcome.deleted', {
+        entity: 'program_outcome',
+        entity_id: item.id,
+        label: item.code || item.title || undefined,
+      })
       await load()
     } catch (e) {
       setError('Failed to delete: ' + (e instanceof Error ? e.message : String(e)))
@@ -167,6 +188,11 @@ export default function ProgramOutcomesAdmin() {
       })
       setError2('Program Outcome updated.')
       cancelEdit()
+      await addActivityLog('program_outcome.updated', {
+        entity: 'program_outcome',
+        entity_id: id,
+        label: `PO-${editNumber.trim()} — ${editDescription.trim()}`,
+      })
       await load()
     } catch (e) {
       const msg = e instanceof Error ? e.message

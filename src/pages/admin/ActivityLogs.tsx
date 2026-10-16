@@ -1,59 +1,32 @@
 // Activity Logs — enhanced activity logs view shared by admin and manager.
-// Fetches the latest 100 activity entries on mount, then filters client-side
-// by search text, action type, and date range. Shows human-readable action
-// labels. The `details` column was removed; only user_email and action are shown.
+//
+// Every filter here is applied by the database, not in the browser. The log is
+// global — admin and manager both see every actor, including each other and the
+// faculty — so isolating one person is the whole point of the user filter, and
+// that is only possible if the query itself is narrowed. The previous version
+// fetched a fixed 100 rows and filtered them in memory, which meant an entry
+// past row 100 was unreachable no matter what you typed.
+//
+// The per-actor summary answers "who has been doing what" without making anyone
+// read the table row by row. Both views run off the same filter state, so the
+// summary always describes exactly what the table below it shows.
 
-import { useState, useEffect, useMemo } from 'react'
-import { fetchActivityLogs } from '../../services/database'
-import type { ActivityLogEntry } from '../../services/database'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import {
+  fetchActivityLogs,
+  fetchActivityRollup,
+  fetchActivityActors,
+  ACTIVITY_LOG_LIMIT,
+} from '../../services/database'
+import type { ActivityLogEntry, ActivityRollupRow } from '../../services/database'
+import { labelAction, labelCategory, labelReason, ACTION_LABELS } from './ActivityLabels'
 
-const ACTION_LABELS = {
-  'auth.login': 'Signed in',
-  'auth.login_failed': 'Failed sign-in',
-  'resource.created': 'Created curriculum record',
-  'resource.updated': 'Updated curriculum record',
-  'resource.archived': 'Archived curriculum record',
-  'resource.restored': 'Restored curriculum record',
-  'resource.deleted': 'Deleted curriculum record',
-  'program.created': 'Created program',
-  'program.updated': 'Updated program',
-  'program.deleted': 'Deleted program',
-  'course.created': 'Created course',
-  'course.updated': 'Updated course',
-  'course.archived': 'Archived course',
-  'course.restored': 'Restored course',
-  'course.deleted': 'Deleted course',
-  'program_outcome.created': 'Created program outcome',
-  'program_outcome.updated': 'Updated program outcome',
-  'program_outcome.deleted': 'Deleted program outcome',
-  'course_learning_outcome.created': 'Created course learning outcome',
-  'course_learning_outcome.updated': 'Updated course learning outcome',
-  'course_learning_outcome.deleted': 'Deleted course learning outcome',
-  'clo_po_mapping.set': 'Set CLO/PO mapping',
-  'clo_po_mapping.cleared': 'Cleared CLO/PO mapping',
-  'role.updated': 'Changed user role',
-  'user.created': 'Created user account',
-  'user.deleted': 'Deleted user account',
-  'profile.updated': 'Updated profile',
-  'program_outcome.archived': 'Archived program outcome',
-  'program_outcome.restored': 'Restored program outcome',
-  'clo.archived': 'Archived course learning outcome',
-  'clo.restored': 'Restored course learning outcome',
-  'peo.archived': 'Archived program educational objective',
-  'peo.restored': 'Restored program educational objective',
-  'strategic_goal.archived': 'Archived strategic goal',
-  'strategic_goal.restored': 'Restored strategic goal',
-  'ched_memo_order.archived': 'Archived CHED memorandum order',
-  'ched_memo_order.restored': 'Restored CHED memorandum order',
-}
-
-function labelAction(raw: string): string {
-  return ACTION_LABELS[raw as keyof typeof ACTION_LABELS] || raw.replace(/_/g, ' ')
-}
-
-function uniqueActions(entries: ActivityLogEntry[]): string[] {
-  const set = new Set(entries.map((e) => e.action))
-  return [...set].sort()
+// The `label` is the only part of details a person would search for. The raw
+// id and entity key are machine identifiers and would just add noise.
+function searchableDetails(entry: ActivityLogEntry): string {
+  return [entry.details?.label ?? '', entry.details?.reason ? labelReason(entry.details.reason) : '']
+    .join(' ')
+    .toLowerCase()
 }
 
 interface ActivityLogsViewProps {
@@ -61,71 +34,196 @@ interface ActivityLogsViewProps {
   description?: string
 }
 
+/** "3 Courses · 2 Sign-ins · 1 Outcomes" — busiest categories first. */
+function summarise(row: ActivityRollupRow): string {
+  return Object.entries(row.byCategory)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 4)
+    .map(([category, n]) => `${n} ${labelCategory(`${category}.x`)}`)
+    .join(' · ')
+}
+
 function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogsViewProps = {}) {
   const [entries, setEntries] = useState<ActivityLogEntry[]>([])
+  const [rollup, setRollup] = useState<ActivityRollupRow[]>([])
+  const [actors, setActors] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   // Filters
   const [search, setSearch] = useState('')
   const [actionFilter, setActionFilter] = useState('')
+  const [userFilter, setUserFilter] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
 
+  // The search box drives a server query, so keystrokes are debounced rather
+  // than fired one request per character. The selects and dates apply
+  // immediately — they change on commit, not per keystroke.
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   useEffect(() => {
-    fetchActivityLogs()
-      .then(setEntries)
-      .catch((e) => setError('Unable to load activity logs: ' + e.message))
-      .finally(() => setLoading(false))
+    const t = setTimeout(() => setDebouncedSearch(search), 300)
+    return () => clearTimeout(t)
+  }, [search])
+
+  // The actor list is read once and never re-read: it must not shrink as the
+  // other filters narrow the rows, or a narrowed filter could not be widened
+  // again without first clearing itself.
+  useEffect(() => {
+    let cancelled = false
+    fetchActivityActors()
+      .then((rows) => { if (!cancelled) setActors(rows) })
+      .catch(() => { /* the dropdown simply stays empty */ })
+    return () => { cancelled = true }
   }, [])
 
-  const filtered = useMemo(() => {
-    let result = entries
+  const filters = useMemo(
+    () => ({
+      search: debouncedSearch.trim() || undefined,
+      action: actionFilter || undefined,
+      userEmail: userFilter || undefined,
+      from: dateFrom || undefined,
+      to: dateTo || undefined,
+      limit: ACTIVITY_LOG_LIMIT,
+    }),
+    [debouncedSearch, actionFilter, userFilter, dateFrom, dateTo],
+  )
 
-    if (search) {
-      const q = search.toLowerCase()
-      result = result.filter((e) => {
-        const haystack = [
-          e.user_email,
-          e.action,
-          labelAction(e.action),
-        ]
-          .join(' ')
-          .toLowerCase()
-        return haystack.includes(q)
-      })
+  // Guards against a slow earlier response overwriting a newer one: without the
+  // token, typing fast enough to overlap requests shows stale rows.
+  const requestRef = useRef(0)
+
+  const load = useCallback(async () => {
+    const token = ++requestRef.current
+    setLoading(true)
+    setError('')
+    try {
+      const [rows, summary] = await Promise.all([
+        fetchActivityLogs(filters),
+        fetchActivityRollup(filters),
+      ])
+      if (token !== requestRef.current) return
+      setEntries(rows)
+      setRollup(summary)
+    } catch (e) {
+      if (token !== requestRef.current) return
+      setError('Unable to load activity logs: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      if (token === requestRef.current) setLoading(false)
     }
+  }, [filters])
 
-    if (actionFilter) {
-      result = result.filter((e) => e.action === actionFilter)
-    }
+  useEffect(() => { load() }, [load])
 
-    if (dateFrom) {
-      const from = new Date(dateFrom)
-      result = result.filter((e) => new Date(e.created_at) >= from)
-    }
+  /**
+   * Label and failure-reason matching, applied over what came back.
+   *
+   * Only these two fields are left client-side: they live in the `details`
+   * jsonb blob, which the server-side search deliberately does not reach into.
+   * Everything a filter row can express as an equality or a date bound is
+   * already applied by the query.
+   */
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return entries
+    return entries.filter((e) => searchableDetails(e).includes(q))
+  }, [entries, search])
 
-    if (dateTo) {
-      const to = new Date(dateTo)
-      to.setHours(23, 59, 59, 999)
-      result = result.filter((e) => new Date(e.created_at) <= to)
-    }
+  // Every action the app can emit, not just the ones present in this page of
+  // results — otherwise picking an action would shrink the dropdown to nothing.
+  const actions = useMemo(() => {
+    const set = new Set<string>(Object.keys(ACTION_LABELS))
+    for (const e of entries) set.add(e.action)
+    return [...set].sort((a, b) => labelAction(a).localeCompare(labelAction(b)))
+  }, [entries])
 
-    return result
-  }, [entries, search, actionFilter, dateFrom, dateTo])
+  const failedCount = useMemo(
+    () => rows.filter((e) => e.action === 'auth.login_failed').length,
+    [rows],
+  )
 
-  const actions = useMemo(() => uniqueActions(entries), [entries])
-
-  const hasFilters = search || actionFilter || dateFrom || dateTo
+  const hasFilters = search || actionFilter || userFilter || dateFrom || dateTo
 
   const clearFilters = () => {
     setSearch('')
     setActionFilter('')
+    setUserFilter('')
     setDateFrom('')
     setDateTo('')
   }
 
-  if (loading) return <p>Loading activity logs...</p>
+  // Declared before drillInto() so the ref it touches is already in scope where
+  // the function is defined, rather than relying on hoisting order.
+  const rowsRef = useRef<HTMLDivElement>(null)
+  const scrollToRowsPending = useRef(false)
+
+  useEffect(() => {
+    if (loading || !scrollToRowsPending.current) return
+    scrollToRowsPending.current = false
+    rowsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [loading, entries])
+
+  /**
+   * Drill into one actor from the summary.
+   *
+   * Sets the same filter the dropdown uses, rather than a separate piece of
+   * state — so the summary, the stat cards and the table can never disagree
+   * about who is being shown. Tapping the active actor again clears it, which
+   * makes the summary row a toggle rather than a one-way door.
+   *
+   * The actor may not be in the dropdown yet (it is read once, on mount), so it
+   * is added to the option list too rather than silently failing to select.
+   */
+  const drillInto = (email: string) => {
+    if (userFilter === email) {
+      setUserFilter('')
+      return
+    }
+    setActors((prev) => (prev.includes(email) ? prev : [...prev, email].sort()))
+    setUserFilter(email)
+    // The table sits below the summary, so on a tall summary the rows the
+    // click just filtered to can be off-screen. Scrolling before the fetch
+    // resolves would land on the old rows, so wait for the loading state to
+    // clear and the new content to be in the DOM.
+    scrollToRowsPending.current = true
+  }
+
+  /** Free-text detail: the record's name at the time, and any failure reason. */
+  function DetailLine({ entry }: { entry: ActivityLogEntry }) {
+    const d = entry.details
+    if (!d) return null
+    const reason = d.reason ? labelReason(d.reason) : ''
+    if (!d.label && !reason) return null
+    return (
+      <span className="activity-detail">
+        {d.label && <span className="activity-detail__label">{d.label}</span>}
+        {reason && <span className="activity-detail__reason">reason: {reason}</span>}
+      </span>
+    )
+  }
+
+  /**
+   * The record family an entry belongs to.
+   *
+   * In its own column because it is the part that is *evidence*: the label is a
+   * name a human chose — free text, so two records can share one, and it changes
+   * if someone edits the record — while the entity is the app's own vocabulary
+   * for what kind of record was touched.
+   *
+   * The primary key is deliberately not shown. It was the column's reason to
+   * exist in the first place, but a UUID prefix reads as noise to anyone not
+   * already holding that record open, and the id is still searchable in the
+   * raw row if it is ever needed.
+   */
+  function RecordCell({ entry }: { entry: ActivityLogEntry }) {
+    const d = entry.details
+    if (!d?.entity) return <span className="activity-record__none">—</span>
+    return (
+      <span className="activity-record">
+        <span className="activity-record__entity">{d.entity}</span>
+      </span>
+    )
+  }
 
   return (
     <div className="programs-page activity-logs">
@@ -134,32 +232,47 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
           <div className="program-hero__icon">A</div>
           <div className="program-hero__titles">
             <h2>{title}</h2>
-            <p>{description || `Audit trail of ${entries.length} actions — searchable and filterable.`}</p>
+            <p>
+              {description ||
+                `Audit trail of ${entries.length} entries — every actor, filtered by the database.`}
+            </p>
           </div>
         </div>
       </div>
 
       <div className="program-stats">
         <div className="program-stat">
-          <div className="program-stat__label">Total</div>
-          <div className="program-stat__value">{entries.length}</div>
-          <div className="program-stat__sub">Latest 100</div>
+          <div className="program-stat__label">Showing</div>
+          <div className="program-stat__value">{rows.length}</div>
+          <div className="program-stat__sub">
+            {hasFilters ? 'Matching filters' : `Latest ${ACTIVITY_LOG_LIMIT}`}
+          </div>
         </div>
         <div className="program-stat">
-          <div className="program-stat__label">Filtered</div>
-          <div className="program-stat__value" style={{ color: '#16a34a' }}>{filtered.length}</div>
-          <div className="program-stat__sub">Matching current view</div>
+          <div className="program-stat__label">Actors</div>
+          <div className="program-stat__value" style={{ color: '#0f172a' }}>{rollup.length}</div>
+          <div className="program-stat__sub">In current view</div>
         </div>
         <div className="program-stat">
           <div className="program-stat__label">Actions</div>
           <div className="program-stat__value" style={{ color: '#0f172a', fontSize: 16 }}>{actions.length}</div>
           <div className="program-stat__sub">Distinct types</div>
         </div>
+        <div className="program-stat">
+          <div className="program-stat__label">Failed sign-ins</div>
+          <div
+            className="program-stat__value"
+            style={{ color: failedCount > 0 ? '#b91c1c' : '#0f172a' }}
+          >
+            {failedCount}
+          </div>
+          <div className="program-stat__sub">In current view</div>
+        </div>
       </div>
 
       {error && <p className="msg msg--error">{error}</p>}
 
-      {/* Filters */}
+      {/* Filters — all of these narrow the query, not the loaded page. */}
       <div className="panel activity-filters program-panel" style={{ borderTop: '3px solid #16a34a' }}>
         <div className="activity-filters__row">
           <label className="activity-filter">
@@ -167,10 +280,24 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
             <input
               className="input input--sm"
               type="text"
-              placeholder="User, action, or detail..."
+              placeholder="User, action, or record..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+          </label>
+
+          <label className="activity-filter">
+            <span>User</span>
+            <select
+              className="input input--sm"
+              value={userFilter}
+              onChange={(e) => setUserFilter(e.target.value)}
+            >
+              <option value="">All users</option>
+              {actors.map((a) => (
+                <option key={a} value={a}>{a}</option>
+              ))}
+            </select>
           </label>
 
           <label className="activity-filter">
@@ -215,42 +342,108 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
         </div>
         {hasFilters && (
           <p className="activity-filters__count">
-            Showing {filtered.length} of {entries.length} entries
+            Showing {rows.length} of {entries.length} loaded entries
           </p>
         )}
       </div>
 
-      <div className="panel table-wrap program-panel">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>When</th>
-              <th>User</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 && (
+      {/* Per-actor summary. This is the "who has been doing what" view that the
+          row table cannot give you without reading every line. */}
+      {!loading && rollup.length > 0 && (
+        <div className="panel activity-rollup program-panel">
+          <h3>Who's been active</h3>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Entries</th>
+                  <th>Activity</th>
+                  <th>Last seen</th>
+                </tr>
+                {/* Click a user to filter the table below to just them. */}
+              </thead>
+              <tbody>
+                {rollup.map((r) => {
+                  const active = userFilter === r.user_email
+                  return (
+                    <tr
+                      key={r.user_email}
+                      className={`activity-rollup__row${active ? ' is-active' : ''}`}
+                      aria-selected={active}
+                    >
+                      <td>
+                        {/* The control is the button, not the row: a handler on
+                            <tr> would also catch this button's click and
+                            bubble, firing drillInto twice and toggling the
+                            filter straight back off. */}
+                        <button
+                          type="button"
+                          className="activity-rollup__actor"
+                          aria-pressed={active}
+                          onClick={() => drillInto(r.user_email)}
+                          title={active ? 'Show all activity again' : `Show only ${r.user_email}`}
+                        >
+                          {r.user_email}
+                        </button>
+                        {r.failedLogins > 0 && (
+                          <span className="activity-rollup__flag">
+                            {r.failedLogins} failed sign-in{r.failedLogins === 1 ? '' : 's'}
+                          </span>
+                        )}
+                      </td>
+                      <td>{r.total}</td>
+                      <td className="activity-rollup__summary">{summarise(r)}</td>
+                      <td>{new Date(r.lastSeen).toLocaleString()}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {loading ? (
+        <p>Loading activity logs...</p>
+      ) : (
+        <div className="panel table-wrap program-panel" ref={rowsRef}>
+          <table className="table">
+            <thead>
               <tr>
-                <td colSpan={3}>
-                  {entries.length === 0 ? 'No activity recorded yet.' : 'No entries match the current filters.'}
-                </td>
+                <th>When</th>
+                <th>User</th>
+                <th>Action</th>
+                <th>Record</th>
               </tr>
-            )}
-            {filtered.map((entry) => (
-              <tr key={entry.id}>
-                <td>{new Date(entry.created_at).toLocaleString()}</td>
-                <td>{entry.user_email || '—'}</td>
-                <td>
-                  <span className={`action-badge action-badge--${entry.action.split('.')[0]}`}>
-                    {labelAction(entry.action)}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={4}>
+                    {entries.length === 0
+                      ? 'No activity recorded for these filters.'
+                      : 'No entries match the current filters.'}
+                  </td>
+                </tr>
+              )}
+              {rows.map((entry) => (
+                <tr key={entry.id}>
+                  <td>{new Date(entry.created_at).toLocaleString()}</td>
+                  <td>{entry.user_email || '—'}</td>
+                  <td>
+                    <span className={`action-badge action-badge--${entry.action.split('.')[0]}`}>
+                      {labelAction(entry.action)}
+                    </span>
+                    <DetailLine entry={entry} />
+                  </td>
+                  <td><RecordCell entry={entry} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }

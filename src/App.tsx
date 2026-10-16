@@ -9,9 +9,27 @@
 //   Dashboard, Program, CHED Memorandum Orders, Strategic Goals,
 //   Program Educational Objectives, Program Outcomes,
 //   Curriculum, Course Learning Outcomes, Subject Graph,
-//   Curriculum Report (View), Users & Accounts, Activity Logs, Profile
+//   Curriculum Report (View), Reports, Users & Accounts, Activity Logs,
+//   Profile
+//
+// Manager role pages (sidebar order):
+//   Dashboard, Program, CHED Memorandum Orders, Strategic Goals,
+//   Program Educational Objectives, Program Outcomes,
+//   Curriculum, Course, Subject Graph, Reports, Users, Activity Logs,
+//   Profile
+//
+// Faculty pages (sidebar order):
+//   Dashboard, Course Learning Outcomes, Curriculum, Subject Graph,
+//   Generate TOS, Reports, Profile
+//
+// The Program / CHED Memo / Strategic Goals / PEO pages are shared with the admin
+// role (same as Activity Logs and Subject Graph) — only destructive deletes stay
+// admin-only, via the SHARED_ACADEMIC_PAGES list below. The Reports page is
+// shared by ALL three roles and lives in its own pages/shared folder: every list
+// it reads has an "authenticated users can read" policy, so faculty can open it
+// without a role-specific policy of their own.
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import Sidebar from './components/Sidebar'
 import Login from './pages/Login'
 import Profile from './pages/Profile'
@@ -33,10 +51,11 @@ import AdminUsers from './pages/admin/Users'
 import AdminProgram from './pages/admin/Program'
 import AdminSubjectView from './pages/admin/SubjectView'
 import AdminView from './pages/admin/View'
+import Reports from './pages/shared/Reports'
 import UserCurriculum from './pages/user/Curriculum'
 import UserTOS from './pages/user/TOS'
 import { supabase } from './utils/supabaseClient'
-import { ensureProfile, syncDemoRole } from './services/database'
+import { ensureProfile, syncDemoRole, addActivityLog } from './services/database'
 import type { Profile as ProfileType, UserRole, NavItem } from './services/database'
 import type { Session } from '@supabase/supabase-js'
 
@@ -51,16 +70,22 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'curriculum', label: 'Curriculum' },
     { id: 'subject-view', label: 'Subject Graph' },
     { id: 'view', label: 'Curriculum Report' },
+    { id: 'reports', label: 'Reports' },
     { id: 'users', label: 'Users & Accounts' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
   ],
   manager: [
-    { id: 'program-outcomes', label: 'Program Outcomes' },
     { id: 'dashboard', label: 'Dashboard' },
+    { id: 'program', label: 'Program' },
+    { id: 'ched-memo', label: 'CHED Memorandum Orders' },
+    { id: 'strategic-goals', label: 'Strategic Goals' },
+    { id: 'peos', label: 'Program Educational Objectives' },
+    { id: 'program-outcomes', label: 'Program Outcomes' },
     { id: 'curriculum', label: 'Curriculum' },
     { id: 'course', label: 'Course' },
     { id: 'subject-view', label: 'Subject Graph' },
+    { id: 'reports', label: 'Reports' },
     { id: 'users', label: 'Users' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
@@ -71,9 +96,16 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'curriculum', label: 'Curriculum' },
     { id: 'subject-view', label: 'Subject Graph' },
     { id: 'tos', label: 'Generate TOS' },
+    { id: 'reports', label: 'Reports' },
     { id: 'profile', label: 'Profile' },
   ],
 }
+
+// Pages shared by admin and manager that support an `allowDelete` prop
+// (hard delete stays admin-only; managers can still archive/restore).
+const SHARED_ACADEMIC_PAGES = new Set([
+  'program', 'ched-memo', 'strategic-goals', 'peos',
+])
 
 // PAGES map: page id -> component for each role.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -86,6 +118,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     curriculum: ManagerCurriculum,
     'subject-view': AdminSubjectView,
     view: AdminView,
+    reports: Reports,
     'strategic-goals': AdminStrategicGoals,
     'ched-memo': AdminChedMemoOrders,
     users: AdminUsers,
@@ -94,10 +127,15 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
   },
   manager: {
     dashboard: ManagerDashboard,
+    program: AdminProgram,
+    'ched-memo': AdminChedMemoOrders,
+    'strategic-goals': AdminStrategicGoals,
+    peos: AdminPEOs,
     curriculum: ManagerCurriculum,
     course: ManagerCourse,
     'program-outcomes': ManagerProgramOutcomes,
     'subject-view': AdminSubjectView,
+    reports: Reports,
     users: ManagerUsers,
     'activity-logs': ManagerActivityLogs,
     profile: Profile,
@@ -107,6 +145,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     clo: UserCourseLearningOutcomes,
     curriculum: UserCurriculum,
     'subject-view': AdminSubjectView,
+    reports: Reports,
     tos: UserTOS,
     profile: Profile,
   },
@@ -118,6 +157,19 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [profileLoaded, setProfileLoaded] = useState(false)
   const [activePage, setActivePage] = useState('dashboard')
+  /**
+   * Every navigation goes through here, so it is the one place that knows both
+   * where the user came from and where they went. The Activity Logs page is
+   * skipped: it is the thing being read, and logging "someone opened the log"
+   * writes a new row on every read, so the page would never hold still.
+   */
+  const lastLoggedPage = useRef<string | null>(null)
+  const navigate = useCallback((next: string) => {
+    setActivePage(next)
+    if (next === 'activity-logs' || next === lastLoggedPage.current) return
+    lastLoggedPage.current = next
+    addActivityLog('page.viewed', { entity: 'page', label: next }).catch(() => {})
+  }, [])
   const [sidebarOpen, setSidebarOpen] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth > 1024 : true
   )
@@ -145,6 +197,9 @@ function App() {
         setProfileError('')
         profileUserIdRef.current = null
         setActivePage('dashboard')
+        // Reset so the next sign-in records its own landing on the dashboard
+        // rather than inheriting this session's last page.
+        lastLoggedPage.current = null
         setLoading(false)
       }
     })
@@ -268,16 +323,22 @@ function App() {
     ? activePage
     : navItems[0]?.id ?? 'dashboard'
 
+  // Managers get create/edit/archive on the shared academic pages; only admins
+  // may hard-delete, so the destructive button is hidden for them.
+  const allowDelete = role === 'admin'
+
   const renderPage = () => {
     const Page = PAGES[role]?.[page] ?? PAGES[role]?.[navItems[0]?.id] ?? UserDashboard
 
-    if (page === 'dashboard') return <Page profile={profile} onNavigate={setActivePage} />
+    if (page === 'dashboard') return <Page profile={profile} onNavigate={navigate} />
     if (page === 'profile') return <Page profile={profile} onSaved={setProfile} />
     if (page === 'users') return <Page />
+    if (SHARED_ACADEMIC_PAGES.has(page)) return <Page allowDelete={allowDelete} />
     if (page === 'curriculum' && role !== 'user') return <Page userEmail={profile?.email} allowDelete={role === 'admin'} />
     if (page === 'curriculum' && role === 'user') return <Page />
     if (page === 'view') return <Page userEmail={profile?.email} />
-    return <Page profile={profile} onNavigate={setActivePage} />
+    if (page === 'reports') return <Page profile={profile} />
+    return <Page profile={profile} onNavigate={navigate} />
   }
 
   return (
@@ -285,7 +346,7 @@ function App() {
       <Sidebar
         navItems={navItems}
         activePage={page}
-        onNavigate={setActivePage}
+        onNavigate={navigate}
         onLogout={handleLogout}
         role={role}
         isOpen={sidebarOpen}
