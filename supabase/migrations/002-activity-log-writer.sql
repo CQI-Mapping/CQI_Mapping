@@ -1,12 +1,31 @@
--- Activity log detail capture
+-- Activity log: details column + writers
 -- ============================================================
--- Gives audit entries enough context to be an audit trail rather
--- than a click counter: which record changed, what it was called,
--- and why a sign-in failed.
+-- Gives audit entries enough context to be an audit trail rather than a
+-- click counter: which record changed, what it was called, and why a
+-- sign-in failed.
 --
 -- SAFE TO RUN: additive only (a new nullable column), no DROP, no data
 -- loss. Re-running is a no-op. Do NOT re-run supabase-schema.sql to
 -- apply this — that file drops every table.
+--
+-- WHY YOU MAY NEED THIS
+--   log_activity() arrived in a later commit than record_login_event(),
+--   which has been there since the first one. If your database was created
+--   before it, the function does not exist — and the symptom looks like a UI
+--   bug rather than a schema gap:
+--
+--     * Activity Logs shows ONLY "Signed in" / "Failed sign-in" entries
+--     * every other action in the app is invisible
+--     * nothing on screen looks broken
+--
+--   Every addActivityLog() call in the client fails silently against a missing
+--   function (it only console.warn()s), so there is no error to notice. If
+--   editing a program produces no log entry, run this file.
+--
+-- AFTER RUNNING
+--   Sign out and back in so the session picks up the new grant, then edit and
+--   save any program as admin. Activity Logs should then show an
+--   "Updated program" entry.
 --
 -- p_details has a DEFAULT NULL so existing single-argument callers of
 -- log_activity() keep working without change.
@@ -107,3 +126,21 @@ $$;
 
 REVOKE ALL ON FUNCTION public.record_login_event(TEXT, BOOLEAN, TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.record_login_event(TEXT, BOOLEAN, TEXT) TO anon, authenticated;
+
+-- ============================================================
+-- 4. Verification — each of these should report one row / one
+--    value. "function exists" returning 0 means it was already
+--    there is NOT possible here; CREATE OR REPLACE guarantees it,
+--    so 1 is the only correct answer.
+-- ============================================================
+
+-- SELECT 'log_activity present' AS check, count(*) AS expected_1 FROM pg_proc
+--   WHERE proname = 'log_activity';
+--
+-- SELECT 'anon cannot forge entries' AS check,
+--        has_function_privilege('anon', 'log_activity(text, jsonb)', 'EXECUTE')
+--        AS expected_false;
+--
+-- SELECT 'signed-in users can log' AS check,
+--        has_function_privilege('authenticated', 'log_activity(text, jsonb)', 'EXECUTE')
+--        AS expected_true;
