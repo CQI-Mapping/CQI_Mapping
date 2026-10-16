@@ -3419,6 +3419,72 @@ textarea.input {
 }
 
 
+/* ---- Name Inventory (pages/shared/NameInventory.tsx) ----
+   Five stacked tables under one letterhead. The report chrome (.syllabus-doc,
+   .sd-letterhead, .table) is shared with the Curriculum Report; only the
+   section spacing and the two controls the other reports do not have are
+   defined here. */
+
+.ni-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #475569;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ni-toggle input {
+  cursor: pointer;
+}
+
+/* The search box shares .sd-toolbar__subject's label stack, but its field is a
+   free-text input rather than the fixed-width select that rule was sized for. */
+.sd-toolbar__subject input[type='search'] {
+  min-width: 220px;
+}
+
+.ni-summary {
+  margin-bottom: 8px;
+}
+
+.ni-summary th:not(:first-child),
+.ni-summary td:not(:first-child) {
+  text-align: center;
+}
+
+.ni-shown {
+  margin: 0 0 24px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.ni-section {
+  margin-bottom: 28px;
+  /* Keeps a section title from being orphaned at the foot of a printed page. */
+  break-inside: avoid-page;
+}
+
+.ni-section__title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #334155;
+}
+
+.ni-section .table th {
+  position: static;
+}
+
+.ni-empty {
+  color: #94a3b8;
+  font-style: italic;
+  text-align: center;
+}
+
 @media print {
   .sd-actions,
   .sd-toolbar-controls,
