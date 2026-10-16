@@ -78,7 +78,7 @@ export default function ProgramOutcomesAdmin() {
     try {
       const code = `PO-${number.trim()}`
       const isFixed = FIXED_CMO_OPTIONS.some((c) => c.id === cmoId)
-      await createProgramOutcomeStandalone({
+      const created = await createProgramOutcomeStandalone({
         code,
         title: description.trim(),
         description: description.trim(),
@@ -95,6 +95,9 @@ export default function ProgramOutcomesAdmin() {
       // made here left no trace in the activity log at all.
       await addActivityLog('program_outcome.created', {
         entity: 'program_outcome',
+        // Only available from the insert's return value, which is why this
+        // entry used to be the one create with no traceable id.
+        entity_id: created.id,
         label: `${code} — ${description.trim()}`,
       })
       await load()

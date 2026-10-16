@@ -114,9 +114,13 @@ function Curriculum({ userEmail }: CurriculumProps) {
       if (!userId) throw new Error('Not authenticated')
       const codeValue = code.trim()
       if (!codeValue) throw new Error('Code is required')
-      await createResource(codeValue, description.trim() || null, units === '' ? null : Number(units), userId)
+      // The id only exists after the insert, so the audit entry has to wait for
+      // the returned row — otherwise a created record goes into the log with no
+      // way to trace it back.
+      const created = await createResource(codeValue, description.trim() || null, units === '' ? null : Number(units), userId)
       await addActivityLog('resource.created', {
         entity: 'resource',
+        entity_id: created.id,
         label: description.trim() || codeValue,
       })
       setCode('')

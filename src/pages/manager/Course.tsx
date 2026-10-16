@@ -293,9 +293,13 @@ export default function ManagerCourse({ profile }: CourseProps) {
         setError(dupeMessage(code, dupe))
         return
       }
-      await createCourse({ program_id: programId, ...buildPayload(form) })
+      // Keep the returned row: the id is only known after the insert, so the
+      // audit entry used to go out without one and a created course could not
+      // be traced back to its row.
+      const created = await createCourse({ program_id: programId, ...buildPayload(form) })
       await addActivityLog('course.created', {
         entity: 'course',
+        entity_id: created.id,
         label: `${code} — ${form.title.trim()}`,
       })
       setMessage('Course created.')
