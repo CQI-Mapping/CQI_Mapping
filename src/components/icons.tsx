@@ -16,7 +16,6 @@ export type IconName =
   | 'x'
   | 'download'
   | 'chevron'
-  | 'history'
 
 const PATHS: Record<IconName, React.ReactNode> = {
   edit: <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />,
@@ -85,15 +84,6 @@ const PATHS: Record<IconName, React.ReactNode> = {
     </>
   ),
   chevron: <polyline points="6 9 12 15 18 9" />,
-  // Clock with a counter-clockwise arrow — the same glyph the sidebar and the
-  // dashboard use for Activity Logs, so the per-row button reads as "history".
-  history: (
-    <>
-      <path d="M3 3v5h5" />
-      <path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" />
-      <path d="M12 7v5l4 2" />
-    </>
-  ),
 }
 
 interface IconProps extends SVGProps<SVGSVGElement> {

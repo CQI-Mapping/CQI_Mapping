@@ -56,8 +56,6 @@ No CSS framework, no router library — deliberately simple so it's easy to exte
 | Delete curriculum records | yes | — | — |
 | Manage courses (create/edit/archive, no delete for manager) | yes | yes | — |
 | Browse subjects + CLOs | yes | yes | yes |
-| Manage CLO records (create/edit/archive) | yes | — | yes |
-| Generate TOS | yes | — | yes |
 | View Subject Graph | yes | yes | yes |
 | View users directory (all profiles) | yes | yes | — |
 | Add / remove users (`user` role only) | — | yes | — |
@@ -68,10 +66,6 @@ No CSS framework, no router library — deliberately simple so it's easy to exte
 
 \* Creating user accounts uses the Supabase admin API and therefore requires `VITE_SUPABASE_SERVICE_ROLE_KEY` in `.env`. Without it, the "Create user" form shows an error; everything else still works.
 † `updateUserRole()` exists in `src/services/database.ts` but no UI calls it yet — role changes are done via SQL (`UPDATE public.profiles SET role=...`) or the service function from console.
-
-**The admin sees every page in the app.** It is the only role with `Course` (the manager's page) and `Course Learning Outcomes` + `Generate TOS` (the faculty pages), and it reaches them through the *same components* those roles use — `PAGES.admin` points at `ManagerCourse`, `UserCourseLearningOutcomes` and `UserTOS`, so there is no admin-only fork to keep in sync. Role gates decide what a role is *offered*, not what a page may do; the pages themselves contain no role checks (see `allowDelete` in `App.tsx`, which is passed per page).
-
-Note the asymmetry this leaves: the admin can hard-delete curriculum records and programs, but the Course page has no delete control at all, for any role — the underlying `deleteCourse()` is simply not wired to a button.
 
 ### 3.1 Test Accounts
 
@@ -113,7 +107,6 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
     ├── index.css             # Theme variables + all component styles
     ├── vite-env.d.ts         # Vite environment variable types
     ├── components/
-    │   ├── ActivityFocus.tsx   # Per-record scope for the activity log + row button
     │   └── Sidebar.tsx       # Nav shell (items change per role) + logout
     ├── data/
     │   └── vcqiSyllabus.ts   # Static syllabus data (vision, mission, CLO/PO mappings)
@@ -365,7 +358,7 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 | `createChedMemoOrder(payload)` | Insert a CHED memo order | admins/managers |
 | `updateChedMemoOrder(id, updates)` | Edit a CHED memo order | admins/managers |
 | `deleteChedMemoOrder(id)` | Permanently delete a CHED memo order | admins |
-| `fetchActivityLogs({ entity?, limit? })` | Latest 100 audit entries, or one record family's (500 by default when scoped) | admins/managers |
+| `fetchActivityLogs()` | Latest 100 audit entries | admins/managers |
 | `recordLoginEvent(email, success, reason?)` | Record a sign-in attempt via RPC | any caller (RPC) |
 | `addActivityLog(action, details?)` | Insert an audit entry via RPC | any signed-in user |
 
@@ -444,23 +437,6 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 - Labels come from `ActivityLabels.ts`, which covers every action the app emits — archive/restore are distinct actions from updates, so an archive never reads as an edit. Unknown actions fall back to de-snake-cased text rather than a raw string.
 - Each entry's `details` renders as a second line under the badge: the record's `label`, and for `auth.login_failed` the reason in red. Both are searchable.
 - A "Failed sign-ins" stat counts failures in the current filtered view.
-- **Record scope:** reached from a row's activity button, the page narrows to one record (see `components/ActivityFocus.tsx`). The fetch is filtered server-side on `details->>entity` and raised to 500 rows — a record's history is old by definition, so the headline 100 would usually hide it. A banner names the record and offers "Show all activity"; the search/action/date filters still narrow within the scope.
-
-### `components/ActivityFocus.tsx`
-- `ActivityFocus` — `{ entity, entityId?, title }`. `entity` is the `details.entity` value (`program`, `course`, `user`, …) and is the only field every entry for that record carries.
-- `ActivityButton` — the per-row icon button that opens the log scoped to that row. Used by every list page (both the list and grid card variants, which most of those pages render separately).
-- Context rather than a prop because the app has no router and there is no URL to carry a query string; the state itself lives in `App.tsx` next to `activePage`, and any navigation away from the log clears it.
-
-### Matching a record to its history
-Two fields could identify the row and neither is populated everywhere:
-
-| Source | Carries | Missing |
-|---|---|---|
-| `useEntityCrud` update/archive/delete | `entity_id` **and** `label` | — |
-| `*.created` in `manager/Curriculum`, `manager/Course`, `admin/ProgramOutcomesAdmin` | `label` only | `entity_id` (the row id isn't known until the insert returns) |
-| `admin/View.tsx` archive/restore | `entity_id` only | `label` |
-
-So the match accepts either. The family check prefers `details.entity` over the action prefix, because they disagree in one place by design: a role change logs `role.updated` with entity `user`, so it reads as history on the person whose role changed.
 
 ### `admin/ActivityLabels.ts`
 - `ACTION_LABELS` — action string → human-readable label, plus `labelAction()` / `labelReason()` helpers. Derived from what the app actually emits, not from an ideal wish list, so nothing renders as raw snake_case.

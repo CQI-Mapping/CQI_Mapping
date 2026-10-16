@@ -9,8 +9,6 @@ import { useDraft } from '../../hooks/useDraft'
 import { useViewMode } from '../../hooks/useViewMode'
 import ViewModeToggle from '../../components/ViewModeToggle'
 import Icon from '../../components/icons'
-import { ActivityButton } from '../../components/ActivityFocus'
-import type { ActivityFocus } from '../../components/ActivityFocus'
 import { normalizeCode } from '../../utils/courseCodes'
 import {
   fetchPrograms,
@@ -220,13 +218,6 @@ export default function ManagerCourse({ profile }: CourseProps) {
   useEffect(() => { load() }, [load])
 
   const isActive = (c: Course) => !c.status || c.status === 'active'
-  // Matches the `code — title` label this page snapshots on both create and
-  // archive, so a renamed course still matches its older entries by id.
-  const activityFocusOf = (c: Course): ActivityFocus => ({
-    entity: 'course',
-    entityId: c.id,
-    title: c.title ? `${c.code} — ${c.title}` : c.code,
-  })
   const q = query.trim().toLowerCase()
   const visible = courses.filter((c) =>
     typeof c.program_id === 'object' ? c.program_id.id === programId : c.program_id === programId,
@@ -598,7 +589,6 @@ export default function ManagerCourse({ profile }: CourseProps) {
                       <button className={`btn btn--sm ${isActive(c) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleToggleStatus(c)} disabled={busy || !!editId} aria-label={isActive(c) ? `Archive ${c.code}` : `Restore ${c.code}`} title={isActive(c) ? 'Archive' : 'Restore'}>
                         <Icon name={isActive(c) ? 'archive' : 'restore'} size={13} />
                       </button>
-                      <ActivityButton focus={activityFocusOf(c)} />
                     </div>
                   </div>
                 ))}
@@ -650,7 +640,6 @@ export default function ManagerCourse({ profile }: CourseProps) {
                       <button className={`btn btn--sm ${isActive(c) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleToggleStatus(c)} disabled={busy || !!editId} aria-label={isActive(c) ? `Archive ${c.code}` : `Restore ${c.code}`} title={isActive(c) ? 'Archive' : 'Restore'}>
                         <Icon name={isActive(c) ? 'archive' : 'restore'} size={13} />
                       </button>
-                      <ActivityButton focus={activityFocusOf(c)} />
                     </div>
                   </div>
                 ))}

@@ -15,8 +15,6 @@ import { useSelection } from '../../hooks/useSelection'
 import { useViewMode } from '../../hooks/useViewMode'
 import ViewModeToggle from '../../components/ViewModeToggle'
 import Icon from '../../components/icons'
-import { ActivityButton } from '../../components/ActivityFocus'
-import type { ActivityFocus } from '../../components/ActivityFocus'
 import type { Resource, Course } from '../../services/database'
 
 const relId = (v: string | { id: string } | null | undefined) =>
@@ -176,14 +174,6 @@ function Curriculum({ userEmail }: CurriculumProps) {
       setBusy(false)
     }
   }
-
-  // Matches the label this page snapshots on archive/restore
-  // (`code || title`), and the create-time label (`description || code`).
-  const activityFocusOf = (item: Resource): ActivityFocus => ({
-    entity: 'resource',
-    entityId: item.id,
-    title: item.code || item.title || item.description || '',
-  })
 
   // Toggle a record between active/archived + audit entry.
   const handleToggleStatus = async (item: Resource) => {
@@ -348,7 +338,6 @@ function Curriculum({ userEmail }: CurriculumProps) {
                       >
                         <Icon name={item.status === 'active' ? 'archive' : 'restore'} size={13} />
                       </button>
-                      <ActivityButton focus={activityFocusOf(item)} />
                     </div>
                   </>
                 )}
@@ -436,7 +425,6 @@ function Curriculum({ userEmail }: CurriculumProps) {
                       >
                         <Icon name={item.status === 'active' ? 'archive' : 'restore'} size={13} />
                       </button>
-                      <ActivityButton focus={activityFocusOf(item)} />
                     </div>
                   </>
                 )}

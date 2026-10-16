@@ -8,23 +8,26 @@
 // Admin role pages (sidebar order):
 //   Dashboard, Program, CHED Memorandum Orders, Strategic Goals,
 //   Program Educational Objectives, Program Outcomes,
-//   Curriculum, Course, Course Learning Outcomes, Subject Graph,
-//   Generate TOS, Curriculum Report (View), Users & Accounts,
-//   Activity Logs, Profile
-//
-// The admin is the only role that sees every page in the app: Course is the
-// manager's page, and Course Learning Outcomes + Generate TOS are the faculty
-// pages. Same components, reached through a different nav entry — the role
-// gates what a page is *offered*, not what it may do.
+//   Curriculum, Course Learning Outcomes, Subject Graph,
+//   Curriculum Report (View), Reports, Users & Accounts, Activity Logs,
+//   Profile
 //
 // Manager role pages (sidebar order):
 //   Dashboard, Program, CHED Memorandum Orders, Strategic Goals,
 //   Program Educational Objectives, Program Outcomes,
-//   Curriculum, Course, Subject Graph, Users, Activity Logs, Profile
+//   Curriculum, Course, Subject Graph, Reports, Users, Activity Logs,
+//   Profile
+//
+// Faculty pages (sidebar order):
+//   Dashboard, Course Learning Outcomes, Curriculum, Subject Graph,
+//   Generate TOS, Reports, Profile
 //
 // The Program / CHED Memo / Strategic Goals / PEO pages are shared with the admin
 // role (same as Activity Logs and Subject Graph) — only destructive deletes stay
-// admin-only, via the SHARED_ACADEMIC_PAGES list below.
+// admin-only, via the SHARED_ACADEMIC_PAGES list below. The Reports page is
+// shared by ALL three roles and lives in its own pages/shared folder: every list
+// it reads has an "authenticated users can read" policy, so faculty can open it
+// without a role-specific policy of their own.
 
 import { useState, useEffect, useRef } from 'react'
 import Sidebar from './components/Sidebar'
@@ -48,10 +51,9 @@ import AdminUsers from './pages/admin/Users'
 import AdminProgram from './pages/admin/Program'
 import AdminSubjectView from './pages/admin/SubjectView'
 import AdminView from './pages/admin/View'
+import Reports from './pages/shared/Reports'
 import UserCurriculum from './pages/user/Curriculum'
 import UserTOS from './pages/user/TOS'
-import { ActivityFocusProvider } from './components/ActivityFocus'
-import type { ActivityFocus, ActivityFocusApi } from './components/ActivityFocus'
 import { supabase } from './utils/supabaseClient'
 import { ensureProfile, syncDemoRole } from './services/database'
 import type { Profile as ProfileType, UserRole, NavItem } from './services/database'
@@ -66,11 +68,9 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'peos', label: 'Program Educational Objectives' },
     { id: 'program-outcomes', label: 'Program Outcomes' },
     { id: 'curriculum', label: 'Curriculum' },
-    { id: 'course', label: 'Course' },
-    { id: 'clo', label: 'Course Learning Outcomes' },
     { id: 'subject-view', label: 'Subject Graph' },
-    { id: 'tos', label: 'Generate TOS' },
     { id: 'view', label: 'Curriculum Report' },
+    { id: 'reports', label: 'Reports' },
     { id: 'users', label: 'Users & Accounts' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
@@ -85,6 +85,7 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'curriculum', label: 'Curriculum' },
     { id: 'course', label: 'Course' },
     { id: 'subject-view', label: 'Subject Graph' },
+    { id: 'reports', label: 'Reports' },
     { id: 'users', label: 'Users' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
@@ -95,6 +96,7 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'curriculum', label: 'Curriculum' },
     { id: 'subject-view', label: 'Subject Graph' },
     { id: 'tos', label: 'Generate TOS' },
+    { id: 'reports', label: 'Reports' },
     { id: 'profile', label: 'Profile' },
   ],
 }
@@ -114,13 +116,9 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     peos: AdminPEOs,
     'program-outcomes': AdminProgramOutcomesAdmin,
     curriculum: ManagerCurriculum,
-    // The admin reaches the manager's and faculty's pages through the same
-    // components those roles use — no admin-only fork to keep in sync.
-    course: ManagerCourse,
-    clo: UserCourseLearningOutcomes,
-    tos: UserTOS,
     'subject-view': AdminSubjectView,
     view: AdminView,
+    reports: Reports,
     'strategic-goals': AdminStrategicGoals,
     'ched-memo': AdminChedMemoOrders,
     users: AdminUsers,
@@ -137,6 +135,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     course: ManagerCourse,
     'program-outcomes': ManagerProgramOutcomes,
     'subject-view': AdminSubjectView,
+    reports: Reports,
     users: ManagerUsers,
     'activity-logs': ManagerActivityLogs,
     profile: Profile,
@@ -146,6 +145,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     clo: UserCourseLearningOutcomes,
     curriculum: UserCurriculum,
     'subject-view': AdminSubjectView,
+    reports: Reports,
     tos: UserTOS,
     profile: Profile,
   },
@@ -157,10 +157,6 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [profileLoaded, setProfileLoaded] = useState(false)
   const [activePage, setActivePage] = useState('dashboard')
-  // The record the Activity Logs page is scoped to, when it was opened from a
-  // row's "activity" button. Cleared on any other navigation so returning to
-  // the log later shows the whole trail rather than a stale record.
-  const [activityFocus, setActivityFocus] = useState<ActivityFocus | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth > 1024 : true
   )
@@ -187,9 +183,6 @@ function App() {
         setProfileLoaded(false)
         setProfileError('')
         profileUserIdRef.current = null
-        // Also drop the activity scope: it refers to a record the previous
-        // account was looking at, and must not leak into the next sign-in.
-        setActivityFocus(null)
         setActivePage('dashboard')
         setLoading(false)
       }
@@ -260,24 +253,6 @@ function App() {
     await supabase!.auth.signOut()
   }
 
-  // Every navigation path goes through here, so leaving the log is what drops
-  // the record scope — there is no other place that knows both facts.
-  const handleNavigate = (next: string) => {
-    if (next !== 'activity-logs') setActivityFocus(null)
-    setActivePage(next)
-  }
-
-  const showActivity = (focus: ActivityFocus) => {
-    setActivityFocus(focus)
-    setActivePage('activity-logs')
-  }
-
-  const activityFocusApi: ActivityFocusApi = {
-    focus: activityFocus,
-    showActivity,
-    clearActivity: () => setActivityFocus(null),
-  }
-
   // First paint: wait until the stored session has been restored.
   if (loading) {
     return <div className="center-screen">Loading...</div>
@@ -339,40 +314,37 @@ function App() {
   const renderPage = () => {
     const Page = PAGES[role]?.[page] ?? PAGES[role]?.[navItems[0]?.id] ?? UserDashboard
 
-    if (page === 'dashboard') return <Page profile={profile} onNavigate={handleNavigate} />
+    if (page === 'dashboard') return <Page profile={profile} onNavigate={setActivePage} />
     if (page === 'profile') return <Page profile={profile} onSaved={setProfile} />
-    // Reads its record scope from context, so it needs nothing from here.
-    if (page === 'activity-logs') return <Page />
     if (page === 'users') return <Page />
     if (SHARED_ACADEMIC_PAGES.has(page)) return <Page allowDelete={allowDelete} />
     if (page === 'curriculum' && role !== 'user') return <Page userEmail={profile?.email} allowDelete={role === 'admin'} />
     if (page === 'curriculum' && role === 'user') return <Page />
     if (page === 'view') return <Page userEmail={profile?.email} />
-    return <Page profile={profile} onNavigate={handleNavigate} />
+    if (page === 'reports') return <Page profile={profile} />
+    return <Page profile={profile} onNavigate={setActivePage} />
   }
 
   return (
-    <ActivityFocusProvider value={activityFocusApi}>
-      <div className="app-layout">
-        <Sidebar
-          navItems={navItems}
-          activePage={page}
-          onNavigate={handleNavigate}
-          onLogout={handleLogout}
-          role={role}
-          isOpen={sidebarOpen}
-          onToggle={() => setSidebarOpen((v) => !v)}
-          profileName={profile?.full_name}
-          profileEmail={profile?.email}
-        />
+    <div className="app-layout">
+      <Sidebar
+        navItems={navItems}
+        activePage={page}
+        onNavigate={setActivePage}
+        onLogout={handleLogout}
+        role={role}
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen((v) => !v)}
+        profileName={profile?.full_name}
+        profileEmail={profile?.email}
+      />
 
-        <div className="main-content">
-          <main className="content-area">
-            <div className="page-container">{renderPage()}</div>
-          </main>
-        </div>
+      <div className="main-content">
+        <main className="content-area">
+          <div className="page-container">{renderPage()}</div>
+        </main>
       </div>
-    </ActivityFocusProvider>
+    </div>
   )
 }
 

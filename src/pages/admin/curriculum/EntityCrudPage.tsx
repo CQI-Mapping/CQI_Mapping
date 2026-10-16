@@ -8,8 +8,6 @@ import { useEntityCrud } from './useEntityCrud.js'
 import { useViewMode } from '../../../hooks/useViewMode.js'
 import ViewModeToggle from '../../../components/ViewModeToggle.js'
 import Icon from '../../../components/icons.js'
-import { ActivityButton } from '../../../components/ActivityFocus'
-import type { ActivityFocus } from '../../../components/ActivityFocus'
 import SuggestionInput, { type SuggestionOption } from '../../../components/SuggestionInput.js'
 
 // One selectable "alignment" option. `value` is the text shown in the select (and,
@@ -261,18 +259,6 @@ alignments,
   const codeOf = (i: T) => (i as { code?: string }).code || ''
   const titleOf = (i: T) => ((i as Record<string, unknown>)[titleField] as string | undefined) || ''
   const descOf = (i: T) => (i as { description?: string }).description
-  // Built in the same shape useEntityCrud writes into `details.label`
-  // (`code — text`, falling back to whichever is present), so the name shown in
-  // the activity log banner lines up with the labels already in the table.
-  const activityFocusOf = (i: T): ActivityFocus => {
-    const code = codeOf(i).trim()
-    const text = titleOf(i).trim() || (descOf(i) || '').trim()
-    return {
-      entity: entityKey,
-      entityId: i.id,
-      title: code && text ? `${code} — ${text}` : code || text || '(untitled)',
-    }
-  }
   const alignLabelOf = (item: T, field: AlignmentField) => {
     if (field.type === 'text' || field.type === 'suggest') return ((item as Record<string, unknown>)[field.relationField] as string | undefined) || '—'
     if (field.textField) return ((item as Record<string, unknown>)[field.textField] as string | undefined) || '—'
@@ -615,7 +601,6 @@ alignments,
                         <button className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleUpdate(item.id, { status: isActive(item) ? 'archived' : 'active' } as unknown as Partial<T>, toggleAction(isActive(item) ? 'archived' : 'active'), item)} disabled={busy || !!editingId} title={isActive(item) ? 'Archive' : 'Restore'}>
                           <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} />
                         </button>
-                        <ActivityButton focus={activityFocusOf(item)} />
                         {!isActive(item) && allowDelete && (
                           <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, deleteAction, item)} disabled={busy || !!editingId} style={{ marginLeft: 'auto' }} title="Delete"><Icon name="trash" size={13} /></button>
                         )}
@@ -695,7 +680,6 @@ alignments,
                         <button className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleUpdate(item.id, { status: isActive(item) ? 'archived' : 'active' } as unknown as Partial<T>, toggleAction(isActive(item) ? 'archived' : 'active'), item)} disabled={busy || !!editingId} title={isActive(item) ? 'Archive' : 'Restore'}>
                           <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} />
                         </button>
-                        <ActivityButton focus={activityFocusOf(item)} />
                         {!isActive(item) && allowDelete && (
                           <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, deleteAction, item)} disabled={busy || !!editingId} style={{ marginLeft: 'auto' }} title="Delete"><Icon name="trash" size={13} /></button>
                         )}

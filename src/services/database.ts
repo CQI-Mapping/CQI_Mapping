@@ -771,38 +771,12 @@ export async function fetchPoFeedback(): Promise<PoFeedback[]> {
 
 // ---------- Activity logs (server-stamped via log_activity RPC) ----------
 
-export interface ActivityLogQuery {
-  /**
-   * Restrict to one record family ('program', 'course', ...). Applied
-   * server-side so a per-record view is not squeezed out by unrelated rows.
-   */
-  entity?: string
-  /** Row cap. Defaults to 100 — the "latest activity" reading. */
-  limit?: number
-}
-
-export async function fetchActivityLogs(q: ActivityLogQuery = {}): Promise<ActivityLogEntry[]> {
-  const limit = q.limit ?? 100
-
-  if (q.entity) {
-    const { data, error } = await supabase
-      .from('activity_logs')
-      .select('*')
-      .eq('details->>entity', q.entity)
-      .order('created_at', { ascending: false })
-      .limit(limit)
-    // The jsonb filter narrows what the server sends; the caller still narrows
-    // it further to one row. If a deployment rejects the filter, fall back to
-    // the unfiltered page rather than showing an empty log.
-    if (!error) return data
-    console.warn('Activity log entity filter unavailable, falling back:', error.message)
-  }
-
+export async function fetchActivityLogs(): Promise<ActivityLogEntry[]> {
   const { data, error } = await supabase
     .from('activity_logs')
     .select('*')
     .order('created_at', { ascending: false })
-    .limit(limit)
+    .limit(100)
   if (error) throw error
   return data
 }

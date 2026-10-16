@@ -5,7 +5,6 @@
 
 import { useState, useEffect } from 'react'
 import Icon from '../../components/icons'
-import { ActivityButton } from '../../components/ActivityFocus'
 import { adminCreateUser, addActivityLog, fetchAllProfiles } from '../../services/database'
 import { supabase } from '../../utils/supabaseClient'
 import type { Profile } from '../../services/database'
@@ -130,7 +129,6 @@ function Users() {
                 <th>Email</th>
                 <th>Role</th>
                 <th>Joined</th>
-                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -142,9 +140,6 @@ function Users() {
                     <span className={`role-badge role-badge--${u.role}`}>{u.role}</span>
                   </td>
                   <td>{new Date(u.created_at).toLocaleDateString()}</td>
-                  <td style={{ textAlign: 'right' }}>
-                    <ActivityButton focus={{ entity: 'user', entityId: u.id, title: u.email }} />
-                  </td>
                 </tr>
               ))}
             </tbody>
