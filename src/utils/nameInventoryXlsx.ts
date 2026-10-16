@@ -1,7 +1,7 @@
 // Excel export for the Name Inventory.
 //
-// One summary sheet plus one worksheet per entity, so a user can filter "just
-// the courses" in Excel without stripping the other four sections out of a
+// One summary sheet plus one worksheet per record type, so a user can filter
+// "just the courses" in Excel without stripping the other four sections out of a
 // single long list.
 //
 // ExcelJS rather than SheetJS, matching utils/tosXlsx.ts: the community build of
@@ -10,28 +10,24 @@
 // library lands in its own chunk instead of the main bundle.
 //
 // No React and no DOM here beyond the final save — buildInventoryWorkbook()
-// returns a workbook, which is what the export and any future test can hold on
-// to without touching the filesystem.
+// returns a workbook, which is what the export and the tests can hold on to
+// without touching the filesystem.
 
 import { SCHOOL } from './report'
 import { saveBlob } from './download'
-import { rowValues } from './nameInventory'
+import { COLUMNS } from './nameInventory'
 import type { Inventory, InventorySection, SectionKey, SummaryLine } from './nameInventory'
 
 const XLSX_MIME =
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
 /**
- * Worksheet tab names, set here rather than reusing each section's display
- * title.
- *
- * Today every title would fit Excel's 31-character tab limit (the longest,
- * "Program Educational Objectives", is 30), so this map is about readable tabs
- * rather than a limit being hit -- "PEOs" and "Learning Outcomes" sit better in
- * a tab strip than the full institutional wording. tabSafe() below is the guard
- * for when a title is lengthened later: Excel throws outright on an over-long
- * or forbidden-character tab name, which is a confusing failure for what is only
- * a labelling problem.
+ * Worksheet tab names. Every section title would fit Excel's 31-character tab
+ * limit, so this map is about readable tabs rather than a limit being hit --
+ * "PEOs" and "Learning Outcomes" sit better in a tab strip than the full
+ * institutional wording. tabSafe() is the guard for when a title is lengthened
+ * later: Excel throws outright on an over-long or forbidden-character tab name,
+ * which is a confusing failure for what is only a labelling problem.
  */
 const SHEET_NAMES: Record<SectionKey, string> = {
   programs: 'Programs',
@@ -44,21 +40,20 @@ const SHEET_NAMES: Record<SectionKey, string> = {
 /** Excel rejects these outright in a tab name, on top of the length cap. */
 const tabSafe = (name: string) => name.replace(/[\\/*?:[\]]/g, ' ').trim().slice(0, 31)
 
-const HEADER_ROW = 5
+/** "No." plus the shared COLUMNS list. */
+const HEADINGS = ['No.', ...COLUMNS]
+const LAST_COL = HEADINGS.length
+
+/** Header row, and the first row under it. */
+const HEADER_ROW = 4
 const FIRST_DATA_ROW = HEADER_ROW + 1
 
 /**
- * Column widths per section, keyed to that section's own column layout. The
- * name column gets the room; identifiers stay narrow so a wide outcome does
- * not push the status column off the screen.
+ * One width per column, shared by every sheet: a narrow index, a roomy code
+ * column (some course codes carry a prerequisite chain), and the rest to the
+ * name.
  */
-const COLUMN_WIDTHS: Record<SectionKey, number[]> = {
-  programs: [6, 16, 42, 52, 12],
-  courses: [6, 16, 42, 30, 8, 12],
-  pos: [6, 14, 52, 12, 34, 12],
-  peos: [6, 16, 46, 52, 12],
-  clos: [6, 14, 56, 20, 12],
-}
+const COLUMN_WIDTHS = [6, 22, 78]
 
 const CELL = {
   heading: 'FF1E293B',
@@ -76,6 +71,19 @@ const THIN: NonNullable<Partial<Borders>['top']> = {
 
 const BORDER: Partial<Borders> = { top: THIN, left: THIN, bottom: THIN, right: THIN }
 
+const fill = (argb: string): Fill => ({
+  type: 'pattern',
+  pattern: 'solid',
+  fgColor: { argb },
+})
+
+const styleHeader = (cell: import('exceljs').Cell) => {
+  cell.fill = fill(CELL.heading)
+  cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 }
+  cell.alignment = { horizontal: 'center', vertical: 'middle' }
+  cell.border = BORDER
+}
+
 /** "name-inventory-2026-10-16.xlsx" — same stamp shape as reportFileName(). */
 export function inventoryFileName(date = new Date()): string {
   const stamp = [
@@ -86,20 +94,8 @@ export function inventoryFileName(date = new Date()): string {
   return `name-inventory-${stamp}.xlsx`
 }
 
-/** The row a summary line contributes, with the section title in column 1. */
-const summaryCells = (line: SummaryLine) => [
-  line.title,
-  line.active,
-  line.archived,
-  line.total,
-]
-
-const styleHeader = (cell: import('exceljs').Cell) => {
-  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: CELL.heading } } satisfies Fill
-  cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 }
-  cell.alignment = { horizontal: 'center', vertical: 'middle' }
-  cell.border = BORDER
-}
+const stamped = (generatedBy: string, stamp: string) =>
+  generatedBy ? `Generated: ${stamp} · ${generatedBy}` : `Generated: ${stamp}`
 
 /**
  * Build the multi-sheet workbook from an already-filtered inventory.
@@ -119,43 +115,35 @@ export async function buildInventoryWorkbook(inventory: Inventory, generatedBy =
   summary.getCell('A1').font = { bold: true, size: 14 }
   summary.getCell('A2').value = 'NAME INVENTORY'
   summary.getCell('A2').font = { bold: true, size: 12 }
-  summary.getCell('A3').value = generatedBy
-    ? `Generated: ${stamp} · ${generatedBy}`
-    : `Generated: ${stamp}`
+  summary.getCell('A3').value = stamped(generatedBy, stamp)
   summary.getCell('A3').font = { italic: true, size: 10 }
 
-  const summaryHeader = ['Record Type', 'Active', 'Archived', 'Total']
-  summaryHeader.forEach((label, i) => {
+  const summaryHeadings = ['Record Type', 'Active', 'Archived', 'Total']
+  summaryHeadings.forEach((label, i) => {
     const cell = summary.getCell(HEADER_ROW, i + 1)
     cell.value = label
     styleHeader(cell)
   })
 
+  const summaryRow = (line: SummaryLine) => [line.title, line.active, line.archived, line.total]
+
   inventory.summary.forEach((line, r) => {
-    summaryCells(line).forEach((v, i) => {
+    summaryRow(line).forEach((v, i) => {
       const cell = summary.getCell(FIRST_DATA_ROW + r, i + 1)
       cell.value = v
       cell.border = BORDER
       cell.alignment = { horizontal: i === 0 ? 'left' : 'center' }
       if (i > 0) cell.numFmt = '0'
-      if (r % 2 === 1) {
-        cell.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: CELL.band },
-        } satisfies Fill
-      }
+      if (r % 2 === 1) cell.fill = fill(CELL.band)
     })
   })
 
   summary.getColumn(1).width = 36
-  for (let c = 2; c <= 4; c++) summary.getColumn(c).width = 12
+  for (let c = 2; c <= summaryHeadings.length; c++) summary.getColumn(c).width = 12
   summary.views = [{ state: 'frozen', ySplit: HEADER_ROW }]
 
   // ---- one worksheet per section ----
-  inventory.sections.forEach((section) => {
-    writeSectionSheet(wb, section, generatedBy, stamp)
-  })
+  inventory.sections.forEach((section) => writeSectionSheet(wb, section, generatedBy, stamp))
 
   return wb
 }
@@ -167,62 +155,42 @@ function writeSectionSheet(
   stamp: string,
 ) {
   const ws = wb.addWorksheet(tabSafe(SHEET_NAMES[section.key]))
-  const widths = COLUMN_WIDTHS[section.key] ?? section.columns.map(() => 18)
+  const noun = section.rows.length === 1 ? 'record' : 'records'
 
   ws.getCell('A1').value = SCHOOL.school
   ws.getCell('A1').font = { bold: true, size: 14 }
-  ws.getCell('A2').value = 'NAME INVENTORY'
+  ws.getCell('A2').value = `NAME INVENTORY — ${section.title}`
   ws.getCell('A2').font = { bold: true, size: 12 }
-  ws.getCell('A2').alignment = { horizontal: 'left' }
-  ws.getCell('A3').value = `${section.title} — ${section.rows.length} record${
-    section.rows.length === 1 ? '' : 's'
-  }`
+  ws.getCell('A3').value = `${section.rows.length} ${noun} · ${stamped(generatedBy, stamp)}`
   ws.getCell('A3').font = { italic: true, size: 10 }
-  ws.getCell('A4').value = generatedBy
-    ? `Generated: ${stamp} · ${generatedBy}`
-    : `Generated: ${stamp}`
-  ws.getCell('A4').font = { italic: true, size: 10 }
 
-  section.columns.forEach((label, i) => {
+  HEADINGS.forEach((label, i) => {
     const cell = ws.getCell(HEADER_ROW, i + 1)
     cell.value = label
     styleHeader(cell)
   })
 
-  // The No. column counts from 1 and is written as a number so Excel can sort
-  // it numerically rather than lexically (10 would otherwise sort before 2).
-  // The rest of the row comes from rowValues(), which returns exactly the
-  // section's own columns — writing a fixed shape here would shift every cell
-  // of the shorter sections one column to the left.
-  const last = section.columns.length - 1
+  // The No. column counts from 1 and is written as a number so Excel sorts it
+  // numerically rather than lexically (10 would otherwise sort before 2).
   section.rows.forEach((row, r) => {
-    const values = [r + 1, ...rowValues(section.key, row)]
-    for (let c = 0; c <= last; c++) {
+    const values = [r + 1, row.code, row.name]
+    for (let c = 0; c < LAST_COL; c++) {
       const cell = ws.getCell(FIRST_DATA_ROW + r, c + 1)
       const v = values[c]
-      // Trailing empties become null rather than '': a written empty string
-      // still counts as content and extends the sheet's dimension past the
-      // real columns, leaving a stray bordered cell hanging off the end.
+      // A written empty string still counts as content and extends the sheet's
+      // dimension, so blanks go in as null.
       cell.value = v === undefined || v === '' ? null : v
       cell.border = BORDER
       cell.alignment = {
-        horizontal: c === 0 || c === last ? 'center' : 'left',
+        horizontal: c === 0 ? 'center' : 'left',
         vertical: 'top',
-        // Only the name column wraps. Wrapping the note columns as well turns
-        // long alignment descriptions into 20-line rows.
-        wrapText: c === 2,
+        wrapText: c === LAST_COL - 1,
       }
-      if (r % 2 === 1) {
-        cell.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: CELL.band },
-        } satisfies Fill
-      }
+      if (r % 2 === 1) cell.fill = fill(CELL.band)
     }
   })
 
-  widths.forEach((w, i) => {
+  COLUMN_WIDTHS.forEach((w, i) => {
     ws.getColumn(i + 1).width = w
   })
 
@@ -234,7 +202,7 @@ function writeSectionSheet(
     const lastRow = FIRST_DATA_ROW + section.rows.length - 1
     ws.autoFilter = {
       from: { row: HEADER_ROW, column: 1 },
-      to: { row: lastRow, column: section.columns.length },
+      to: { row: lastRow, column: LAST_COL },
     }
   }
 }

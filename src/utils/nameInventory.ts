@@ -3,9 +3,14 @@
 // The Curriculum Report and the Subject Graph's About card each answer "what
 // does this one subject look like". This answers the other question -- "what is
 // actually on the books" -- by flattening the five named lists (programs,
-// courses, program outcomes, objectives and learning outcomes) into a single
-// shape that the page and the Excel export can both render without needing to
-// know which table a row came from.
+// courses, program outcomes, objectives and learning outcomes) into one shape
+// the page and the Excel export can both render.
+//
+// It is deliberately a code-and-name list and nothing more. The first version
+// carried a program, a unit count, a description and a CMO alignment alongside
+// each name; that is the Curriculum Report's job, and repeating it here made
+// this a second, worse copy of that document. A name inventory answers "what
+// exists", so a row is a code, a name and a status.
 //
 // Pure on purpose: no React, no Supabase. buildInventory() takes plain arrays
 // and returns plain sections, which is what the tests read, and it is what lets
@@ -13,92 +18,49 @@
 // them and drifting.
 
 import type {
-  ChedMemoOrder,
   Course,
   CourseLearningOutcomeStandalone,
   Program,
   ProgramEducationalObjective,
   ProgramOutcomeStandalone,
 } from '../services/database'
-import { cmoLabel, isActive, poNumber } from './report'
+import { isActive, poNumber } from './report'
 
 export type SectionKey = 'programs' | 'courses' | 'pos' | 'peos' | 'clos'
 
-/** One flattened row. `parent`/`note` carry whatever context its section has. */
+/** One flattened row. Every section has this exact shape. */
 export interface InventoryRow {
   code: string
   name: string
-  /** The record's parent (a course's program, a CLO's course) — often blank. */
-  parent: string
-  /** Free-form extra column: a description, an alignment, a unit count. */
-  note: string | number
   status: string
 }
 
 export interface InventorySection {
   key: SectionKey
   title: string
-  /** Column headings in order. Length matches what a row renders as. */
-  columns: string[]
   rows: InventoryRow[]
 }
 
 /**
- * Per-section shape. Declared here rather than at each call site so the page
- * header, the table and the spreadsheet always agree on the column count -- a
- * row can never be longer than the heading above it.
+ * Column headings, in order, after the leading "No." the caller renders.
+ *
+ * One layout for every section, rather than a per-section map. The first
+ * version gave each section its own columns, which meant the header and the
+ * body could disagree — a fixed row shape under a varying header shifts every
+ * column after the short one. A single shared list removes that whole class of
+ * bug by not having anywhere for it to live.
  */
-export const SECTION_DEFS: Record<SectionKey, { title: string; columns: string[] }> = {
-  programs: {
-    title: 'Programs',
-    columns: ['No.', 'Code', 'Program Name', 'Description', 'Status'],
-  },
-  courses: {
-    title: 'Courses',
-    columns: ['No.', 'Code', 'Course Title', 'Program', 'Units', 'Status'],
-  },
-  pos: {
-    title: 'Program Outcomes',
-    columns: ['No.', 'Code', 'Program Outcome', 'Source', 'CMO Alignment', 'Status'],
-  },
-  peos: {
-    title: 'Program Educational Objectives',
-    columns: ['No.', 'Code', 'Educational Objective', 'Description', 'Status'],
-  },
-  clos: {
-    title: 'Course Learning Outcomes',
-    columns: ['No.', 'Code', 'Course Learning Outcome', 'Course', 'Status'],
-  },
-}
+export const COLUMNS = ['Code', 'Name']
 
-/** Section order: broad institutional scope down to the per-subject detail. */
+/** Section titles, in report order: broad scope down to per-subject detail. */
 export const SECTION_ORDER: SectionKey[] = ['programs', 'peos', 'pos', 'courses', 'clos']
 
-/**
- * Which row field feeds which column, per section — the single source of truth
- * for keeping the header and the body aligned.
- *
- * Sections do NOT share a column layout: learning outcomes have no description
- * column, programs have no parent, courses carry a unit count between the two.
- * A fixed row shape rendered under a fixed header silently shifts every column
- * after the short one, so both the page and the spreadsheet read this map
- * instead of assuming a layout. Its length must always equal the section's
- * column count minus the leading "No." — asserted in nameInventory.test.ts.
- */
-const CELL_SOURCES: Record<SectionKey, (keyof InventoryRow)[]> = {
-  programs: ['code', 'name', 'note', 'status'],
-  courses: ['code', 'name', 'parent', 'note', 'status'],
-  pos: ['code', 'name', 'parent', 'note', 'status'],
-  peos: ['code', 'name', 'note', 'status'],
-  clos: ['code', 'name', 'parent', 'status'],
-}
-
-/**
- * One row's cell values, in its section's column order and ready to render.
- * `No.` is not here: it is the row's position, which the caller knows.
- */
-export function rowValues(key: SectionKey, row: InventoryRow): (string | number)[] {
-  return CELL_SOURCES[key].map((field) => row[field])
+export const SECTION_TITLES: Record<SectionKey, string> = {
+  programs: 'Programs',
+  courses: 'Courses',
+  pos: 'Program Outcomes',
+  peos: 'Program Educational Objectives',
+  clos: 'Course Learning Outcomes',
 }
 
 export interface InventoryInput {
@@ -107,13 +69,12 @@ export interface InventoryInput {
   pos: ProgramOutcomeStandalone[]
   peos: ProgramEducationalObjective[]
   clos: CourseLearningOutcomeStandalone[]
-  cmos: ChedMemoOrder[]
 }
 
 export interface InventoryOptions {
   /** Archived records are hidden by default, matching every other report here. */
   includeArchived?: boolean
-  /** Free-text filter, matched against code, name, parent and note. */
+  /** Free-text filter, matched against the code and the name. */
   query?: string
 }
 
@@ -149,8 +110,7 @@ const text = (v: string | null | undefined) => (v || '').trim()
  * "po 1" also matches PO-10; returning an extra row is a far better failure
  * than a search box that silently finds nothing.
  */
-const normalize = (v: string | number) =>
-  String(v).toLowerCase().replace(/[^a-z0-9]+/g, '')
+const normalize = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, '')
 
 /** Digits-insensitive string order: PO-2 before PO-10. */
 const byText = (a: string, b: string) =>
@@ -161,26 +121,18 @@ const byText = (a: string, b: string) =>
  * order the Curriculum Report already uses (utils/report.poNumber), so the two
  * documents list the same outcomes in the same sequence.
  */
-const byPoNumber = (
-  a: { code: string },
-  b: { code: string },
-) => poNumber(a.code) - poNumber(b.code) || byText(a.code, b.code)
+const byPoNumber = (a: { code: string }, b: { code: string }) =>
+  poNumber(a.code) - poNumber(b.code) || byText(a.code, b.code)
+
+/** Shown in place of a name the record does not actually have. */
+export const BLANK_NAME = '—'
 
 /**
- * A course's program, resolved to a readable label.
- *
- * fetchCourses() joins program_id, so it usually arrives as an object — but it
- * arrives as a bare id when the join found nothing (an archived program, or one
- * the caller's role cannot read). The id lookup is the fallback so the column
- * shows a name rather than a raw UUID.
+ * Whether a row is archived. The inverse of report.isActive, exported under its
+ * own name so callers that want to *mark* archived rows (the page mutes them)
+ * are not left reaching for the filter's sense of the check.
  */
-export const programLabel = (course: Course, programs: Program[]): string => {
-  const raw = course.program_id
-  if (raw && typeof raw === 'object') {
-    return text([raw.code, raw.name].filter(Boolean).join(' — '))
-  }
-  return programs.find((p) => p.id === raw)?.name ?? ''
-}
+export const isArchived = (row: { status?: string }) => !isActive(row)
 
 /**
  * Flatten the five lists into inventory sections.
@@ -190,79 +142,51 @@ export const programLabel = (course: Course, programs: Program[]): string => {
  * controls select.
  */
 export function buildInventory(input: InventoryInput, options: InventoryOptions = {}): Inventory {
-  const { programs, courses, pos, peos, clos, cmos } = input
+  const { programs, courses, pos, peos, clos } = input
   const includeArchived = options.includeArchived ?? false
-  const needle = normalize(options.query ?? '')
+  const needle = normalize((options.query ?? '').trim())
+
+  const nameOf = (raw: string | null | undefined, fallback: string | null = '') =>
+    text(raw) || text(fallback) || BLANK_NAME
 
   // ---- flatten ----
   const programRows: InventoryRow[] = [...programs]
     .sort((a, b) => byText(a.code, b.code) || byText(a.name, b.name))
-    .map((p) => ({
-      code: text(p.code),
-      name: text(p.name) || '—',
-      parent: '',
-      note: text(p.description),
-      status: p.status,
-    }))
+    .map((p) => ({ code: text(p.code), name: nameOf(p.name), status: p.status }))
 
   const courseRows: InventoryRow[] = [...courses]
     .sort((a, b) => byText(a.code, b.code) || byText(a.title, b.title))
-    .map((c) => ({
-      code: text(c.code),
-      name: text(c.title) || '—',
-      parent: programLabel(c, programs),
-      note: c.units ?? '',
-      status: c.status,
-    }))
+    .map((c) => ({ code: text(c.code), name: nameOf(c.title), status: c.status }))
 
-  // Manager-authored outcomes keep their CMO category in `description`, so the
-  // note column carries the alignment (via the shared cmoLabel rule) rather
-  // than a description that is not one.
   const poRows: InventoryRow[] = [...pos]
     .sort(byPoNumber)
-    .map((p) => ({
-      code: text(p.code),
-      name: text(p.title) || '—',
-      parent: text(p.source) === 'manager' ? 'Manager' : 'Admin',
-      note: cmoLabel(p, cmos),
-      status: p.status,
-    }))
+    .map((p) => ({ code: text(p.code), name: nameOf(p.title), status: p.status }))
 
   const peoRows: InventoryRow[] = [...peos]
     .sort((a, b) => byText(a.code, b.code))
-    .map((p) => ({
-      code: text(p.code),
-      name: text(p.title) || '—',
-      parent: '',
-      note: text(p.description),
-      status: p.status,
-    }))
+    .map((p) => ({ code: text(p.code), name: nameOf(p.title), status: p.status }))
 
   // Learning outcomes belong to a subject, so they sort by subject first and by
-  // code within it — the order the faculty reads them in on the CLO page.
+  // code within it — the order the faculty reads them in on the CLO page. The
+  // subject is not shown (this is a name list, not the CLO map) but it is the
+  // only thing that makes CLO-1 of one course distinguishable from CLO-1 of
+  // another, so it decides the order.
   const cloRows: InventoryRow[] = [...clos]
     .sort((a, b) => byText(a.course, b.course) || byText(a.code, b.code))
-    .map((c) => ({
-      code: text(c.code),
-      name: text(c.title) || text(c.description) || '—',
-      parent: text(c.course),
-      note: '',
-      status: c.status,
-    }))
+    .map((c) => ({ code: text(c.code), name: nameOf(c.title, c.description), status: c.status }))
 
   // ---- filter ----
+  // Search matches only the two columns the table shows. Matching a hidden
+  // column would return rows whose reason for matching is invisible, which is
+  // worse than not matching at all.
+  //
   // Archived rows are dropped before the search runs, so the filter never has
   // to know about them.
   const keep = (row: InventoryRow) =>
     (includeArchived || isActive(row)) &&
     (needle === '' ||
       normalize(row.code).includes(needle) ||
-      normalize(row.name).includes(needle) ||
-      normalize(row.parent).includes(needle) ||
-      normalize(row.note).includes(needle))
-
-  const visible = <T extends { status?: string }>(rows: InventoryRow[]): InventoryRow[] =>
-    rows.filter(keep)
+      normalize(row.name).includes(needle))
 
   const built: Record<SectionKey, InventoryRow[]> = {
     programs: programRows,
@@ -274,9 +198,8 @@ export function buildInventory(input: InventoryInput, options: InventoryOptions 
 
   const sections = SECTION_ORDER.map((key) => ({
     key,
-    title: SECTION_DEFS[key].title,
-    columns: SECTION_DEFS[key].columns,
-    rows: visible(built[key]),
+    title: SECTION_TITLES[key],
+    rows: built[key].filter(keep),
   }))
 
   // The summary counts the flattened rows, before either filter.
@@ -285,7 +208,7 @@ export function buildInventory(input: InventoryInput, options: InventoryOptions 
     const archived = rows.filter((r) => !isActive(r)).length
     return {
       key,
-      title: SECTION_DEFS[key].title,
+      title: SECTION_TITLES[key],
       active: rows.length - archived,
       archived,
       total: rows.length,

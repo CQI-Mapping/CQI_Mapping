@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import * as XLSX from 'xlsx'
 
-import { buildInventory, SECTION_DEFS, SECTION_ORDER } from './nameInventory'
+import { buildInventory, COLUMNS } from './nameInventory'
 import type { InventoryInput } from './nameInventory'
 import { buildInventoryWorkbook, inventoryFileName } from './nameInventoryXlsx'
 import type {
-  ChedMemoOrder,
   Course,
   CourseLearningOutcomeStandalone,
   Program,
@@ -82,23 +81,12 @@ const clo: CourseLearningOutcomeStandalone = {
   updated_at: '2026-01-01T00:00:00Z',
 }
 
-const cmo: ChedMemoOrder = {
-  id: 'm1',
-  code: 'CMO 25 s. 2015',
-  title: 'BSIT Program Outcomes',
-  description: null,
-  status: 'active',
-  created_at: '2026-01-01T00:00:00Z',
-  updated_at: '2026-01-01T00:00:00Z',
-}
-
 const input = (over: Partial<InventoryInput> = {}): InventoryInput => ({
   programs: [program],
   courses: [course],
   pos: [po],
   peos: [peo],
   clos: [clo],
-  cmos: [cmo],
   ...over,
 })
 
@@ -108,14 +96,13 @@ const roundTrip = async (inv: ReturnType<typeof buildInventory>) => {
   return XLSX.read(new Uint8Array(buf), { type: 'array' })
 }
 
-const HEADER_ROW = 5
+const HEADER_ROW = 4
 
 const cellAt = (out: XLSX.WorkBook, sheet: string, row: number, col: number) =>
   (out.Sheets[sheet] as XLSX.WorkSheet)[XLSX.utils.encode_cell({ r: row - 1, c: col - 1 })]?.v
 
 /** The heading row, read left to right and trimmed of the empty tail. */
 const headings = (out: XLSX.WorkBook, sheet: string) => {
-  const ws = out.Sheets[sheet] as XLSX.WorkSheet
   const cells: string[] = []
   for (let c = 0; c < 12; c++) {
     const v = cellAt(out, sheet, HEADER_ROW, c + 1)
@@ -138,32 +125,27 @@ describe('the workbook carries the summary and one worksheet per section', () =>
     ])
   })
 
-  // The tab names are chosen for readability rather than necessity -- the
-  // longest display title, "Program Educational Objectives", is 30 characters
-  // and would fit Excel's 31-character limit anyway. These assertions pin that
-  // down so the reason the map exists cannot quietly become wrong, and so a
-  // future title lengthened past the limit fails here rather than throwing at
-  // export time.
+  // Every section title would fit Excel's 31-character tab limit, so the map is
+  // about readable tabs rather than a limit being hit. These assertions pin
+  // that down so a future title lengthened past the limit fails here rather
+  // than throwing at export time.
   it('uses short tab names, and every one is legal', async () => {
     const out = await roundTrip(buildInventory(input()))
     expect(Object.keys(out.Sheets)).toContain('PEOs')
-    expect(SECTION_DEFS.peos.title.length).toBeLessThanOrEqual(31)
     for (const name of Object.keys(out.Sheets)) {
       expect(name.length).toBeLessThanOrEqual(31)
       expect(name).not.toMatch(/[\\/*?:[\]]/)
     }
   })
 
-  // If a title ever does cross the limit, the map is where it gets caught.
-  it('keeps the objectives heading in full on the sheet itself', async () => {
-    const out = await roundTrip(buildInventory(input()))
-    expect(cellAt(out, 'PEOs', HEADER_ROW + 1, 1)).toBe(1)
-    expect(cellAt(out, 'PEOs', HEADER_ROW + 1, 2)).toBe('PEO-1')
-  })
-
   it('records who generated the file', async () => {
     const out = await roundTrip(buildInventory(input()))
-    expect(String(cellAt(out, 'Programs', 4, 1))).toContain('admin@cqi.test')
+    expect(String(cellAt(out, 'Programs', 3, 1))).toContain('admin@cqi.test')
+  })
+
+  it('names the section on the sheet it belongs to', async () => {
+    const out = await roundTrip(buildInventory(input()))
+    expect(cellAt(out, 'PEOs', 2, 1)).toBe('NAME INVENTORY — Program Educational Objectives')
   })
 })
 
@@ -189,63 +171,43 @@ describe('the summary sheet counts each record type', () => {
   })
 })
 
-describe('each worksheet holds its own section', () => {
-  it('writes the declared headings', async () => {
+describe('each worksheet holds a code-and-name list', () => {
+  it('writes the same three headings on every sheet', async () => {
     const out = await roundTrip(buildInventory(input()))
-    for (const [sheet, key] of [
-      ['Programs', 'programs'],
-      ['PEOs', 'peos'],
-      ['Program Outcomes', 'pos'],
-      ['Courses', 'courses'],
-      ['Learning Outcomes', 'clos'],
-    ] as const) {
-      expect(headings(out, sheet)).toEqual(SECTION_DEFS[key].columns)
+    for (const sheet of ['Programs', 'PEOs', 'Program Outcomes', 'Courses', 'Learning Outcomes']) {
+      expect(headings(out, sheet)).toEqual(['No.', ...COLUMNS])
     }
   })
 
-  // The regression guard for rowValues(). Programs have five columns and
-  // courses six; writing a fixed six-cell row under a five-column header would
-  // shift the status one column right and leave an empty bordered cell behind.
-  it('puts every value under the heading that describes it', async () => {
+  // The regression guard for the shared column list. The first version gave
+  // each section its own headings, and programs (five columns) rendered under
+  // a courses-style body — shifting every cell and leaving an empty bordered
+  // column behind.
+  it('puts every value under the heading that describes it, on every sheet', async () => {
     const out = await roundTrip(buildInventory(input()))
 
-    // Programs: No. | Code | Program Name | Description | Status
-    expect(headings(out, 'Programs')).toHaveLength(5)
+    expect(headings(out, 'Programs')).toHaveLength(3)
     expect(cellAt(out, 'Programs', HEADER_ROW + 1, 1)).toBe(1)
     expect(cellAt(out, 'Programs', HEADER_ROW + 1, 2)).toBe('BSIT')
     expect(cellAt(out, 'Programs', HEADER_ROW + 1, 3)).toBe(program.name)
-    expect(cellAt(out, 'Programs', HEADER_ROW + 1, 4)).toBe('The IT program')
-    expect(cellAt(out, 'Programs', HEADER_ROW + 1, 5)).toBe('active')
     // Nothing spilled past the last real column.
-    expect(cellAt(out, 'Programs', HEADER_ROW + 1, 6)).toBeUndefined()
+    expect(cellAt(out, 'Programs', HEADER_ROW + 1, 4)).toBeUndefined()
 
-    // Courses: the same shape plus a unit count before the status.
-    expect(headings(out, 'Courses')).toHaveLength(6)
-    expect(cellAt(out, 'Courses', HEADER_ROW + 1, 4)).toBe(
-      'BSIT — Information Technology',
-    )
-    expect(cellAt(out, 'Courses', HEADER_ROW + 1, 5)).toBe(3)
-    expect(cellAt(out, 'Courses', HEADER_ROW + 1, 6)).toBe('active')
-    expect(cellAt(out, 'Courses', HEADER_ROW + 1, 7)).toBeUndefined()
+    expect(headings(out, 'Courses')).toHaveLength(3)
+    expect(cellAt(out, 'Courses', HEADER_ROW + 1, 2)).toBe('IT21')
+    expect(cellAt(out, 'Courses', HEADER_ROW + 1, 3)).toBe('Object Oriented Programming')
+    expect(cellAt(out, 'Courses', HEADER_ROW + 1, 4)).toBeUndefined()
   })
 
-  it('writes the unit count as a number, not text', async () => {
+  // The detail columns are gone by design: the unit count and the resolved
+  // program belonged to the Curriculum Report, not to a name list.
+  it('does not carry the columns the report dropped', async () => {
     const out = await roundTrip(buildInventory(input()))
-    expect(typeof cellAt(out, 'Courses', HEADER_ROW + 1, 5)).toBe('number')
-  })
-
-  it('writes the resolved CMO alignment on the outcomes sheet', async () => {
-    const out = await roundTrip(buildInventory(input({ pos: [{ ...po, cmo_id: 'm1' }] })))
-    expect(cellAt(out, 'Program Outcomes', HEADER_ROW + 1, 5)).toBe(
-      'BSIT PROGRAM OUTCOMES (CMO 25 S. 2015)',
-    )
-  })
-
-  it('writes the subject a learning outcome belongs to', async () => {
-    const out = await roundTrip(buildInventory(input()))
-    // Learning Outcomes: No. | Code | Course Learning Outcome | Course | Status
-    expect(cellAt(out, 'Learning Outcomes', HEADER_ROW + 1, 4)).toBe('IT21')
-    expect(cellAt(out, 'Learning Outcomes', HEADER_ROW + 1, 5)).toBe('active')
+    const names = ['No.', ...COLUMNS]
+    expect(headings(out, 'Courses')).not.toContain('Units')
+    expect(headings(out, 'Courses')).not.toContain('Program')
+    expect(headings(out, 'Program Outcomes')).not.toContain('CMO Alignment')
+    expect(headings(out, 'Courses')).toEqual(names)
   })
 
   it('numbers rows from 1 as numbers', async () => {
@@ -295,7 +257,7 @@ describe('the export matches what the page is showing', () => {
 describe('an empty section still exports safely', () => {
   it('writes the headings and no rows, and adds no autofilter', async () => {
     const out = await roundTrip(buildInventory(input({ pos: [] })))
-    expect(headings(out, 'Program Outcomes')).toEqual(SECTION_DEFS.pos.columns)
+    expect(headings(out, 'Program Outcomes')).toEqual(['No.', ...COLUMNS])
     expect(cellAt(out, 'Program Outcomes', HEADER_ROW + 1, 1)).toBeUndefined()
     // A stray dropdown on a heading with nothing under it reads as a broken
     // filter control rather than an empty section.
@@ -306,20 +268,13 @@ describe('an empty section still exports safely', () => {
     const out = await roundTrip(buildInventory(input()))
     const filter = (out.Sheets['Courses'] as XLSX.WorkSheet)['!autofilter']
     expect(filter).toBeDefined()
-    // Spans the header row and every data row.
-    expect(filter?.ref).toBe('A5:F6')
+    // Spans the header row and every data row, across all three columns.
+    expect(filter?.ref).toBe('A4:C5')
   })
 
   it('exports an entirely empty database without throwing', async () => {
     const out = await roundTrip(
-      buildInventory({
-        programs: [],
-        courses: [],
-        pos: [],
-        peos: [],
-        clos: [],
-        cmos: [],
-      }),
+      buildInventory({ programs: [], courses: [], pos: [], peos: [], clos: [] }),
     )
     expect(Object.keys(out.Sheets)).toHaveLength(6)
   })

@@ -7,6 +7,11 @@
 // extra policy; user full names are deliberately not included, because
 // profiles is readable only by the account itself and by admin/manager.
 //
+// A code-and-name list, laid out like the rest of the app rather than like the
+// Curriculum Report: no letterhead, no title block. The detail behind each name
+// (program, units, CMO alignment, description) lives on the Curriculum Report,
+// which already presents it properly.
+//
 // The Excel export is handed the *filtered* inventory rather than the raw
 // lists, so the file always matches what is on screen.
 
@@ -17,7 +22,6 @@ import {
   fetchProgramOutcomesStandalone,
   fetchProgramEducationalObjectives,
   fetchCourseLearningOutcomesStandalone,
-  fetchChedMemoOrders,
 } from '../../services/database'
 import type {
   Program,
@@ -25,51 +29,12 @@ import type {
   ProgramOutcomeStandalone,
   ProgramEducationalObjective,
   CourseLearningOutcomeStandalone,
-  ChedMemoOrder,
 } from '../../services/database'
-import { buildInventory, rowValues } from '../../utils/nameInventory'
-import type { InventoryRow, SectionKey } from '../../utils/nameInventory'
-import { LETTERHEAD_URL } from '../../utils/letterhead'
-import { SCHOOL } from '../../utils/report'
+import { buildInventory, isArchived } from '../../utils/nameInventory'
 import Icon from '../../components/icons'
 
 interface NameInventoryProps {
   profile: { email?: string | null }
-}
-
-/**
- * One row's cells, in the order its section declares.
- *
- * Status is the last column in every section, so the final cell gets the
- * status badge; the code (first) is emphasised. Anything in between is plain
- * text. Reading the order from rowValues() is what stops a short section from
- * shifting its body out of line with its header.
- */
-function RowCells({ sectionKey, row }: { sectionKey: SectionKey; row: InventoryRow }) {
-  const values = rowValues(sectionKey, row)
-  return (
-    <>
-      {values.map((value, c) => (
-        <td key={c}>
-          {c === 0 ? (
-            <strong>{value}</strong>
-          ) : c === values.length - 1 ? (
-            <span
-              className={`sd-status-badge ${
-                value === 'archived'
-                  ? 'sd-status-badge--archived'
-                  : 'sd-status-badge--active'
-              }`}
-            >
-              {value || 'active'}
-            </span>
-          ) : (
-            value
-          )}
-        </td>
-      ))}
-    </>
-  )
 }
 
 function NameInventory({ profile }: NameInventoryProps) {
@@ -86,26 +51,23 @@ function NameInventory({ profile }: NameInventoryProps) {
   const [pos, setPos] = useState<ProgramOutcomeStandalone[]>([])
   const [peos, setPeos] = useState<ProgramEducationalObjective[]>([])
   const [clos, setClos] = useState<CourseLearningOutcomeStandalone[]>([])
-  const [cmos, setCmos] = useState<ChedMemoOrder[]>([])
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const [p, c, po, peo, clo, cmo] = await Promise.all([
+      const [p, c, po, peo, clo] = await Promise.all([
         fetchPrograms(),
         fetchCourses(),
         fetchProgramOutcomesStandalone(),
         fetchProgramEducationalObjectives(),
         fetchCourseLearningOutcomesStandalone(),
-        fetchChedMemoOrders(),
       ])
       setPrograms(p)
       setCourses(c)
       setPos(po)
       setPeos(peo)
       setClos(clo)
-      setCmos(cmo)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load the inventory.')
     } finally {
@@ -119,7 +81,7 @@ function NameInventory({ profile }: NameInventoryProps) {
   // rows at most) and the flatten is a pure sort-and-map, so there is nothing
   // to memoise against here that would be worth the extra state.
   const inventory = buildInventory(
-    { programs, courses, pos, peos, clos, cmos },
+    { programs, courses, pos, peos, clos },
     { includeArchived, query },
   )
 
@@ -146,83 +108,55 @@ function NameInventory({ profile }: NameInventoryProps) {
   const filtersActive = query.trim() !== '' || includeArchived
 
   return (
-    <div className="syllabus-doc">
-      <div className="syllabus-doc__toolbar no-print">
-        <span className="syllabus-doc__meta">
-          Generated: {new Date().toLocaleDateString()}
-          {profile.email ? ` · ${profile.email}` : ''}
-        </span>
-        <div className="sd-toolbar-controls">
-          <label className="sd-toolbar__subject">
-            <span>Search</span>
-            <input
-              className="input input--sm"
-              type="search"
-              placeholder="Name, code or course…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              aria-label="Filter the inventory by name, code or course"
-            />
-          </label>
-          <label className="ni-toggle">
-            <input
-              type="checkbox"
-              checked={includeArchived}
-              onChange={(e) => setIncludeArchived(e.target.checked)}
-            />
-            <span>Include archived</span>
-          </label>
-          <button className="btn btn--ghost btn--sm" onClick={() => window.print()}>
-            Print
-          </button>
-          <button
-            className="btn btn--primary btn--sm"
-            onClick={download}
-            disabled={downloading || loading}
-            title="Save every section to one Excel workbook"
-          >
-            <Icon name="download" />
-            {downloading ? 'Preparing…' : 'Download Excel'}
-          </button>
-        </div>
-      </div>
-
+    <div className="name-inventory">
       <div className="page-heading">
         <h2>Name Inventory</h2>
         <p>
           Every named record in the system — programs, objectives, outcomes and
-          courses — in one list.
+          courses. Read-only; edit records on their own pages.
         </p>
       </div>
 
       {error && <p className="msg msg--error" role="alert">{error}</p>}
       {notice && <p className="msg msg--success" role="status">{notice}</p>}
 
-      <div className="syllabus-doc__page">
-        <header className="sd-letterhead">
-          <img className="sd-letterhead__img" src={LETTERHEAD_URL} alt={SCHOOL.school} />
-          <div className="sd-letterhead__text">
-            <div>{SCHOOL.republic}</div>
-            <div className="sd-letterhead__school">{SCHOOL.school}</div>
-            <div>{SCHOOL.address}</div>
-            <div className="sd-letterhead__motto">{SCHOOL.motto}</div>
-          </div>
-        </header>
+      <div className="panel ni-controls">
+        <label className="field ni-search">
+          <span>Search</span>
+          <input
+            className="input"
+            type="search"
+            placeholder="Name or code…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </label>
+        <label className="ni-toggle">
+          <input
+            type="checkbox"
+            checked={includeArchived}
+            onChange={(e) => setIncludeArchived(e.target.checked)}
+          />
+          <span>Include archived</span>
+        </label>
+        <button
+          className="btn btn--primary btn--sm ni-export"
+          onClick={download}
+          disabled={downloading || loading}
+          title="Save every section to one Excel workbook"
+        >
+          <Icon name="download" />
+          {downloading ? 'Preparing…' : 'Download Excel'}
+        </button>
+      </div>
 
-        <div className="sd-titleblock">
-          <div className="sd-titleblock__title">NAME INVENTORY</div>
-          <div>{SCHOOL.institute}</div>
-          <div>{SCHOOL.program}</div>
-          <div className="sd-titleblock__course">{SCHOOL.term}</div>
-        </div>
-
-        {loading ? (
-          <p>Loading inventory…</p>
-        ) : (
-          <>
-            {/* Totals count the whole dataset, not the filtered view — the
-                tables below narrow as the search box is typed in. */}
-            <table className="table ni-summary">
+      {loading ? (
+        <p>Loading inventory…</p>
+      ) : (
+        <>
+          <div className="panel table-wrap ni-summary">
+            <h3>Totals</h3>
+            <table className="table">
               <thead>
                 <tr>
                   <th>Record Type</th>
@@ -234,7 +168,7 @@ function NameInventory({ profile }: NameInventoryProps) {
               <tbody>
                 {inventory.summary.map((line) => (
                   <tr key={line.key}>
-                    <td><strong>{line.title}</strong></td>
+                    <td>{line.title}</td>
                     <td>{line.active}</td>
                     <td>{line.archived}</td>
                     <td>{line.total}</td>
@@ -242,49 +176,54 @@ function NameInventory({ profile }: NameInventoryProps) {
                 ))}
               </tbody>
             </table>
+          </div>
 
-            <p className="ni-shown">
-              Showing <strong>{inventory.shownCount}</strong> record
-              {inventory.shownCount === 1 ? '' : 's'}
-              {filtersActive ? ' matching the current filters' : ''}.
-              {inventory.shownCount === 0 && ' Try clearing the search box.'}
-            </p>
+          {/* Totals count the whole dataset; the tables below narrow as the
+              search box is typed in. */}
+          <p className="ni-shown">
+            Showing <strong>{inventory.shownCount}</strong> record
+            {inventory.shownCount === 1 ? '' : 's'}
+            {filtersActive ? ' matching the current filters' : ''}.
+            {inventory.shownCount === 0 && ' Try clearing the search box.'}
+          </p>
 
-            {inventory.sections.map((section) => (
-              <section key={section.key} className="ni-section">
-                <h3 className="ni-section__title">{section.title}</h3>
-                <div className="table-wrap">
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        {section.columns.map((label) => (
-                          <th key={label}>{label}</th>
-                        ))}
+          {inventory.sections.map((section) => (
+            <div className="panel table-wrap ni-section" key={section.key}>
+              <h3>{section.title}</h3>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th className="ni-num">#</th>
+                    <th>Code</th>
+                    <th>Name</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {section.rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="ni-empty">
+                        No {section.title.toLowerCase()} to show.
+                      </td>
+                    </tr>
+                  ) : (
+                    section.rows.map((row, i) => (
+                      // Archived rows are muted rather than badged: with only
+                      // three columns there is no room for a status column, and
+                      // the point of the toggle is that they are visibly the
+                      // "extra" ones.
+                      <tr key={`${section.key}-${row.code}-${i}`} className={isArchived(row) ? 'ni-row--archived' : undefined}>
+                        <td className="ni-num">{i + 1}</td>
+                        <td>{row.code}</td>
+                        <td>{row.name}</td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {section.rows.length === 0 ? (
-                        <tr>
-                          <td colSpan={section.columns.length} className="ni-empty">
-                            No {section.title.toLowerCase()} to show.
-                          </td>
-                        </tr>
-                      ) : (
-                        section.rows.map((row, i) => (
-                          <tr key={`${section.key}-${row.code}-${i}`}>
-                            <td>{i + 1}</td>
-                            <RowCells sectionKey={section.key} row={row} />
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            ))}
-          </>
-        )}
-      </div>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   )
 }
