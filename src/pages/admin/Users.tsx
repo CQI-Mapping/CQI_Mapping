@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Icon from '../../components/icons'
+import { ActivityButton } from '../../components/ActivityFocus'
 import { useDraft } from '../../hooks/useDraft'
 import { adminCreateUser, adminDeleteUser, addActivityLog, fetchAllProfiles, updateUserRole } from '../../services/database'
 import { supabase } from '../../utils/supabaseClient'
@@ -230,15 +231,18 @@ export default function Users() {
                   </td>
                   <td>{new Date(u.created_at).toLocaleDateString()}</td>
                   <td>
-                    {u.email !== currentEmail && (
-                      <button
-                        className="btn btn--danger btn--sm"
-                        disabled={deleteBusyId === u.id}
-                        onClick={() => handleDelete(u.id, u.email)}
-                      >
-                        {deleteBusyId === u.id ? 'Removing...' : (<><Icon name="trash" size={13} /> Remove</>)}
-                      </button>
-                    )}
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-end' }}>
+                      <ActivityButton focus={{ entity: 'user', entityId: u.id, title: u.email }} />
+                      {u.email !== currentEmail && (
+                        <button
+                          className="btn btn--danger btn--sm"
+                          disabled={deleteBusyId === u.id}
+                          onClick={() => handleDelete(u.id, u.email)}
+                        >
+                          {deleteBusyId === u.id ? 'Removing...' : (<><Icon name="trash" size={13} /> Remove</>)}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

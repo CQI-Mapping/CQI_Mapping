@@ -6,6 +6,8 @@ import { useEffect, useState } from 'react'
 import { useViewMode } from '../../hooks/useViewMode'
 import ViewModeToggle from '../../components/ViewModeToggle'
 import Icon from '../../components/icons'
+import { ActivityButton } from '../../components/ActivityFocus'
+import type { ActivityFocus } from '../../components/ActivityFocus'
 import {
   fetchProgramOutcomesStandalone,
   createProgramOutcomeStandalone,
@@ -65,6 +67,18 @@ export default function ProgramOutcomesAdmin() {
   useEffect(() => { load() }, [])
 
   const isActive = (i: ProgramOutcomeStandalone) => !i.status || i.status === 'active'
+  // This page writes its own audit entries rather than going through
+  // useEntityCrud, so the name here is built to match what it logs:
+  // `code — description` on create (the row id is not known yet at that point)
+  // and `code — description` again on later edits.
+  const activityFocusOf = (i: ProgramOutcomeStandalone): ActivityFocus => {
+    const text = (i.description || i.title || '').trim()
+    return {
+      entity: 'program_outcome',
+      entityId: i.id,
+      title: text ? `${i.code} — ${text}` : i.code,
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -494,6 +508,7 @@ export default function ProgramOutcomesAdmin() {
                       >
                         <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} />
                       </button>
+                      <ActivityButton focus={activityFocusOf(item)} />
                       {!isActive(item) && (
                         <button
                           className="btn btn--danger btn--sm"

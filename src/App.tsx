@@ -44,6 +44,8 @@ import AdminSubjectView from './pages/admin/SubjectView'
 import AdminView from './pages/admin/View'
 import UserCurriculum from './pages/user/Curriculum'
 import UserTOS from './pages/user/TOS'
+import { ActivityFocusProvider } from './components/ActivityFocus'
+import type { ActivityFocus, ActivityFocusApi } from './components/ActivityFocus'
 import { supabase } from './utils/supabaseClient'
 import { ensureProfile, syncDemoRole } from './services/database'
 import type { Profile as ProfileType, UserRole, NavItem } from './services/database'
@@ -141,6 +143,10 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [profileLoaded, setProfileLoaded] = useState(false)
   const [activePage, setActivePage] = useState('dashboard')
+  // The record the Activity Logs page is scoped to, when it was opened from a
+  // row's "activity" button. Cleared on any other navigation so returning to
+  // the log later shows the whole trail rather than a stale record.
+  const [activityFocus, setActivityFocus] = useState<ActivityFocus | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth > 1024 : true
   )
@@ -167,6 +173,9 @@ function App() {
         setProfileLoaded(false)
         setProfileError('')
         profileUserIdRef.current = null
+        // Also drop the activity scope: it refers to a record the previous
+        // account was looking at, and must not leak into the next sign-in.
+        setActivityFocus(null)
         setActivePage('dashboard')
         setLoading(false)
       }
@@ -237,6 +246,24 @@ function App() {
     await supabase!.auth.signOut()
   }
 
+  // Every navigation path goes through here, so leaving the log is what drops
+  // the record scope — there is no other place that knows both facts.
+  const handleNavigate = (next: string) => {
+    if (next !== 'activity-logs') setActivityFocus(null)
+    setActivePage(next)
+  }
+
+  const showActivity = (focus: ActivityFocus) => {
+    setActivityFocus(focus)
+    setActivePage('activity-logs')
+  }
+
+  const activityFocusApi: ActivityFocusApi = {
+    focus: activityFocus,
+    showActivity,
+    clearActivity: () => setActivityFocus(null),
+  }
+
   // First paint: wait until the stored session has been restored.
   if (loading) {
     return <div className="center-screen">Loading...</div>
@@ -298,36 +325,40 @@ function App() {
   const renderPage = () => {
     const Page = PAGES[role]?.[page] ?? PAGES[role]?.[navItems[0]?.id] ?? UserDashboard
 
-    if (page === 'dashboard') return <Page profile={profile} onNavigate={setActivePage} />
+    if (page === 'dashboard') return <Page profile={profile} onNavigate={handleNavigate} />
     if (page === 'profile') return <Page profile={profile} onSaved={setProfile} />
+    // Reads its record scope from context, so it needs nothing from here.
+    if (page === 'activity-logs') return <Page />
     if (page === 'users') return <Page />
     if (SHARED_ACADEMIC_PAGES.has(page)) return <Page allowDelete={allowDelete} />
     if (page === 'curriculum' && role !== 'user') return <Page userEmail={profile?.email} allowDelete={role === 'admin'} />
     if (page === 'curriculum' && role === 'user') return <Page />
     if (page === 'view') return <Page userEmail={profile?.email} />
-    return <Page profile={profile} onNavigate={setActivePage} />
+    return <Page profile={profile} onNavigate={handleNavigate} />
   }
 
   return (
-    <div className="app-layout">
-      <Sidebar
-        navItems={navItems}
-        activePage={page}
-        onNavigate={setActivePage}
-        onLogout={handleLogout}
-        role={role}
-        isOpen={sidebarOpen}
-        onToggle={() => setSidebarOpen((v) => !v)}
-        profileName={profile?.full_name}
-        profileEmail={profile?.email}
-      />
+    <ActivityFocusProvider value={activityFocusApi}>
+      <div className="app-layout">
+        <Sidebar
+          navItems={navItems}
+          activePage={page}
+          onNavigate={handleNavigate}
+          onLogout={handleLogout}
+          role={role}
+          isOpen={sidebarOpen}
+          onToggle={() => setSidebarOpen((v) => !v)}
+          profileName={profile?.full_name}
+          profileEmail={profile?.email}
+        />
 
-      <div className="main-content">
-        <main className="content-area">
-          <div className="page-container">{renderPage()}</div>
-        </main>
+        <div className="main-content">
+          <main className="content-area">
+            <div className="page-container">{renderPage()}</div>
+          </main>
+        </div>
       </div>
-    </div>
+    </ActivityFocusProvider>
   )
 }
 

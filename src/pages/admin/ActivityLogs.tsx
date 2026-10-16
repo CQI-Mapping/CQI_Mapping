@@ -3,10 +3,18 @@
 // by search text, action type, and date range. Shows human-readable action
 // labels and the `details` blob recorded with each entry (which record was
 // touched, what it was called, and why a sign-in failed).
+//
+// When the page is reached from a record's "activity" button it arrives
+// scoped to that record (see components/ActivityFocus): the fetch is narrowed
+// to the record family and a further pass matches the individual row, so you
+// see that record's whole history rather than the last 100 rows overall.
 
 import { useState, useEffect, useMemo } from 'react'
 import { fetchActivityLogs } from '../../services/database'
 import type { ActivityLogEntry } from '../../services/database'
+import { useActivityFocus } from '../../components/ActivityFocus'
+import type { ActivityFocus } from '../../components/ActivityFocus'
+import Icon from '../../components/icons'
 import { labelAction, labelReason } from './ActivityLabels'
 
 function uniqueActions(entries: ActivityLogEntry[]): string[] {
@@ -22,12 +30,43 @@ function searchableDetails(entry: ActivityLogEntry): string {
     .toLowerCase()
 }
 
+// Row labels and audit labels are written independently from the same fields,
+// so they are compared loosely rather than byte-for-byte.
+const norm = (s?: string) => (s ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
+
+// Does this entry belong to the focused record?
+//
+// `details.entity` is the authority for "which record family is this", because
+// it does not always agree with the action prefix: a role change logs
+// `role.updated` while pointing at entity 'user', so that it reads as history
+// on the person whose role changed. Gating on the prefix alone would hide it.
+// Entries written before `details` existed carry no entity, so the prefix is
+// the fallback for those.
+//
+// Then narrow to the single row. Two fields could do that and neither is
+// filled in everywhere: every `*.created` call logs only a label (the row's
+// id is not known until after the insert returns), while `View.tsx` logs only
+// an id. So either one matching is enough.
+function matchesFocus(entry: ActivityLogEntry, focus: ActivityFocus): boolean {
+  const family = entry.details?.entity
+  const inFamily = family
+    ? family === focus.entity
+    : entry.action.split('.')[0] === focus.entity
+  if (!inFamily) return false
+
+  if (focus.entityId && entry.details?.entity_id === focus.entityId) return true
+  if (norm(entry.details?.label) && norm(entry.details?.label) === norm(focus.title)) return true
+  // An entity-only focus has nothing finer to match on, so it takes the lot.
+  return !focus.entityId
+}
+
 interface ActivityLogsViewProps {
   title?: string
   description?: string
 }
 
 function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogsViewProps = {}) {
+  const { focus, clearActivity } = useActivityFocus()
   const [entries, setEntries] = useState<ActivityLogEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -38,15 +77,36 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
 
+  // A scoped view asks for far more than the headline 100: the record being
+  // inspected is old by definition, otherwise there would be nothing to see.
+  // Only the family drives the fetch — narrowing to the single row is done
+  // below, against rows already in hand.
+  const focusEntity = focus?.entity
+
   useEffect(() => {
-    fetchActivityLogs()
-      .then(setEntries)
-      .catch((e) => setError('Unable to load activity logs: ' + e.message))
-      .finally(() => setLoading(false))
-  }, [])
+    let cancelled = false
+    setLoading(true)
+    setError('')
+    fetchActivityLogs({ entity: focusEntity, limit: focusEntity ? 500 : 100 })
+      .then((rows) => {
+        if (!cancelled) setEntries(rows)
+      })
+      .catch((e) => {
+        if (!cancelled) setError('Unable to load activity logs: ' + e.message)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [focusEntity])
 
   const filtered = useMemo(() => {
     let result = entries
+
+    // The record scope is the outer bound; the filters below narrow within it.
+    if (focus) {
+      result = result.filter((e) => matchesFocus(e, focus))
+    }
 
     if (search) {
       const q = search.toLowerCase()
@@ -74,7 +134,7 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
     }
 
     return result
-  }, [entries, search, actionFilter, dateFrom, dateTo])
+  }, [entries, focus, search, actionFilter, dateFrom, dateTo])
 
   const actions = useMemo(() => uniqueActions(entries), [entries])
 
@@ -91,6 +151,15 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
     setActionFilter('')
     setDateFrom('')
     setDateTo('')
+  }
+
+  // An empty table has three quite different causes here, and conflating them
+  // is how "nothing has happened yet" ends up shown for a record that has a
+  // full history the filters happen to exclude.
+  const emptyMessage = () => {
+    if (hasFilters) return 'No entries match the current filters.'
+    if (focus) return `No activity recorded for ${focus.title} yet.`
+    return 'No activity recorded yet.'
   }
 
   // Details rendered as the secondary line under the action badge.
@@ -117,7 +186,12 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
           <div className="program-hero__icon">A</div>
           <div className="program-hero__titles">
             <h2>{title}</h2>
-            <p>{description || `Audit trail of ${entries.length} actions — searchable and filterable.`}</p>
+            <p>
+              {description ||
+                (focus
+                  ? `Every action recorded against ${focus.title}.`
+                  : `Audit trail of ${entries.length} actions — searchable and filterable.`)}
+            </p>
           </div>
         </div>
       </div>
@@ -126,7 +200,7 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
         <div className="program-stat">
           <div className="program-stat__label">Total</div>
           <div className="program-stat__value">{entries.length}</div>
-          <div className="program-stat__sub">Latest 100</div>
+          <div className="program-stat__sub">{focus ? `All ${focus.entity.replace(/_/g, ' ')} entries` : 'Latest 100'}</div>
         </div>
         <div className="program-stat">
           <div className="program-stat__label">Filtered</div>
@@ -151,6 +225,21 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
       </div>
 
       {error && <p className="msg msg--error">{error}</p>}
+
+      {/* Record scope — set by the per-row "activity" buttons on the list
+          pages. Kept separate from the filters below so clearing those does
+          not silently drop the user back into the whole log. */}
+      {focus && (
+        <div className="activity-scope">
+          <Icon name="history" size={15} />
+          <span className="activity-scope__text">
+            Showing activity for <strong>{focus.title}</strong>
+          </span>
+          <button type="button" className="btn btn--ghost btn--sm" onClick={clearActivity}>
+            Show all activity
+          </button>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="panel activity-filters program-panel" style={{ borderTop: '3px solid #16a34a' }}>
@@ -225,9 +314,7 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={3}>
-                  {entries.length === 0 ? 'No activity recorded yet.' : 'No entries match the current filters.'}
-                </td>
+                <td colSpan={3}>{emptyMessage()}</td>
               </tr>
             )}
             {filtered.map((entry) => (

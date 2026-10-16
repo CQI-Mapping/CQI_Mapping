@@ -107,6 +107,7 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
     ├── index.css             # Theme variables + all component styles
     ├── vite-env.d.ts         # Vite environment variable types
     ├── components/
+    │   ├── ActivityFocus.tsx   # Per-record scope for the activity log + row button
     │   └── Sidebar.tsx       # Nav shell (items change per role) + logout
     ├── data/
     │   └── vcqiSyllabus.ts   # Static syllabus data (vision, mission, CLO/PO mappings)
@@ -125,6 +126,7 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
     │   │   ├── SubjectView.tsx       # d3 Subject Graph, green-monochrome theme (all roles share it)
     │   │   ├── View.tsx              # Printable curriculum map / syllabus report
     │   │   ├── ActivityLogs.tsx      # Filterable activity log table (shared with manager)
+    │   │   ├── ActivityLabels.ts     # Action string → human-readable label
     │   │   └── curriculum/
     │   │       ├── EntityCrudPage.tsx  # Shared CRUD UI (PO/PEO/SG/CHED) — search, tabs, skeleton, `allowDelete`
     │   │       └── useEntityCrud.ts  # Shared CRUD hook for entity forms
@@ -231,10 +233,20 @@ Open the printed local URL (usually `http://localhost:5173`) and sign in.
 | Column | Type | Notes |
 |---|---|---|
 | `id` | UUID (PK) | |
-| `user_email` | TEXT | who did it |
+| `user_email` | TEXT | who did it — stamped server-side, never supplied by the client |
 | `action` | TEXT | e.g. `auth.login`, `role.updated`, `resource.created` |
-| `details` | JSONB | extra data (ids, values) |
+| `details` | JSONB | optional context: `{entity, entity_id, label, reason}` |
 | `created_at` | TIMESTAMPTZ | |
+
+Indexes on `created_at DESC` and `action`, since the log is always read
+newest-first and filtered by action/date.
+
+`details` is what makes an entry an audit trail rather than a click counter —
+without it every row reads `user / resource.updated` and there is no way to
+tell which record changed. It is deliberately **not** where the actor lives:
+`user_email` is stamped from the caller's JWT by `log_activity`, so a client
+can never attribute an action to someone else. `label` is snapshotted at write
+time, so renaming a record later does not rewrite history.
 
 ### 6.2 Row Level Security Policies
 
@@ -270,7 +282,8 @@ All three tables have RLS enabled. Policies use `public.current_user_role()` —
 
 - **`public.current_user_role()`** — returns the calling user's role. `SECURITY DEFINER`, so it works inside RLS policies without recursion.
 - **`public.handle_new_user()`** — `AFTER INSERT` trigger on `auth.users`. Creates a `profiles` row (role defaults to `user`) on signup. On conflict it does nothing.
-- **`public.record_login_event(email, success, reason)`** — `SECURITY DEFINER` function that writes an `auth.login` / `auth.login_failed` audit entry. It is callable by `anon` and `authenticated` so it works even for failed logins that have no session (RLS would otherwise block the insert).
+- **`public.record_login_event(email, success, reason)`** — `SECURITY DEFINER` function that writes an `auth.login` / `auth.login_failed` audit entry, keeping `reason` in `details.reason` on failure. It is callable by `anon` and `authenticated` so it works even for failed logins that have no session (RLS would otherwise block the insert).
+- **`public.log_activity(action, details)`** — `SECURITY DEFINER` function behind the `addActivityLog` client helper. Stamps `user_email` from the caller's JWT, so the client cannot attribute an action to another user. `details` defaults to NULL; an empty object is normalised to NULL so the UI has one falsy case for "no context".
 - **`public.sync_demo_role()`** — `SECURITY DEFINER` function called by the app on every sign-in. Restores each demo account's expected role when it fell back to `user` (`admin@cqi.test` → admin, `manager@cqi.test` → manager) and promotes the first user to `admin` when the system has no admin at all. Never overrides a deliberately-changed role and never creates a second admin.
 
 ### 6.4 Seed Data
@@ -346,11 +359,19 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 | `createChedMemoOrder(payload)` | Insert a CHED memo order | admins/managers |
 | `updateChedMemoOrder(id, updates)` | Edit a CHED memo order | admins/managers |
 | `deleteChedMemoOrder(id)` | Permanently delete a CHED memo order | admins |
-| `fetchActivityLogs()` | Latest 100 audit entries | admins/managers |
+| `fetchActivityLogs({ entity?, limit? })` | Latest 100 audit entries, or one record family's (500 by default when scoped) | admins/managers |
 | `recordLoginEvent(email, success, reason?)` | Record a sign-in attempt via RPC | any caller (RPC) |
-| `addActivityLog(userEmail, action, details)` | Insert an audit entry | any signed-in user |
+| `addActivityLog(action, details?)` | Insert an audit entry via RPC | any signed-in user |
 
-> Note: `addActivityLog` is called from the client. A determined user could write to the audit log directly, so treat it as an activity log, not a tamper-proof security record. Login attempts use `record_login_event` — a `SECURITY DEFINER` function — precisely so failed logins (which have no session) can be recorded. For tamper-proof auditing of every action, move all inserts server-side.
+> Note: `addActivityLog` passes only the action and an optional details blob —
+> never the actor. The `log_activity` RPC is `SECURITY DEFINER` and stamps
+> `user_email` from the caller's JWT, so entries cannot be forged against
+> another user. Two caveats remain: a client can still *invent* actions (it
+> chooses the action string), and `record_login_event` takes the email from the
+> client and is callable by `anon`, so unauthenticated callers can write
+> arbitrary `auth.login_failed` rows. Treat this as an activity log, not a
+> tamper-proof security record; closing both gaps means moving writes
+> server-side.
 
 ---
 
@@ -363,7 +384,7 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 - Error has `role="alert"`, clears on typing; submit shows spinner + `aria-busy`; shine animation stops when disabled.
 - Empty-field validation: submitting with a blank email or password shows "Email and password are required." without hitting the API.
 - Failed sign-ins show a generic "Invalid email or password." (never leaks Supabase's raw error, e.g. rate limits or account state).
-- Every attempt is written to `activity_logs` via the `record_login_event` RPC (`auth.login` on success, `auth.login_failed` on failure).
+- Every attempt is written to `activity_logs` via the `record_login_event` RPC (`auth.login` on success, `auth.login_failed` on failure), with the failure reason (`invalid_credentials` / `service_unreachable`) kept in `details.reason`.
 - Respects `prefers-reduced-motion`; mobile padding at 360px.
 
 ### `admin/Dashboard.tsx`
@@ -406,14 +427,37 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 
 ### `admin/View.tsx`
 - Printable curriculum map / syllabus report. Displays Vision, Mission, Strategic Goals, PEOs, Program Outcomes, Curriculum Mapping, Course Learning Outcomes, and Course Details in a formatted document layout.
-- Supports inline editing and archiving of Strategic Goals, PEOs, and Program Outcomes via an Edit toggle.
+- Supports inline editing and archiving of Strategic Goals, PEOs, and Program Outcomes via an Edit toggle. Archives write `strategic_goal.archived` / `peo.archived` / `program_outcome.archived` rather than a generic `.updated`.
 - Static syllabus content (vision/mission wording, curriculum mapping, course details) comes from `src/data/vcqiSyllabus.ts`.
 
 ### `user/Curriculum.tsx`
 - Unrouted legacy read-only browse (faculty nav is Dashboard + CLO + Subject Graph + Profile).
 
 ### `ActivityLogs.tsx` (admin and manager)
-- Latest 100 entries with search + action/date filters, human-readable labels (incl. `course.archived/restored`, `resource.restored`), empty/filtered-empty states. Columns: when (`toLocaleString`), user, action badge (green/neutral only).
+- Latest 100 entries with search + action/date filters, empty/filtered-empty states. Columns: when (`toLocaleString`), user, action badge.
+- Labels come from `ActivityLabels.ts`, which covers every action the app emits — archive/restore are distinct actions from updates, so an archive never reads as an edit. Unknown actions fall back to de-snake-cased text rather than a raw string.
+- Each entry's `details` renders as a second line under the badge: the record's `label`, and for `auth.login_failed` the reason in red. Both are searchable.
+- A "Failed sign-ins" stat counts failures in the current filtered view.
+- **Record scope:** reached from a row's activity button, the page narrows to one record (see `components/ActivityFocus.tsx`). The fetch is filtered server-side on `details->>entity` and raised to 500 rows — a record's history is old by definition, so the headline 100 would usually hide it. A banner names the record and offers "Show all activity"; the search/action/date filters still narrow within the scope.
+
+### `components/ActivityFocus.tsx`
+- `ActivityFocus` — `{ entity, entityId?, title }`. `entity` is the `details.entity` value (`program`, `course`, `user`, …) and is the only field every entry for that record carries.
+- `ActivityButton` — the per-row icon button that opens the log scoped to that row. Used by every list page (both the list and grid card variants, which most of those pages render separately).
+- Context rather than a prop because the app has no router and there is no URL to carry a query string; the state itself lives in `App.tsx` next to `activePage`, and any navigation away from the log clears it.
+
+### Matching a record to its history
+Two fields could identify the row and neither is populated everywhere:
+
+| Source | Carries | Missing |
+|---|---|---|
+| `useEntityCrud` update/archive/delete | `entity_id` **and** `label` | — |
+| `*.created` in `manager/Curriculum`, `manager/Course`, `admin/ProgramOutcomesAdmin` | `label` only | `entity_id` (the row id isn't known until the insert returns) |
+| `admin/View.tsx` archive/restore | `entity_id` only | `label` |
+
+So the match accepts either. The family check prefers `details.entity` over the action prefix, because they disagree in one place by design: a role change logs `role.updated` with entity `user`, so it reads as history on the person whose role changed.
+
+### `admin/ActivityLabels.ts`
+- `ACTION_LABELS` — action string → human-readable label, plus `labelAction()` / `labelReason()` helpers. Derived from what the app actually emits, not from an ideal wish list, so nothing renders as raw snake_case.
 
 ### `Profile.tsx`
 - Props: `profile`, `onSaved`. Edits `full_name`, writes an audit entry, and reports the updated profile back to `App.tsx` via `onSaved`. Shared by all roles.
@@ -472,6 +516,8 @@ New role-restricted feature, end to end. Example: a `reports` table that admins 
 - **Audit log** is client-inserted; treat it as an activity trail, not a tamper-proof record.
 - **Never promote via email-derived rules.** In this starter, role is assigned explicitly (admin updates it). Do not derive access from email domains or department fields — that is fragile and error-prone (see the instructor-ui repo discussion).
 - **Password policy** — Supabase defaults apply; `adminCreateUser` uses `email_confirm: true` so created users can sign in immediately (development convenience).
+- **Log an action only when it happened.** `useEntityCrud` handlers return early when there is no row to act on and skip the audit write in that case. Copy the pattern when adding handlers — an audit entry for a mutation that did not occur is worse than a missing one, because it looks like evidence.
+- **Archive/restore are not updates.** Give them their own action names (`<entity>.archived` / `<entity>.restored`) so the log can distinguish removing a record from renaming one. `EntityCrudPage` derives these from `updateAction`.
 
 ---
 
@@ -481,7 +527,8 @@ New role-restricted feature, end to end. Example: a `reports` table that admins 
 |---|---|
 | `npm install` fails with `ERESOLVE` (peer vite@... from @vitejs/plugin-react) | `@vitejs/plugin-react@4` only supports Vite 4–7, but the project uses Vite 8. Fix: upgrade the plugin — change `"@vitejs/plugin-react": "^6.0.5"` in `package.json` — then `npm install` again. |
 | Re-running `supabase-schema.sql` seems to "reset" everything | The file starts with `DROP TABLE ... profiles` — it wipes profiles, resources, activity_logs, **and all roles** each run. Don't re-run it casually; if you do, re-apply the role UPDATEs from section 3.1 (or the app self-heals missing profiles as role `user`). |
-| Want to apply a schema change **without losing data** | Don't re-run `supabase-schema.sql` (it drops every table). Run the matching file in `supabase/migrations/` instead — those are policy/DDL-only and idempotent. For the manager-access change, use `supabase/migrations/20261016_manager_academic_access.sql`, which just adds RLS policies so managers can create/update Strategic Goals, PEOs and CHED memo orders (delete stays admin-only). |
+| Want to apply a schema change **without losing data** | Don't re-run `supabase-schema.sql` (it drops every table). Run the matching file in `supabase/migrations/` instead — those are policy/DDL-only and idempotent. For activity-log detail capture, use `supabase/migrations/20261016_activity_log_details.sql`, which adds the `details` column, the two indexes, and the updated `log_activity` / `record_login_event` functions. |
+| Audit entries show no record name | The `details` column is missing in your database. Run `supabase/migrations/20261016_activity_log_details.sql` in the SQL Editor. Entries written before the migration keep showing with no detail — that is expected, the column is nullable and old rows were never given one. |
 | Logged in but shown as `user` (no admin powers) | The profile's `role` column is `user` in the DB. Promote it (section 3.1 SQL) — the role lives in `profiles`, not in the email. |
 | Logged in but stuck on Login or empty dashboard | Profile missing. `ensureProfile` now auto-creates a profile row on sign-in, so this self-heals; if it persists, check the profile INSERT policy exists. |
 | `42501` / "permission denied for table" | RLS blocking. Check the role of the signed-in user (`SELECT role FROM profiles WHERE id = auth.uid()`) and confirm the matching policy exists. |

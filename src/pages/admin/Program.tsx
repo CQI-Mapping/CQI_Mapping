@@ -4,6 +4,8 @@ import { useSelection } from '../../hooks/useSelection'
 import { useViewMode } from '../../hooks/useViewMode'
 import ViewModeToggle from '../../components/ViewModeToggle'
 import Icon from '../../components/icons'
+import { ActivityButton } from '../../components/ActivityFocus'
+import type { ActivityFocus } from '../../components/ActivityFocus'
 import {
   fetchPrograms,
   fetchCourses,
@@ -64,6 +66,14 @@ export default function Program({ allowDelete = true }: ProgramProps) {
   }, [])
 
   const isActive = (p: Program) => !p.status || p.status === 'active'
+  // Mirrors the `details.label` useEntityCrud snapshots for this page
+  // (`code — name`), so the name in the activity log banner matches the labels
+  // already stored against previous entries.
+  const activityFocusOf = (p: Program): ActivityFocus => ({
+    entity: 'program',
+    entityId: p.id,
+    title: p.name && p.name !== p.code ? `${p.code} — ${p.name}` : p.code,
+  })
   const totalCount = items.length
   const activeCount = items.filter(isActive).length
   const archivedCount = items.filter((p) => !isActive(p)).length
@@ -310,6 +320,7 @@ export default function Program({ allowDelete = true }: ProgramProps) {
                   >
                     <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} />
                   </button>
+                  <ActivityButton focus={activityFocusOf(item)} />
                   {!isActive(item) && allowDelete && (
                     <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'program.deleted')} disabled={busy} style={{ marginLeft: 'auto' }} aria-label={`Delete ${item.code}`} title="Delete">
                       <Icon name="trash" size={13} />
@@ -350,6 +361,7 @@ export default function Program({ allowDelete = true }: ProgramProps) {
                   >
                     <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} />
                   </button>
+                  <ActivityButton focus={activityFocusOf(item)} />
                   {!isActive(item) && allowDelete && (
                     <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'program.deleted')} disabled={busy} style={{ marginLeft: 'auto' }} aria-label={`Delete ${item.code}`} title="Delete">
                       <Icon name="trash" size={13} />
