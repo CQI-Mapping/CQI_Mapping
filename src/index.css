@@ -3520,6 +3520,139 @@ textarea.input {
   margin-bottom: 12px;
 }
 
+/* ---- Record-mix donut (components/RecordMixDonut.tsx) ----
+   The chart and the Totals table it draws from sit side by side, chart first.
+   The table is given the wider track on purpose: it is the one with four
+   columns, and the chart has already said what it needed to say by then. */
+
+.reports-overview {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.reports-mix {
+  margin: 0;
+  padding: 18px 20px 20px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.reports-mix__title {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* The arc and its legend are one unit: the legend is what makes the colours
+   mean anything, so it is never separated from the chart. */
+.reports-mix__chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 220px;
+  margin: 4px auto 12px;
+  overflow: visible;
+}
+
+.reports-mix__chart path {
+  transition: opacity 0.18s var(--ease-smooth);
+}
+
+/* Hovering one wedge dims the rest rather than growing it: a donut that
+   reflows under the cursor moves the legend out from under the pointer. */
+.reports-mix__chart:hover path {
+  opacity: 0.45;
+}
+
+.reports-mix__chart path:hover {
+  opacity: 1;
+}
+
+.reports-mix__count {
+  font-size: 34px;
+  font-weight: 700;
+  fill: var(--text);
+}
+
+.reports-mix__unit {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  fill: #94a3b8;
+}
+
+.reports-mix__legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.reports-mix__item {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 12.5px;
+  color: #475569;
+}
+
+.reports-mix__item--empty {
+  color: #a8b3c2;
+}
+
+.reports-mix__swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.reports-mix__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Percent and count are right-aligned and tabular: they sit in a column and
+   change with every keystroke in the search box, and proportional digits make
+   that shimmer. */
+.reports-mix__value,
+.reports-mix__count {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.reports-mix__value {
+  font-weight: 600;
+  color: var(--text);
+  min-width: 44px;
+  text-align: right;
+}
+
+.reports-mix__count {
+  color: #94a3b8;
+  min-width: 34px;
+  text-align: right;
+}
+
+/* Below the two-column threshold the table is the one worth keeping on screen
+   next to the chart's summary, so the chart goes its own full-width row. */
+@media (max-width: 860px) {
+  .reports-overview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .reports-summary th:not(:first-child),
 .reports-summary td:not(:first-child),
 .reports-num {

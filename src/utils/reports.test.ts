@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   buildReport,
+  buildRecordMix,
   isArchived,
   BLANK_NAME,
   COLUMNS,
@@ -354,5 +355,62 @@ describe('section declarations', () => {
   // its own, and the header and the body drifted apart.
   it('uses one shared column list for every section', () => {
     expect(COLUMNS).toEqual(['Code', 'Name'])
+  })
+})
+
+describe('buildRecordMix', () => {
+  const mixOf = (inv: ReturnType<typeof buildReport>) => buildRecordMix(inv.summary)
+
+  it('counts every record, archived included', () => {
+    const inv = buildReport(
+      empty({
+        programs: [program(), program({ id: 'p2', code: 'BSCS', status: 'archived' })],
+        clos: [clo()],
+      }),
+    )
+    // Archived records are hidden by default on the page, but the donut reports
+    // what is on the books -- the same total the Totals table shows.
+    const mix = mixOf(inv)
+    expect(mix.total).toBe(3)
+    expect(mix.slices.find((s) => s.key === 'programs')?.total).toBe(2)
+  })
+
+  it('gives every section a wedge, in report order, even when it is empty', () => {
+    const mix = mixOf(buildReport(empty({ courses: [course()] })))
+    expect(mix.slices.map((s) => s.key)).toEqual(SECTION_ORDER)
+  })
+
+  it('expresses each wedge as a share of the grand total', () => {
+    const mix = mixOf(
+      buildReport(empty({ courses: [course(), course({ id: 'c2' }), course({ id: 'c3' })] })),
+    )
+    const courses = mix.slices.find((s) => s.key === 'courses')!
+    expect(courses.percent).toBe(100)
+    expect(mix.slices.filter((s) => s.key !== 'courses').every((s) => s.percent === 0)).toBe(true)
+  })
+
+  it('rounds a share to one decimal place', () => {
+    // 1 of 3 is 33.333...%, which has to render as something an arc can
+    // honestly stand for.
+    const mix = mixOf(buildReport(empty({ courses: [course()], clos: [clo(), clo({ id: 'l2' })] })))
+    expect(mix.slices.find((s) => s.key === 'courses')?.percent).toBe(33.3)
+    expect(mix.slices.find((s) => s.key === 'clos')?.percent).toBe(66.7)
+  })
+
+  // The divide-by-zero the chart would otherwise hit on a fresh install.
+  it('returns zeroes rather than NaN for an empty database', () => {
+    const mix = mixOf(buildReport(empty()))
+    expect(mix.total).toBe(0)
+    expect(mix.slices.every((s) => s.percent === 0 && s.total === 0)).toBe(true)
+  })
+
+  it('is unaffected by the search box, which hides rows but not records', () => {
+    const input = empty({
+      courses: [course(), course({ id: 'c2', code: 'IT22' })],
+      clos: [clo()],
+    })
+    expect(mixOf(buildReport(input, { query: 'zzz' })).total).toBe(
+      mixOf(buildReport(input)).total,
+    )
   })
 })

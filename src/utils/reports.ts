@@ -86,6 +86,25 @@ export interface SummaryLine {
   total: number
 }
 
+/**
+ * One wedge of the record-mix donut: what share of everything on the books a
+ * single record type is. Derived from the same summary lines the Totals table
+ * renders, so the two can never disagree.
+ */
+export interface MixSlice {
+  key: SectionKey
+  title: string
+  total: number
+  /** Share of the grand total, 0-100, to one decimal place. */
+  percent: number
+}
+
+export interface RecordMix {
+  /** Every named record in the system, active and archived. */
+  total: number
+  slices: MixSlice[]
+}
+
 export interface Report {
   sections: ReportSection[]
   /**
@@ -219,5 +238,30 @@ export function buildReport(input: ReportInput, options: ReportOptions = {}): Re
     sections,
     summary,
     shownCount: sections.reduce((n, s) => n + s.rows.length, 0),
+  }
+}
+
+/**
+ * Turn the Totals rows into donut wedges.
+ *
+ * Percentages are of the grand total, not of each section — the chart answers
+ * "what is most of this system made of", which is the one question the flat
+ * tables cannot answer at a glance.
+ *
+ * Every section is kept, including one with no records, so the legend stays the
+ * same length as the data changes instead of silently losing a row. The
+ * percentage is rounded to one decimal because that is all a donut can honestly
+ * show; two would imply a precision nobody can read off an arc.
+ */
+export function buildRecordMix(summary: SummaryLine[]): RecordMix {
+  const total = summary.reduce((n, line) => n + line.total, 0)
+  return {
+    total,
+    slices: summary.map((line) => ({
+      key: line.key,
+      title: line.title,
+      total: line.total,
+      percent: total === 0 ? 0 : Math.round((line.total / total) * 1000) / 10,
+    })),
   }
 }

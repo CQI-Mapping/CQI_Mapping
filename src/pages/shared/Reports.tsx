@@ -12,6 +12,10 @@
 // (program, units, CMO alignment, description) lives on the Curriculum Report,
 // which already presents it properly.
 //
+// The donut above the tables is the one thing here that is not a list. It
+// answers "what is this system mostly made of" from the same buildReport() output
+// as the Totals table beside it, so the two cannot drift apart.
+//
 // The Excel export is handed the *filtered* report rather than the raw
 // lists, so the file always matches what is on screen.
 
@@ -31,7 +35,8 @@ import type {
   ProgramEducationalObjective,
   CourseLearningOutcomeStandalone,
 } from '../../services/database'
-import { buildReport, isArchived } from '../../utils/reports'
+import { buildReport, buildRecordMix, isArchived } from '../../utils/reports'
+import RecordMixDonut from '../../components/RecordMixDonut'
 import Icon from '../../components/icons'
 
 interface ReportsProps {
@@ -85,6 +90,10 @@ function Reports({ profile }: ReportsProps) {
     { programs, courses, pos, peos, clos },
     { includeArchived, query },
   )
+
+  // The donut's source. Both come off the same build, so the chart can never
+  // show counts the tables below do not.
+  const mix = buildRecordMix(report.summary)
 
   /**
    * Opening the page is the event worth recording — it has no other action of
@@ -144,8 +153,8 @@ function Reports({ profile }: ReportsProps) {
       {error && <p className="msg msg--error" role="alert">{error}</p>}
       {notice && <p className="msg msg--success" role="status">{notice}</p>}
 
-      <div className="panel breports-controls">
-        <label className="field breports-search">
+      <div className="panel reports-controls">
+        <label className="field reports-search">
           <span>Search</span>
           <input
             className="input"
@@ -155,7 +164,7 @@ function Reports({ profile }: ReportsProps) {
             onChange={(e) => setQuery(e.target.value)}
           />
         </label>
-        <label className="breports-toggle">
+        <label className="reports-toggle">
           <input
             type="checkbox"
             checked={includeArchived}
@@ -164,7 +173,7 @@ function Reports({ profile }: ReportsProps) {
           <span>Include archived</span>
         </label>
         <button
-          className="btn btn--primary btn--sm breports-export"
+          className="btn btn--primary btn--sm reports-export"
           onClick={download}
           disabled={downloading || loading}
           title="Save every section to one Excel workbook"
@@ -178,33 +187,39 @@ function Reports({ profile }: ReportsProps) {
         <p>Loading report…</p>
       ) : (
         <>
-          <div className="panel table-wrap breports-summary">
-            <h3>Totals</h3>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Record Type</th>
-                  <th>Active</th>
-                  <th>Archived</th>
-                  <th>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {report.summary.map((line) => (
-                  <tr key={line.key}>
-                    <td>{line.title}</td>
-                    <td>{line.active}</td>
-                    <td>{line.archived}</td>
-                    <td>{line.total}</td>
+          {/* Chart on the left, the numbers it draws on the right: the arc is
+              the quick read, the table is the one anyone can cite. */}
+          <div className="reports-overview">
+            <RecordMixDonut mix={mix} />
+
+            <div className="panel table-wrap reports-summary">
+              <h3>Totals</h3>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Record Type</th>
+                    <th>Active</th>
+                    <th>Archived</th>
+                    <th>Total</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {report.summary.map((line) => (
+                    <tr key={line.key}>
+                      <td>{line.title}</td>
+                      <td>{line.active}</td>
+                      <td>{line.archived}</td>
+                      <td>{line.total}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Totals count the whole dataset; the tables below narrow as the
               search box is typed in. */}
-          <p className="breports-shown">
+          <p className="reports-shown">
             Showing <strong>{report.shownCount}</strong> record
             {report.shownCount === 1 ? '' : 's'}
             {filtersActive ? ' matching the current filters' : ''}.
@@ -212,12 +227,12 @@ function Reports({ profile }: ReportsProps) {
           </p>
 
           {report.sections.map((section) => (
-            <div className="panel table-wrap breports-section" key={section.key}>
+            <div className="panel table-wrap reports-section" key={section.key}>
               <h3>{section.title}</h3>
               <table className="table">
                 <thead>
                   <tr>
-                    <th className="breports-num">#</th>
+                    <th className="reports-num">#</th>
                     <th>Code</th>
                     <th>Name</th>
                   </tr>
@@ -225,7 +240,7 @@ function Reports({ profile }: ReportsProps) {
                 <tbody>
                   {section.rows.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="breports-empty">
+                      <td colSpan={3} className="reports-empty">
                         No {section.title.toLowerCase()} to show.
                       </td>
                     </tr>
@@ -235,8 +250,8 @@ function Reports({ profile }: ReportsProps) {
                       // three columns there is no room for a status column, and
                       // the point of the toggle is that they are visibly the
                       // "extra" ones.
-                      <tr key={`${section.key}-${row.code}-${i}`} className={isArchived(row) ? 'breports-row--archived' : undefined}>
-                        <td className="breports-num">{i + 1}</td>
+                      <tr key={`${section.key}-${row.code}-${i}`} className={isArchived(row) ? 'reports-row--archived' : undefined}>
+                        <td className="reports-num">{i + 1}</td>
                         <td>{row.code}</td>
                         <td>{row.name}</td>
                       </tr>
