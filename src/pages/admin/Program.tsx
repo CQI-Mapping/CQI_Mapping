@@ -25,7 +25,11 @@ type ProgramForm = {
 
 const blank: ProgramForm = { code: '', name: '', description: '' }
 
-export default function Program() {
+interface ProgramProps {
+  allowDelete?: boolean
+}
+
+export default function Program({ allowDelete = true }: ProgramProps) {
   const createWithName = async (payload: Partial<Program>) =>
     createProgram({ ...payload, name: (payload as Program).name || payload.code || '' })
   const updateWithName = async (id: string, payload: Partial<Program>) =>
@@ -303,7 +307,7 @@ export default function Program() {
                   >
                     <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} />
                   </button>
-                  {!isActive(item) && (
+                  {!isActive(item) && allowDelete && (
                     <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'program.deleted')} disabled={busy} style={{ marginLeft: 'auto' }} aria-label={`Delete ${item.code}`} title="Delete">
                       <Icon name="trash" size={13} />
                     </button>
@@ -343,7 +347,7 @@ export default function Program() {
                   >
                     <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} />
                   </button>
-                  {!isActive(item) && (
+                  {!isActive(item) && allowDelete && (
                     <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'program.deleted')} disabled={busy} style={{ marginLeft: 'auto' }} aria-label={`Delete ${item.code}`} title="Delete">
                       <Icon name="trash" size={13} />
                     </button>

@@ -12,11 +12,12 @@
 --   programs / courses            — academic programs and their courses
 --   program_outcomes              — program outcomes tied to programs
 --   course_learning_outcomes      — CLOs tied to courses
---   strategic_goals               — institutional strategic goals (admin)
+--   strategic_goals               — institutional strategic goals (admin/manager)
 --   admin_program_outcomes        — standalone admin-managed PO list
---   program_educational_objectives— PEOs (admin)
+--   program_educational_objectives— PEOs (admin/manager)
 --   admin_course_learning_outcomes— standalone admin-managed CLO list
---   ched_memorandum_orders        — CHED memo orders (admin)
+--   ched_memorandum_orders        — CHED memo orders (admin/manager)
+--   (admins and managers may create/edit/archive these; only admins delete)
 --   po_feedback                   — shared CLO→PO pick/reject log (curation)
 -- =============================================================================
 
@@ -398,6 +399,17 @@ CREATE POLICY "Admins and managers can view activity logs" ON public.activity_lo
 CREATE POLICY "Authenticated users can read strategic_goals" ON public.strategic_goals FOR SELECT
     USING (auth.role() = 'authenticated');
 
+-- Managers may create/edit/archive strategic goals; only admins delete them.
+CREATE POLICY "Managers and admins can create strategic_goals" ON public.strategic_goals FOR INSERT
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
+
+CREATE POLICY "Managers and admins can update strategic_goals" ON public.strategic_goals FOR UPDATE
+    USING (public.current_user_role() IN ('admin', 'manager'))
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
+
+CREATE POLICY "Admins can delete strategic_goals" ON public.strategic_goals FOR DELETE
+    USING (public.current_user_role() = 'admin');
+
 CREATE POLICY "Admins can manage strategic_goals" ON public.strategic_goals FOR ALL
     USING (public.current_user_role() = 'admin')
     WITH CHECK (public.current_user_role() = 'admin');
@@ -422,6 +434,17 @@ CREATE POLICY "Managers and admins can update admin_program_outcomes" ON public.
 CREATE POLICY "Authenticated users can read program_educational_objectives" ON public.program_educational_objectives FOR SELECT
     USING (auth.role() = 'authenticated');
 
+-- Managers may create/edit/archive PEOs; only admins delete them.
+CREATE POLICY "Managers and admins can create program_educational_objectives" ON public.program_educational_objectives FOR INSERT
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
+
+CREATE POLICY "Managers and admins can update program_educational_objectives" ON public.program_educational_objectives FOR UPDATE
+    USING (public.current_user_role() IN ('admin', 'manager'))
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
+
+CREATE POLICY "Admins can delete program_educational_objectives" ON public.program_educational_objectives FOR DELETE
+    USING (public.current_user_role() = 'admin');
+
 CREATE POLICY "Admins can manage program_educational_objectives" ON public.program_educational_objectives FOR ALL
     USING (public.current_user_role() = 'admin')
     WITH CHECK (public.current_user_role() = 'admin');
@@ -445,6 +468,17 @@ CREATE POLICY "Authenticated users can update admin_course_learning_outcomes" ON
 -- CHED MEMORANDUM ORDERS
 CREATE POLICY "Authenticated users can read ched_memorandum_orders" ON public.ched_memorandum_orders FOR SELECT
     USING (auth.role() = 'authenticated');
+
+-- Managers may create/edit/archive CHED memo orders; only admins delete them.
+CREATE POLICY "Managers and admins can create ched_memorandum_orders" ON public.ched_memorandum_orders FOR INSERT
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
+
+CREATE POLICY "Managers and admins can update ched_memorandum_orders" ON public.ched_memorandum_orders FOR UPDATE
+    USING (public.current_user_role() IN ('admin', 'manager'))
+    WITH CHECK (public.current_user_role() IN ('admin', 'manager'));
+
+CREATE POLICY "Admins can delete ched_memorandum_orders" ON public.ched_memorandum_orders FOR DELETE
+    USING (public.current_user_role() = 'admin');
 
 CREATE POLICY "Admins can manage ched_memorandum_orders" ON public.ched_memorandum_orders FOR ALL
     USING (public.current_user_role() = 'admin')

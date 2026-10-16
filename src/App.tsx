@@ -10,6 +10,15 @@
 //   Program Educational Objectives, Program Outcomes,
 //   Curriculum, Course Learning Outcomes, Subject Graph,
 //   Curriculum Report (View), Users & Accounts, Activity Logs, Profile
+//
+// Manager role pages (sidebar order):
+//   Dashboard, Program, CHED Memorandum Orders, Strategic Goals,
+//   Program Educational Objectives, Program Outcomes,
+//   Curriculum, Course, Subject Graph, Users, Activity Logs, Profile
+//
+// The Program / CHED Memo / Strategic Goals / PEO pages are shared with the admin
+// role (same as Activity Logs and Subject Graph) — only destructive deletes stay
+// admin-only, via the SHARED_ACADEMIC_PAGES list below.
 
 import { useState, useEffect, useRef } from 'react'
 import Sidebar from './components/Sidebar'
@@ -56,8 +65,12 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'profile', label: 'Profile' },
   ],
   manager: [
-    { id: 'program-outcomes', label: 'Program Outcomes' },
     { id: 'dashboard', label: 'Dashboard' },
+    { id: 'program', label: 'Program' },
+    { id: 'ched-memo', label: 'CHED Memorandum Orders' },
+    { id: 'strategic-goals', label: 'Strategic Goals' },
+    { id: 'peos', label: 'Program Educational Objectives' },
+    { id: 'program-outcomes', label: 'Program Outcomes' },
     { id: 'curriculum', label: 'Curriculum' },
     { id: 'course', label: 'Course' },
     { id: 'subject-view', label: 'Subject Graph' },
@@ -74,6 +87,12 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'profile', label: 'Profile' },
   ],
 }
+
+// Pages shared by admin and manager that support an `allowDelete` prop
+// (hard delete stays admin-only; managers can still archive/restore).
+const SHARED_ACADEMIC_PAGES = new Set([
+  'program', 'ched-memo', 'strategic-goals', 'peos',
+])
 
 // PAGES map: page id -> component for each role.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -94,6 +113,10 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
   },
   manager: {
     dashboard: ManagerDashboard,
+    program: AdminProgram,
+    'ched-memo': AdminChedMemoOrders,
+    'strategic-goals': AdminStrategicGoals,
+    peos: AdminPEOs,
     curriculum: ManagerCurriculum,
     course: ManagerCourse,
     'program-outcomes': ManagerProgramOutcomes,
@@ -268,12 +291,17 @@ function App() {
     ? activePage
     : navItems[0]?.id ?? 'dashboard'
 
+  // Managers get create/edit/archive on the shared academic pages; only admins
+  // may hard-delete, so the destructive button is hidden for them.
+  const allowDelete = role === 'admin'
+
   const renderPage = () => {
     const Page = PAGES[role]?.[page] ?? PAGES[role]?.[navItems[0]?.id] ?? UserDashboard
 
     if (page === 'dashboard') return <Page profile={profile} onNavigate={setActivePage} />
     if (page === 'profile') return <Page profile={profile} onSaved={setProfile} />
     if (page === 'users') return <Page />
+    if (SHARED_ACADEMIC_PAGES.has(page)) return <Page allowDelete={allowDelete} />
     if (page === 'curriculum' && role !== 'user') return <Page userEmail={profile?.email} allowDelete={role === 'admin'} />
     if (page === 'curriculum' && role === 'user') return <Page />
     if (page === 'view') return <Page userEmail={profile?.email} />

@@ -7,7 +7,11 @@ import {
 } from '../../services/database'
 import type { StrategicGoal } from '../../services/database'
 
-export default function StrategicGoals() {
+interface StrategicGoalsProps {
+  allowDelete?: boolean
+}
+
+export default function StrategicGoals({ allowDelete = true }: StrategicGoalsProps) {
   return (
     <EntityCrudPage<StrategicGoal>
       title="Strategic Goal"
@@ -23,6 +27,7 @@ export default function StrategicGoals() {
       codePlaceholder="e.g. Goal 1"
       showTitle={false}
       formatCode={(c) => c.replace(/^SG-/i, 'Goal ')}
+      allowDelete={allowDelete}
     />
   )
 }
