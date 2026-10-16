@@ -294,7 +294,10 @@ export default function ManagerCourse({ profile }: CourseProps) {
         return
       }
       await createCourse({ program_id: programId, ...buildPayload(form) })
-      await addActivityLog('course.created')
+      await addActivityLog('course.created', {
+        entity: 'course',
+        label: `${code} — ${form.title.trim()}`,
+      })
       setMessage('Course created.')
       clearForm()
       load()
@@ -338,7 +341,11 @@ export default function ManagerCourse({ profile }: CourseProps) {
         return
       }
       await updateCourse(editId, buildPayload(editForm))
-      await addActivityLog('course.updated')
+      await addActivityLog('course.updated', {
+        entity: 'course',
+        entity_id: editId,
+        label: `${editForm.code.trim().toUpperCase()} — ${editForm.title.trim()}`,
+      })
       setMessage('Course updated.')
       clearEdit()
       load()
@@ -360,7 +367,11 @@ export default function ManagerCourse({ profile }: CourseProps) {
     setBusy(true)
     try {
       await updateCourse(item.id, { status: next })
-      await addActivityLog(next === 'archived' ? 'course.archived' : 'course.restored')
+      await addActivityLog(next === 'archived' ? 'course.archived' : 'course.restored', {
+        entity: 'course',
+        entity_id: item.id,
+        label: item.code || item.title || undefined,
+      })
       setMessage(`Course ${next}.`)
       if (editId === item.id) cancelEdit()
       load()

@@ -72,8 +72,16 @@ CREATE TABLE public.activity_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_email TEXT,
     action TEXT NOT NULL,
+    -- Optional context for the entry: {entity, entity_id, label, reason}.
+    -- The actor is deliberately NOT stored here — user_email is stamped
+    -- server-side from the caller's JWT by log_activity().
+    details JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- The log is always read newest-first and filtered by action/date.
+CREATE INDEX activity_logs_created_at_idx ON public.activity_logs (created_at DESC);
+CREATE INDEX activity_logs_action_idx ON public.activity_logs (action);
 
 -- CQI curriculum domain: academic programs, their courses, program outcomes
 -- (PO), and course learning outcomes (CLO). These feed the CLO/PO mapping
@@ -506,10 +514,17 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-    INSERT INTO public.activity_logs (user_email, action)
+    -- p_reason was previously accepted and discarded, which made every
+    -- failed sign-in indistinguishable. It is kept in details.reason.
+    INSERT INTO public.activity_logs (user_email, action, details)
     VALUES (
         p_email,
         CASE WHEN p_success THEN 'auth.login' ELSE 'auth.login_failed' END
+        , CASE
+            WHEN NOT p_success AND p_reason IS NOT NULL AND btrim(p_reason) <> ''
+                THEN jsonb_build_object('reason', btrim(p_reason))
+            ELSE NULL
+          END
     );
 END;
 $$;
@@ -523,7 +538,7 @@ GRANT EXECUTE ON FUNCTION public.record_login_event(TEXT, BOOLEAN, TEXT) TO anon
 -- so the client never supplies (or spoofs) user_email.
 -- ============================================================
 
-CREATE OR REPLACE FUNCTION public.log_activity(p_action TEXT)
+CREATE OR REPLACE FUNCTION public.log_activity(p_action TEXT, p_details JSONB DEFAULT NULL)
 RETURNS VOID
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -538,13 +553,23 @@ BEGIN
 
     SELECT email INTO v_email FROM public.profiles WHERE id = auth.uid();
 
-    INSERT INTO public.activity_logs (user_email, action)
-    VALUES (v_email, btrim(p_action));
+    -- Details are stored verbatim so future fields need no function change.
+    -- An empty object is normalised to NULL so the UI can treat "no context"
+    -- as a single falsy case.
+    INSERT INTO public.activity_logs (user_email, action, details)
+    VALUES (
+        v_email,
+        btrim(p_action),
+        CASE
+            WHEN p_details IS NULL OR p_details = '{}'::jsonb THEN NULL
+            ELSE p_details
+        END
+    );
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.log_activity(TEXT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.log_activity(TEXT) TO authenticated;
+REVOKE ALL ON FUNCTION public.log_activity(TEXT, JSONB) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.log_activity(TEXT, JSONB) TO authenticated;
 
 -- ============================================================
 -- ROLE RESTORE / FIRST ADMIN BOOTSTRAP

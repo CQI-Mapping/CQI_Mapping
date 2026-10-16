@@ -55,7 +55,11 @@ export default function Users() {
     try {
       const createdEmail = email.trim()
       const created = await adminCreateUser(createdEmail, password, fullName.trim(), role)
-      await addActivityLog('user.created')
+      await addActivityLog('user.created', {
+        entity: 'user',
+        entity_id: created?.id,
+        label: createdEmail,
+      })
       const creator = users.find((u) => u.email === currentEmail)
       const creatorName = creator?.full_name || currentEmail
       const base = creatorName
@@ -82,7 +86,11 @@ export default function Users() {
     try {
       const updated = await updateUserRole(profileId, nextRole)
       setUsers((prev) => prev.map((u) => (u.id === profileId ? updated : u)))
-      await addActivityLog('role.updated')
+      await addActivityLog('role.updated', {
+        entity: 'user',
+        entity_id: profileId,
+        label: `${email} → ${nextRole}`,
+      })
       setSuccess(`Role for ${email} changed to ${nextRole}.`)
     } catch (e) {
       setError('Failed to update role: ' + (e instanceof Error ? e.message : String(e)))
@@ -99,7 +107,7 @@ export default function Users() {
     try {
       await adminDeleteUser(userId)
       setUsers((prev) => prev.filter((u) => u.id !== userId))
-      await addActivityLog('user.deleted')
+      await addActivityLog('user.deleted', { entity: 'user', entity_id: userId, label: email })
       setSuccess(`User ${email} removed.`)
     } catch (e) {
       setError('Failed to remove user: ' + (e instanceof Error ? e.message : String(e)))

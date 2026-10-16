@@ -109,8 +109,16 @@ alignments,
   outcomeCard = false,
   groupOf,
 }: EntityCrudPageProps<T>) {
-  const crud = useEntityCrud<T>({ loadFn: load, createFn: create, updateFn: update, deleteFn: remove, userEmail: '', scope })
+  const crud = useEntityCrud<T>({ loadFn: load, createFn: create, updateFn: update, deleteFn: remove, scope })
   const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete } = crud
+
+  // Archive/restore are distinct events from an edit, so they get their own
+  // action names rather than reusing `updateAction` (which previously made an
+  // archive show up in the log as "Updated program"). Derived from the update
+  // action, e.g. 'peo.updated' -> 'peo.archived' / 'peo.restored'.
+  const entityKey = updateAction.split('.')[0]
+  const toggleAction = (next: 'archived' | 'active') =>
+    updateAction.includes('.') ? `${entityKey}.${next}` : `${updateAction}.${next}`
 
   const allAlignments = [...(alignments ?? tableAlignments ?? []), ...stackedAlignments]
   // Edit form fields = table columns + stacked alignments (so CMO shows in edit too).
@@ -242,7 +250,10 @@ alignments,
   }
 
   const saveEdit = async () => {
-    if (await handleUpdate(editingId, payload(editForm), updateAction)) setEditingId(null)
+    // Pass the row being edited so the audit entry can name it, rather than
+    // recording a bare "<entity>.updated" with no idea what was touched.
+    const target = editingId ? items.find((i) => i.id === editingId) : undefined
+    if (await handleUpdate(editingId, payload(editForm), updateAction, target)) setEditingId(null)
   }
 
   const codeOf = (i: T) => (i as { code?: string }).code || ''
@@ -587,11 +598,11 @@ alignments,
                       </div>
                       <div className="resource-card__actions">
                         <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} disabled={busy || !!editingId} title="Edit"><Icon name="edit" size={13} /></button>
-                        <button className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleUpdate(item.id, { status: isActive(item) ? 'archived' : 'active' }, updateAction)} disabled={busy || !!editingId} title={isActive(item) ? 'Archive' : 'Restore'}>
+                        <button className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleUpdate(item.id, { status: isActive(item) ? 'archived' : 'active' } as unknown as Partial<T>, toggleAction(isActive(item) ? 'archived' : 'active'), item)} disabled={busy || !!editingId} title={isActive(item) ? 'Archive' : 'Restore'}>
                           <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} />
                         </button>
                         {!isActive(item) && allowDelete && (
-                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, deleteAction)} disabled={busy || !!editingId} style={{ marginLeft: 'auto' }} title="Delete"><Icon name="trash" size={13} /></button>
+                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, deleteAction, item)} disabled={busy || !!editingId} style={{ marginLeft: 'auto' }} title="Delete"><Icon name="trash" size={13} /></button>
                         )}
                       </div>
                     </>
@@ -666,11 +677,11 @@ alignments,
                       {counts && <div style={{ fontSize: 12, color: '#64748b' }}>{countLabel}: <strong style={{ color: '#0f172a' }}>{counts[item.id] ?? 0}</strong></div>}
                       <div className="program-card__actions">
                         <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} disabled={busy || !!editingId} title="Edit"><Icon name="edit" size={13} /></button>
-                        <button className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleUpdate(item.id, { status: isActive(item) ? 'archived' : 'active' }, updateAction)} disabled={busy || !!editingId} title={isActive(item) ? 'Archive' : 'Restore'}>
+                        <button className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleUpdate(item.id, { status: isActive(item) ? 'archived' : 'active' } as unknown as Partial<T>, toggleAction(isActive(item) ? 'archived' : 'active'), item)} disabled={busy || !!editingId} title={isActive(item) ? 'Archive' : 'Restore'}>
                           <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} />
                         </button>
                         {!isActive(item) && allowDelete && (
-                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, deleteAction)} disabled={busy || !!editingId} style={{ marginLeft: 'auto' }} title="Delete"><Icon name="trash" size={13} /></button>
+                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, deleteAction, item)} disabled={busy || !!editingId} style={{ marginLeft: 'auto' }} title="Delete"><Icon name="trash" size={13} /></button>
                         )}
                       </div>
                     </>

@@ -130,13 +130,16 @@ export default function Program({ allowDelete = true }: ProgramProps) {
     }
     if (!payload.code || !payload.name) return
     const ok = editing
-      ? await handleUpdate(editing.id, payload, 'program.updated')
+      ? await handleUpdate(editing.id, payload, 'program.updated', editing)
       : await handleCreate(payload, 'program.created')
     if (ok) closeModal()
   }
 
   const handleArchive = async (item: Program) => {
-    await handleUpdate(item.id, { status: isActive(item) ? 'archived' : 'active' }, 'program.updated')
+    // Archive/restore are logged under their own actions, not as a plain
+    // update — otherwise the log cannot distinguish a rename from a removal.
+    const next = isActive(item) ? 'archived' : 'active'
+    await handleUpdate(item.id, { status: next }, `program.${next}`, item)
   }
 
   return (

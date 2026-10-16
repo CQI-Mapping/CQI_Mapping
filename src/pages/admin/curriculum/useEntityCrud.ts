@@ -1,11 +1,14 @@
 // Shared CRUD state + handlers for admin pages (Curriculum sub-views, PEOs, POs,
 // CLOs, Strategic Goals, CHED Memorandum Orders). Each view provides its own form
 // JSX but delegates load/create/update/delete handling to this hook.
-// Note: audit entries are stamped with the caller's identity server-side
-// (log_activity RPC) — only the action string is supplied here.
+//
+// Audit entries are stamped with the caller's identity server-side
+// (log_activity RPC) — only the action and an optional details blob are
+// supplied here. Handlers only write an audit entry when the mutation
+// actually happened, so the log never claims a change that did not occur.
 
 import { useState, useCallback } from 'react'
-import { addActivityLog } from '../../../services/database'
+import { addActivityLog, type ActivityDetails } from '../../../services/database'
 
 interface UseEntityCrudParams<T> {
   loadFn: () => Promise<T[]>
@@ -13,6 +16,13 @@ interface UseEntityCrudParams<T> {
   updateFn: (id: string, payload: Partial<T>) => Promise<T>
   deleteFn: (id: string) => Promise<void>
   scope: string
+}
+
+// Entities are generically typed, so `status` isn't statically present.
+// These read it off the row the same way EntityCrudPage's `isActive` default does.
+function statusOf(item: unknown): string {
+  const s = (item as { status?: string } | null)?.status
+  return s || 'active'
 }
 
 function friendlyError(raw: string): string {
@@ -43,6 +53,18 @@ function friendlyError(raw: string): string {
   return raw
 }
 
+// Pulls a human-readable identity off a row for the audit entry's `label`.
+// Order matters: code is the most stable identifier, then a title, then a
+// description that may be empty.
+function labelOf(item: unknown): string | undefined {
+  const row = item as { code?: string | null; title?: string | null; name?: string | null; description?: string | null } | null
+  if (!row) return undefined
+  const code = row.code?.trim()
+  const text = row.title?.trim() || row.name?.trim() || row.description?.trim()
+  if (code && text) return `${code} — ${text}`
+  return code || text || undefined
+}
+
 export function useEntityCrud<T extends { id: string }>({
   loadFn,
   createFn,
@@ -70,13 +92,21 @@ export function useEntityCrud<T extends { id: string }>({
     }
   }, [loadFn])
 
-  const handleCreate = async (payload: Partial<T>, action?: string) => {
+  // Entity context for the audit entry: which record, and what it was called.
+  const detailsFor = (item: unknown, entity?: string): ActivityDetails => ({
+    entity,
+    entity_id: (item as { id?: string } | null)?.id,
+    label: labelOf(item),
+  })
+
+  const handleCreate = async (payload: Partial<T>, action?: string, created?: unknown) => {
     setError('')
     setMessage('')
     setBusy(true)
     try {
-      await createFn(payload)
-      if (action) await addActivityLog(action)
+      const row = await createFn(payload)
+      // Prefer the row the database actually created — its id is authoritative.
+      if (action) await addActivityLog(action, detailsFor(row ?? created, action.split('.')[0]))
       setMessage(`${scope} created.`)
       load()
       return true
@@ -89,13 +119,20 @@ export function useEntityCrud<T extends { id: string }>({
     }
   }
 
-  const handleUpdate = async (id: string | null, payload: Partial<T>, action?: string) => {
+  const handleUpdate = async (id: string | null, payload: Partial<T>, action?: string, existing?: unknown) => {
     setError('')
     setMessage('')
     setBusy(true)
     try {
-      if (id) await updateFn(id, payload)
-      if (action) await addActivityLog(action)
+      // No id means there is nothing to update — save nothing AND log nothing.
+      // The previous version logged regardless, which wrote an audit entry
+      // for a change that never happened.
+      if (!id) {
+        setError(`Select a ${scope.toLowerCase()} to update.`)
+        return false
+      }
+      await updateFn(id, payload)
+      if (action) await addActivityLog(action, detailsFor(existing ?? { id }, action.split('.')[0]))
       setMessage(`${scope} updated.`)
       load()
       return true
@@ -108,13 +145,13 @@ export function useEntityCrud<T extends { id: string }>({
     }
   }
 
-  const handleDelete = async (id: string, action?: string) => {
+  const handleDelete = async (id: string, action?: string, existing?: unknown) => {
     if (!window.confirm(`Delete this ${scope.toLowerCase()} permanently?`)) return false
     setError('')
     setMessage('')
     try {
       await deleteFn(id)
-      if (action) await addActivityLog(action)
+      if (action) await addActivityLog(action, detailsFor(existing ?? { id }, action.split('.')[0]))
       setMessage(`${scope} deleted.`)
       load()
       return true
@@ -127,19 +164,21 @@ export function useEntityCrud<T extends { id: string }>({
 
   // Archive/restore: flips the row's status column. The DB guard trigger
   // rejects status changes from non-admins, so this is admin-only in practice.
+  // `action` must be the archive/restore variant (e.g. 'course.archived'), not
+  // the generic update action, or the log will report an archive as an edit.
   const handleToggleStatus = async (item: T, action?: string) => {
     setError('')
     setMessage('')
-    const next = item.status === 'active' ? 'archived' : 'active'
+    const next = statusOf(item) === 'active' ? 'archived' : 'active'
     try {
-      await updateFn(item.id, { status: next } as Partial<T>)
-      if (action) await addActivityLog(action)
+      await updateFn(item.id, { status: next } as unknown as Partial<T>)
+      if (action) await addActivityLog(action, detailsFor(item, action.split('.')[0]))
       setMessage(`${scope} ${next}.`)
       load()
       return true
     } catch (e) {
       setError(
-        `Failed to ${item.status === 'active' ? 'archive' : 'restore'} ${scope.toLowerCase()}: ` +
+        `Failed to ${statusOf(item) === 'active' ? 'archive' : 'restore'} ${scope.toLowerCase()}: ` +
         (e instanceof Error ? e.message : String(e))
       )
       return false

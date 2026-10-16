@@ -2298,6 +2298,28 @@ code {
   color: #065f46;
 }
 
+/* Secondary line under an action badge: the record that was touched, and
+   the reason a sign-in failed. Sits inside the action cell so the table
+   stays three columns wide. */
+.activity-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 3px;
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+.activity-detail__label {
+  color: #475569;
+  font-weight: 500;
+}
+
+.activity-detail__reason {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
 .action-badge--clo_po_mapping {
   background: #dcfce7;
   color: #065f46;

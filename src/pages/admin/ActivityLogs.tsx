@@ -1,59 +1,25 @@
 // Activity Logs — enhanced activity logs view shared by admin and manager.
 // Fetches the latest 100 activity entries on mount, then filters client-side
 // by search text, action type, and date range. Shows human-readable action
-// labels. The `details` column was removed; only user_email and action are shown.
+// labels and the `details` blob recorded with each entry (which record was
+// touched, what it was called, and why a sign-in failed).
 
 import { useState, useEffect, useMemo } from 'react'
 import { fetchActivityLogs } from '../../services/database'
 import type { ActivityLogEntry } from '../../services/database'
-
-const ACTION_LABELS = {
-  'auth.login': 'Signed in',
-  'auth.login_failed': 'Failed sign-in',
-  'resource.created': 'Created curriculum record',
-  'resource.updated': 'Updated curriculum record',
-  'resource.archived': 'Archived curriculum record',
-  'resource.restored': 'Restored curriculum record',
-  'resource.deleted': 'Deleted curriculum record',
-  'program.created': 'Created program',
-  'program.updated': 'Updated program',
-  'program.deleted': 'Deleted program',
-  'course.created': 'Created course',
-  'course.updated': 'Updated course',
-  'course.archived': 'Archived course',
-  'course.restored': 'Restored course',
-  'course.deleted': 'Deleted course',
-  'program_outcome.created': 'Created program outcome',
-  'program_outcome.updated': 'Updated program outcome',
-  'program_outcome.deleted': 'Deleted program outcome',
-  'course_learning_outcome.created': 'Created course learning outcome',
-  'course_learning_outcome.updated': 'Updated course learning outcome',
-  'course_learning_outcome.deleted': 'Deleted course learning outcome',
-  'clo_po_mapping.set': 'Set CLO/PO mapping',
-  'clo_po_mapping.cleared': 'Cleared CLO/PO mapping',
-  'role.updated': 'Changed user role',
-  'user.created': 'Created user account',
-  'user.deleted': 'Deleted user account',
-  'profile.updated': 'Updated profile',
-  'program_outcome.archived': 'Archived program outcome',
-  'program_outcome.restored': 'Restored program outcome',
-  'clo.archived': 'Archived course learning outcome',
-  'clo.restored': 'Restored course learning outcome',
-  'peo.archived': 'Archived program educational objective',
-  'peo.restored': 'Restored program educational objective',
-  'strategic_goal.archived': 'Archived strategic goal',
-  'strategic_goal.restored': 'Restored strategic goal',
-  'ched_memo_order.archived': 'Archived CHED memorandum order',
-  'ched_memo_order.restored': 'Restored CHED memorandum order',
-}
-
-function labelAction(raw: string): string {
-  return ACTION_LABELS[raw as keyof typeof ACTION_LABELS] || raw.replace(/_/g, ' ')
-}
+import { labelAction, labelReason } from './ActivityLabels'
 
 function uniqueActions(entries: ActivityLogEntry[]): string[] {
   const set = new Set(entries.map((e) => e.action))
   return [...set].sort()
+}
+
+// The `label` is the only part of details a person would search for. The raw
+// id and entity key are machine identifiers and would just add noise.
+function searchableDetails(entry: ActivityLogEntry): string {
+  return [entry.details?.label ?? '', entry.details?.reason ? labelReason(entry.details.reason) : '']
+    .join(' ')
+    .toLowerCase()
 }
 
 interface ActivityLogsViewProps {
@@ -85,11 +51,7 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
     if (search) {
       const q = search.toLowerCase()
       result = result.filter((e) => {
-        const haystack = [
-          e.user_email,
-          e.action,
-          labelAction(e.action),
-        ]
+        const haystack = [e.user_email, e.action, labelAction(e.action), searchableDetails(e)]
           .join(' ')
           .toLowerCase()
         return haystack.includes(q)
@@ -116,6 +78,12 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
 
   const actions = useMemo(() => uniqueActions(entries), [entries])
 
+  // Failed sign-ins are the one entry type worth flagging at a glance.
+  const failedCount = useMemo(
+    () => filtered.filter((e) => e.action === 'auth.login_failed').length,
+    [filtered]
+  )
+
   const hasFilters = search || actionFilter || dateFrom || dateTo
 
   const clearFilters = () => {
@@ -123,6 +91,21 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
     setActionFilter('')
     setDateFrom('')
     setDateTo('')
+  }
+
+  // Details rendered as the secondary line under the action badge.
+  function DetailLine({ entry }: { entry: ActivityLogEntry }) {
+    const d = entry.details
+    if (!d) return null
+    const reason = d.reason ? labelReason(d.reason) : ''
+    const label = d.label
+    if (!label && !reason) return null
+    return (
+      <span className="activity-detail">
+        {label && <span className="activity-detail__label">{label}</span>}
+        {reason && <span className="activity-detail__reason">reason: {reason}</span>}
+      </span>
+    )
   }
 
   if (loading) return <p>Loading activity logs...</p>
@@ -155,6 +138,16 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
           <div className="program-stat__value" style={{ color: '#0f172a', fontSize: 16 }}>{actions.length}</div>
           <div className="program-stat__sub">Distinct types</div>
         </div>
+        <div className="program-stat">
+          <div className="program-stat__label">Failed sign-ins</div>
+          <div
+            className="program-stat__value"
+            style={{ color: failedCount > 0 ? '#b91c1c' : '#0f172a' }}
+          >
+            {failedCount}
+          </div>
+          <div className="program-stat__sub">In current view</div>
+        </div>
       </div>
 
       {error && <p className="msg msg--error">{error}</p>}
@@ -167,7 +160,7 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
             <input
               className="input input--sm"
               type="text"
-              placeholder="User, action, or detail..."
+              placeholder="User, action, or record..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -245,6 +238,7 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
                   <span className={`action-badge action-badge--${entry.action.split('.')[0]}`}>
                     {labelAction(entry.action)}
                   </span>
+                  <DetailLine entry={entry} />
                 </td>
               </tr>
             ))}

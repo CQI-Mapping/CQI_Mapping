@@ -115,7 +115,10 @@ function Curriculum({ userEmail }: CurriculumProps) {
       const codeValue = code.trim()
       if (!codeValue) throw new Error('Code is required')
       await createResource(codeValue, description.trim() || null, units === '' ? null : Number(units), userId)
-      await addActivityLog('resource.created')
+      await addActivityLog('resource.created', {
+        entity: 'resource',
+        label: description.trim() || codeValue,
+      })
       setCode('')
       setDescription('')
       setUnits('')
@@ -157,7 +160,11 @@ function Curriculum({ userEmail }: CurriculumProps) {
         description: editDescription.trim() || null,
         units: editUnits === '' ? null : Number(editUnits),
       })
-      await addActivityLog('resource.updated')
+      await addActivityLog('resource.updated', {
+        entity: 'resource',
+        entity_id: id,
+        label: description.trim() || codeValue,
+      })
       setMessage('Resource updated.')
       cancelEdit()
       load()
@@ -175,7 +182,11 @@ function Curriculum({ userEmail }: CurriculumProps) {
     const next = item.status === 'active' ? 'archived' : 'active'
     try {
       await updateResource(item.id, { status: next })
-      await addActivityLog(next === 'archived' ? 'resource.archived' : 'resource.restored')
+      await addActivityLog(next === 'archived' ? 'resource.archived' : 'resource.restored', {
+        entity: 'resource',
+        entity_id: item.id,
+        label: item.code || item.title || undefined,
+      })
       setMessage(`Resource ${next}.`)
       load()
     } catch (e) {

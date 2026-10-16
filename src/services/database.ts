@@ -36,10 +36,31 @@ export interface Profile {
   updated_at: string
 }
 
+// Extra context recorded alongside an audit entry. Everything here is
+// optional because not every action has anything meaningful to add —
+// `auth.login` only ever carries a `reason` on failure. The actor is
+// deliberately absent: it is stamped server-side from the caller's JWT,
+// so a client can never attribute an action to someone else.
+export interface ActivityDetails {
+  // Which record was touched, in the app's vocabulary ('program', 'course',
+  // 'clo', ...). Matches the prefix of the `action` string.
+  entity?: string
+  // Primary key of the row that changed, so an entry can be traced back to
+  // the exact record even after the record is later edited or deleted.
+  entity_id?: string
+  // Human-readable identity for the record at the time of the action
+  // (e.g. "BSCS - Intro to Computing"). Snapshotted rather than looked up
+  // on read, so renaming a record does not rewrite history.
+  label?: string
+  // Why an action failed — only used by `auth.login_failed`.
+  reason?: string
+}
+
 export interface ActivityLogEntry {
   id: string
   user_email: string | null
   action: string
+  details: ActivityDetails | null
   created_at: string
 }
 
@@ -775,9 +796,14 @@ export async function recordLoginEvent(
 
 // Audit entries are written by the SECURITY DEFINER log_activity() function,
 // which stamps the caller's real email from their JWT. The client supplies
-// only the action — never the actor — so entries can't be forged.
-export async function addActivityLog(action: string): Promise<void> {
-  const { error } = await supabase.rpc('log_activity', { p_action: action })
+// only the action and a details blob — never the actor — so entries can't be
+// forged. `details` is optional; the RPC's second parameter defaults to NULL,
+// so older single-argument calls keep working.
+export async function addActivityLog(action: string, details?: ActivityDetails): Promise<void> {
+  const { error } = await supabase.rpc('log_activity', {
+    p_action: action,
+    p_details: details ?? null,
+  })
   if (error) console.warn('Audit log insert failed:', error.message)
 }
 

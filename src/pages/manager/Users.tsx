@@ -52,7 +52,11 @@ function Users() {
     try {
       const createdEmail = email.trim()
       const created = await adminCreateUser(createdEmail, password, fullName.trim(), 'user')
-      await addActivityLog('user.created')
+      await addActivityLog('user.created', {
+        entity: 'user',
+        entity_id: created?.id,
+        label: createdEmail,
+      })
       const base = creatorName
         ? `Faculty ${createdEmail} has been added to the system by ${creatorName}.`
         : `Faculty ${createdEmail} has been added to the system.`
