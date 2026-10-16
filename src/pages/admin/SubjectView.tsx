@@ -32,6 +32,7 @@ import {
   fetchProgramEducationalObjectives,
   fetchStrategicGoals,
   fetchChedMemoOrders,
+  addActivityLog,
 } from '../../services/database'
 import type {
   Program,
@@ -1477,6 +1478,23 @@ export default function SubjectView() {
     setShowGraph(true)
     setGraphError('')
     await loadDatasets()
+    // Logged after the data is in hand so the audit RPC never sits in front of
+    // the graph. addActivityLog() swallows its own errors (console.warn only),
+    // so a failed insert cannot break the visualization.
+    //
+    // Only the Visualization button is logged. Re-rooting by clicking a PO or
+    // PEO node inside an open graph is browsing within one run, not a new run,
+    // and logging every click would bury the log in one browsing session's
+    // worth of entries.
+    const root =
+      rootType === 'subject' && selectedCourse
+        ? { action: 'course.viewed', entity: 'course', entity_id: selectedCourse.id, label: `${selectedCourse.code} — ${selectedCourse.title}` }
+        : rootType === 'po' && selectedPo
+          ? { action: 'program_outcome.viewed', entity: 'program_outcome', entity_id: selectedPo.id, label: `${selectedPo.code} — ${selectedPo.title}` }
+          : rootType === 'peo' && selectedPeo
+            ? { action: 'peo.viewed', entity: 'peo', entity_id: selectedPeo.id, label: `${selectedPeo.code} — ${selectedPeo.title}` }
+            : null
+    if (root) await addActivityLog(root.action, root)
   }
 
   const crumbLabel = (entry: NavEntry): string => {

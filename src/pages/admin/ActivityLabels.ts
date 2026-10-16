@@ -34,6 +34,7 @@ export const ACTION_LABELS: Record<string, string> = {
   'course.archived': 'Archived course',
   'course.restored': 'Restored course',
   'course.deleted': 'Deleted course',
+  'course.viewed': 'Viewed subject graph for course',
 
   // Program outcomes
   'program_outcome.created': 'Created program outcome',
@@ -41,6 +42,7 @@ export const ACTION_LABELS: Record<string, string> = {
   'program_outcome.archived': 'Archived program outcome',
   'program_outcome.restored': 'Restored program outcome',
   'program_outcome.deleted': 'Deleted program outcome',
+  'program_outcome.viewed': 'Viewed subject graph for program outcome',
 
   // Course learning outcomes
   'clo.created': 'Created course learning outcome',
@@ -59,6 +61,7 @@ export const ACTION_LABELS: Record<string, string> = {
   'peo.archived': 'Archived program educational objective',
   'peo.restored': 'Restored program educational objective',
   'peo.deleted': 'Deleted program educational objective',
+  'peo.viewed': 'Viewed subject graph for objective',
 
   // Strategic goals
   'strategic_goal.created': 'Created strategic goal',
