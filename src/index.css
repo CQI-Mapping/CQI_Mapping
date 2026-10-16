@@ -2371,12 +2371,6 @@ code {
   font-size: 10px;
 }
 
-.activity-record__id {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color: #64748b;
-  cursor: help;
-}
-
 .activity-record__none {
   color: #cbd5e1;
 }

@@ -34,15 +34,6 @@ interface ActivityLogsViewProps {
   description?: string
 }
 
-/**
- * First 8 characters of a UUID, for recognising the same record across rows.
- * Kept short enough to sit inline without pushing the action badge around;
- * the full value stays in the title attribute.
- */
-function shortId(id: string): string {
-  return id.length > 8 ? `${id.slice(0, 8)}…` : id
-}
-
 /** "3 Courses · 2 Sign-ins · 1 Outcomes" — busiest categories first. */
 function summarise(row: ActivityRollupRow): string {
   return Object.entries(row.byCategory)
@@ -212,28 +203,24 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
   }
 
   /**
-   * The record's machine identity: family and primary key.
+   * The record family an entry belongs to.
    *
-   * Kept in its own column rather than under the badge because it is the part
-   * that is *evidence*. The label is a name a human chose — free text, so two
-   * records can share one, and it changes if someone edits the record. The
-   * entity and id are what actually tie an entry to one row in the database.
+   * In its own column because it is the part that is *evidence*: the label is a
+   * name a human chose — free text, so two records can share one, and it changes
+   * if someone edits the record — while the entity is the app's own vocabulary
+   * for what kind of record was touched.
    *
-   * The id is shortened rather than hidden: enough to recognise the same record
-   * across two entries, without a 36-character string wrecking the layout. The
-   * full value stays in the title attribute for copying.
+   * The primary key is deliberately not shown. It was the column's reason to
+   * exist in the first place, but a UUID prefix reads as noise to anyone not
+   * already holding that record open, and the id is still searchable in the
+   * raw row if it is ever needed.
    */
   function RecordCell({ entry }: { entry: ActivityLogEntry }) {
     const d = entry.details
-    if (!d?.entity && !d?.entity_id) return <span className="activity-record__none">—</span>
+    if (!d?.entity) return <span className="activity-record__none">—</span>
     return (
       <span className="activity-record">
-        <span className="activity-record__entity">{d.entity || 'record'}</span>
-        {d.entity_id && (
-          <span className="activity-record__id" title={d.entity_id}>
-            {shortId(d.entity_id)}
-          </span>
-        )}
+        <span className="activity-record__entity">{d.entity}</span>
       </span>
     )
   }
