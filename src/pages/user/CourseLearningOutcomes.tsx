@@ -1,7 +1,7 @@
 // User Course Learning Outcomes: standalone CRUD for CLO records
 // (admin_course_learning_outcomes table). Code + Description + Program Outcomes;
 // the program-outcomes string is stored in the `title` column.
-// Owned by the `user` role — the admin no longer has this page.
+// Reached by both the `user` (faculty) and `admin` roles.
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useEntityCrud } from '../admin/curriculum/useEntityCrud.js'
@@ -35,7 +35,10 @@ const toSuggestion = (i: { code: string; title: string }): SuggestionOption => (
   label: `${i.code} - ${i.title}`.trim(),
 })
 
-export default function CourseLearningOutcomes({ userEmail }: { userEmail: string }) {
+// `userEmail` is unused — CLOs are not scoped to their author, they are shared.
+// Declared optional because App.tsx renders pages as `ComponentType<any>` and
+// never passed it; the old required type was a claim the code did not honour.
+export default function CourseLearningOutcomes(_props?: { userEmail?: string }) {
   const crud = useEntityCrud<CourseLearningOutcomeStandalone>({
     loadFn: fetchCourseLearningOutcomesStandalone,
     createFn: createCourseLearningOutcomeStandalone,

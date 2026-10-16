@@ -8,8 +8,14 @@
 // Admin role pages (sidebar order):
 //   Dashboard, Program, CHED Memorandum Orders, Strategic Goals,
 //   Program Educational Objectives, Program Outcomes,
-//   Curriculum, Course Learning Outcomes, Subject Graph,
-//   Curriculum Report (View), Users & Accounts, Activity Logs, Profile
+//   Curriculum, Course, Course Learning Outcomes, Subject Graph,
+//   Generate TOS, Curriculum Report (View), Users & Accounts,
+//   Activity Logs, Profile
+//
+// The admin is the only role that sees every page in the app: Course is the
+// manager's page, and Course Learning Outcomes + Generate TOS are the faculty
+// pages. Same components, reached through a different nav entry — the role
+// gates what a page is *offered*, not what it may do.
 //
 // Manager role pages (sidebar order):
 //   Dashboard, Program, CHED Memorandum Orders, Strategic Goals,
@@ -60,7 +66,10 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'peos', label: 'Program Educational Objectives' },
     { id: 'program-outcomes', label: 'Program Outcomes' },
     { id: 'curriculum', label: 'Curriculum' },
+    { id: 'course', label: 'Course' },
+    { id: 'clo', label: 'Course Learning Outcomes' },
     { id: 'subject-view', label: 'Subject Graph' },
+    { id: 'tos', label: 'Generate TOS' },
     { id: 'view', label: 'Curriculum Report' },
     { id: 'users', label: 'Users & Accounts' },
     { id: 'activity-logs', label: 'Activity Logs' },
@@ -105,6 +114,11 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     peos: AdminPEOs,
     'program-outcomes': AdminProgramOutcomesAdmin,
     curriculum: ManagerCurriculum,
+    // The admin reaches the manager's and faculty's pages through the same
+    // components those roles use — no admin-only fork to keep in sync.
+    course: ManagerCourse,
+    clo: UserCourseLearningOutcomes,
+    tos: UserTOS,
     'subject-view': AdminSubjectView,
     view: AdminView,
     'strategic-goals': AdminStrategicGoals,

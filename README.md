@@ -56,6 +56,8 @@ No CSS framework, no router library — deliberately simple so it's easy to exte
 | Delete curriculum records | yes | — | — |
 | Manage courses (create/edit/archive, no delete for manager) | yes | yes | — |
 | Browse subjects + CLOs | yes | yes | yes |
+| Manage CLO records (create/edit/archive) | yes | — | yes |
+| Generate TOS | yes | — | yes |
 | View Subject Graph | yes | yes | yes |
 | View users directory (all profiles) | yes | yes | — |
 | Add / remove users (`user` role only) | — | yes | — |
@@ -66,6 +68,10 @@ No CSS framework, no router library — deliberately simple so it's easy to exte
 
 \* Creating user accounts uses the Supabase admin API and therefore requires `VITE_SUPABASE_SERVICE_ROLE_KEY` in `.env`. Without it, the "Create user" form shows an error; everything else still works.
 † `updateUserRole()` exists in `src/services/database.ts` but no UI calls it yet — role changes are done via SQL (`UPDATE public.profiles SET role=...`) or the service function from console.
+
+**The admin sees every page in the app.** It is the only role with `Course` (the manager's page) and `Course Learning Outcomes` + `Generate TOS` (the faculty pages), and it reaches them through the *same components* those roles use — `PAGES.admin` points at `ManagerCourse`, `UserCourseLearningOutcomes` and `UserTOS`, so there is no admin-only fork to keep in sync. Role gates decide what a role is *offered*, not what a page may do; the pages themselves contain no role checks (see `allowDelete` in `App.tsx`, which is passed per page).
+
+Note the asymmetry this leaves: the admin can hard-delete curriculum records and programs, but the Course page has no delete control at all, for any role — the underlying `deleteCourse()` is simply not wired to a button.
 
 ### 3.1 Test Accounts
 
