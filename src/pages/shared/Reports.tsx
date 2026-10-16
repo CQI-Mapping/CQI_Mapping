@@ -15,8 +15,9 @@
 // The Excel export is handed the *filtered* report rather than the raw
 // lists, so the file always matches what is on screen.
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
+  addActivityLog,
   fetchPrograms,
   fetchCourses,
   fetchProgramOutcomesStandalone,
@@ -84,6 +85,29 @@ function Reports({ profile }: ReportsProps) {
     { programs, courses, pos, peos, clos },
     { includeArchived, query },
   )
+
+  /**
+   * Opening the page is the event worth recording — it has no other action of
+   * its own. Logged once per load, not per render, and deliberately not keyed
+   * on `report` (a fresh object every render, which would log on every
+   * keystroke in the search box).
+   */
+  const loggedOpen = useRef(false)
+  useEffect(() => {
+    if (loading || loggedOpen.current) return
+    loggedOpen.current = true
+    const sections = report.sections
+      .filter((s) => s.rows.length > 0)
+      .map((s) => `${s.rows.length} ${s.title}`)
+    addActivityLog('report.viewed', {
+      entity: 'report',
+      // No entity_id: what is being reported on is the whole system, so the
+      // section mix is the only thing worth putting in the label.
+      label: sections.length
+        ? `Name inventory — ${sections.join(', ')}`
+        : 'Name inventory (empty)',
+    }).catch(() => {})
+  }, [loading, report])
 
   const download = async () => {
     setDownloading(true)

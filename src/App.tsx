@@ -29,7 +29,7 @@
 // it reads has an "authenticated users can read" policy, so faculty can open it
 // without a role-specific policy of their own.
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import Sidebar from './components/Sidebar'
 import Login from './pages/Login'
 import Profile from './pages/Profile'
@@ -55,7 +55,7 @@ import Reports from './pages/shared/Reports'
 import UserCurriculum from './pages/user/Curriculum'
 import UserTOS from './pages/user/TOS'
 import { supabase } from './utils/supabaseClient'
-import { ensureProfile, syncDemoRole } from './services/database'
+import { ensureProfile, syncDemoRole, addActivityLog } from './services/database'
 import type { Profile as ProfileType, UserRole, NavItem } from './services/database'
 import type { Session } from '@supabase/supabase-js'
 
@@ -157,6 +157,19 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [profileLoaded, setProfileLoaded] = useState(false)
   const [activePage, setActivePage] = useState('dashboard')
+  /**
+   * Every navigation goes through here, so it is the one place that knows both
+   * where the user came from and where they went. The Activity Logs page is
+   * skipped: it is the thing being read, and logging "someone opened the log"
+   * writes a new row on every read, so the page would never hold still.
+   */
+  const lastLoggedPage = useRef<string | null>(null)
+  const navigate = useCallback((next: string) => {
+    setActivePage(next)
+    if (next === 'activity-logs' || next === lastLoggedPage.current) return
+    lastLoggedPage.current = next
+    addActivityLog('page.viewed', { entity: 'page', label: next }).catch(() => {})
+  }, [])
   const [sidebarOpen, setSidebarOpen] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth > 1024 : true
   )
@@ -184,6 +197,9 @@ function App() {
         setProfileError('')
         profileUserIdRef.current = null
         setActivePage('dashboard')
+        // Reset so the next sign-in records its own landing on the dashboard
+        // rather than inheriting this session's last page.
+        lastLoggedPage.current = null
         setLoading(false)
       }
     })
@@ -314,7 +330,7 @@ function App() {
   const renderPage = () => {
     const Page = PAGES[role]?.[page] ?? PAGES[role]?.[navItems[0]?.id] ?? UserDashboard
 
-    if (page === 'dashboard') return <Page profile={profile} onNavigate={setActivePage} />
+    if (page === 'dashboard') return <Page profile={profile} onNavigate={navigate} />
     if (page === 'profile') return <Page profile={profile} onSaved={setProfile} />
     if (page === 'users') return <Page />
     if (SHARED_ACADEMIC_PAGES.has(page)) return <Page allowDelete={allowDelete} />
@@ -322,7 +338,7 @@ function App() {
     if (page === 'curriculum' && role === 'user') return <Page />
     if (page === 'view') return <Page userEmail={profile?.email} />
     if (page === 'reports') return <Page profile={profile} />
-    return <Page profile={profile} onNavigate={setActivePage} />
+    return <Page profile={profile} onNavigate={navigate} />
   }
 
   return (
@@ -330,7 +346,7 @@ function App() {
       <Sidebar
         navItems={navItems}
         activePage={page}
-        onNavigate={setActivePage}
+        onNavigate={navigate}
         onLogout={handleLogout}
         role={role}
         isOpen={sidebarOpen}
