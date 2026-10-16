@@ -1,4 +1,4 @@
-// Excel export for the Name Inventory.
+// Excel export for the Reports page.
 //
 // One summary sheet plus one worksheet per record type, so a user can filter
 // "just the courses" in Excel without stripping the other four sections out of a
@@ -9,14 +9,14 @@
 // out unformatted. The import is deferred to the export call so the ~1MB
 // library lands in its own chunk instead of the main bundle.
 //
-// No React and no DOM here beyond the final save — buildInventoryWorkbook()
+// No React and no DOM here beyond the final save — buildReportsWorkbook()
 // returns a workbook, which is what the export and the tests can hold on to
 // without touching the filesystem.
 
 import { SCHOOL } from './report'
 import { saveBlob } from './download'
-import { COLUMNS } from './nameInventory'
-import type { Inventory, InventorySection, SectionKey, SummaryLine } from './nameInventory'
+import { COLUMNS } from './reports'
+import type { Report, ReportSection, SectionKey, SummaryLine } from './reports'
 
 const XLSX_MIME =
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -84,27 +84,27 @@ const styleHeader = (cell: import('exceljs').Cell) => {
   cell.border = BORDER
 }
 
-/** "name-inventory-2026-10-16.xlsx" — same stamp shape as reportFileName(). */
-export function inventoryFileName(date = new Date()): string {
+/** "reports-2026-10-16.xlsx" — same stamp shape as reportFileName(). */
+export function reportsFileName(date = new Date()): string {
   const stamp = [
     date.getFullYear(),
     String(date.getMonth() + 1).padStart(2, '0'),
     String(date.getDate()).padStart(2, '0'),
   ].join('-')
-  return `name-inventory-${stamp}.xlsx`
+  return `reports-${stamp}.xlsx`
 }
 
 const stamped = (generatedBy: string, stamp: string) =>
   generatedBy ? `Generated: ${stamp} · ${generatedBy}` : `Generated: ${stamp}`
 
 /**
- * Build the multi-sheet workbook from an already-filtered inventory.
+ * Build the multi-sheet workbook from an already-filtered report.
  *
- * The export deliberately takes the inventory rather than the raw lists: the
+ * The export deliberately takes the report rather than the raw lists: the
  * file then shows exactly the rows the page is showing, so "what I exported"
  * and "what I was looking at" cannot disagree.
  */
-export async function buildInventoryWorkbook(inventory: Inventory, generatedBy = '') {
+export async function buildReportsWorkbook(report: Report, generatedBy = '') {
   const { default: ExcelJS } = await import('exceljs')
   const wb = new ExcelJS.Workbook()
   const stamp = new Date().toLocaleDateString()
@@ -113,7 +113,7 @@ export async function buildInventoryWorkbook(inventory: Inventory, generatedBy =
   const summary = wb.addWorksheet('Summary')
   summary.getCell('A1').value = SCHOOL.school
   summary.getCell('A1').font = { bold: true, size: 14 }
-  summary.getCell('A2').value = 'NAME INVENTORY'
+  summary.getCell('A2').value = 'REPORTS'
   summary.getCell('A2').font = { bold: true, size: 12 }
   summary.getCell('A3').value = stamped(generatedBy, stamp)
   summary.getCell('A3').font = { italic: true, size: 10 }
@@ -127,7 +127,7 @@ export async function buildInventoryWorkbook(inventory: Inventory, generatedBy =
 
   const summaryRow = (line: SummaryLine) => [line.title, line.active, line.archived, line.total]
 
-  inventory.summary.forEach((line, r) => {
+  report.summary.forEach((line, r) => {
     summaryRow(line).forEach((v, i) => {
       const cell = summary.getCell(FIRST_DATA_ROW + r, i + 1)
       cell.value = v
@@ -143,14 +143,14 @@ export async function buildInventoryWorkbook(inventory: Inventory, generatedBy =
   summary.views = [{ state: 'frozen', ySplit: HEADER_ROW }]
 
   // ---- one worksheet per section ----
-  inventory.sections.forEach((section) => writeSectionSheet(wb, section, generatedBy, stamp))
+  report.sections.forEach((section) => writeSectionSheet(wb, section, generatedBy, stamp))
 
   return wb
 }
 
 function writeSectionSheet(
   wb: import('exceljs').Workbook,
-  section: InventorySection,
+  section: ReportSection,
   generatedBy: string,
   stamp: string,
 ) {
@@ -159,7 +159,7 @@ function writeSectionSheet(
 
   ws.getCell('A1').value = SCHOOL.school
   ws.getCell('A1').font = { bold: true, size: 14 }
-  ws.getCell('A2').value = `NAME INVENTORY — ${section.title}`
+  ws.getCell('A2').value = `REPORTS — ${section.title}`
   ws.getCell('A2').font = { bold: true, size: 12 }
   ws.getCell('A3').value = `${section.rows.length} ${noun} · ${stamped(generatedBy, stamp)}`
   ws.getCell('A3').font = { italic: true, size: 10 }
@@ -208,13 +208,13 @@ function writeSectionSheet(
 }
 
 /** Build the workbook and hand it to the browser as a download. */
-export async function downloadInventoryExcel(
-  inventory: Inventory,
+export async function downloadReportsExcel(
+  report: Report,
   generatedBy = '',
   date = new Date(),
 ): Promise<void> {
-  const wb = await buildInventoryWorkbook(inventory, generatedBy)
+  const wb = await buildReportsWorkbook(report, generatedBy)
   const out = await (wb as unknown as { xlsx: { writeBuffer: () => Promise<ArrayBuffer> } })
     .xlsx.writeBuffer()
-  saveBlob(new Blob([out], { type: XLSX_MIME }), inventoryFileName(date))
+  saveBlob(new Blob([out], { type: XLSX_MIME }), reportsFileName(date))
 }

@@ -1,4 +1,4 @@
-// Name Inventory: the consolidated list of every named record in the system.
+// Reports: the consolidated list of every named record in the system.
 //
 // The Curriculum Report and the Subject Graph's About card each answer "what
 // does this one subject look like". This answers the other question -- "what is
@@ -9,10 +9,10 @@
 // It is deliberately a code-and-name list and nothing more. The first version
 // carried a program, a unit count, a description and a CMO alignment alongside
 // each name; that is the Curriculum Report's job, and repeating it here made
-// this a second, worse copy of that document. A name inventory answers "what
-// exists", so a row is a code, a name and a status.
+// this a second, worse copy of that document. This one answers "what exists",
+// so a row is a code, a name and a status.
 //
-// Pure on purpose: no React, no Supabase. buildInventory() takes plain arrays
+// Pure on purpose: no React, no Supabase. buildReport() takes plain arrays
 // and returns plain sections, which is what the tests read, and it is what lets
 // the export write the exact rows the page is showing rather than re-deriving
 // them and drifting.
@@ -29,16 +29,16 @@ import { isActive, poNumber } from './report'
 export type SectionKey = 'programs' | 'courses' | 'pos' | 'peos' | 'clos'
 
 /** One flattened row. Every section has this exact shape. */
-export interface InventoryRow {
+export interface ReportRow {
   code: string
   name: string
   status: string
 }
 
-export interface InventorySection {
+export interface ReportSection {
   key: SectionKey
   title: string
-  rows: InventoryRow[]
+  rows: ReportRow[]
 }
 
 /**
@@ -63,7 +63,7 @@ export const SECTION_TITLES: Record<SectionKey, string> = {
   clos: 'Course Learning Outcomes',
 }
 
-export interface InventoryInput {
+export interface ReportInput {
   programs: Program[]
   courses: Course[]
   pos: ProgramOutcomeStandalone[]
@@ -71,7 +71,7 @@ export interface InventoryInput {
   clos: CourseLearningOutcomeStandalone[]
 }
 
-export interface InventoryOptions {
+export interface ReportOptions {
   /** Archived records are hidden by default, matching every other report here. */
   includeArchived?: boolean
   /** Free-text filter, matched against the code and the name. */
@@ -86,8 +86,8 @@ export interface SummaryLine {
   total: number
 }
 
-export interface Inventory {
-  sections: InventorySection[]
+export interface Report {
+  sections: ReportSection[]
   /**
    * Counts for the whole dataset, NOT for what the filters currently show.
    * The tables below narrow as the search box is typed in; a summary that
@@ -135,13 +135,13 @@ export const BLANK_NAME = '—'
 export const isArchived = (row: { status?: string }) => !isActive(row)
 
 /**
- * Flatten the five lists into inventory sections.
+ * Flatten the five lists into report sections.
  *
  * Every list is flattened BEFORE the archive and search filters are applied, so
  * the summary can count the full dataset while the tables show what the
  * controls select.
  */
-export function buildInventory(input: InventoryInput, options: InventoryOptions = {}): Inventory {
+export function buildReport(input: ReportInput, options: ReportOptions = {}): Report {
   const { programs, courses, pos, peos, clos } = input
   const includeArchived = options.includeArchived ?? false
   const needle = normalize((options.query ?? '').trim())
@@ -150,19 +150,19 @@ export function buildInventory(input: InventoryInput, options: InventoryOptions 
     text(raw) || text(fallback) || BLANK_NAME
 
   // ---- flatten ----
-  const programRows: InventoryRow[] = [...programs]
+  const programRows: ReportRow[] = [...programs]
     .sort((a, b) => byText(a.code, b.code) || byText(a.name, b.name))
     .map((p) => ({ code: text(p.code), name: nameOf(p.name), status: p.status }))
 
-  const courseRows: InventoryRow[] = [...courses]
+  const courseRows: ReportRow[] = [...courses]
     .sort((a, b) => byText(a.code, b.code) || byText(a.title, b.title))
     .map((c) => ({ code: text(c.code), name: nameOf(c.title), status: c.status }))
 
-  const poRows: InventoryRow[] = [...pos]
+  const poRows: ReportRow[] = [...pos]
     .sort(byPoNumber)
     .map((p) => ({ code: text(p.code), name: nameOf(p.title), status: p.status }))
 
-  const peoRows: InventoryRow[] = [...peos]
+  const peoRows: ReportRow[] = [...peos]
     .sort((a, b) => byText(a.code, b.code))
     .map((p) => ({ code: text(p.code), name: nameOf(p.title), status: p.status }))
 
@@ -171,7 +171,7 @@ export function buildInventory(input: InventoryInput, options: InventoryOptions 
   // subject is not shown (this is a name list, not the CLO map) but it is the
   // only thing that makes CLO-1 of one course distinguishable from CLO-1 of
   // another, so it decides the order.
-  const cloRows: InventoryRow[] = [...clos]
+  const cloRows: ReportRow[] = [...clos]
     .sort((a, b) => byText(a.course, b.course) || byText(a.code, b.code))
     .map((c) => ({ code: text(c.code), name: nameOf(c.title, c.description), status: c.status }))
 
@@ -182,13 +182,13 @@ export function buildInventory(input: InventoryInput, options: InventoryOptions 
   //
   // Archived rows are dropped before the search runs, so the filter never has
   // to know about them.
-  const keep = (row: InventoryRow) =>
+  const keep = (row: ReportRow) =>
     (includeArchived || isActive(row)) &&
     (needle === '' ||
       normalize(row.code).includes(needle) ||
       normalize(row.name).includes(needle))
 
-  const built: Record<SectionKey, InventoryRow[]> = {
+  const built: Record<SectionKey, ReportRow[]> = {
     programs: programRows,
     courses: courseRows,
     pos: poRows,

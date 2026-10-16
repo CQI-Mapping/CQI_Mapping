@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import {
-  buildInventory,
+  buildReport,
   isArchived,
   BLANK_NAME,
   COLUMNS,
   SECTION_ORDER,
   SECTION_TITLES,
-} from './nameInventory'
-import type { InventoryInput } from './nameInventory'
+} from './reports'
+import type { ReportInput } from './reports'
 import type {
   Course,
   CourseLearningOutcomeStandalone,
@@ -88,7 +88,7 @@ const clo = (
   ...over,
 })
 
-const empty = (over: Partial<InventoryInput> = {}): InventoryInput => ({
+const empty = (over: Partial<ReportInput> = {}): ReportInput => ({
   programs: [],
   courses: [],
   pos: [],
@@ -97,20 +97,20 @@ const empty = (over: Partial<InventoryInput> = {}): InventoryInput => ({
   ...over,
 })
 
-const sectionOf = (inv: ReturnType<typeof buildInventory>, key: string) =>
+const sectionOf = (inv: ReturnType<typeof buildReport>, key: string) =>
   inv.sections.find((s) => s.key === key)!
 
 /**
- * The sections that actually have a row. buildInventory() always returns all
+ * The sections that actually have a row. buildReport() always returns all
  * five sections so the page can render a heading and an empty-state row for
  * each; filtering empties the rows, it does not remove the section.
  */
-const shownKeys = (inv: ReturnType<typeof buildInventory>) =>
+const shownKeys = (inv: ReturnType<typeof buildReport>) =>
   inv.sections.filter((s) => s.rows.length > 0).map((s) => s.key)
 
-describe('buildInventory', () => {
+describe('buildReport', () => {
   it('returns all five sections in institutional-to-detail order', () => {
-    const inv = buildInventory(empty())
+    const inv = buildReport(empty())
     expect(inv.sections.map((s) => s.key)).toEqual([
       'programs',
       'peos',
@@ -128,14 +128,14 @@ describe('buildInventory', () => {
   })
 
   it('handles an entirely empty database without throwing', () => {
-    const inv = buildInventory(empty())
+    const inv = buildReport(empty())
     expect(inv.shownCount).toBe(0)
     expect(inv.sections.every((s) => s.rows.length === 0)).toBe(true)
     expect(inv.summary.every((l) => l.total === 0)).toBe(true)
   })
 
   it('flattens each list into its own code-and-name row', () => {
-    const inv = buildInventory(
+    const inv = buildReport(
       empty({
         programs: [program()],
         courses: [course()],
@@ -154,11 +154,11 @@ describe('buildInventory', () => {
     ])
   })
 
-  // A name inventory is code plus name and nothing else. The first version
+  // This report is code plus name and nothing else. The first version
   // carried program / units / CMO / description too; these are the guards
   // against those creeping back into the row shape.
   it('carries only a code, a name and a status on every row', () => {
-    const inv = buildInventory(
+    const inv = buildReport(
       empty({
         programs: [program()],
         courses: [course()],
@@ -175,7 +175,7 @@ describe('buildInventory', () => {
   })
 
   it('trims stored whitespace so names do not render padded', () => {
-    const inv = buildInventory(
+    const inv = buildReport(
       empty({ peos: [peo({ title: '  Produce competent graduates  ' })] }),
     )
     expect(sectionOf(inv, 'peos').rows[0].name).toBe('Produce competent graduates')
@@ -185,12 +185,12 @@ describe('buildInventory', () => {
   // an empty string passes that constraint, and would otherwise render as a
   // blank cell in a report whose whole job is listing names.
   it('falls back to a placeholder when a name is blank', () => {
-    const inv = buildInventory(empty({ peos: [peo({ title: '   ' })] }))
+    const inv = buildReport(empty({ peos: [peo({ title: '   ' })] }))
     expect(sectionOf(inv, 'peos').rows[0].name).toBe(BLANK_NAME)
   })
 
   it('uses a learning outcome description when its title is blank', () => {
-    const inv = buildInventory(
+    const inv = buildReport(
       empty({ clos: [clo({ title: '', description: 'Explain classes and objects' })] }),
     )
     expect(sectionOf(inv, 'clos').rows[0].name).toBe('Explain classes and objects')
@@ -202,17 +202,17 @@ describe('buildInventory', () => {
     })
 
     it('hides archived records by default', () => {
-      const rows = sectionOf(buildInventory(withArchived), 'peos').rows
+      const rows = sectionOf(buildReport(withArchived), 'peos').rows
       expect(rows.map((r) => r.code)).toEqual(['PEO-1'])
     })
 
     it('includes them when asked', () => {
-      const rows = sectionOf(buildInventory(withArchived, { includeArchived: true }), 'peos').rows
+      const rows = sectionOf(buildReport(withArchived, { includeArchived: true }), 'peos').rows
       expect(rows.map((r) => r.code)).toEqual(['PEO-1', 'PEO-2'])
     })
 
     it('still marks them, so the page can show them as archived', () => {
-      const rows = sectionOf(buildInventory(withArchived, { includeArchived: true }), 'peos').rows
+      const rows = sectionOf(buildReport(withArchived, { includeArchived: true }), 'peos').rows
       expect(rows.map(isArchived)).toEqual([false, true])
     })
 
@@ -220,12 +220,12 @@ describe('buildInventory', () => {
     // visible rows instead would report "0 archived" the moment archived
     // records are hidden, which reads as data loss rather than a filter.
     it('counts archived records in the summary even while hiding them', () => {
-      const line = buildInventory(withArchived).summary.find((l) => l.key === 'peos')!
+      const line = buildReport(withArchived).summary.find((l) => l.key === 'peos')!
       expect(line).toMatchObject({ active: 1, archived: 1, total: 2 })
     })
 
     it('treats a record with no status column as active', () => {
-      const inv = buildInventory(empty({ peos: [{ ...peo(), status: undefined as never }] }))
+      const inv = buildReport(empty({ peos: [{ ...peo(), status: undefined as never }] }))
       expect(inv.shownCount).toBe(1)
       expect(isArchived(inv.sections[1].rows[0])).toBe(false)
     })
@@ -238,7 +238,7 @@ describe('buildInventory', () => {
     })
 
     it('matches on name, case-insensitively', () => {
-      expect(shownKeys(buildInventory(data, { query: 'INFORMATION TECHNOLOGY' }))).toEqual([
+      expect(shownKeys(buildReport(data, { query: 'INFORMATION TECHNOLOGY' }))).toEqual([
         'programs',
       ])
     })
@@ -250,7 +250,7 @@ describe('buildInventory', () => {
     it.each(['po-1', 'po 1', 'po1', 'PO 1'])(
       'matches the stored code PO-1 when searched as %j',
       (q) => {
-        expect(shownKeys(buildInventory(empty({ pos: [po({ code: 'PO-1' })] }), { query: q }))).toEqual(
+        expect(shownKeys(buildReport(empty({ pos: [po({ code: 'PO-1' })] }), { query: q }))).toEqual(
           ['pos'],
         )
       },
@@ -259,26 +259,26 @@ describe('buildInventory', () => {
     // The cost of dropping punctuation: "po 1" is a substring of "po10". An
     // extra row is the acceptable failure; finding nothing is not.
     it('over-matches PO-10 when searching PO 1, by design', () => {
-      expect(shownKeys(buildInventory(empty({ pos: [po({ code: 'PO-10' })] }), { query: 'po 1' }))).toEqual(
+      expect(shownKeys(buildReport(empty({ pos: [po({ code: 'PO-10' })] }), { query: 'po 1' }))).toEqual(
         ['pos'],
       )
     })
 
     it('returns nothing for a query that matches nothing', () => {
-      const inv = buildInventory(data, { query: 'zzzz' })
+      const inv = buildReport(data, { query: 'zzzz' })
       expect(inv.shownCount).toBe(0)
       expect(inv.summary.find((l) => l.key === 'courses')!.total).toBe(1)
     })
 
     it('treats whitespace-only input as no filter', () => {
-      expect(buildInventory(data, { query: '   ' }).shownCount).toBe(2)
+      expect(buildReport(data, { query: '   ' }).shownCount).toBe(2)
     })
 
     // Search matches only the two columns the table shows. Matching a column
     // that was removed from the table would return rows whose reason for
     // matching is invisible.
     it('does not match on a description that is no longer displayed', () => {
-      const inv = buildInventory(
+      const inv = buildReport(
         empty({ programs: [program({ description: 'Information Technology' })] }),
         { query: 'description text' },
       )
@@ -290,7 +290,7 @@ describe('buildInventory', () => {
     // Course codes are stored without a separator ("IT1", "IT21"), so plain
     // string order would put IT21 before IT3.
     it('sorts codes numerically where they carry numbers', () => {
-      const inv = buildInventory(
+      const inv = buildReport(
         empty({
           courses: [
             course({ id: 'a', code: 'IT21' }),
@@ -303,14 +303,14 @@ describe('buildInventory', () => {
     })
 
     it('sorts outcomes by their parsed number, as the Curriculum Report does', () => {
-      const inv = buildInventory(
+      const inv = buildReport(
         empty({ pos: [po({ id: 'b', code: 'PO-10' }), po({ id: 'a', code: 'PO-2' })] }),
       )
       expect(sectionOf(inv, 'pos').rows.map((r) => r.code)).toEqual(['PO-2', 'PO-10'])
     })
 
     it('puts learning outcomes in subject order, then code', () => {
-      const inv = buildInventory(
+      const inv = buildReport(
         empty({
           clos: [
             clo({ id: '1', code: 'CLO-2', course: 'IT21' }),
@@ -332,7 +332,7 @@ describe('buildInventory', () => {
     it('does not mutate the arrays it was handed', () => {
       const pos = [po({ id: 'b', code: 'PO-10' }), po({ id: 'a', code: 'PO-2' })]
       const snapshot = pos.map((p) => p.code)
-      buildInventory(empty({ pos }))
+      buildReport(empty({ pos }))
       expect(pos.map((p) => p.code)).toEqual(snapshot)
     })
   })

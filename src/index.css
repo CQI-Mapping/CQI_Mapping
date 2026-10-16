@@ -3419,12 +3419,12 @@ textarea.input {
 }
 
 
-/* ---- Name Inventory (pages/shared/NameInventory.tsx) ----
+/* ---- Reports (pages/shared/Reports.tsx) ----
    Laid out with the app's own .panel / .table / .page-heading chrome rather
    than the Curriculum Report's document framing, so only the parts the other
    list pages do not already provide are defined here. */
 
-.ni-controls {
+.reports-controls {
   display: flex;
   align-items: flex-end;
   gap: 16px;
@@ -3432,13 +3432,13 @@ textarea.input {
   margin-bottom: 16px;
 }
 
-.ni-search {
+.reports-search {
   flex: 1;
   min-width: 220px;
   margin-bottom: 0 !important;
 }
 
-.ni-toggle {
+.reports-toggle {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -3450,44 +3450,44 @@ textarea.input {
   white-space: nowrap;
 }
 
-.ni-toggle input {
+.reports-toggle input {
   cursor: pointer;
 }
 
-.ni-export {
+.reports-export {
   white-space: nowrap;
 }
 
-.ni-summary {
+.reports-summary {
   margin-bottom: 12px;
 }
 
-.ni-summary th:not(:first-child),
-.ni-summary td:not(:first-child),
-.ni-num {
+.reports-summary th:not(:first-child),
+.reports-summary td:not(:first-child),
+.reports-num {
   text-align: center;
   white-space: nowrap;
 }
 
-.ni-shown {
+.reports-shown {
   margin: 0 0 12px;
   font-size: 13px;
   color: #64748b;
 }
 
-.ni-section {
+.reports-section {
   margin-bottom: 16px;
 }
 
-.ni-empty {
+.reports-empty {
   color: #94a3b8;
   font-style: italic;
   text-align: center;
 }
 
 /* An archived record, shown only when the toggle is on. Muted rather than
-   struck through: a name inventory is still a list of things that exist. */
-.ni-row--archived td {
+   struck through: an archived record still exists, it is just not current. */
+.reports-row--archived td {
   color: #94a3b8;
   font-style: italic;
 }

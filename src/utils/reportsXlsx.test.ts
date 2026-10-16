@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import * as XLSX from 'xlsx'
 
-import { buildInventory, COLUMNS } from './nameInventory'
-import type { InventoryInput } from './nameInventory'
-import { buildInventoryWorkbook, inventoryFileName } from './nameInventoryXlsx'
+import { buildReport, COLUMNS } from './reports'
+import type { ReportInput } from './reports'
+import { buildReportsWorkbook, reportsFileName } from './reportsXlsx'
 import type {
   Course,
   CourseLearningOutcomeStandalone,
@@ -81,7 +81,7 @@ const clo: CourseLearningOutcomeStandalone = {
   updated_at: '2026-01-01T00:00:00Z',
 }
 
-const input = (over: Partial<InventoryInput> = {}): InventoryInput => ({
+const input = (over: Partial<ReportInput> = {}): ReportInput => ({
   programs: [program],
   courses: [course],
   pos: [po],
@@ -90,8 +90,8 @@ const input = (over: Partial<InventoryInput> = {}): InventoryInput => ({
   ...over,
 })
 
-const roundTrip = async (inv: ReturnType<typeof buildInventory>) => {
-  const wb = await buildInventoryWorkbook(inv, 'admin@cqi.test')
+const roundTrip = async (inv: ReturnType<typeof buildReport>) => {
+  const wb = await buildReportsWorkbook(inv, 'admin@cqi.test')
   const buf = await wb.xlsx.writeBuffer()
   return XLSX.read(new Uint8Array(buf), { type: 'array' })
 }
@@ -114,7 +114,7 @@ const headings = (out: XLSX.WorkBook, sheet: string) => {
 
 describe('the workbook carries the summary and one worksheet per section', () => {
   it('opens with the summary, then a tab per record type', async () => {
-    const out = await roundTrip(buildInventory(input()))
+    const out = await roundTrip(buildReport(input()))
     expect(Object.keys(out.Sheets)).toEqual([
       'Summary',
       'Programs',
@@ -130,7 +130,7 @@ describe('the workbook carries the summary and one worksheet per section', () =>
   // that down so a future title lengthened past the limit fails here rather
   // than throwing at export time.
   it('uses short tab names, and every one is legal', async () => {
-    const out = await roundTrip(buildInventory(input()))
+    const out = await roundTrip(buildReport(input()))
     expect(Object.keys(out.Sheets)).toContain('PEOs')
     for (const name of Object.keys(out.Sheets)) {
       expect(name.length).toBeLessThanOrEqual(31)
@@ -139,20 +139,20 @@ describe('the workbook carries the summary and one worksheet per section', () =>
   })
 
   it('records who generated the file', async () => {
-    const out = await roundTrip(buildInventory(input()))
+    const out = await roundTrip(buildReport(input()))
     expect(String(cellAt(out, 'Programs', 3, 1))).toContain('admin@cqi.test')
   })
 
   it('names the section on the sheet it belongs to', async () => {
-    const out = await roundTrip(buildInventory(input()))
-    expect(cellAt(out, 'PEOs', 2, 1)).toBe('NAME INVENTORY — Program Educational Objectives')
+    const out = await roundTrip(buildReport(input()))
+    expect(cellAt(out, 'PEOs', 2, 1)).toBe('REPORTS — Program Educational Objectives')
   })
 })
 
 describe('the summary sheet counts each record type', () => {
   it('lists a row per section with its active, archived and total', async () => {
     const out = await roundTrip(
-      buildInventory(
+      buildReport(
         input({
           peos: [peo, { ...peo, id: 'e2', code: 'PEO-2', status: 'archived' }],
         }),
@@ -173,7 +173,7 @@ describe('the summary sheet counts each record type', () => {
 
 describe('each worksheet holds a code-and-name list', () => {
   it('writes the same three headings on every sheet', async () => {
-    const out = await roundTrip(buildInventory(input()))
+    const out = await roundTrip(buildReport(input()))
     for (const sheet of ['Programs', 'PEOs', 'Program Outcomes', 'Courses', 'Learning Outcomes']) {
       expect(headings(out, sheet)).toEqual(['No.', ...COLUMNS])
     }
@@ -184,7 +184,7 @@ describe('each worksheet holds a code-and-name list', () => {
   // a courses-style body — shifting every cell and leaving an empty bordered
   // column behind.
   it('puts every value under the heading that describes it, on every sheet', async () => {
-    const out = await roundTrip(buildInventory(input()))
+    const out = await roundTrip(buildReport(input()))
 
     expect(headings(out, 'Programs')).toHaveLength(3)
     expect(cellAt(out, 'Programs', HEADER_ROW + 1, 1)).toBe(1)
@@ -202,7 +202,7 @@ describe('each worksheet holds a code-and-name list', () => {
   // The detail columns are gone by design: the unit count and the resolved
   // program belonged to the Curriculum Report, not to a name list.
   it('does not carry the columns the report dropped', async () => {
-    const out = await roundTrip(buildInventory(input()))
+    const out = await roundTrip(buildReport(input()))
     const names = ['No.', ...COLUMNS]
     expect(headings(out, 'Courses')).not.toContain('Units')
     expect(headings(out, 'Courses')).not.toContain('Program')
@@ -212,7 +212,7 @@ describe('each worksheet holds a code-and-name list', () => {
 
   it('numbers rows from 1 as numbers', async () => {
     const out = await roundTrip(
-      buildInventory(
+      buildReport(
         input({
           courses: [
             course,
@@ -230,7 +230,7 @@ describe('each worksheet holds a code-and-name list', () => {
 
 describe('the export matches what the page is showing', () => {
   it('omits archived records, like the on-screen report does', async () => {
-    const inv = buildInventory(
+    const inv = buildReport(
       input({ peos: [peo, { ...peo, id: 'e2', code: 'PEO-2', status: 'archived' }] }),
     )
     const out = await roundTrip(inv)
@@ -239,7 +239,7 @@ describe('the export matches what the page is showing', () => {
   })
 
   it('includes them once the include-archived control is on', async () => {
-    const inv = buildInventory(
+    const inv = buildReport(
       input({ peos: [peo, { ...peo, id: 'e2', code: 'PEO-2', status: 'archived' }] }),
       { includeArchived: true },
     )
@@ -248,7 +248,7 @@ describe('the export matches what the page is showing', () => {
   })
 
   it('honours the search box', async () => {
-    const out = await roundTrip(buildInventory(input(), { query: 'object oriented' }))
+    const out = await roundTrip(buildReport(input(), { query: 'object oriented' }))
     expect(cellAt(out, 'Courses', HEADER_ROW + 1, 2)).toBe('IT21')
     expect(cellAt(out, 'Programs', HEADER_ROW + 1, 2)).toBeUndefined()
   })
@@ -256,7 +256,7 @@ describe('the export matches what the page is showing', () => {
 
 describe('an empty section still exports safely', () => {
   it('writes the headings and no rows, and adds no autofilter', async () => {
-    const out = await roundTrip(buildInventory(input({ pos: [] })))
+    const out = await roundTrip(buildReport(input({ pos: [] })))
     expect(headings(out, 'Program Outcomes')).toEqual(['No.', ...COLUMNS])
     expect(cellAt(out, 'Program Outcomes', HEADER_ROW + 1, 1)).toBeUndefined()
     // A stray dropdown on a heading with nothing under it reads as a broken
@@ -265,7 +265,7 @@ describe('an empty section still exports safely', () => {
   })
 
   it('adds an autofilter once there are rows to filter', async () => {
-    const out = await roundTrip(buildInventory(input()))
+    const out = await roundTrip(buildReport(input()))
     const filter = (out.Sheets['Courses'] as XLSX.WorkSheet)['!autofilter']
     expect(filter).toBeDefined()
     // Spans the header row and every data row, across all three columns.
@@ -274,14 +274,14 @@ describe('an empty section still exports safely', () => {
 
   it('exports an entirely empty database without throwing', async () => {
     const out = await roundTrip(
-      buildInventory({ programs: [], courses: [], pos: [], peos: [], clos: [] }),
+      buildReport({ programs: [], courses: [], pos: [], peos: [], clos: [] }),
     )
     expect(Object.keys(out.Sheets)).toHaveLength(6)
   })
 })
 
-describe('inventoryFileName', () => {
+describe('reportsFileName', () => {
   it('stamps the export date', () => {
-    expect(inventoryFileName(new Date(2026, 9, 14))).toBe('name-inventory-2026-10-14.xlsx')
+    expect(reportsFileName(new Date(2026, 9, 14))).toBe('reports-2026-10-14.xlsx')
   })
 })
