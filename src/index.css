@@ -3593,22 +3593,125 @@ textarea.input {
   color: var(--primary-dark);
 }
 
-/* ---- panel grid ---- */
+/* ---- coverage spine ----
+   The page's one headline: a full-width band rather than another card, so the
+   coverage number is the first thing read and not one of seven equal tiles. */
 
-.reports-panels {
+.spine {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, auto) minmax(120px, 1fr) minmax(0, auto);
+  align-items: center;
+  gap: 24px;
+  padding: 20px 24px;
+  margin-bottom: 16px;
+  background: linear-gradient(120deg, #0f2e1f 0%, #14532d 55%, #166534 100%);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  color: #ecfdf5;
+}
+
+.spine__figure {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.spine__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(236, 253, 245, 0.7);
+}
+
+.spine__value {
+  font-size: 46px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+}
+
+.spine__of {
+  font-size: 12.5px;
+  color: rgba(236, 253, 245, 0.78);
+}
+
+/* The bar: two segments, and the mapped one leads with the same green as the
+   panels so the eye ties the number to the fill without reading a legend. */
+.spine__bar {
+  display: flex;
+  height: 14px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.spine__seg {
+  transition: width 0.3s var(--ease-spring);
+}
+
+.spine__seg--mapped {
+  background: linear-gradient(90deg, #4ade80, #22c55e);
+}
+
+.spine__seg--gap {
+  background: rgba(248, 113, 113, 0.55);
+}
+
+.spine__facts {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  text-align: right;
+  font-size: 12px;
+  color: rgba(236, 253, 245, 0.78);
+}
+
+.spine__fact {
+  font-weight: 800;
+  font-size: 14px;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+}
+
+.spine__fact--mapped {
+  color: #86efac;
+}
+
+.spine__fact--gap {
+  color: #fca5a5;
+}
+
+/* ---- panel grid ----
+   Asymmetric: the wide column carries the coverage story top to bottom, the
+   narrow one the supporting tables. The matrix is far denser than the bar
+   chart and a uniform grid would give them the same visual weight. */
+
+.reports-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr);
+  align-items: start;
   gap: 16px;
   margin-bottom: 24px;
+}
+
+.reports-grid__main,
+.reports-grid__side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
 }
 
 .reports-panel {
   margin: 0;
   min-width: 0;
-}
-
-.reports-panel--wide {
-  grid-column: 1 / -1;
 }
 
 .reports-panel h3 {
@@ -3769,10 +3872,23 @@ textarea.input {
   font-size: 10.5px;
 }
 
-/* One column below the two-column threshold, like reports-overview. */
+/* One column below the two-column threshold, like reports-overview. The spine
+   stacks figure / bar / facts the same way, keeping the bar full-width so it
+   still reads as a single proportion. */
 @media (max-width: 860px) {
-  .reports-panels {
+  .reports-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .spine {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .spine__facts {
+    flex-direction: row;
+    gap: 16px;
+    text-align: left;
   }
 }
 

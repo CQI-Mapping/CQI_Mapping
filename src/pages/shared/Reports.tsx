@@ -56,6 +56,7 @@ import {
   LEVEL_LEGEND,
 } from '../../utils/coverage'
 import RecordMixDonut from '../../components/RecordMixDonut'
+import CoverageSpine from '../../components/CoverageSpine'
 import PoCoverageChart from '../../components/PoCoverageChart'
 import CloPoMatrix from '../../components/CloPoMatrix'
 import Icon from '../../components/icons'
@@ -286,135 +287,153 @@ function Reports({ profile }: ReportsProps) {
             />
           </div>
 
-          {/* ---- panels ---- */}
-          <div className="reports-panels">
-            <section className="panel reports-panel">
-              <h3>Curriculum Mapping Summary</h3>
-              <p className="reports-panel__sub">
-                How much of each course's learning outcomes reach a Program Outcome.
-              </p>
-              <div className="table-wrap">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Course Code</th>
-                      <th>Course Title</th>
-                      <th className="reports-num"># of CLOs</th>
-                      <th>Mapping Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {courseRows.length === 0 ? (
+          {/* ---- the spine: the one number the page exists for ---- */}
+          <CoverageSpine
+            programCode={program.code}
+            coverage={coverage}
+            coursesFullyMapped={courseRows.filter((r) => r.status === 'mapped').length}
+            coursesTotal={courseRows.length}
+          />
+
+          {/* ---- panels ----
+              Asymmetric on purpose: coverage reads down the wide left column
+              (which PO, then how deep), and the right column carries the
+              supporting evidence (which course, what else exists, what is
+              missing). A uniform grid would give the matrix the same visual
+              weight as the bar chart, and it is the denser of the two by an
+              order of magnitude. */}
+          <div className="reports-grid">
+            <div className="reports-grid__main">
+              <section className="panel reports-panel">
+                <h3>PO Coverage Chart</h3>
+                <p className="reports-panel__sub">
+                  Percentage of CLOs mapped to each Program Outcome.
+                </p>
+                {coverageChart.length === 0 ? (
+                  <p className="reports-empty">No Program Outcomes recorded for this program yet.</p>
+                ) : (
+                  <PoCoverageChart data={coverageChart} />
+                )}
+              </section>
+
+              <section className="panel reports-panel">
+                <h3>CLO–PO Alignment Matrix</h3>
+                <p className="reports-panel__sub">
+                  What depth each learning outcome reaches each Program Outcome at.
+                </p>
+                {matrixRows.length === 0 ? (
+                  <p className="reports-empty">
+                    No learning outcomes recorded for this program yet.
+                  </p>
+                ) : coverageChart.length === 0 ? (
+                  <p className="reports-empty">
+                    No Program Outcomes recorded for this program yet — there is nothing to
+                    align against.
+                  </p>
+                ) : (
+                  <>
+                    <CloPoMatrix rows={matrixRows} poCodes={coverageChart.map((c) => c.po.code)} />
+                    {coverage.totalClos > 0 && coverage.mappedClos === 0 && (
+                      <p className="reports-panel__note">
+                        No CLO–PO mappings recorded yet — every outcome below shows as unmapped
+                        until the mapping pages fill the matrix in.
+                      </p>
+                    )}
+                  </>
+                )}
+              </section>
+            </div>
+
+            <div className="reports-grid__side">
+              <section className="panel reports-panel">
+                <h3>Curriculum Mapping Summary</h3>
+                <p className="reports-panel__sub">
+                  How much of each course's learning outcomes reach a Program Outcome.
+                </p>
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
                       <tr>
-                        <td colSpan={4} className="reports-empty">No courses in this program yet.</td>
+                        <th>Course Code</th>
+                        <th>Course Title</th>
+                        <th className="reports-num"># of CLOs</th>
+                        <th>Mapping Status</th>
                       </tr>
-                    ) : (
-                      courseRows.map(({ course, cloCount, status }) => (
-                        <tr key={course.id}>
-                          <td>{course.code}</td>
-                          <td>{course.title}</td>
-                          <td className="reports-num">{cloCount}</td>
-                          <td>
-                            <span className={STATUS_BADGE[status].className}>
-                              {STATUS_BADGE[status].label}
-                            </span>
+                    </thead>
+                    <tbody>
+                      {courseRows.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} className="reports-empty">No courses in this program yet.</td>
+                        </tr>
+                      ) : (
+                        courseRows.map(({ course, cloCount, status }) => (
+                          <tr key={course.id}>
+                            <td>{course.code}</td>
+                            <td>{course.title}</td>
+                            <td className="reports-num">{cloCount}</td>
+                            <td>
+                              <span className={STATUS_BADGE[status].className}>
+                                {STATUS_BADGE[status].label}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section className="panel reports-panel">
+                <h3>Record Mix</h3>
+                <p className="reports-panel__sub">
+                  What the system is made of, across all programs.
+                </p>
+                <RecordMixDonut mix={mix} />
+              </section>
+
+              <section className="panel reports-panel">
+                <h3>Mapping Gaps</h3>
+                <p className="reports-panel__sub">
+                  Learning outcomes that reach no Program Outcome.
+                </p>
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Course</th>
+                        <th>CLO</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {gaps.length === 0 ? (
+                        <tr>
+                          <td colSpan={3} className="reports-empty">
+                            {coverage.totalClos === 0
+                              ? 'No learning outcomes to check yet.'
+                              : 'Every learning outcome maps to at least one outcome.'}
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            <section className="panel reports-panel">
-              <h3>PO Coverage Chart</h3>
-              <p className="reports-panel__sub">
-                Percentage of CLOs mapped to each Program Outcome.
-              </p>
-              {coverageChart.length === 0 ? (
-                <p className="reports-empty">No Program Outcomes recorded for this program yet.</p>
-              ) : (
-                <PoCoverageChart data={coverageChart} />
-              )}
-            </section>
-
-            <section className="panel reports-panel reports-panel--wide">
-              <h3>CLO–PO Alignment Matrix</h3>
-              <p className="reports-panel__sub">
-                What depth each learning outcome reaches each Program Outcome at.
-              </p>
-              {matrixRows.length === 0 ? (
-                <p className="reports-empty">
-                  No learning outcomes recorded for this program yet.
-                </p>
-              ) : coverageChart.length === 0 ? (
-                <p className="reports-empty">
-                  No Program Outcomes recorded for this program yet — there is nothing to
-                  align against.
-                </p>
-              ) : (
-                <>
-                  <CloPoMatrix
-                    rows={matrixRows}
-                    poCodes={coverageChart.map((c) => c.po.code)}
-                  />
-                  {coverage.totalClos > 0 && coverage.mappedClos === 0 && (
-                    <p className="reports-panel__note">
-                      No CLO–PO mappings recorded yet — every outcome below shows as unmapped
-                      until the mapping pages fill the matrix in.
-                    </p>
-                  )}
-                </>
-              )}
-            </section>
-
-            <section className="panel reports-panel">
-              <h3>Record Mix</h3>
-              <p className="reports-panel__sub">
-                What the system is made of, across all programs.
-              </p>
-              <RecordMixDonut mix={mix} />
-            </section>
-
-            <section className="panel reports-panel">
-              <h3>Mapping Gaps</h3>
-              <p className="reports-panel__sub">
-                Learning outcomes that reach no Program Outcome.
-              </p>
-              <div className="table-wrap">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Course</th>
-                      <th>CLO</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {gaps.length === 0 ? (
-                      <tr>
-                        <td colSpan={3} className="reports-empty">
-                          {coverage.totalClos === 0
-                            ? 'No learning outcomes to check yet.'
-                            : 'Every learning outcome maps to at least one outcome.'}
-                        </td>
-                      </tr>
-                    ) : (
-                      gaps.map((gap) => (
-                        <tr key={gap.clo.id}>
-                          <td>{gap.courseCode}</td>
-                          <td>{gap.clo.code}{gap.clo.description ? ` — ${gap.clo.description}` : ''}</td>
-                          <td>
-                            <span className="status-badge status-badge--unmapped">Unmapped</span>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+                      ) : (
+                        gaps.map((gap) => (
+                          <tr key={gap.clo.id}>
+                            <td>{gap.courseCode}</td>
+                            <td>
+                              {gap.clo.code}
+                              {gap.clo.description ? ` — ${gap.clo.description}` : ''}
+                            </td>
+                            <td>
+                              <span className="status-badge status-badge--unmapped">Unmapped</span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
           </div>
 
           {/* ---- appendix: the record inventory ---- */}
