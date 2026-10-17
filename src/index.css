@@ -3490,6 +3490,243 @@ textarea.input {
   margin-bottom: 16px;
 }
 
+/* ---- Overall Report header ---- */
+
+.reports-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.reports-header__actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.reports-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.reports-toolbar__program {
+  max-width: 420px;
+  margin-bottom: 0 !important;
+}
+
+.reports-toolbar__stamp {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  padding-bottom: 9px;
+}
+
+/* The KPI row reuses the dashboards' stat cards; only the icon tile is
+   adjusted, because these cards have no accent bar and the tile sits alone. */
+.reports-kpis {
+  margin-bottom: 16px;
+}
+
+.stat-card__icon--reports {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(22, 163, 74, 0.12);
+  color: var(--primary-dark);
+}
+
+/* ---- panel grid ---- */
+
+.reports-panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.reports-panel {
+  margin: 0;
+  min-width: 0;
+}
+
+.reports-panel--wide {
+  grid-column: 1 / -1;
+}
+
+.reports-panel h3 {
+  margin: 0 0 2px;
+  font-size: 14.5px;
+  font-weight: 700;
+}
+
+.reports-panel__sub {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.reports-panel__note {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  color: #b45309;
+}
+
+.reports-appendix-title {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+
+/* Mapping-status badges. The base .status-badge shape is shared with the rest
+   of the app; these are the three coverage tones. */
+.status-badge--mapped {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-badge--partial {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.status-badge--unmapped {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+/* ---- PO coverage chart (components/PoCoverageChart.tsx) ---- */
+
+.pocover__chart {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.pocover__grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.pocover__axis {
+  font-size: 11px;
+  fill: var(--text-muted);
+}
+
+.pocover__bar {
+  fill: var(--primary);
+}
+
+/* Hover lifts a bar by lightening it, not by moving it: a bar that grows or
+   shifts under the cursor moves the % label with it, which reads as jitter. */
+.pocover__bar:hover {
+  fill: var(--primary-light);
+}
+
+.pocover__value {
+  font-size: 11.5px;
+  font-weight: 700;
+  fill: var(--primary-dark);
+}
+
+/* ---- CLO-PO alignment matrix (components/CloPoMatrix.tsx) ---- */
+
+.clopom__scroll {
+  max-height: 420px;
+  overflow: auto;
+}
+
+.clopom__table th,
+.clopom__table td {
+  padding: 6px 8px;
+}
+
+.clopom__course,
+.clopom__clo {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* Outcome columns are fixed-width squares so the grid lines up regardless of
+   how long a PO code is. */
+.clopom__po {
+  width: 44px;
+  min-width: 44px;
+  text-align: center;
+}
+
+.clopom__cell {
+  width: 44px;
+  min-width: 44px;
+  text-align: center;
+  font-size: 11.5px;
+  font-weight: 700;
+  border-radius: 6px;
+  border: none !important;
+}
+
+/* Cell tones, deepest mapping = darkest. Letters stay readable on all four. */
+.clopom__cell--m {
+  background: #15803d;
+  color: #ffffff;
+}
+
+.clopom__cell--d {
+  background: #bbf7d0;
+  color: #166534;
+}
+
+.clopom__cell--i {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.clopom__cell--none {
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+.clopom__legend {
+  list-style: none;
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 10px 0 0;
+  padding: 0;
+  font-size: 12px;
+  color: #475569;
+}
+
+.clopom__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.clopom__swatch {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10.5px;
+}
+
+/* One column below the two-column threshold, like reports-overview. */
+@media (max-width: 860px) {
+  .reports-panels {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .reports-search {
   flex: 1;
   min-width: 220px;
@@ -3668,6 +3905,15 @@ textarea.input {
 
 .reports-section {
   margin-bottom: 16px;
+}
+
+/* The course a learning outcome belongs to. Narrow and quiet: it identifies the
+   row, it is not the thing being read, and the name beside it is long. */
+.reports-course {
+  width: 1%;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: #475569;
 }
 
 .reports-empty {

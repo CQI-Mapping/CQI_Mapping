@@ -15,6 +15,7 @@ export type IconName =
   | 'plus'
   | 'x'
   | 'download'
+  | 'print'
   | 'chevron'
 
 const PATHS: Record<IconName, React.ReactNode> = {
@@ -84,6 +85,13 @@ const PATHS: Record<IconName, React.ReactNode> = {
     </>
   ),
   chevron: <polyline points="6 9 12 15 18 9" />,
+  print: (
+    <>
+      <polyline points="6 9 6 2 18 2 18 9" />
+      <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+      <rect x="6" y="14" width="12" height="8" rx="1" />
+    </>
+  ),
 }
 
 interface IconProps extends SVGProps<SVGSVGElement> {

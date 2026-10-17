@@ -172,11 +172,14 @@ describe('the summary sheet counts each record type', () => {
 })
 
 describe('each worksheet holds a code-and-name list', () => {
-  it('writes the same three headings on every sheet', async () => {
+  // Learning outcomes are the one sheet with an extra column: the course each
+  // outcome belongs to. Every other sheet keeps the two-column shape.
+  it('writes the same headings on every sheet except Learning Outcomes', async () => {
     const out = await roundTrip(buildReport(input()))
-    for (const sheet of ['Programs', 'PEOs', 'Program Outcomes', 'Courses', 'Learning Outcomes']) {
+    for (const sheet of ['Programs', 'PEOs', 'Program Outcomes', 'Courses']) {
       expect(headings(out, sheet)).toEqual(['No.', ...COLUMNS])
     }
+    expect(headings(out, 'Learning Outcomes')).toEqual(['No.', 'Code', 'Course', 'Name'])
   })
 
   // The regression guard for the shared column list. The first version gave
@@ -197,6 +200,12 @@ describe('each worksheet holds a code-and-name list', () => {
     expect(cellAt(out, 'Courses', HEADER_ROW + 1, 2)).toBe('IT21')
     expect(cellAt(out, 'Courses', HEADER_ROW + 1, 3)).toBe('Object Oriented Programming')
     expect(cellAt(out, 'Courses', HEADER_ROW + 1, 4)).toBeUndefined()
+
+    // On the outcomes sheet the course sits between the code and the name,
+    // matching the on-screen column order.
+    expect(cellAt(out, 'Learning Outcomes', HEADER_ROW + 1, 2)).toBe('CLO-1')
+    expect(cellAt(out, 'Learning Outcomes', HEADER_ROW + 1, 3)).toBe('IT21')
+    expect(cellAt(out, 'Learning Outcomes', HEADER_ROW + 1, 4)).toBe('Explain classes and objects')
   })
 
   // The detail columns are gone by design: the unit count and the resolved

@@ -155,10 +155,12 @@ describe('buildReport', () => {
     ])
   })
 
-  // This report is code plus name and nothing else. The first version
-  // carried program / units / CMO / description too; these are the guards
-  // against those creeping back into the row shape.
-  it('carries only a code, a name and a status on every row', () => {
+  // This report is a name list. The first version carried program / units / CMO
+  // / description too; these are the guards against those creeping back into
+  // the row shape. Learning outcomes are the one exception: a row may also know
+  // the course it belongs to, because CLO-1 of one course and CLO-1 of another
+  // are indistinguishable without it.
+  it('carries a code, a name and a status on every row, plus a course only for CLOs', () => {
     const inv = buildReport(
       empty({
         programs: [program()],
@@ -170,7 +172,9 @@ describe('buildReport', () => {
     )
     for (const section of inv.sections) {
       for (const row of section.rows) {
-        expect(Object.keys(row).sort()).toEqual(['code', 'name', 'status'])
+        expect(Object.keys(row).sort()).toEqual(
+          section.key === 'clos' ? ['code', 'course', 'name', 'status'] : ['code', 'name', 'status'],
+        )
       }
     }
   })
