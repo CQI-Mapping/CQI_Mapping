@@ -3500,37 +3500,86 @@ textarea.input {
   flex-wrap: wrap;
 }
 
-.reports-header__actions {
-  display: flex;
-  gap: 8px;
-  padding-top: 4px;
+/* The heading is a panel of its own here, so its own outside margin is spent
+   inside the header, and the header gets one margin for both of them. */
+.reports-header .page-heading {
+  margin-bottom: 0;
+  flex: 1;
+  min-width: 280px;
 }
 
-.reports-toolbar {
+.reports-header__side {
   display: flex;
+  flex-direction: column;
   align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  margin-bottom: 16px;
+  gap: 8px;
 }
 
-.reports-toolbar__program {
-  max-width: 420px;
+.reports-header__crumb {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.reports-header__select {
+  width: 220px;
   margin-bottom: 0 !important;
 }
 
-.reports-toolbar__stamp {
-  font-size: 12.5px;
+.reports-header__stamp {
+  font-size: 12px;
   color: var(--text-muted);
   white-space: nowrap;
-  padding-bottom: 9px;
+}
+
+.reports-header__actions {
+  display: flex;
+  gap: 8px;
 }
 
 /* The KPI row reuses the dashboards' stat cards; only the icon tile is
    adjusted, because these cards have no accent bar and the tile sits alone. */
 .reports-kpis {
   margin-bottom: 16px;
+}
+
+/* ---- footer ---- */
+
+.reports-footer {
+  margin: 24px 0 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.reports-footer__who {
+  margin: 0;
+  font-weight: 600;
+}
+
+.reports-footer__note {
+  margin: 0;
+  text-align: right;
+  max-width: 480px;
+}
+
+/* Printing prints the dashboard and nothing else: the export actions are
+   chrome, and the record inventory is what the Excel export exists for. */
+@media print {
+  .reports-header__actions,
+  .reports-header__select,
+  .reports-footer,
+  .reports-appendix-title,
+  .reports-controls,
+  .reports-shown,
+  .reports-section {
+    display: none !important;
+  }
 }
 
 .stat-card__icon--reports {

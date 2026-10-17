@@ -19,7 +19,7 @@
 // (UNIQUE(program_id, code)), so PO1 of one program and PO1 of another are
 // different outcomes that only the program selector can tell apart.
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
   addActivityLog,
   fetchPrograms,
@@ -43,6 +43,7 @@ import type {
 } from '../../services/database'
 import { buildReport, buildRecordMix, isArchived, columns, rowCells, COURSE_COLUMN } from '../../utils/reports'
 import type { Report, ReportSection } from '../../utils/reports'
+import { SCHOOL } from '../../utils/report'
 import {
   alignmentMatrix,
   courseCoverage,
@@ -190,6 +191,10 @@ function Reports({ profile }: ReportsProps) {
 
   const filtersActive = query.trim() !== '' || includeArchived
 
+  // Captured once per mount. Computing it inline would re-stamp on every
+  // render -- typing in the search box would scroll the timestamp forward.
+  const generated = useMemo(() => new Date().toLocaleString(), [])
+
   return (
     <div className="reports">
       <div className="reports-header">
@@ -199,25 +204,48 @@ function Reports({ profile }: ReportsProps) {
             Curriculum mapping, outcomes coverage and the record inventory —
             read-only; edit records on their own pages.
           </p>
+          {program && (
+            <p className="reports-header__crumb">
+              {SCHOOL.institute} · {program.code} Program
+            </p>
+          )}
         </div>
-        <div className="reports-header__actions">
-          <button
-            className="btn btn--secondary btn--sm"
-            onClick={() => window.print()}
-            title="Print the report as it is on screen"
-          >
-            <Icon name="print" />
-            Print Report
-          </button>
-          <button
-            className="btn btn--primary btn--sm"
-            onClick={download}
-            disabled={downloading || loading}
-            title="Save every section to one Excel workbook"
-          >
-            <Icon name="download" />
-            {downloading ? 'Preparing…' : 'Export Excel'}
-          </button>
+        <div className="reports-header__side">
+          <label className="field reports-header__select">
+            <span>Program</span>
+            <select
+              className="input"
+              value={programId ?? ''}
+              disabled={loading || programs.length === 0}
+              onChange={(e) => setProgramId(e.target.value)}
+            >
+              {programs.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.code}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="reports-header__stamp">Report Generated {generated}</span>
+          <div className="reports-header__actions">
+            <button
+              className="btn btn--secondary btn--sm"
+              onClick={() => window.print()}
+              title="Print the report as it is on screen"
+            >
+              <Icon name="print" />
+              Print Report
+            </button>
+            <button
+              className="btn btn--primary btn--sm"
+              onClick={download}
+              disabled={downloading || loading}
+              title="Save every section to one Excel workbook"
+            >
+              <Icon name="download" />
+              {downloading ? 'Preparing…' : 'Export Excel'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -232,27 +260,6 @@ function Reports({ profile }: ReportsProps) {
         </div>
       ) : (
         <>
-          {/* ---- program selector ---- */}
-          <div className="panel reports-toolbar">
-            <label className="field reports-search reports-toolbar__program">
-              <span>Program</span>
-              <select
-                className="input"
-                value={program.id}
-                onChange={(e) => setProgramId(e.target.value)}
-              >
-                {programs.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.code} — {p.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <span className="reports-toolbar__stamp">
-              Generated {new Date().toLocaleString()}
-            </span>
-          </div>
-
           {/* ---- KPI cards ---- */}
           <div className="stat-grid stat-grid--2026 reports-kpis">
             <KpiCard label="Program" value={program.code} sub={program.name} icon="grid" />
@@ -340,6 +347,11 @@ function Reports({ profile }: ReportsProps) {
               {matrixRows.length === 0 ? (
                 <p className="reports-empty">
                   No learning outcomes recorded for this program yet.
+                </p>
+              ) : coverageChart.length === 0 ? (
+                <p className="reports-empty">
+                  No Program Outcomes recorded for this program yet — there is nothing to
+                  align against.
                 </p>
               ) : (
                 <>
@@ -438,6 +450,18 @@ function Reports({ profile }: ReportsProps) {
           {report.sections.map((section) => (
             <SectionTable key={section.key} section={section} />
           ))}
+
+          {/* ---- footer: who produced this and what it is not ---- */}
+          <footer className="reports-footer">
+            <p className="reports-footer__who">
+              Overall Report · {program ? `${program.code} Department` : 'All Programs'} ·{' '}
+              {SCHOOL.school}
+            </p>
+            <p className="reports-footer__note">
+              Note: this report is generated from system data and is for academic use
+              only. Final decisions must be made by authorized personnel.
+            </p>
+          </footer>
         </>
       )}
     </div>
