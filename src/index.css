@@ -3478,11 +3478,23 @@ textarea.input {
 
 
 /* ---- Reports (pages/shared/Reports.tsx) ----
-   Laid out with the app's own .panel / .table / .page-heading chrome rather
-   than the Curriculum Report's document framing, so only the parts the other
-   list pages do not already provide are defined here. */
+   The Overall Report. Dense and quiet on purpose: eight figures across the top,
+   then six panels of equal weight, and every number stated as a number rather
+   than as a feeling. Nothing here borrows the Curriculum Report's document
+   framing -- this is a dashboard, and it is read at a glance.
 
-/* ---- Overall Report header ---- */
+   Colours are the app's own green scale plus the four badge tones the tables
+   need (mapped / partial / unmapped / none). The greys come from the theme's
+   --border and --text-muted so the panels sit in the same world as the rest of
+   the app. */
+
+.reports {
+  --reports-gap: 14px;
+  --reports-radius: 12px;
+  --reports-band: #f8fafc;
+}
+
+/* ---- header ---- */
 
 .reports-header {
   display: flex;
@@ -3490,6 +3502,7 @@ textarea.input {
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
+  margin-bottom: 14px;
 }
 
 /* The heading is a panel of its own here, so its own outside margin is spent
@@ -3500,17 +3513,19 @@ textarea.input {
   min-width: 280px;
 }
 
+.reports-header__crumb {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* The right-hand column of the header: program picker, generated stamp and the
+   export actions, top-aligned against the title block. */
 .reports-header__side {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 8px;
-}
-
-.reports-header__crumb {
-  margin: 2px 0 0;
-  font-size: 12px;
-  color: var(--text-muted);
 }
 
 .reports-header__select {
@@ -3529,44 +3544,566 @@ textarea.input {
   gap: 8px;
 }
 
-/* The KPI row reuses the dashboards' stat cards; only the icon tile is
-   adjusted, because these cards have no accent bar and the tile sits alone. */
+/* ---- KPI row: eight tiles, one row ----
+   min() against a max is deliberate: the row always fits eight across on a
+   wide screen, and below that it wraps to four and two rather than squeezing
+   the figures until they are unreadable. */
+
 .reports-kpis {
-  margin-bottom: 16px;
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.reports-kpi {
+  min-width: 0;
+  padding: 12px 13px 13px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.reports-kpi .stat-card__label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #64748b;
+  /* A two-word label ("Mapping Coverage") must not wrap to two lines and make
+     this tile taller than its neighbours. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.reports-kpi .stat-card__value {
+  font-size: 26px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.reports-kpi .stat-card__sub {
+  font-size: 11px;
+  line-height: 1.35;
+  color: #94a3b8;
+}
+
+.stat-card__icon--reports {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #dcfce7;
+  color: #15803d;
+}
+
+/* Figure tones. Only the figure is coloured -- a coloured label reads as a
+   heading about something wrong, and most of these counts are perfectly fine. */
+.reports-kpi__value--good {
+  color: #15803d;
+}
+
+.reports-kpi__value--warn {
+  color: #b45309;
+}
+
+.reports-kpi__value--bad {
+  color: #b91c1c;
+}
+
+/* ---- panel grid: three across, two rows ----
+   Equal columns, because the six panels each answer one question and none is a
+   continuation of another: a reader jumps straight to the matrix or the gaps. */
+
+.reports-panels {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--reports-gap);
+  margin-bottom: 18px;
+}
+
+.reports-panel {
+  margin: 0;
+  min-width: 0;
+  padding: 14px 15px 12px;
+  border-radius: var(--reports-radius);
+}
+
+/* Icon-and-title line, so all six headers read as six of the same thing rather
+   than six bare headings. The title is the h3: the panel is a section of the
+   report, and that is what a screen reader and the print outline navigate by. */
+.reports-panel__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.reports-panel__head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.reports-panel__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  border-radius: 7px;
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.reports-panel__sub {
+  margin: 0 0 10px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: #64748b;
+}
+
+/* Footer line: a count on the left, the "view all" action on the right. */
+.reports-panel__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid #f1f5f9;
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+/* A span, not a link: there is no second page to send it to, and a link that
+   goes nowhere is worse than one that is obviously not there yet. */
+.reports-panel__more {
+  color: #15803d;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ---- tables inside panels ----
+   Compact and hairline-ruled: six panels of tables on one screen is a lot of
+   rows, and the default .table padding turns the page into a scroll. */
+
+.reports-panel .table {
+  font-size: 12.5px;
+}
+
+.reports-panel .table thead th {
+  background: var(--reports-band);
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 7px 8px;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.reports-panel .table tbody td {
+  padding: 7px 8px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.reports-panel .table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.reports-num {
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* The course title is the only prose in the summary table, and it wraps to four
+   lines in a third-width panel. Two lines is enough to recognise a course; the
+   full title is its own page's job. */
+.reports-course-title {
+  max-width: 190px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.35;
+  color: #475569;
+}
+
+.reports-gap-clo {
+  max-width: 220px;
+  line-height: 1.35;
+  color: #475569;
+}
+
+.reports-cqi__date {
+  white-space: nowrap;
+  color: #64748b;
+}
+
+.reports-scroll {
+  max-height: 340px;
+  overflow: auto;
+}
+
+.reports-empty {
+  color: #94a3b8;
+  font-style: italic;
+  text-align: center;
+  padding: 18px 8px !important;
+}
+
+/* ---- badges ---- */
+
+.status-badge {
+  text-transform: capitalize;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.status-badge--mapped {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-badge--partial {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.status-badge--unmapped {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+/* "No outcomes yet" is a neutral fact, so it reads grey rather than red. */
+.status-badge--none {
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+/* ---- PO coverage chart (components/PoCoverageBars.tsx) ---- */
+
+.pocov__chart {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.pocov__grid {
+  stroke: #e2e8f0;
+  stroke-width: 1;
+}
+
+.pocov__axis {
+  font-size: 10px;
+  fill: #94a3b8;
+}
+
+/* Upright bars in the app's green, with the height carrying the meaning. */
+.pocov__bar {
+  fill: #16a34a;
+}
+
+/* The "nothing maps here" bar is a gap, not a value: grey, so a reader does not
+   read it as the tallest bar on the chart. */
+.pocov__bar--muted {
+  fill: #cbd5e1;
+}
+
+.pocov__bar:hover {
+  fill: #15803d;
+}
+
+.pocov__bar--muted:hover {
+  fill: #94a3b8;
+}
+
+.pocov__value {
+  font-size: 10.5px;
+  font-weight: 700;
+  fill: #15803d;
+}
+
+.pocov__note {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #94a3b8;
+}
+
+/* ---- CLO-PO alignment matrix (components/CloPoMatrix.tsx) ---- */
+
+.cpx__scroll {
+  max-height: 340px;
+  overflow: auto;
+}
+
+.cpx__table th,
+.cpx__table td {
+  padding: 4px 6px;
+}
+
+.cpx__clo {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+/* Outcome columns are fixed-width squares so the grid lines up however long a
+   code is; the heading shortens instead of widening the column. */
+.cpx__po,
+.cpx__cell {
+  width: 38px;
+  min-width: 38px;
+  text-align: center;
+}
+
+.cpx__po {
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1.2;
+  padding: 5px 3px !important;
+  overflow-wrap: anywhere;
+}
+
+.cpx__cell {
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 5px;
+  border: none !important;
+}
+
+.cpx__cell--on {
+  background: #16a34a;
+  color: #ffffff;
+}
+
+.cpx__cell--none {
+  background: #f1f5f9;
+  color: #cbd5e1;
+}
+
+.cpx__legend {
+  list-style: none;
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 10px 0 0;
+  padding: 0;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.cpx__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.cpx__swatch {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+}
+
+/* ---- mapped-targets donut (components/MappedTargetsDonut.tsx) ----
+   Donut on the left, legend on the right, the way the alignment mix reads in
+   the report brief. */
+
+.mixdonut {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mixdonut__chart {
+  flex: 0 0 auto;
+  width: 150px;
+  height: auto;
+  overflow: visible;
+}
+
+.mixdonut__chart path {
+  transition: opacity 0.18s var(--ease-smooth);
+}
+
+/* Hovering one slice dims the rest rather than growing it: a donut that
+   reflows under the cursor moves the legend out from under the pointer. */
+.mixdonut__chart:hover path {
+  opacity: 0.45;
+}
+
+.mixdonut__chart path:hover {
+  opacity: 1;
+}
+
+.mixdonut__count {
+  font-size: 26px;
+  font-weight: 700;
+  fill: var(--text);
+}
+
+.mixdonut__unit {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  fill: #94a3b8;
+}
+
+.mixdonut__legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.mixdonut__item {
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  color: #475569;
+}
+
+.mixdonut__item--zero {
+  color: #b6c2d2;
+}
+
+.mixdonut__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+}
+
+.mixdonut__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mixdonut__pct {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
 }
 
 /* ---- footer ---- */
 
 .reports-footer {
-  margin: 24px 0 8px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 20px;
   flex-wrap: wrap;
-  font-size: 12px;
-  color: var(--text-muted);
+  padding: 11px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--reports-radius);
+  background: #fff;
 }
 
 .reports-footer__who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
   margin: 0;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
+  color: #166534;
+}
+
+.reports-footer__mark {
+  display: inline-flex;
+  color: #15803d;
+}
+
+.reports-footer__sep {
+  color: #cbd5e1;
+  font-weight: 400;
 }
 
 .reports-footer__note {
   margin: 0;
+  font-size: 11px;
+  font-style: italic;
+  color: #64748b;
   text-align: right;
-  max-width: 480px;
+  max-width: 460px;
+}
+
+/* ---- responsive: the row of eight is the first thing to give way ----
+   The tiles wrap to four, then two; the panels go to two columns, then one.
+   Both happen at the width where a figure would otherwise start truncating. */
+
+@media (max-width: 1400px) {
+  .reports-kpis {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1100px) {
+  .reports-panels {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .reports-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .reports-panels {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .reports-header__side {
+    align-items: flex-start;
+  }
+
+  .reports-footer__note {
+    text-align: left;
+  }
 }
 
 /* Printing prints the dashboard and nothing else: the export actions are
-   chrome, and the record inventory is what the Excel export exists for. */
+   chrome, and there is no on-screen inventory to print. */
 @media print {
   .reports-header__actions,
   .reports-header__select,
-  .reports-footer {
+  .reports-footer__mark {
     display: none !important;
+  }
+
+  .reports-panel,
+  .reports-kpis,
+  .reports-kpi {
+    break-inside: avoid;
   }
 }
 
@@ -3581,126 +4118,97 @@ textarea.input {
   color: var(--primary-dark);
 }
 
-/* ---- coverage spine ----
-   The page's one headline: a full-width band rather than another card, so the
-   coverage number is the first thing read and not one of seven equal tiles. */
+/* ---- panel grid: three across, two rows ----
+   The arrangement of the mapping report this is built from. Three equal
+   columns rather than an asymmetric split, because the panels here answer one
+   question each and none of them is a continuation of another: a reader jumps
+   to the matrix or the gaps directly, and equal columns say so. */
 
-.spine {
+.reports-panels {
   display: grid;
-  grid-template-columns: minmax(0, auto) minmax(120px, 1fr) minmax(0, auto);
-  align-items: center;
-  gap: 24px;
-  padding: 20px 24px;
-  margin-bottom: 16px;
-  background: linear-gradient(120deg, #0f2e1f 0%, #14532d 55%, #166534 100%);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  color: #ecfdf5;
-}
-
-.spine__figure {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.spine__label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(236, 253, 245, 0.7);
-}
-
-.spine__value {
-  font-size: 46px;
-  font-weight: 800;
-  letter-spacing: -0.04em;
-  line-height: 1;
-  color: #ffffff;
-  font-variant-numeric: tabular-nums;
-}
-
-.spine__of {
-  font-size: 12.5px;
-  color: rgba(236, 253, 245, 0.78);
-}
-
-/* The bar: two segments, and the mapped one leads with the same green as the
-   panels so the eye ties the number to the fill without reading a legend. */
-.spine__bar {
-  display: flex;
-  height: 14px;
-  border-radius: 999px;
-  overflow: hidden;
-  background: rgba(255, 255, 255, 0.14);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-}
-
-.spine__seg {
-  transition: width 0.3s var(--ease-spring);
-}
-
-.spine__seg--mapped {
-  background: linear-gradient(90deg, #4ade80, #22c55e);
-}
-
-.spine__seg--gap {
-  background: rgba(248, 113, 113, 0.55);
-}
-
-.spine__facts {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0;
-  padding: 0;
-  text-align: right;
-  font-size: 12px;
-  color: rgba(236, 253, 245, 0.78);
-}
-
-.spine__fact {
-  font-weight: 800;
-  font-size: 14px;
-  color: #ffffff;
-  font-variant-numeric: tabular-nums;
-}
-
-.spine__fact--mapped {
-  color: #86efac;
-}
-
-.spine__fact--gap {
-  color: #fca5a5;
-}
-
-/* ---- panel grid ----
-   Asymmetric: the wide column carries the coverage story top to bottom, the
-   narrow one the supporting tables. The matrix is far denser than the bar
-   chart and a uniform grid would give them the same visual weight. */
-
-.reports-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: start;
   gap: 16px;
   margin-bottom: 24px;
-}
-
-.reports-grid__main,
-.reports-grid__side {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 0;
 }
 
 .reports-panel {
   margin: 0;
   min-width: 0;
 }
+
+/* Spans the two panels above it, so the pie gets room to breathe. */
+.reports-panel--wide {
+  grid-column: 1 / -1;
+}
+
+/* Pie on the left, the outcomes in the worrying slice named beside it: the pie
+   says "two are unanchored", the list says which two. */
+.reports-alignpie {
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+  align-items: center;
+  gap: 24px;
+}
+
+.reports-alignpie__detail h4 {
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #b91c1c;
+}
+
+.reports-alignpie__detail ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
+  color: #475569;
+}
+
+.reports-alignpie__detail strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Icon-and-title line, so all six panel headers read as six of the same thing
+   rather than six bare headings. */
+.reports-panel__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.reports-panel__head h3 {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.reports-panel__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  border-radius: 8px;
+  background: rgba(22, 163, 74, 0.12);
+  color: var(--primary-dark);
+}
+
+.reports-panel__foot {
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  text-align: right;
+}
+
 
 .reports-panel h3 {
   margin: 0 0 2px;
@@ -3735,6 +4243,26 @@ textarea.input {
 .status-badge--unmapped {
   background: #fee2e2;
   color: #b91c1c;
+}
+
+/* "No outcomes yet" is a neutral fact, so it reads grey rather than red. */
+.status-badge--none {
+  background: #f1f5f9;
+  color: #94a3b8;
+  text-transform: none;
+}
+
+/* The course title is the only prose in the summary table, and it wraps to
+   three or four lines in a third-width panel. Two lines and an ellipsis is
+   enough to recognise a course; the full title is its own page's job. */
+.reports-course-title {
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: #475569;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* ---- outcomes by anchor (components/OutcomeBars.tsx) ---- */
@@ -3778,88 +4306,95 @@ textarea.input {
   color: var(--text-muted);
 }
 
-/* ---- outcome alignment matrix (components/OutcomeAnchorMatrix.tsx) ---- */
+/* ---- alignment pie (components/AnchorPie.tsx) ---- */
 
-.oamx__scroll {
-  max-height: 420px;
-  overflow: auto;
+.anchorpie__chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 220px;
+  margin: 0 auto 12px;
+  overflow: visible;
 }
 
-.oamx__table th,
-.oamx__table td {
-  padding: 6px 8px;
+.anchorpie__chart path {
+  transition: opacity 0.18s var(--ease-smooth);
 }
 
-.oamx__code {
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
+/* Hovering one slice dims the rest rather than growing it: a pie that reflows
+   under the cursor moves the legend out from under the pointer. */
+.anchorpie__chart:hover path {
+  opacity: 0.45;
+}
+
+.anchorpie__chart path:hover {
+  opacity: 1;
+}
+
+.anchorpie__count {
+  font-size: 32px;
   font-weight: 700;
+  fill: var(--text);
 }
 
-.oamx__title {
-  max-width: 320px;
-  color: #475569;
+.anchorpie__unit {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  fill: #94a3b8;
 }
 
-/* Anchor columns are fixed-width so the grid lines up however long a code is. */
-.oamx__anchor,
-.oamx__cell {
-  width: 46px;
-  min-width: 46px;
-  text-align: center;
-}
-
-.oamx__cell {
-  font-size: 11.5px;
-  font-weight: 700;
-  border-radius: 6px;
-  border: none !important;
-}
-
-.oamx__cell--on.oamx__cell--cmo {
-  background: #15803d;
-  color: #ffffff;
-}
-
-.oamx__cell--on.oamx__cell--peo {
-  background: #4d7c0f;
-  color: #ffffff;
-}
-
-.oamx__cell--on.oamx__cell--sg {
-  background: #0d9488;
-  color: #ffffff;
-}
-
-.oamx__cell--none {
-  background: #f1f5f9;
-  color: #cbd5e1;
-}
-
-.oamx__legend {
+.anchorpie__legend {
   list-style: none;
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-  margin: 10px 0 0;
+  margin: 0;
   padding: 0;
-  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.anchorpie__item {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 12.5px;
   color: #475569;
 }
 
-.oamx__legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+.anchorpie__swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
 }
 
-.oamx__swatch {
-  width: 20px;
-  height: 20px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10.5px;
+.anchorpie__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Percent and count are right-aligned and tabular: they change whenever the
+   data does, and proportional digits make that shimmer. */
+.anchorpie__value,
+.anchorpie__count {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.anchorpie__value {
+  font-weight: 600;
+  color: var(--text);
+  min-width: 44px;
+  text-align: right;
+}
+
+.anchorpie__count {
+  color: #94a3b8;
+  min-width: 30px;
+  text-align: right;
 }
 
 /* ---- gaps ---- */
@@ -3908,23 +4443,10 @@ textarea.input {
   word-break: break-word;
 }
 
-/* One column below the two-column threshold, like reports-overview. The spine
-   stacks figure / bar / facts the same way, keeping the bar full-width so it
-   still reads as a single proportion. */
+/* One column below the two-column threshold. */
 @media (max-width: 860px) {
-  .reports-grid {
+  .reports-panels {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .spine {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 14px;
-  }
-
-  .spine__facts {
-    flex-direction: row;
-    gap: 16px;
-    text-align: left;
   }
 }
 

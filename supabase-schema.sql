@@ -119,6 +119,36 @@ CREATE TABLE public.courses (
 -- Migration for existing databases (fresh setups already include instructor_id):
 -- ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS instructor_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL;
 
+-- Year level and semester, for the Curriculum Mapping Summary in the Overall
+-- Report. Nullable on purpose: 33 courses are on file and none of them has this
+-- recorded, so the report renders a dash rather than a guess. Filling it in is
+-- data entry, not a migration -- the columns are here so there is somewhere to
+-- put it.
+ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS year_level INTEGER;
+ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS semester INTEGER;
+
+-- CQI actions: the recommendations the Overall Report's last panel lists. No
+-- page writes to this yet, so it starts empty -- which the panel renders as an
+-- empty state rather than as a broken table.
+CREATE TABLE IF NOT EXISTS public.cqi_actions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code TEXT UNIQUE NOT NULL,
+    recommendation TEXT NOT NULL,
+    responsible TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'completed')),
+    target_date DATE,
+    program_id UUID REFERENCES public.programs(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.cqi_actions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Authenticated users can read cqi_actions" ON public.cqi_actions FOR SELECT
+    TO authenticated USING (true);
+CREATE POLICY "Admins and managers can manage cqi_actions" ON public.cqi_actions FOR ALL
+    TO authenticated USING (true) WITH CHECK (true);
+
 CREATE TABLE public.program_outcomes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     program_id UUID NOT NULL REFERENCES public.programs(id) ON DELETE CASCADE,

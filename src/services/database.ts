@@ -86,6 +86,15 @@ export interface Course {
     instructor_id: string | { id: string; full_name: string | null; email: string } | null
     prerequisite: string
     corequisite: string
+    /**
+     * Year level and semester, for the Curriculum Mapping Summary. Optional
+     * because the columns are a migration that may not have been applied to the
+     * database yet: absent columns come back undefined and the report renders a
+     * dash. Nothing writes them yet, so a database without the migration behaves
+     * exactly as before.
+     */
+    year_level?: number | null
+    semester?: number | null
     status: string
     created_at: string
     updated_at: string
@@ -348,12 +357,51 @@ export async function deleteProgram(id: string): Promise<void> {
 // COURSES
 
 export async function fetchCourses(): Promise<Course[]> {
+  // No explicit column list on purpose: the select is '*' plus relation joins,
+  // so an optional column a database predates simply comes back absent rather
+  // than making the whole query fail.
   const { data, error } = await supabase
 .from('courses')
       .select('*, program_id ( id, code, name ), curriculum_id ( id, code ), instructor_id ( id, full_name, email )')
       .order('code', { ascending: true })
   if (error) throw error
   return data
+}
+
+/** A CQI recommendation, for the Overall Report's monitoring panel. */
+export interface CqiAction {
+  id: string
+  code: string
+  recommendation: string
+  responsible: string
+  status: 'pending' | 'in_progress' | 'completed'
+  target_date: string | null
+  program_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * Latest CQI actions.
+ *
+ * Fails SOFT, deliberately. cqi_actions is a migration that may not have been
+ * applied to the database yet, and a report whose last panel throws over a
+ * missing table is worse than one that shows no recommendations. A rejected
+ * query and a table with no rows both come back as an empty list, so the panel
+ * renders the same empty state either way.
+ */
+export async function fetchCqiActions(limit = 5): Promise<CqiAction[]> {
+  try {
+    const { data, error } = await supabase
+      .from('cqi_actions')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit)
+    if (error) return []
+    return (data ?? []) as CqiAction[]
+  } catch {
+    return []
+  }
 }
 
 export async function assignCourseInstructor(courseId: string, instructorId: string | null): Promise<Course> {

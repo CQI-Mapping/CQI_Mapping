@@ -35,6 +35,7 @@ import {
   fetchCourseLearningOutcomesStandalone,
   fetchStrategicGoals,
   fetchChedMemoOrders,
+  fetchCqiActions,
 } from '../../services/database'
 import type {
   Program,
@@ -44,24 +45,30 @@ import type {
   CourseLearningOutcomeStandalone,
   StrategicGoal,
   ChedMemoOrder,
+  CqiAction,
 } from '../../services/database'
-import { buildReport, buildRecordMix } from '../../utils/reports'
+import { buildReport } from '../../utils/reports'
 import { SCHOOL } from '../../utils/report'
 import {
   alignmentSummary,
-  anchorTallies,
   buildAnchors,
   courseOutcomes,
+  coursesInProgram,
   poOutcomes,
-  spellingIssues,
 } from '../../utils/alignment'
+import {
+  anchorKeysOf,
+  buildMappingReport,
+  chartableOutcomes,
+  matrixRows,
+} from '../../utils/cloPoMapping'
 import type { PoOutcome } from '../../utils/alignment'
 import { normalizeCode } from '../../utils/courseCodes'
-import RecordMixDonut from '../../components/RecordMixDonut'
-import AlignmentSpine from '../../components/AlignmentSpine'
-import OutcomeBars from '../../components/OutcomeBars'
-import OutcomeAnchorMatrix from '../../components/OutcomeAnchorMatrix'
+import MappedTargetsDonut from '../../components/MappedTargetsDonut'
+import PoCoverageBars from '../../components/PoCoverageBars'
+import CloPoMatrix from '../../components/CloPoMatrix'
 import Icon from '../../components/icons'
+import type { IconName } from '../../components/icons'
 
 interface ReportsProps {
   profile: { email?: string | null }
@@ -81,12 +88,13 @@ function Reports({ profile }: ReportsProps) {
   const [clos, setClos] = useState<CourseLearningOutcomeStandalone[]>([])
   const [goals, setGoals] = useState<StrategicGoal[]>([])
   const [cmos, setCmos] = useState<ChedMemoOrder[]>([])
+  const [cqiActions, setCqiActions] = useState<CqiAction[]>([])
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const [p, c, po, peo, clo, sg, cmo] = await Promise.all([
+      const [p, c, po, peo, clo, sg, cmo, cqi] = await Promise.all([
         fetchPrograms(),
         fetchCourses(),
         fetchProgramOutcomesStandalone(),
@@ -94,6 +102,7 @@ function Reports({ profile }: ReportsProps) {
         fetchCourseLearningOutcomesStandalone(),
         fetchStrategicGoals(),
         fetchChedMemoOrders(),
+        fetchCqiActions(),
       ])
       setPrograms(p)
       setCourses(c)
@@ -102,6 +111,7 @@ function Reports({ profile }: ReportsProps) {
       setClos(clo)
       setGoals(sg)
       setCmos(cmo)
+      setCqiActions(cqi)
       // Default to the first program; the selector below lets any role change it.
       setProgramId((current) => current ?? p[0]?.id ?? null)
     } catch (e) {
@@ -123,36 +133,71 @@ function Reports({ profile }: ReportsProps) {
     [pos, anchors, singleProgram],
   )
   const summary = alignmentSummary(outcomes)
-  const tallies = anchorTallies(outcomes, anchors)
-  const issues = spellingIssues(outcomes)
 
   const programCourseList = useMemo(
-    () =>
-      program
-        ? courses
-            .filter((c) => c.program_id === program.id)
-            .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }))
-        : [],
+    () => (program ? coursesInProgram(courses, program.id) : []),
     [courses, program],
   )
+
+  // The mapping the report is built on: which program outcomes each learning
+  // outcome names. clo_po_matrix holds no rows and nothing writes to it, so this
+  // reads the codes out of the learning outcomes themselves -- see
+  // utils/cloPoMapping.ts for why that is narrow enough to trust.
+  const mapping = useMemo(() => buildMappingReport(clos, outcomes), [clos, outcomes])
+  const charted = useMemo(() => chartableOutcomes(mapping), [mapping])
+  const matrixKeys = useMemo(() => anchorKeysOf(mapping), [mapping])
+  const matrixCodes = matrixKeys.map(
+    (k) => outcomes.find((o) => o.key === k)?.code ?? k,
+  )
+  const courseCodeOf = useCallback(
+    (courseId: string) => {
+      const hit = courses.find((c) => c.id === courseId || normalizeCode(c.code) === normalizeCode(courseId))
+      return hit?.code ?? courseId
+    },
+    [courses],
+  )
+  const matrix = useMemo(
+    () => matrixRows(mapping, courseCodeOf),
+    [mapping, courseCodeOf],
+  )
+
+  // Per course: its outcomes, and how many of them reach a program outcome.
   const courseOutcomeRows = useMemo(
     () => courseOutcomes(programCourseList, clos),
     [programCourseList, clos],
   )
-  const coursesWithOutcomes = courseOutcomeRows.filter((r) => r.outcomeCount > 0).length
-  const unalignedOutcomes = outcomes.filter(
-    (o) => o.cmo.length + o.peo.length + o.sg.length === 0,
-  )
-  const coursesWithoutOutcomes = courseOutcomeRows.filter((r) => r.outcomeCount === 0)
-  const coursesWithoutInstructor = programCourseList.filter((c) => !c.instructor_id)
+  const mappedByCourse = useMemo(() => {
+    const byCourse = new Map<string, { mapped: number; total: number }>()
+    for (const course of programCourseList) {
+      const key = normalizeCode(course.code)
+      const total = courseOutcomeRows.find((r) => r.course.id === course.id)?.outcomeCount ?? 0
+      const mapped = mapping.links.filter(
+        (l) => normalizeCode(l.clo.course) === key && l.poKeys.length > 0,
+      ).length
+      byCourse.set(course.id, { mapped, total })
+    }
+    return byCourse
+  }, [programCourseList, courseOutcomeRows, mapping])
 
-  // A learning outcome whose `course` text spells the code differently from the
-  // course it matched. The match is lenient by design, so a wrong spelling can
-  // still find the right course -- but it is worth knowing, because the next
-  // person to edit that row will not get the same match for free.
-  const looseMatches = courseOutcomeRows.filter((r) =>
-    r.matched.some((raw) => normalizeCode(raw) !== normalizeCode(r.course.code)),
-  )
+  // Which kind of document the mapped learning outcomes reach, for the
+  // donut. A learning outcome counts once per family it reaches, so the slices
+  // need not total the mapped count -- which is what the legend's counts are
+  // for.
+  const mappedTargets = useMemo(() => {
+    const byKey = new Map(outcomes.map((o) => [o.key, o]))
+    const counts = { po: 0, peo: 0, sg: 0, ched: 0 }
+    for (const link of mapping.links) {
+      if (link.poKeys.length === 0) continue
+      counts.po += 1
+      const reached = link.poKeys.map((k) => byKey.get(k)).filter(Boolean)
+      if (reached.some((o) => o!.peo.length > 0)) counts.peo += 1
+      if (reached.some((o) => o!.sg.length > 0)) counts.sg += 1
+      // A CMO alignment IS a CHED memorandum reference: the memo table holds
+      // them, and cmo_id points into it.
+      if (reached.some((o) => o!.cmo.length > 0)) counts.ched += 1
+    }
+    return counts
+  }, [mapping, outcomes])
 
   // ---- the export's source ----
   //
@@ -161,11 +206,6 @@ function Reports({ profile }: ReportsProps) {
   // every record, built the same way -- the whole dataset, nothing filtered --
   // because that is the one artifact that has to leave the app complete.
   const report = buildReport({ programs, courses, pos, peos, clos })
-
-  // The record mix stays global: the standalone PO list cannot be attributed to
-  // a program, and a per-program donut that quietly includes or excludes whole
-  // record families would misstate the mix.
-  const mix = buildRecordMix(report.summary)
 
   /**
    * Opening the page is the event worth recording — it has no other action of
@@ -272,213 +312,264 @@ function Reports({ profile }: ReportsProps) {
         </div>
       ) : (
         <>
-          {/* ---- the spine first: the number the page exists for ---- */}
-          <AlignmentSpine
-            programCode={program.code}
-            summary={summary}
-            coursesWithOutcomes={coursesWithOutcomes}
-            coursesTotal={programCourseList.length}
-          />
-
-          {/* ---- KPI cards ---- */}
+          {/* ---- KPI row ----
+              Eight tiles in one row, each with an icon, a figure and the
+              qualifier that makes the figure mean something -- a count on its
+              own ("33") invites the reader to assume it is the answer. */}
           <div className="stat-grid stat-grid--2026 reports-kpis">
-            <KpiCard label="Program" value={program.code} sub={program.name} icon="grid" />
+            <KpiCard label="Total Programs" value={programs.length} sub={program.code} icon="cap" />
             <KpiCard
-              label="Courses"
+              label="Total Courses"
               value={programCourseList.length}
-              sub={`${coursesWithOutcomes} carry learning outcomes`}
-              icon="list"
+              sub="Across all year levels"
+              icon="book"
             />
             <KpiCard
-              label="Learning Outcomes"
+              label="Total CLOs"
               value={clos.length}
-              sub="Across all courses"
-              icon="list"
+              sub="From all courses"
+              icon="doc"
             />
             <KpiCard
-              label="Program Outcomes"
+              label="Total POs"
               value={summary.outcomes}
-              sub={`${pos.length} alignment rows`}
-              icon="check"
+              sub="Program Outcomes"
+              icon="target"
             />
             <KpiCard
-              label="PEOs"
+              label="Total PEOs"
               value={peos.length}
-              sub={`${goals.length} goals · ${cmos.length} CHED memos`}
-              icon="eye"
+              sub="Program Educational Objectives"
+              icon="people"
             />
             <KpiCard
-              label="Anchored"
-              value={summary.outcomes === 0 ? '—' : `${summary.percent}%`}
-              sub={`${summary.aligned} of ${summary.outcomes} outcomes`}
+              label="Mapping Coverage"
+              value={mapping.totalClos === 0 ? '—' : `${mapping.coveragePercent}%`}
+              sub={`(${mapping.mappedClos} / ${mapping.totalClos} CLOs)`}
               icon="check"
+              tone="good"
             />
             <KpiCard
-              label="Gaps"
-              value={summary.unaligned + coursesWithoutOutcomes.length}
-              sub={`${summary.unaligned} outcomes · ${coursesWithoutOutcomes.length} courses`}
-              icon="x"
+              label="Unmapped / Incomplete"
+              value={mapping.gaps.length}
+              sub="CLOs / Relationships"
+              icon="warning"
+              tone={mapping.gaps.length > 0 ? 'bad' : 'good'}
+            />
+            <KpiCard
+              label="CQI Actions"
+              value={cqiActions.length}
+              sub="Open Recommendations"
+              icon="actions"
+              tone={cqiActions.length > 0 ? 'warn' : 'neutral'}
             />
           </div>
 
-          {/* ---- panels ----
-              Asymmetric on purpose: the alignment story reads down the wide
-              left column (which document, then every outcome against every
-              document), and the right column carries the supporting evidence
-              (which course, what else exists, what is missing). A uniform grid
-              would give the matrix the same visual weight as the bar chart, and
-              it is the denser of the two by an order of magnitude. */}
-          <div className="reports-grid">
-            <div className="reports-grid__main">
-              <section className="panel reports-panel">
-                <h3>Outcomes by Anchor</h3>
-                <p className="reports-panel__sub">
-                  How many program outcomes reach each CHED memorandum, PEO or strategic
-                  goal.
-                </p>
-                {tallies.length === 0 ? (
-                  <p className="reports-empty">
-                    No CHED memoranda, PEOs or strategic goals recorded yet.
-                  </p>
-                ) : (
-                  <OutcomeBars data={tallies} outcomes={summary.outcomes} />
-                )}
-              </section>
-
-              <section className="panel reports-panel">
-                <h3>Outcome Alignment Matrix</h3>
-                <p className="reports-panel__sub">
-                  Every program outcome against every document it could be aligned to.
-                </p>
-                {outcomes.length === 0 ? (
-                  <p className="reports-empty">
-                    {singleProgram
-                      ? 'No program outcomes recorded yet.'
-                      : 'Program outcomes are institutional rather than per program, so ' +
-                        'this matrix is only charted while the system holds a single program.'}
-                  </p>
-                ) : (
-                  <OutcomeAnchorMatrix
-                    outcomes={outcomes}
-                    columns={anchors.map((a) => ({ family: a.family, code: a.code }))}
-                  />
-                )}
-              </section>
-            </div>
-
-            <div className="reports-grid__side">
-              <section className="panel reports-panel">
-                <h3>Course Outcomes</h3>
-                <p className="reports-panel__sub">
-                  Which of the program's courses carry learning outcomes.
-                </p>
-                <div className="table-wrap oamx__scroll">
-                  <table className="table">
-                    <thead>
+          {/* ---- panels: three across, two rows ----
+              The arrangement of the CQI report brief: mapping summary, PO
+              coverage chart and the CLO-PO matrix on the first row; alignment
+              mix, mapping gaps and CQI monitoring on the second. */}
+          <div className="reports-panels">
+            {/* 1 ---- */}
+            <section className="panel reports-panel">
+              <PanelHead icon="book" title="Curriculum Mapping Summary" />
+              <div className="table-wrap reports-scroll">
+                <table className="table reports-summary">
+                  <thead>
+                    <tr>
+                      <th>Course Code</th>
+                      <th>Course Title</th>
+                      <th className="reports-num">Year Level</th>
+                      <th className="reports-num">Semester</th>
+                      <th className="reports-num"># of CLOs</th>
+                      <th>Mapping Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {courseOutcomeRows.length === 0 ? (
                       <tr>
-                        <th>Code</th>
-                        <th>Course Title</th>
-                        <th className="reports-num">#</th>
+                        <td colSpan={6} className="reports-empty">No courses in this program yet.</td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {courseOutcomeRows.length === 0 ? (
-                        <tr>
-                          <td colSpan={3} className="reports-empty">No courses in this program yet.</td>
-                        </tr>
-                      ) : (
-                        courseOutcomeRows.map(({ course, outcomeCount }) => (
-                          <tr
-                            key={course.id}
-                            className={outcomeCount === 0 ? 'reports-row--archived' : undefined}
-                          >
+                    ) : (
+                      courseOutcomeRows.map(({ course, outcomeCount }) => {
+                        const roll = mappedByCourse.get(course.id) ?? { mapped: 0, total: 0 }
+                        const badge = statusBadge(roll)
+                        return (
+                          <tr key={course.id}>
                             <td>{course.code}</td>
-                            <td>{course.title}</td>
-                            <td className="reports-num">
-                              {outcomeCount === 0 ? (
-                                <span className="status-badge status-badge--unmapped">none</span>
-                              ) : (
-                                outcomeCount
-                              )}
-                            </td>
+                            <td className="reports-course-title">{course.title}</td>
+                            <td className="reports-num">{course.year_level ?? BLANK}</td>
+                            <td className="reports-num">{course.semester ?? BLANK}</td>
+                            <td className="reports-num">{outcomeCount}</td>
+                            <td><span className={badge.className}>{badge.label}</span></td>
                           </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <PanelFoot
+                left={`Showing ${courseOutcomeRows.length} of ${programCourseList.length} courses`}
+                action="View All Courses"
+              />
+            </section>
 
-              <section className="panel reports-panel">
-                <h3>Record Mix</h3>
-                <p className="reports-panel__sub">
-                  What the system is made of, across all programs.
-                </p>
-                <RecordMixDonut mix={mix} />
-              </section>
+            {/* 2 ---- */}
+            <section className="panel reports-panel">
+              <PanelHead icon="chart" title="PO Coverage Chart" />
+              <p className="reports-panel__sub">
+                Percentage of CLOs mapped to each Program Outcome.
+              </p>
+              {charted.rows.length === 0 && charted.uncovered === 0 ? (
+                <p className="reports-empty">No program outcomes recorded yet.</p>
+              ) : (
+                <PoCoverageBars
+                  rows={charted.rows.map((r) => ({
+                    code: r.outcome.code,
+                    percent: r.percent,
+                    count: r.cloCount,
+                  }))}
+                  uncovered={charted.uncovered}
+                  hidden={charted.hidden}
+                  totalClos={mapping.totalClos}
+                />
+              )}
+            </section>
 
-              <section className="panel reports-panel">
-                <h3>Gaps</h3>
-                <p className="reports-panel__sub">
-                  What the data is missing, counted rather than described.
+            {/* 3 ---- */}
+            <section className="panel reports-panel">
+              <PanelHead icon="grid" title="CLO-PO Alignment Matrix" />
+              {matrix.length === 0 ? (
+                <p className="reports-empty">No learning outcomes recorded yet.</p>
+              ) : matrixKeys.length === 0 ? (
+                <p className="reports-empty">
+                  No learning outcome names a program outcome yet — the matrix fills in as
+                  outcomes are mapped.
                 </p>
-                <ul className="reports-gaps">
-                  <Gap
-                    n={summary.unaligned}
-                    label="outcomes anchored to nothing"
-                    detail={
-                      unalignedOutcomes.length > 0
-                        ? unalignedOutcomes.map((o) => o.code).join(', ')
-                        : ''
-                    }
-                  />
-                  <Gap
-                    n={coursesWithoutOutcomes.length}
-                    label="courses with no learning outcomes"
-                    detail={
-                      coursesWithoutOutcomes.length > 0
-                        ? `${coursesWithoutOutcomes
-                            .slice(0, 8)
-                            .map((r) => r.course.code)
-                            .join(', ')}${
-                            coursesWithoutOutcomes.length > 8
-                              ? ` +${coursesWithoutOutcomes.length - 8} more`
-                              : ''
-                          }`
-                        : ''
-                    }
-                  />
-                  <Gap
-                    n={coursesWithoutInstructor.length}
-                    label="courses with no instructor assigned"
-                  />
-                  <Gap
-                    n={issues.length}
-                    label="outcome codes written more than one way"
-                    detail={
-                      issues.length > 0
-                        ? `${issues
-                            .slice(0, 4)
-                            .map((i) => `${i.code} (${i.spellings.length} ways)`)
-                            .join(', ')}${issues.length > 4 ? ` +${issues.length - 4} more` : ''}`
-                        : ''
-                    }
-                  />
-                  <Gap
-                    n={summary.outcomes - summary.withGoal}
-                    label="outcomes with no strategic goal"
-                  />
-                  <Gap n={looseMatches.length} label="outcomes whose course code is misspelled" />
-                </ul>
-              </section>
-            </div>
+              ) : (
+                <CloPoMatrix rows={matrix} columns={matrixCodes} columnKeys={matrixKeys} />
+              )}
+            </section>
+
+            {/* 4 ---- */}
+            <section className="panel reports-panel">
+              <PanelHead icon="target" title="Outcomes Alignment by Type" />
+              <p className="reports-panel__sub">
+                Distribution of mapped CLOs across PO, PEO and Strategic Goals.
+              </p>
+              <MappedTargetsDonut
+                slices={[
+                  { key: 'po', label: 'PO', count: mappedTargets.po },
+                  { key: 'peo', label: 'PEO', count: mappedTargets.peo },
+                  { key: 'sg', label: 'Strategic Goal', count: mappedTargets.sg },
+                  { key: 'ched', label: 'CHED', count: mappedTargets.ched },
+                ]}
+                mapped={mapping.mappedClos}
+                total={mapping.totalClos}
+              />
+            </section>
+
+            {/* 5 ---- */}
+            <section className="panel reports-panel">
+              <PanelHead icon="warning" title="Mapping Gaps" />
+              <p className="reports-panel__sub">
+                CLOs with no program outcome mapping.
+              </p>
+              <div className="table-wrap reports-scroll">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Course Code</th>
+                      <th>CLO Description</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {mapping.gaps.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="reports-empty">
+                          {mapping.totalClos === 0
+                            ? 'No learning outcomes to check yet.'
+                            : 'Every learning outcome maps to a program outcome.'}
+                        </td>
+                      </tr>
+                    ) : (
+                      mapping.gaps.map((gap) => (
+                        <tr key={gap.clo.id}>
+                          <td>{courseCodeOf(gap.clo.course)}</td>
+                          <td className="reports-gap-clo">
+                            {gap.clo.title || gap.clo.description || BLANK}
+                          </td>
+                          <td>
+                            <span className="status-badge status-badge--unmapped">Unmapped</span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <PanelFoot left="" action="View All Gaps" />
+            </section>
+
+            {/* 6 ---- */}
+            <section className="panel reports-panel">
+              <PanelHead icon="actions" title="CQI Monitoring" />
+              <p className="reports-panel__sub">
+                Latest recommendations and action items.
+              </p>
+              <div className="table-wrap reports-scroll">
+                <table className="table reports-cqi">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Recommendation</th>
+                      <th>Responsible</th>
+                      <th>Status</th>
+                      <th>Target Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cqiActions.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="reports-empty">
+                          No recommendations recorded yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      cqiActions.map((a) => (
+                        <tr key={a.id}>
+                          <td>{a.code}</td>
+                          <td>{a.recommendation}</td>
+                          <td>{a.responsible || BLANK}</td>
+                          <td>
+                            <span className={`status-badge status-badge--${cqiTone(a.status)}`}>
+                              {cqiLabel(a.status)}
+                            </span>
+                          </td>
+                          <td className="reports-cqi__date">{formatTarget(a.target_date)}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <PanelFoot left="" action="View All Actions" />
+            </section>
           </div>
 
           {/* ---- footer: who produced this and what it is not ---- */}
           <footer className="reports-footer">
             <p className="reports-footer__who">
-              Overall Report · {program ? `${program.code} Department` : 'All Programs'} ·{' '}
-              {SCHOOL.school}
+              <span className="reports-footer__mark">
+                <Icon name="cap" size={15} />
+              </span>
+              CQI Monitoring System
+              <span className="reports-footer__sep">|</span>
+              {program ? `${program.code} Department` : 'All Programs'}
+              <span className="reports-footer__sep">·</span>
+              {SCHOOL.institute}
             </p>
             <p className="reports-footer__note">
               Note: this report is generated from system data and is for academic use
@@ -491,36 +582,108 @@ function Reports({ profile }: ReportsProps) {
   )
 }
 
-/** One line of the gaps list: a count, what it is a count of, and the names. */
-function Gap({ n, label, detail }: { n: number; label: string; detail?: string }) {
+/** Shown where a record has nothing recorded, rather than as an empty cell. */
+const BLANK = '—'
+
+/**
+ * A course's mapping status, from how many of its learning outcomes reach a
+ * program outcome.
+ *
+ * "No CLOs" is kept distinct from "Unmapped": a course with no outcomes has
+ * nothing to map, which is a different fact from having outcomes and leaving
+ * them unmapped, and the report says which it is.
+ */
+function statusBadge({ mapped, total }: { mapped: number; total: number }) {
+  if (total === 0) return { label: 'No CLOs', className: 'status-badge status-badge--none' }
+  if (mapped === 0) return { label: 'Unmapped', className: 'status-badge status-badge--unmapped' }
+  if (mapped < total)
+    return { label: 'Partially Mapped', className: 'status-badge status-badge--partial' }
+  return { label: 'Mapped', className: 'status-badge status-badge--mapped' }
+}
+
+const CQI_LABELS = {
+  pending: 'Pending',
+  in_progress: 'In Progress',
+  completed: 'Completed',
+} as const
+
+const cqiLabel = (status: keyof typeof CQI_LABELS) => CQI_LABELS[status] ?? 'Pending'
+const cqiTone = (status: keyof typeof CQI_LABELS) =>
+  status === 'completed' ? 'mapped' : status === 'in_progress' ? 'partial' : 'unmapped'
+
+/** "2026-12-01" -> "Dec 2026". A null target date is not an error. */
+function formatTarget(date: string | null): string {
+  if (!date) return BLANK
+  const d = new Date(`${date}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return BLANK
+  return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+}
+
+/**
+ * A panel's footer line: a count on the left, a "view all" action on the right.
+ *
+ * The action is deliberately inert for now -- there is no second page to send
+ * it to, and a link that goes nowhere is worse than one that is obviously not
+ * there yet. It is a span, not a button, so it cannot be clicked and fail.
+ */
+function PanelFoot({ left, action }: { left: string; action: string }) {
   return (
-    <li className={n === 0 ? 'reports-gaps__item reports-gaps__item--none' : 'reports-gaps__item'}>
-      <span className="reports-gaps__n">{n}</span>
-      <span className="reports-gaps__label">{label}</span>
-      {detail && <span className="reports-gaps__detail">{detail}</span>}
-    </li>
+    <div className="reports-panel__foot">
+      <span>{left}</span>
+      <span className="reports-panel__more">{action} →</span>
+    </div>
   )
 }
 
-/** One KPI card, on the dashboard's own stat-card chrome. */
+/**
+ * A panel's icon-and-title line.
+ *
+ * Every panel gets one, so the six headers on the page read as six of the same
+ * thing. The title is the h3 rather than the rule below it: the panel is a
+ * section of the report, and the heading is what a screen reader and the print
+ * outline both navigate by.
+ */
+function PanelHead({ icon, title }: { icon: IconName; title: string }) {
+  return (
+    <div className="reports-panel__head">
+      <span className="reports-panel__icon">
+        <Icon name={icon} size={15} />
+      </span>
+      <h3>{title}</h3>
+    </div>
+  )
+}
+
+/**
+ * One KPI tile.
+ *
+ * `tone` colours the figure only. A count of zero is not an error, so the tiles
+ * that can legitimately be zero default to neutral and the caller decides
+ * whether a number deserves attention -- "2 unaligned" in amber is information,
+ * the same 2 in red would read as a failure.
+ */
 function KpiCard({
   label,
   value,
   sub,
   icon,
+  tone = 'neutral',
 }: {
   label: string
   value: string | number
   sub: string
-  icon: 'grid' | 'list' | 'check' | 'eye' | 'x'
+  icon: IconName
+  tone?: 'neutral' | 'good' | 'warn' | 'bad'
 }) {
   return (
-    <div className="stat-card stat-card--2026 card-enter">
+    <div className="stat-card stat-card--2026 reports-kpi card-enter">
       <div className="stat-card__icon stat-card__icon--reports">
         <Icon name={icon} size={16} />
       </div>
       <span className="stat-card__label">{label}</span>
-      <span className="stat-card__value">{value}</span>
+      <span className={`stat-card__value reports-kpi__value reports-kpi__value--${tone}`}>
+        {value}
+      </span>
       <span className="stat-card__sub">{sub}</span>
     </div>
   )

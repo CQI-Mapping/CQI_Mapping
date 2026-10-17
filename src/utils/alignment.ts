@@ -33,6 +33,29 @@ import type {
 } from '../services/database'
 import { cloMatchesSubject, normalizeCode } from './courseCodes'
 
+/**
+ * The program a course belongs to, as an id.
+ *
+ * fetchCourses() selects `program_id ( id, code, name )`, so Supabase hands back
+ * the joined row and `course.program_id` is an OBJECT, not a uuid -- which the
+ * Course type admits by declaring it `string | { id, code, name }`. Comparing
+ * that object to a program id with `===` silently matches nothing: the report
+ * showed zero courses against a database holding 33, with no error anywhere to
+ * explain it. Both shapes are accepted here so the caller never has to know
+ * which one the select returned.
+ */
+export function courseProgramId(course: Course): string {
+  const p = course.program_id
+  return typeof p === 'string' ? p : (p?.id ?? '')
+}
+
+/** Courses of one program, in code order. */
+export function coursesInProgram(courses: Course[], programId: string): Course[] {
+  return courses
+    .filter((c) => courseProgramId(c) === programId)
+    .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }))
+}
+
 /** The three things a program outcome is aligned to. */
 export type AnchorFamily = 'cmo' | 'peo' | 'sg'
 
@@ -71,17 +94,65 @@ export interface Anchor {
   title: string | null
 }
 
-/** The three anchor lists, in the order the report reads them. */
+/**
+ * The three anchor lists, in the order the report reads them.
+ *
+ * Deduplicated by family and code. The memo table holds two rows both coded
+ * "CMO 25 s. 2015" -- different documents to the database, since outcomes align
+ * to one id or the other, but the chart and the matrix can only label a column
+ * by its code. Left in, they render as two identical bars both counting the
+ * same outcomes, which reads as "twice as many outcomes" when it is one code
+ * entered twice. anchorCollisions() is what reports them.
+ */
 export function buildAnchors(input: {
   cmos: ChedMemoOrder[]
   peos: ProgramEducationalObjective[]
   goals: StrategicGoal[]
 }): Anchor[] {
-  return [
+  const all = [
     ...input.cmos.map((a) => ({ family: 'cmo' as const, id: a.id, code: a.code, title: a.title })),
     ...input.peos.map((a) => ({ family: 'peo' as const, id: a.id, code: a.code, title: a.title })),
     ...input.goals.map((a) => ({ family: 'sg' as const, id: a.id, code: a.code, title: a.title })),
   ]
+  const seen = new Set<string>()
+  return all.filter((a) => {
+    const key = `${a.family}:${anchorKey(a.code)}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+/**
+ * A document code held by more than one record, read off the raw lists before
+ * buildAnchors() collapsed them.
+ */
+export interface AnchorCollision {
+  family: AnchorFamily
+  code: string
+  /** Distinct document records sharing this code. */
+  count: number
+}
+
+export function anchorCollisions(input: {
+  cmos: ChedMemoOrder[]
+  peos: ProgramEducationalObjective[]
+  goals: StrategicGoal[]
+}): AnchorCollision[] {
+  const groups = new Map<string, { family: AnchorFamily; code: string; ids: Set<string> }>()
+  const add = (family: AnchorFamily, id: string, code: string) => {
+    const key = `${family}:${anchorKey(code)}`
+    const g = groups.get(key) ?? { family, code, ids: new Set<string>() }
+    g.ids.add(id)
+    groups.set(key, g)
+  }
+  for (const a of input.cmos) add('cmo', a.id, a.code)
+  for (const a of input.peos) add('peo', a.id, a.code)
+  for (const a of input.goals) add('sg', a.id, a.code)
+
+  return [...groups.values()]
+    .filter((g) => g.ids.size > 1)
+    .map((g) => ({ family: g.family, code: g.code, count: g.ids.size }))
 }
 
 /**
@@ -198,6 +269,74 @@ export function poOutcomes(
       sg: [...sg].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
     }
   })
+}
+
+/** One slice of the alignment pie: how completely an outcome is anchored. */
+export interface AnchorSlice {
+  key: string
+  label: string
+  count: number
+  percent: number
+}
+
+/**
+ * Group outcomes by how far they are anchored, for the pie.
+ *
+ * The buckets are cumulative rather than per-family, because that is the
+ * question a reader actually has: is this outcome tied to nothing, to a CMO
+ * alone, or all the way up the chain? Counting per family instead would put one
+ * outcome in three slices and make the pie lie about its own total.
+ *
+ * Ordered by depth, most anchored first, so the ring reads as a taper and the
+ * unaligned tail is the last slice -- sitting next to the list of which
+ * outcomes it contains.
+ */
+export function anchorDepthSlices(outcomes: PoOutcome[]): AnchorSlice[] {
+  const buckets = [
+    {
+      key: 'cmo-peo-goal',
+      label: 'CMO + PEO + goal',
+      test: (o: PoOutcome) => o.cmo.length > 0 && o.peo.length > 0 && o.sg.length > 0,
+    },
+    {
+      key: 'cmo-peo',
+      label: 'CMO + PEO',
+      test: (o: PoOutcome) => o.cmo.length > 0 && o.peo.length > 0 && o.sg.length === 0,
+    },
+    {
+      key: 'cmo',
+      label: 'CMO only',
+      test: (o: PoOutcome) => o.cmo.length > 0 && o.peo.length === 0 && o.sg.length === 0,
+    },
+    {
+      key: 'other',
+      // Anchored, but with no CMO -- a goal or PEO reached without the
+      // memorandum, which is odd data rather than a normal state. The three
+      // buckets above already cover every outcome that HAS a CMO, so this is
+      // the remainder and cannot overlap them. Without it the slices would stop
+      // totalling the whole and the pie would be quietly wrong.
+      label: 'Partly anchored',
+      test: (o: PoOutcome) => o.cmo.length === 0 && o.peo.length + o.sg.length > 0,
+    },
+    {
+      key: 'none',
+      label: 'Anchored to nothing',
+      test: (o: PoOutcome) => o.cmo.length + o.peo.length + o.sg.length === 0,
+    },
+  ]
+
+  const total = outcomes.length
+  return buckets
+    .map((b) => {
+      const count = outcomes.filter(b.test).length
+      return {
+        key: b.key,
+        label: b.label,
+        count,
+        percent: total === 0 ? 0 : Math.round((count / total) * 100),
+      }
+    })
+    .filter((s) => s.count > 0)
 }
 
 /** How many of the program's outcomes reach at least one institutional anchor. */
