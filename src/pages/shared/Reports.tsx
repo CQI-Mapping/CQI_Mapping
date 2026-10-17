@@ -1,23 +1,29 @@
 // Overall Report: the program's curriculum at a glance.
 //
 // Shared by all three roles (admin, manager, faculty), like the record list it
-// grew out of. The layout follows the report brief: a header with the export
-// actions, a row of KPI cards, then panels -- course mapping summary, PO
-// coverage chart, the CLO-to-PO alignment matrix, the record mix and the
-// mapping gaps. The searchable record inventory stays below as the appendix the
-// Excel export is built from.
+// grew out of. A header with the export actions, the alignment spine, a row of
+// KPI cards, then panels: outcomes by anchor, the alignment matrix, course
+// outcomes, the record mix and the gaps. The searchable record inventory stays
+// below as the appendix the Excel export is built from.
 //
-// Everything above the appendix reads the matrix-side tables:
-// course_learning_outcomes (a CLO row per course, by foreign key),
-// program_outcomes (a PO row per program) and clo_po_matrix (the mappings).
-// Those are the only sources a coverage number can honestly come from -- the
-// admin standalone lists key courses by free text, which is fine for a name
-// list and useless for "is this outcome mapped".
+// The first version built its coverage panels on program_outcomes,
+// course_learning_outcomes and clo_po_matrix. All three are empty and nothing
+// in the app writes to them, so the dashboard read zero against a system holding
+// 33 courses and 44 program outcome rows. This reads the tables the data is
+// actually entered in -- the standalone admin lists, the CHED memoranda, the
+// goals and the PEOs -- and reports what those hold:
 //
-// The page is scoped to one program at a time, because the alignment matrix is
-// meaningless across programs: PO codes repeat per program by design
-// (UNIQUE(program_id, code)), so PO1 of one program and PO1 of another are
-// different outcomes that only the program selector can tell apart.
+//   - 44 outcome ROWS are 27 outcomes, because the same code is written both
+//     "PO-11" and "PO 11" and stored once per alignment. utils/alignment.ts
+//     collapses them; counting rows would overstate the curriculum by 63%.
+//
+//   - CMO alignment is a foreign key. PEO and strategic goal alignment is free
+//     text in peo_text / sg_text holding comma-separated lists, with a "Goal 2:"
+//     in the data that still has to match "Goal 2".
+//
+// Program outcomes carry no program_id -- they are institutional. With one
+// program on file they belong to it; with several they are shared, and the page
+// says so rather than attributing them to whichever program is selected.
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
@@ -27,9 +33,8 @@ import {
   fetchProgramOutcomesStandalone,
   fetchProgramEducationalObjectives,
   fetchCourseLearningOutcomesStandalone,
-  fetchProgramOutcomes,
-  fetchCourseLearningOutcomes,
-  fetchCloPoMatrix,
+  fetchStrategicGoals,
+  fetchChedMemoOrders,
 } from '../../services/database'
 import type {
   Program,
@@ -37,40 +42,29 @@ import type {
   ProgramOutcomeStandalone,
   ProgramEducationalObjective,
   CourseLearningOutcomeStandalone,
-  ProgramOutcome,
-  CourseLearningOutcome,
-  CloPoMappingEntry,
+  StrategicGoal,
+  ChedMemoOrder,
 } from '../../services/database'
-import { buildReport, buildRecordMix, isArchived, columns, rowCells, COURSE_COLUMN } from '../../utils/reports'
-import type { Report, ReportSection } from '../../utils/reports'
+import { buildReport, buildRecordMix } from '../../utils/reports'
 import { SCHOOL } from '../../utils/report'
 import {
-  alignmentMatrix,
-  courseCoverage,
-  coverageSummary,
-  mappingGaps,
-  poCoverage,
-  programCourses,
-  programClos,
-  programMappings,
-  LEVEL_LEGEND,
-} from '../../utils/coverage'
+  alignmentSummary,
+  anchorTallies,
+  buildAnchors,
+  courseOutcomes,
+  poOutcomes,
+  spellingIssues,
+} from '../../utils/alignment'
+import type { PoOutcome } from '../../utils/alignment'
+import { normalizeCode } from '../../utils/courseCodes'
 import RecordMixDonut from '../../components/RecordMixDonut'
-import CoverageSpine from '../../components/CoverageSpine'
-import PoCoverageChart from '../../components/PoCoverageChart'
-import CloPoMatrix from '../../components/CloPoMatrix'
+import AlignmentSpine from '../../components/AlignmentSpine'
+import OutcomeBars from '../../components/OutcomeBars'
+import OutcomeAnchorMatrix from '../../components/OutcomeAnchorMatrix'
 import Icon from '../../components/icons'
 
 interface ReportsProps {
   profile: { email?: string | null }
-}
-
-/** Badge tone per course mapping status. */
-const STATUS_BADGE: Record<string, { label: string; className: string }> = {
-  mapped: { label: 'Mapped', className: 'status-badge status-badge--mapped' },
-  partial: { label: 'Partially Mapped', className: 'status-badge status-badge--partial' },
-  unmapped: { label: 'Unmapped', className: 'status-badge status-badge--unmapped' },
-  none: { label: 'No CLOs', className: 'status-badge status-badge--archived' },
 }
 
 function Reports({ profile }: ReportsProps) {
@@ -79,44 +73,35 @@ function Reports({ profile }: ReportsProps) {
   const [notice, setNotice] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
 
-  const [query, setQuery] = useState('')
-  const [includeArchived, setIncludeArchived] = useState(false)
-
   const [programs, setPrograms] = useState<Program[]>([])
   const [programId, setProgramId] = useState<string | null>(null)
   const [courses, setCourses] = useState<Course[]>([])
   const [pos, setPos] = useState<ProgramOutcomeStandalone[]>([])
   const [peos, setPeos] = useState<ProgramEducationalObjective[]>([])
   const [clos, setClos] = useState<CourseLearningOutcomeStandalone[]>([])
-
-  // The matrix-side tables, separate from the inventory lists above: these feed
-  // the dashboard panels.
-  const [poRows, setPoRows] = useState<ProgramOutcome[]>([])
-  const [cloRows, setCloRows] = useState<CourseLearningOutcome[]>([])
-  const [matrix, setMatrix] = useState<CloPoMappingEntry[]>([])
+  const [goals, setGoals] = useState<StrategicGoal[]>([])
+  const [cmos, setCmos] = useState<ChedMemoOrder[]>([])
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const [p, c, po, peo, clo, poRows, cloRows, mx] = await Promise.all([
+      const [p, c, po, peo, clo, sg, cmo] = await Promise.all([
         fetchPrograms(),
         fetchCourses(),
         fetchProgramOutcomesStandalone(),
         fetchProgramEducationalObjectives(),
         fetchCourseLearningOutcomesStandalone(),
-        fetchProgramOutcomes(),
-        fetchCourseLearningOutcomes(),
-        fetchCloPoMatrix(),
+        fetchStrategicGoals(),
+        fetchChedMemoOrders(),
       ])
       setPrograms(p)
       setCourses(c)
       setPos(po)
       setPeos(peo)
       setClos(clo)
-      setPoRows(poRows)
-      setCloRows(cloRows)
-      setMatrix(mx)
+      setGoals(sg)
+      setCmos(cmo)
       // Default to the first program; the selector below lets any role change it.
       setProgramId((current) => current ?? p[0]?.id ?? null)
     } catch (e) {
@@ -130,28 +115,56 @@ function Reports({ profile }: ReportsProps) {
 
   const program = programs.find((p) => p.id === programId) ?? null
 
-  // ---- everything derives from the selected program ----
-  const programCourseList = program ? programCourses(courses, program.id) : []
-  const programCloList = program ? programClos(courses, cloRows, program.id) : []
-  const programMatrixRows = program ? programMappings(cloRows, matrix, program.id) : []
-  const coverage = coverageSummary(programCloList, programMatrixRows)
-  const courseRows = courseCoverage(programCourseList, programCloList, programMatrixRows)
-  const gaps = mappingGaps(programCloList, programMatrixRows, programCourseList)
-  const coverageChart = program ? poCoverage(poRows.filter((po) => po.program_id === program.id), programCloList, programMatrixRows) : []
-  const matrixRows = program
-    ? alignmentMatrix(programCloList, poRows.filter((po) => po.program_id === program.id), programMatrixRows, programCourseList)
-    : []
+  // ---- the dashboard, derived from the selected program ----
+  const singleProgram = programs.length === 1
+  const anchors = useMemo(() => buildAnchors({ cmos, peos, goals }), [cmos, peos, goals])
+  const outcomes: PoOutcome[] = useMemo(
+    () => (singleProgram ? poOutcomes(pos, anchors) : []),
+    [pos, anchors, singleProgram],
+  )
+  const summary = alignmentSummary(outcomes)
+  const tallies = anchorTallies(outcomes, anchors)
+  const issues = spellingIssues(outcomes)
 
-  // ---- appendix: the record inventory, unchanged in behaviour ----
-  const report = buildReport(
-    { programs, courses, pos, peos, clos },
-    { includeArchived, query },
+  const programCourseList = useMemo(
+    () =>
+      program
+        ? courses
+            .filter((c) => c.program_id === program.id)
+            .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }))
+        : [],
+    [courses, program],
+  )
+  const courseOutcomeRows = useMemo(
+    () => courseOutcomes(programCourseList, clos),
+    [programCourseList, clos],
+  )
+  const coursesWithOutcomes = courseOutcomeRows.filter((r) => r.outcomeCount > 0).length
+  const unalignedOutcomes = outcomes.filter(
+    (o) => o.cmo.length + o.peo.length + o.sg.length === 0,
+  )
+  const coursesWithoutOutcomes = courseOutcomeRows.filter((r) => r.outcomeCount === 0)
+  const coursesWithoutInstructor = programCourseList.filter((c) => !c.instructor_id)
+
+  // A learning outcome whose `course` text spells the code differently from the
+  // course it matched. The match is lenient by design, so a wrong spelling can
+  // still find the right course -- but it is worth knowing, because the next
+  // person to edit that row will not get the same match for free.
+  const looseMatches = courseOutcomeRows.filter((r) =>
+    r.matched.some((raw) => normalizeCode(raw) !== normalizeCode(r.course.code)),
   )
 
-  // The record mix stays global: the standalone PO list cannot be attributed
-  // to a program, and a per-program donut that quietly includes or excludes
-  // whole record families would misstate the mix. The KPI cards above are the
-  // per-program story; this one is the whole-system story.
+  // ---- the export's source ----
+  //
+  // There is no on-screen inventory any more: the page is a report about the
+  // program, not a listing of the database. The Excel export still carries
+  // every record, built the same way -- the whole dataset, nothing filtered --
+  // because that is the one artifact that has to leave the app complete.
+  const report = buildReport({ programs, courses, pos, peos, clos })
+
+  // The record mix stays global: the standalone PO list cannot be attributed to
+  // a program, and a per-program donut that quietly includes or excludes whole
+  // record families would misstate the mix.
   const mix = buildRecordMix(report.summary)
 
   /**
@@ -190,8 +203,6 @@ function Reports({ profile }: ReportsProps) {
     }
   }
 
-  const filtersActive = query.trim() !== '' || includeArchived
-
   // Captured once per mount. Computing it inline would re-stamp on every
   // render -- typing in the search box would scroll the timestamp forward.
   const generated = useMemo(() => new Date().toLocaleString(), [])
@@ -202,7 +213,7 @@ function Reports({ profile }: ReportsProps) {
         <div className="page-heading">
           <h2>Overall Report</h2>
           <p>
-            Curriculum mapping, outcomes coverage and the record inventory —
+            Outcome alignment, curriculum coverage and the record inventory —
             read-only; edit records on their own pages.
           </p>
           {program && (
@@ -261,120 +272,134 @@ function Reports({ profile }: ReportsProps) {
         </div>
       ) : (
         <>
+          {/* ---- the spine first: the number the page exists for ---- */}
+          <AlignmentSpine
+            programCode={program.code}
+            summary={summary}
+            coursesWithOutcomes={coursesWithOutcomes}
+            coursesTotal={programCourseList.length}
+          />
+
           {/* ---- KPI cards ---- */}
           <div className="stat-grid stat-grid--2026 reports-kpis">
             <KpiCard label="Program" value={program.code} sub={program.name} icon="grid" />
-            <KpiCard label="Total Courses" value={programCourseList.length} sub="Active and archived" icon="list" />
-            <KpiCard label="Total CLOs" value={coverage.totalClos} sub="From all courses" icon="list" />
             <KpiCard
-              label="Total POs"
-              value={poRows.filter((po) => po.program_id === program.id).length}
-              sub="Program Outcomes"
-              icon="check"
-            />
-            <KpiCard label="Total PEOs" value={peos.length} sub="Program Educational Objectives" icon="eye" />
-            <KpiCard
-              label="Mapping Coverage"
-              value={`${coverage.coveragePercent}%`}
-              sub={`${coverage.mappedClos} / ${coverage.totalClos} CLOs mapped`}
-              icon="check"
+              label="Courses"
+              value={programCourseList.length}
+              sub={`${coursesWithOutcomes} carry learning outcomes`}
+              icon="list"
             />
             <KpiCard
-              label="Unmapped CLOs"
-              value={coverage.unmappedClos}
-              sub="CLOs with no PO mapping"
+              label="Learning Outcomes"
+              value={clos.length}
+              sub="Across all courses"
+              icon="list"
+            />
+            <KpiCard
+              label="Program Outcomes"
+              value={summary.outcomes}
+              sub={`${pos.length} alignment rows`}
+              icon="check"
+            />
+            <KpiCard
+              label="PEOs"
+              value={peos.length}
+              sub={`${goals.length} goals · ${cmos.length} CHED memos`}
+              icon="eye"
+            />
+            <KpiCard
+              label="Anchored"
+              value={summary.outcomes === 0 ? '—' : `${summary.percent}%`}
+              sub={`${summary.aligned} of ${summary.outcomes} outcomes`}
+              icon="check"
+            />
+            <KpiCard
+              label="Gaps"
+              value={summary.unaligned + coursesWithoutOutcomes.length}
+              sub={`${summary.unaligned} outcomes · ${coursesWithoutOutcomes.length} courses`}
               icon="x"
             />
           </div>
 
-          {/* ---- the spine: the one number the page exists for ---- */}
-          <CoverageSpine
-            programCode={program.code}
-            coverage={coverage}
-            coursesFullyMapped={courseRows.filter((r) => r.status === 'mapped').length}
-            coursesTotal={courseRows.length}
-          />
-
           {/* ---- panels ----
-              Asymmetric on purpose: coverage reads down the wide left column
-              (which PO, then how deep), and the right column carries the
-              supporting evidence (which course, what else exists, what is
-              missing). A uniform grid would give the matrix the same visual
-              weight as the bar chart, and it is the denser of the two by an
-              order of magnitude. */}
+              Asymmetric on purpose: the alignment story reads down the wide
+              left column (which document, then every outcome against every
+              document), and the right column carries the supporting evidence
+              (which course, what else exists, what is missing). A uniform grid
+              would give the matrix the same visual weight as the bar chart, and
+              it is the denser of the two by an order of magnitude. */}
           <div className="reports-grid">
             <div className="reports-grid__main">
               <section className="panel reports-panel">
-                <h3>PO Coverage Chart</h3>
+                <h3>Outcomes by Anchor</h3>
                 <p className="reports-panel__sub">
-                  Percentage of CLOs mapped to each Program Outcome.
+                  How many program outcomes reach each CHED memorandum, PEO or strategic
+                  goal.
                 </p>
-                {coverageChart.length === 0 ? (
-                  <p className="reports-empty">No Program Outcomes recorded for this program yet.</p>
+                {tallies.length === 0 ? (
+                  <p className="reports-empty">
+                    No CHED memoranda, PEOs or strategic goals recorded yet.
+                  </p>
                 ) : (
-                  <PoCoverageChart data={coverageChart} />
+                  <OutcomeBars data={tallies} outcomes={summary.outcomes} />
                 )}
               </section>
 
               <section className="panel reports-panel">
-                <h3>CLO–PO Alignment Matrix</h3>
+                <h3>Outcome Alignment Matrix</h3>
                 <p className="reports-panel__sub">
-                  What depth each learning outcome reaches each Program Outcome at.
+                  Every program outcome against every document it could be aligned to.
                 </p>
-                {matrixRows.length === 0 ? (
+                {outcomes.length === 0 ? (
                   <p className="reports-empty">
-                    No learning outcomes recorded for this program yet.
-                  </p>
-                ) : coverageChart.length === 0 ? (
-                  <p className="reports-empty">
-                    No Program Outcomes recorded for this program yet — there is nothing to
-                    align against.
+                    {singleProgram
+                      ? 'No program outcomes recorded yet.'
+                      : 'Program outcomes are institutional rather than per program, so ' +
+                        'this matrix is only charted while the system holds a single program.'}
                   </p>
                 ) : (
-                  <>
-                    <CloPoMatrix rows={matrixRows} poCodes={coverageChart.map((c) => c.po.code)} />
-                    {coverage.totalClos > 0 && coverage.mappedClos === 0 && (
-                      <p className="reports-panel__note">
-                        No CLO–PO mappings recorded yet — every outcome below shows as unmapped
-                        until the mapping pages fill the matrix in.
-                      </p>
-                    )}
-                  </>
+                  <OutcomeAnchorMatrix
+                    outcomes={outcomes}
+                    columns={anchors.map((a) => ({ family: a.family, code: a.code }))}
+                  />
                 )}
               </section>
             </div>
 
             <div className="reports-grid__side">
               <section className="panel reports-panel">
-                <h3>Curriculum Mapping Summary</h3>
+                <h3>Course Outcomes</h3>
                 <p className="reports-panel__sub">
-                  How much of each course's learning outcomes reach a Program Outcome.
+                  Which of the program's courses carry learning outcomes.
                 </p>
-                <div className="table-wrap">
+                <div className="table-wrap oamx__scroll">
                   <table className="table">
                     <thead>
                       <tr>
-                        <th>Course Code</th>
+                        <th>Code</th>
                         <th>Course Title</th>
-                        <th className="reports-num"># of CLOs</th>
-                        <th>Mapping Status</th>
+                        <th className="reports-num">#</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {courseRows.length === 0 ? (
+                      {courseOutcomeRows.length === 0 ? (
                         <tr>
-                          <td colSpan={4} className="reports-empty">No courses in this program yet.</td>
+                          <td colSpan={3} className="reports-empty">No courses in this program yet.</td>
                         </tr>
                       ) : (
-                        courseRows.map(({ course, cloCount, status }) => (
-                          <tr key={course.id}>
+                        courseOutcomeRows.map(({ course, outcomeCount }) => (
+                          <tr
+                            key={course.id}
+                            className={outcomeCount === 0 ? 'reports-row--archived' : undefined}
+                          >
                             <td>{course.code}</td>
                             <td>{course.title}</td>
-                            <td className="reports-num">{cloCount}</td>
-                            <td>
-                              <span className={STATUS_BADGE[status].className}>
-                                {STATUS_BADGE[status].label}
-                              </span>
+                            <td className="reports-num">
+                              {outcomeCount === 0 ? (
+                                <span className="status-badge status-badge--unmapped">none</span>
+                              ) : (
+                                outcomeCount
+                              )}
                             </td>
                           </tr>
                         ))
@@ -393,82 +418,61 @@ function Reports({ profile }: ReportsProps) {
               </section>
 
               <section className="panel reports-panel">
-                <h3>Mapping Gaps</h3>
+                <h3>Gaps</h3>
                 <p className="reports-panel__sub">
-                  Learning outcomes that reach no Program Outcome.
+                  What the data is missing, counted rather than described.
                 </p>
-                <div className="table-wrap">
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th>Course</th>
-                        <th>CLO</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {gaps.length === 0 ? (
-                        <tr>
-                          <td colSpan={3} className="reports-empty">
-                            {coverage.totalClos === 0
-                              ? 'No learning outcomes to check yet.'
-                              : 'Every learning outcome maps to at least one outcome.'}
-                          </td>
-                        </tr>
-                      ) : (
-                        gaps.map((gap) => (
-                          <tr key={gap.clo.id}>
-                            <td>{gap.courseCode}</td>
-                            <td>
-                              {gap.clo.code}
-                              {gap.clo.description ? ` — ${gap.clo.description}` : ''}
-                            </td>
-                            <td>
-                              <span className="status-badge status-badge--unmapped">Unmapped</span>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                <ul className="reports-gaps">
+                  <Gap
+                    n={summary.unaligned}
+                    label="outcomes anchored to nothing"
+                    detail={
+                      unalignedOutcomes.length > 0
+                        ? unalignedOutcomes.map((o) => o.code).join(', ')
+                        : ''
+                    }
+                  />
+                  <Gap
+                    n={coursesWithoutOutcomes.length}
+                    label="courses with no learning outcomes"
+                    detail={
+                      coursesWithoutOutcomes.length > 0
+                        ? `${coursesWithoutOutcomes
+                            .slice(0, 8)
+                            .map((r) => r.course.code)
+                            .join(', ')}${
+                            coursesWithoutOutcomes.length > 8
+                              ? ` +${coursesWithoutOutcomes.length - 8} more`
+                              : ''
+                          }`
+                        : ''
+                    }
+                  />
+                  <Gap
+                    n={coursesWithoutInstructor.length}
+                    label="courses with no instructor assigned"
+                  />
+                  <Gap
+                    n={issues.length}
+                    label="outcome codes written more than one way"
+                    detail={
+                      issues.length > 0
+                        ? `${issues
+                            .slice(0, 4)
+                            .map((i) => `${i.code} (${i.spellings.length} ways)`)
+                            .join(', ')}${issues.length > 4 ? ` +${issues.length - 4} more` : ''}`
+                        : ''
+                    }
+                  />
+                  <Gap
+                    n={summary.outcomes - summary.withGoal}
+                    label="outcomes with no strategic goal"
+                  />
+                  <Gap n={looseMatches.length} label="outcomes whose course code is misspelled" />
+                </ul>
               </section>
             </div>
           </div>
-
-          {/* ---- appendix: the record inventory ---- */}
-          <h3 className="reports-appendix-title">Record Inventory</h3>
-          <div className="panel reports-controls">
-            <label className="field reports-search">
-              <span>Search</span>
-              <input
-                className="input"
-                type="search"
-                placeholder="Name or code…"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </label>
-            <label className="reports-toggle">
-              <input
-                type="checkbox"
-                checked={includeArchived}
-                onChange={(e) => setIncludeArchived(e.target.checked)}
-              />
-              <span>Include archived</span>
-            </label>
-          </div>
-
-          <p className="reports-shown">
-            Showing <strong>{report.shownCount}</strong> record
-            {report.shownCount === 1 ? '' : 's'}
-            {filtersActive ? ' matching the current filters' : ''}.
-            {report.shownCount === 0 && ' Try clearing the search box.'}
-          </p>
-
-          {report.sections.map((section) => (
-            <SectionTable key={section.key} section={section} />
-          ))}
 
           {/* ---- footer: who produced this and what it is not ---- */}
           <footer className="reports-footer">
@@ -487,8 +491,29 @@ function Reports({ profile }: ReportsProps) {
   )
 }
 
+/** One line of the gaps list: a count, what it is a count of, and the names. */
+function Gap({ n, label, detail }: { n: number; label: string; detail?: string }) {
+  return (
+    <li className={n === 0 ? 'reports-gaps__item reports-gaps__item--none' : 'reports-gaps__item'}>
+      <span className="reports-gaps__n">{n}</span>
+      <span className="reports-gaps__label">{label}</span>
+      {detail && <span className="reports-gaps__detail">{detail}</span>}
+    </li>
+  )
+}
+
 /** One KPI card, on the dashboard's own stat-card chrome. */
-function KpiCard({ label, value, sub, icon }: { label: string; value: string | number; sub: string; icon: 'grid' | 'list' | 'check' | 'eye' | 'x' }) {
+function KpiCard({
+  label,
+  value,
+  sub,
+  icon,
+}: {
+  label: string
+  value: string | number
+  sub: string
+  icon: 'grid' | 'list' | 'check' | 'eye' | 'x'
+}) {
   return (
     <div className="stat-card stat-card--2026 card-enter">
       <div className="stat-card__icon stat-card__icon--reports">
@@ -497,61 +522,6 @@ function KpiCard({ label, value, sub, icon }: { label: string; value: string | n
       <span className="stat-card__label">{label}</span>
       <span className="stat-card__value">{value}</span>
       <span className="stat-card__sub">{sub}</span>
-    </div>
-  )
-}
-
-/**
- * One section's table.
- *
- * Split out because the header and the body both have to agree on how many
- * columns there are, and the Course column is conditional. Both read the same
- * two helpers off the same report -- columns() for the headings, rowCells() for
- * the values -- so there is no second place where the column count is decided
- * and nothing to fall out of step.
- */
-function SectionTable({ section }: { section: ReportSection }) {
-  const headings = columns(section.hasCourse)
-  // The leading "No." is the caller's to render, so every span and width here
-  // is one more than the headings.
-  const span = headings.length + 1
-
-  return (
-    <div className="panel table-wrap reports-section">
-      <h3>{section.title}</h3>
-      <table className="table">
-        <thead>
-          <tr>
-            <th className="reports-num">#</th>
-            {headings.map((h) => (
-              <th key={h}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {section.rows.length === 0 ? (
-            <tr>
-              <td colSpan={span} className="reports-empty">
-                No {section.title.toLowerCase()} to show.
-              </td>
-            </tr>
-          ) : (
-            section.rows.map((row, i) => (
-              <tr
-                key={`${section.key}-${row.code}-${i}`}
-                className={isArchived(row) ? 'reports-row--archived' : undefined}
-              >
-                <td className="reports-num">{i + 1}</td>
-                {headings.map((h, c) => (
-                  <td key={h} className={h === COURSE_COLUMN ? 'reports-course' : undefined}>
-                    {rowCells(row, section.hasCourse)[c]}
-                  </td>
-                ))}
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
     </div>
   )
 }

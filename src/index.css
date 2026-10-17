@@ -3482,14 +3482,6 @@ textarea.input {
    than the Curriculum Report's document framing, so only the parts the other
    list pages do not already provide are defined here. */
 
-.reports-controls {
-  display: flex;
-  align-items: flex-end;
-  gap: 16px;
-  flex-wrap: wrap;
-  margin-bottom: 16px;
-}
-
 /* ---- Overall Report header ---- */
 
 .reports-header {
@@ -3573,11 +3565,7 @@ textarea.input {
 @media print {
   .reports-header__actions,
   .reports-header__select,
-  .reports-footer,
-  .reports-appendix-title,
-  .reports-controls,
-  .reports-shown,
-  .reports-section {
+  .reports-footer {
     display: none !important;
   }
 }
@@ -3732,11 +3720,6 @@ textarea.input {
   color: #b45309;
 }
 
-.reports-appendix-title {
-  margin: 0 0 12px;
-  font-size: 15px;
-}
-
 /* Mapping-status badges. The base .status-badge shape is shared with the rest
    of the app; these are the three coverage tones. */
 .status-badge--mapped {
@@ -3754,99 +3737,106 @@ textarea.input {
   color: #b91c1c;
 }
 
-/* ---- PO coverage chart (components/PoCoverageChart.tsx) ---- */
+/* ---- outcomes by anchor (components/OutcomeBars.tsx) ---- */
 
-.pocover__chart {
+.anchors__chart {
   display: block;
   width: 100%;
   height: auto;
 }
 
-.pocover__grid {
+.anchors__grid {
   stroke: var(--border);
   stroke-width: 1;
 }
 
-.pocover__axis {
+.anchors__axis {
   font-size: 11px;
   fill: var(--text-muted);
 }
 
-.pocover__bar {
-  fill: var(--primary);
+.anchors__family {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  fill: #b6c2d2;
 }
 
-/* Hover lifts a bar by lightening it, not by moving it: a bar that grows or
-   shifts under the cursor moves the % label with it, which reads as jitter. */
-.pocover__bar:hover {
-  fill: var(--primary-light);
-}
-
-.pocover__value {
+.anchors__value {
   font-size: 11.5px;
   font-weight: 700;
   fill: var(--primary-dark);
 }
 
-/* ---- CLO-PO alignment matrix (components/CloPoMatrix.tsx) ---- */
+/* The bars need not total 100 -- an outcome aligned to two memoranda is in both
+   bars. Said under the chart, because a reader who assumes a part-to-whole will
+   misread the whole thing. */
+.anchors__note {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
 
-.clopom__scroll {
+/* ---- outcome alignment matrix (components/OutcomeAnchorMatrix.tsx) ---- */
+
+.oamx__scroll {
   max-height: 420px;
   overflow: auto;
 }
 
-.clopom__table th,
-.clopom__table td {
+.oamx__table th,
+.oamx__table td {
   padding: 6px 8px;
 }
 
-.clopom__course,
-.clopom__clo {
+.oamx__code {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
-  font-weight: 600;
+  font-weight: 700;
 }
 
-/* Outcome columns are fixed-width squares so the grid lines up regardless of
-   how long a PO code is. */
-.clopom__po {
-  width: 44px;
-  min-width: 44px;
+.oamx__title {
+  max-width: 320px;
+  color: #475569;
+}
+
+/* Anchor columns are fixed-width so the grid lines up however long a code is. */
+.oamx__anchor,
+.oamx__cell {
+  width: 46px;
+  min-width: 46px;
   text-align: center;
 }
 
-.clopom__cell {
-  width: 44px;
-  min-width: 44px;
-  text-align: center;
+.oamx__cell {
   font-size: 11.5px;
   font-weight: 700;
   border-radius: 6px;
   border: none !important;
 }
 
-/* Cell tones, deepest mapping = darkest. Letters stay readable on all four. */
-.clopom__cell--m {
+.oamx__cell--on.oamx__cell--cmo {
   background: #15803d;
   color: #ffffff;
 }
 
-.clopom__cell--d {
-  background: #bbf7d0;
-  color: #166534;
+.oamx__cell--on.oamx__cell--peo {
+  background: #4d7c0f;
+  color: #ffffff;
 }
 
-.clopom__cell--i {
-  background: #dbeafe;
-  color: #1d4ed8;
+.oamx__cell--on.oamx__cell--sg {
+  background: #0d9488;
+  color: #ffffff;
 }
 
-.clopom__cell--none {
+.oamx__cell--none {
   background: #f1f5f9;
-  color: #94a3b8;
+  color: #cbd5e1;
 }
 
-.clopom__legend {
+.oamx__legend {
   list-style: none;
   display: flex;
   gap: 14px;
@@ -3857,19 +3847,65 @@ textarea.input {
   color: #475569;
 }
 
-.clopom__legend-item {
+.oamx__legend-item {
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
 
-.clopom__swatch {
+.oamx__swatch {
   width: 20px;
   height: 20px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-size: 10.5px;
+}
+
+/* ---- gaps ---- */
+
+.reports-gaps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.reports-gaps__item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 4px 10px;
+}
+
+.reports-gaps__n {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #b91c1c;
+  font-variant-numeric: tabular-nums;
+  min-width: 34px;
+  text-align: right;
+}
+
+/* A zero is good news, and it should not be shouted in red. */
+.reports-gaps__item--none .reports-gaps__n {
+  color: #16a34a;
+}
+
+.reports-gaps__label {
+  font-size: 12.5px;
+  color: #475569;
+}
+
+.reports-gaps__detail {
+  grid-column: 2;
+  font-size: 11.5px;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+  word-break: break-word;
 }
 
 /* One column below the two-column threshold, like reports-overview. The spine
@@ -3892,34 +3928,9 @@ textarea.input {
   }
 }
 
-.reports-search {
-  flex: 1;
-  min-width: 220px;
-  margin-bottom: 0 !important;
-}
-
-.reports-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  /* Matches the input's own height so the row reads as one line of controls. */
-  height: 38px;
-  font-size: 13.5px;
-  color: #475569;
-  cursor: pointer;
+.reports-num {
+  text-align: center;
   white-space: nowrap;
-}
-
-.reports-toggle input {
-  cursor: pointer;
-}
-
-.reports-export {
-  white-space: nowrap;
-}
-
-.reports-summary {
-  margin-bottom: 12px;
 }
 
 /* ---- Record-mix donut (components/RecordMixDonut.tsx) ----
@@ -4053,32 +4064,6 @@ textarea.input {
   .reports-overview {
     grid-template-columns: minmax(0, 1fr);
   }
-}
-
-.reports-summary th:not(:first-child),
-.reports-summary td:not(:first-child),
-.reports-num {
-  text-align: center;
-  white-space: nowrap;
-}
-
-.reports-shown {
-  margin: 0 0 12px;
-  font-size: 13px;
-  color: #64748b;
-}
-
-.reports-section {
-  margin-bottom: 16px;
-}
-
-/* The course a learning outcome belongs to. Narrow and quiet: it identifies the
-   row, it is not the thing being read, and the name beside it is long. */
-.reports-course {
-  width: 1%;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-  color: #475569;
 }
 
 .reports-empty {
