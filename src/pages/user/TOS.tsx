@@ -49,6 +49,7 @@ import {
 import { supabase } from '../../utils/supabaseClient'
 import { downloadTosExcel } from '../../utils/tosXlsx'
 import Icon from '../../components/icons'
+import TosBlueprintEditor from '../../components/TosBlueprintEditor'
 
 const SAVE_DEBOUNCE_MS = 600
 
@@ -194,22 +195,15 @@ export default function TOS() {
   const [archived, setArchived] = useState(false)
   const [archivedCount, setArchivedCount] = useState(0)
   /**
-   * Inline card editing, mirroring the Curriculum page's cards.
+   * The card whose blueprint is open inline, or null.
    *
-   * Editing goes through this rather than opening the blueprint because a card
-   * is a list entry: renaming one does not mean scrolling up to the editor and
-   * hunting the right field. Only one card edits at a time, so `editingId` is
-   * a single id rather than a set.
+   * Only one at a time: each open card mounts a full editor with its own
+   * pending writes, and two of those side by side is more DOM than the list
+   * needs to carry. A single id rather than a set for that reason.
    */
   const [editingId, setEditingId] = useState<string | null>(null)
   /** Each exam's papers, so a card can be titled the way its document is. */
   const [examSheets, setExamSheets] = useState<Record<string, TosSheetRow[]>>({})
-  const [editDraft, setEditDraft] = useState({
-    code: '',
-    title: '',
-    term: '',
-    totalHours: '0',
-  })
   const [error, setError] = useState<string | null>(null)
   const [savedAt, setSavedAt] = useState<string | null>(null)
 
@@ -541,56 +535,14 @@ export default function TOS() {
     [activeId, dirty, loadInto],
   )
 
-  /** Load a card's fields into the inline form. */
-  const startCardEdit = useCallback((row: TosExamRow) => {
-    setEditingId(row.id)
-    setEditDraft({
-      code: row.code,
-      title: row.title,
-      term: row.term,
-      totalHours: String(row.total_hours),
-    })
+  /** Open a card's blueprint inline, or close the one that is open. */
+  const toggleCardEdit = useCallback((row: TosExamRow) => {
+    setEditingId((prev) => (prev === row.id ? null : row.id))
   }, [])
 
   const cancelCardEdit = useCallback(() => {
     setEditingId(null)
   }, [])
-
-  /**
-   * Write the inline form back.
-   *
-   * The blueprint currently on screen is updated from the same values when it
-   * is the one being edited, so a rename is visible immediately rather than
-   * only after reopening. Otherwise the editor and the card would disagree
-   * until a reload.
-   */
-  const saveCardEdit = useCallback(
-    async (row: TosExamRow) => {
-      try {
-        const next = {
-          code: editDraft.code.trim(),
-          title: editDraft.title.trim(),
-          term: editDraft.term.trim(),
-          total_hours: num(editDraft.totalHours),
-        }
-        await updateTosExam(row.id, next)
-        setEditingId(null)
-        if (row.id === activeId) setExam((prev) => ({ ...prev, ...next }))
-        await refreshListRef.current?.()
-        setDirty(false)
-        setSaving(false)
-        setSavedAt(new Date().toLocaleTimeString())
-        await addActivityLog('tos_exam.updated', {
-          entity: 'tos_exam',
-          entity_id: row.id,
-          label: [next.code, next.title].filter(Boolean).join(' — ') || 'Table of Specification',
-        })
-      } catch (e) {
-        fail(e, 'Could not save the blueprint details.')
-      }
-    },
-    [editDraft, activeId, fail],
-  )
 
   // The panel's tab decides which half of the list it shows, the same way the
   // Curriculum page's Active/Archive tabs do.
@@ -1162,61 +1114,29 @@ export default function TOS() {
               } ${row.id === activeId ? 'resource-card--selected' : ''}`}
             >
               {editingId === row.id ? (
-                /* Same inline form the Curriculum page's cards use, so the two
-                   lists behave identically. */
-                <div className="resource-card__edit">
-                  <label className="field">
-                    <span>Program</span>
-                    <input
-                      className="input input--sm"
-                      value={editDraft.code}
-                      onChange={(e) => setEditDraft({ ...editDraft, code: e.target.value })}
-                    />
-                  </label>
-                  <label className="field">
-                    <span>Course title</span>
-                    <input
-                      className="input input--sm"
-                      value={editDraft.title}
-                      onChange={(e) => setEditDraft({ ...editDraft, title: e.target.value })}
-                    />
-                  </label>
-                  <label className="field">
-                    <span>Semester</span>
-                    <input
-                      className="input input--sm"
-                      value={editDraft.term}
-                      onChange={(e) => setEditDraft({ ...editDraft, term: e.target.value })}
-                    />
-                  </label>
-                  <label className="field">
-                    <span>Total hours</span>
-                    <input
-                      className="input input--sm"
-                      type="number"
-                      min="0"
-                      value={editDraft.totalHours}
-                      onChange={(e) => setEditDraft({ ...editDraft, totalHours: e.target.value })}
-                    />
-                  </label>
-                  <div className="resource-card__actions">
-                    <button
-                      className="btn btn--primary btn--sm"
-                      onClick={() => saveCardEdit(row)}
-                      aria-label="Save changes"
-                      title="Save"
-                    >
-                      <Icon name="check" size={13} />
-                    </button>
+                /* The whole blueprint, editable in place — its own component
+                   so its writes are scoped to this card rather than to whatever
+                   is open at the top of the page. */
+                <div className="resource-card__edit tos-card__expanded">
+                  <div className="tos-card__editorhead">
                     <button
                       className="btn btn--ghost btn--sm"
                       onClick={cancelCardEdit}
-                      aria-label="Cancel"
-                      title="Cancel"
+                      aria-label="Close this blueprint"
+                      title="Close"
                     >
                       <Icon name="x" size={13} />
                     </button>
                   </div>
+                  <TosBlueprintEditor
+                    exam={row}
+                    onSaved={refreshListRef.current ?? undefined}
+                    onRenamed={(next) =>
+                      setExamList((prev) =>
+                        prev.map((r) => (r.id === row.id ? { ...r, ...next } : r)),
+                      )
+                    }
+                  />
                 </div>
               ) : (
                 <>
@@ -1255,7 +1175,7 @@ export default function TOS() {
                   <div className="resource-card__actions">
                     <button
                       className="btn btn--ghost btn--sm"
-                      onClick={() => startCardEdit(row)}
+                      onClick={() => toggleCardEdit(row)}
                       aria-label={`Edit ${row.code || row.title || 'blueprint'}`}
                       title="Edit"
                     >

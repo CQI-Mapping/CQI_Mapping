@@ -3383,6 +3383,45 @@ textarea.input {
   font-style: italic;
 }
 
+/* An expanded card holds a whole editable blueprint, so it leaves the card
+   layout entirely — a resource-card is a single row of text and cannot
+   contain a nine-column table without fighting its own padding and shadow. */
+.resource-card__edit.tos-card__expanded {
+  grid-column: 1 / -1;
+  width: 100%;
+  max-width: none;
+}
+
+.tos-card__expanded .tos-sheet {
+  margin-top: 8px;
+}
+
+.tos-card__editorhead {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 4px;
+}
+
+/* The identifying fields sit in one row of four above the document, the same
+   order they appear in the blueprint header. */
+.tos-card__fields {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.tos-card__fields .field {
+  flex: 1 1 200px;
+  margin-bottom: 0;
+}
+
+.tos-card__loading {
+  margin: 8px 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
 /* Save / Discard / Export / Add, under the table, right-aligned. */
 .tos-addrow {
   display: flex;

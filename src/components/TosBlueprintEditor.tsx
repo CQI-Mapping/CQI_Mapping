@@ -1,0 +1,501 @@
+// One blueprint, edited end to end: the identifying fields, the paper tabs,
+// the grid, and its own save.
+//
+// This exists so the saved-blueprints panel can show a document that is
+// genuinely editable rather than a picture of one. Everything the page's own
+// editor does, this does — the same debounced writes, the same pending marker,
+// the same discard — but scoped to the exam it was handed instead of to
+// whatever is open at the top of the page.
+//
+// Owning the state per instance is the whole point. The page's handlers are
+// bound to a single activeId and a pair of timers; sharing them across cards
+// would mean every card wrote to whichever blueprint was open, which is a
+// silent data-loss bug rather than a visible one.
+//
+// The page's editor and every expanded card are then the same component, so
+// the two cannot drift in behaviour.
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  fetchTosSheets,
+  fetchTosTopics,
+  createTosSheet,
+  updateTosSheet,
+  updateTosExam,
+  replaceTosTopics,
+  addActivityLog,
+} from '../services/database'
+import type { TosExamRow, TosTopicRow } from '../services/database'
+import TosSheetGrid from './TosSheetGrid'
+import { blankTopic, renumber, validateSheet, num } from '../utils/tosMath'
+import type { BloomLevel, SheetKind, TosExam, TosSheet, TosTopic } from '../utils/tosMath'
+import { downloadTosExcel } from '../utils/tosXlsx'
+
+const SAVE_DEBOUNCE_MS = 600
+
+const SHEET_KINDS: { kind: SheetKind; label: string }[] = [
+  { kind: 'items', label: 'Multiple Choice' },
+  { kind: 'points', label: 'Performance-based' },
+]
+
+/** Shared with the page so a card, its blueprint and the workbook agree. */
+export const docTitle = (examType: string, kind: SheetKind) =>
+  `Table of Specification${examType.trim() ? ` for ${examType.trim()}` : ''}${
+    kind === 'items' ? ': Multiple Choice Type' : ': Performance-Based Type'
+  }`
+
+const newSheet = (kind: SheetKind): TosSheet => {
+  const meta = SHEET_KINDS.find((s) => s.kind === kind)!
+  return { id: '', kind, label: meta.label, total: kind === 'items' ? 20 : 50, note: '', topics: [] }
+}
+
+const toForm = (row: TosExamRow): TosExam => ({
+  code: row.code,
+  title: row.title,
+  examType: row.exam_type,
+  term: row.term,
+  preparedBy: row.prepared_by ?? '',
+  totalHours: num(row.total_hours),
+})
+
+const toTopic = (row: TosTopicRow): TosTopic => ({
+  id: row.id,
+  position: row.position,
+  title: row.title,
+  slo: row.slo ?? '',
+  hours: num(row.hours),
+  bloom: row.bloom ?? {},
+})
+
+export interface TosBlueprintEditorProps {
+  exam: TosExamRow
+  /** Fired after every successful write, so the card list can re-read. */
+  onSaved?: () => void
+  /** Fired when a rename lands, so a list showing that row can update it. */
+  onRenamed?: (next: { code: string; title: string; term: string; total_hours: number }) => void
+}
+
+export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlueprintEditorProps) {
+  const [sheets, setSheets] = useState<TosSheet[]>([])
+  const [form, setForm] = useState<TosExam>(() => toForm(exam))
+  const [activeKind, setActiveKind] = useState<SheetKind>('items')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [dirty, setDirty] = useState(false)
+  const [savedAt, setSavedAt] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [creatingKind, setCreatingKind] = useState<SheetKind | null>(null)
+
+  // Held in refs, not state: the debounced writers read them when the timer
+  // fires, and re-rendering on every keystroke to keep a ref current would
+  // defeat the point of the debounce.
+  const sheetsRef = useRef(sheets)
+  sheetsRef.current = sheets
+  const sheetIds = useRef<Record<SheetKind, string | null>>({ items: null, points: null })
+  const examTimer = useRef<number | null>(null)
+  const sheetTimer = useRef<Record<SheetKind, number | null>>({ items: null, points: null })
+  const topicsTimer = useRef<Record<SheetKind, number | null>>({ items: null, points: null })
+
+  const fail = useCallback((e: unknown, fallback: string) => {
+    setError(e instanceof Error && e.message ? e.message : fallback)
+  }, [])
+
+  const reportSaved = useCallback(() => {
+    setSaving(false)
+    setDirty(false)
+    setSavedAt(new Date().toLocaleTimeString())
+    setError(null)
+    onSaved?.()
+  }, [onSaved])
+
+  const afterEdit = useCallback(() => {
+    setSaving(true)
+    setDirty(true)
+  }, [])
+
+  // ---- load ----
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const rows = await fetchTosSheets(exam.id)
+      const loaded: TosSheet[] = []
+      for (const row of rows) {
+        const topicRows = await fetchTosTopics(row.id)
+        loaded.push({
+          id: row.id,
+          kind: row.kind,
+          label: row.label,
+          total: num(row.total),
+          note: row.note ?? '',
+          topics: topicRows.map(toTopic),
+        })
+      }
+      // Open on the multiple choice paper, as the page does.
+      const items = loaded.find((s) => s.kind === 'items')
+      sheetIds.current = {
+        items: items?.id ?? null,
+        points: loaded.find((s) => s.kind === 'points')?.id ?? null,
+      }
+      setActiveKind('items')
+      setSheets(loaded)
+      setForm(toForm(exam))
+      setDirty(false)
+      setSaving(false)
+      setSavedAt(null)
+    } catch (e) {
+      fail(e, 'Could not load this blueprint.')
+    } finally {
+      setLoading(false)
+    }
+  }, [exam, fail])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const sheet = useMemo(
+    () => sheets.find((s) => s.kind === activeKind) ?? newSheet(activeKind),
+    [sheets, activeKind],
+  )
+  const issues = useMemo(() => validateSheet(sheet), [sheet])
+
+  const clearTimers = useCallback(() => {
+    for (const { kind } of SHEET_KINDS) {
+      const sheetTimerId = sheetTimer.current[kind]
+      if (sheetTimerId) {
+        window.clearTimeout(sheetTimerId)
+        sheetTimer.current[kind] = null
+      }
+      const topicsTimerId = topicsTimer.current[kind]
+      if (topicsTimerId) {
+        window.clearTimeout(topicsTimerId)
+        topicsTimer.current[kind] = null
+      }
+    }
+    if (examTimer.current) {
+      window.clearTimeout(examTimer.current)
+      examTimer.current = null
+    }
+  }, [])
+
+  // ---- writers ----
+  const patchExam = useCallback(
+    (patch: Partial<TosExam>) => {
+      setForm((prev) => {
+        const next = { ...prev, ...patch }
+        if (examTimer.current) window.clearTimeout(examTimer.current)
+        examTimer.current = window.setTimeout(async () => {
+          try {
+            await updateTosExam(exam.id, {
+              code: next.code,
+              title: next.title,
+              term: next.term,
+              prepared_by: next.preparedBy,
+              total_hours: num(next.totalHours),
+            })
+            onRenamed?.({
+              code: next.code,
+              title: next.title,
+              term: next.term,
+              total_hours: num(next.totalHours),
+            })
+            await addActivityLog('tos_exam.updated', {
+              entity: 'tos_exam',
+              entity_id: exam.id,
+              label: [next.code, next.title].filter(Boolean).join(' — ') || 'Table of Specification',
+            })
+            reportSaved()
+          } catch (e) {
+            fail(e, 'Could not save the exam details.')
+          }
+        }, SAVE_DEBOUNCE_MS)
+        return next
+      })
+      afterEdit()
+    },
+    [exam.id, afterEdit, fail, reportSaved, onRenamed],
+  )
+
+  const setTopics = useCallback(
+    (kind: SheetKind, next: TosTopic[]) => {
+      setSheets((prev) => prev.map((s) => (s.kind === kind ? { ...s, topics: next } : s)))
+      if (topicsTimer.current[kind]) window.clearTimeout(topicsTimer.current[kind]!)
+      topicsTimer.current[kind] = window.setTimeout(async () => {
+        const id = sheetIds.current[kind]
+        if (!id) return
+        const target = sheetsRef.current.find((s) => s.kind === kind)
+        try {
+          await replaceTosTopics(
+            id,
+            (target?.topics ?? next).map((t) => ({
+              id: t.id,
+              title: t.title,
+              slo: t.slo,
+              hours: num(t.hours),
+              bloom: t.bloom,
+            })),
+          )
+          reportSaved()
+        } catch (e) {
+          fail(e, 'Could not save the topics.')
+        }
+      }, SAVE_DEBOUNCE_MS)
+      afterEdit()
+    },
+    [afterEdit, fail, reportSaved],
+  )
+
+  const patchSheet = useCallback(
+    (kind: SheetKind, patch: Partial<TosSheet>) => {
+      setSheets((prev) => prev.map((s) => (s.kind === kind ? { ...s, ...patch } : s)))
+      if (sheetTimer.current[kind]) window.clearTimeout(sheetTimer.current[kind]!)
+      sheetTimer.current[kind] = window.setTimeout(async () => {
+        const id = sheetIds.current[kind]
+        const target = sheetsRef.current.find((s) => s.kind === kind)
+        if (!id || !target) return
+        try {
+          await updateTosSheet(id, { total: num(target.total) })
+          reportSaved()
+        } catch (e) {
+          fail(e, 'Could not save the blueprint total.')
+        }
+      }, SAVE_DEBOUNCE_MS)
+      afterEdit()
+    },
+    [afterEdit, fail, reportSaved],
+  )
+
+  const patchTopic = useCallback(
+    (id: string, patch: { title?: string; slo?: string; hours?: number }) => {
+      setTopics(
+        activeKind,
+        sheet.topics.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+      )
+    },
+    [setTopics, activeKind, sheet.topics],
+  )
+
+  const setBloom = useCallback(
+    (topicId: string, level: BloomLevel, raw: string) => {
+      setTopics(
+        activeKind,
+        sheet.topics.map((t) =>
+          t.id === topicId
+            ? { ...t, bloom: { ...t.bloom, [level]: Math.max(0, Math.round(num(raw))) } }
+            : t,
+        ),
+      )
+    },
+    [setTopics, activeKind, sheet.topics],
+  )
+
+  const addTopic = useCallback(() => {
+    setTopics(activeKind, [...sheet.topics, blankTopic(sheet.topics.length + 1)])
+  }, [setTopics, activeKind, sheet.topics])
+
+  const removeTopic = useCallback(
+    (id: string) => {
+      setTopics(activeKind, renumber(sheet.topics.filter((t) => t.id !== id)))
+    },
+    [setTopics, activeKind, sheet.topics],
+  )
+
+  /** Write everything pending, on both papers. */
+  const saveNow = useCallback(async () => {
+    setSaving(true)
+    setError(null)
+    clearTimers()
+
+    const writes: Promise<void>[] = []
+    writes.push(
+      updateTosExam(exam.id, {
+        code: form.code,
+        title: form.title,
+        term: form.term,
+        prepared_by: form.preparedBy,
+        total_hours: num(form.totalHours),
+      })
+        .then(() => undefined)
+        .catch((e) => fail(e, 'Could not save the exam details.')),
+    )
+
+    for (const { kind } of SHEET_KINDS) {
+      const id = sheetIds.current[kind]
+      const target = sheetsRef.current.find((s) => s.kind === kind)
+      if (!id || !target) continue
+      writes.push(
+        updateTosSheet(id, { total: num(target.total) })
+          .then(() => undefined)
+          .catch((e) => fail(e, 'Could not save the blueprint total.')),
+      )
+      writes.push(
+        replaceTosTopics(
+          id,
+          target.topics.map((t) => ({
+            id: t.id,
+            title: t.title,
+            slo: t.slo,
+            hours: num(t.hours),
+            bloom: t.bloom,
+          })),
+        ).catch((e) => fail(e, 'Could not save the topics.')),
+      )
+    }
+
+    await Promise.all(writes)
+    reportSaved()
+  }, [exam.id, form, clearTimers, fail, reportSaved])
+
+  /** Throw unsaved edits away and re-read. Timers first, or they write back. */
+  const discardPending = useCallback(async () => {
+    clearTimers()
+    await load()
+  }, [clearTimers, load])
+
+  /** Export carries the paper on screen, and only that one. */
+  const exportExcel = useCallback(async () => {
+    try {
+      await downloadTosExcel({ ...form }, sheet)
+      await addActivityLog('tos_exam.exported', {
+        entity: 'tos_exam',
+        entity_id: exam.id,
+        label: [form.code, form.title].filter(Boolean).join(' — ') || 'Table of Specification',
+      })
+    } catch (e) {
+      fail(e, 'Could not build the Excel file.')
+    }
+  }, [form, sheet, exam.id, fail])
+
+  /** Open the other paper, creating its sheet the first time. */
+  const switchTo = useCallback(
+    async (kind: SheetKind) => {
+      if (kind === activeKind) return
+      const from = activeKind
+      setActiveKind(kind)
+      if (sheetIds.current[kind] || sheetsRef.current.some((s) => s.kind === kind)) return
+      if (creatingKind) return
+      setCreatingKind(kind)
+      try {
+        const created = await createTosSheet({
+          exam_id: exam.id,
+          kind,
+          label: SHEET_KINDS.find((s) => s.kind === kind)!.label,
+          total: kind === 'items' ? 20 : 50,
+          position: 1,
+        })
+        sheetIds.current[kind] = created.id
+        setSheets((prev) =>
+          prev.some((s) => s.kind === kind) ? prev : [...prev, { ...newSheet(kind), id: created.id }],
+        )
+        reportSaved()
+      } catch {
+        // Nothing was written, so leave the paper that does exist rather than
+        // showing an empty sheet that will not save.
+        setActiveKind(from)
+        setError('Could not create that blueprint sheet.')
+      } finally {
+        setCreatingKind(null)
+      }
+    },
+    [activeKind, creatingKind, exam.id, fail, reportSaved],
+  )
+
+  const ready = !loading && !error
+
+  if (loading) return <p className="tos-card__loading">Loading blueprint…</p>
+
+  return (
+    <div className="tos-card__editor">
+      {/* ---- identifying fields ---- */}
+      <div className="tos-card__fields">
+        <label className="field">
+          <span>Program</span>
+          <input
+            className="input input--sm"
+            value={form.code}
+            placeholder="BSIT - Bachelor of Science in Information Technology"
+            onChange={(e) => patchExam({ code: e.target.value })}
+          />
+        </label>
+        <label className="field">
+          <span>Course title</span>
+          <input
+            className="input input--sm"
+            value={form.title}
+            placeholder="IT20 - Data Structures and Algorithm"
+            onChange={(e) => patchExam({ title: e.target.value })}
+          />
+        </label>
+        <label className="field">
+          <span>Semester</span>
+          <input
+            className="input input--sm"
+            value={form.term}
+            placeholder="1st Semester, 2026-2027"
+            onChange={(e) => patchExam({ term: e.target.value })}
+          />
+        </label>
+        <label className="field">
+          <span>Total hours</span>
+          <input
+            className="input input--sm"
+            type="number"
+            min="0"
+            value={form.totalHours}
+            onChange={(e) => patchExam({ totalHours: num(e.target.value) })}
+          />
+        </label>
+      </div>
+
+      {/* ---- paper tabs ---- */}
+      <div className="tos-tabs" role="tablist" aria-label="Blueprint paper">
+        {SHEET_KINDS.map(({ kind, label }) => (
+          <button
+            key={kind}
+            type="button"
+            role="tab"
+            aria-selected={kind === activeKind}
+            className={`tos-tab${kind === activeKind ? ' tos-tab--on' : ''}`}
+            onClick={() => switchTo(kind)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {error && <p className="msg msg--error" role="alert">{error}</p>}
+
+      <TosSheetGrid
+        sheet={sheet}
+        header={{
+          courseTitle: form.title,
+          term: form.term,
+          title: docTitle(form.examType, sheet.kind),
+        }}
+        issues={issues}
+        editable={ready && !creatingKind}
+        onPatchSheet={(patch) => patchSheet(activeKind, patch)}
+        onPatchTopic={patchTopic}
+        onSetBloom={(id, level, value) => setBloom(id, level, value)}
+        onAddTopic={addTopic}
+        onRemoveTopic={removeTopic}
+        onExportExcel={exportExcel}
+        onSave={saveNow}
+        saving={saving}
+        dirty={dirty}
+        onDiscard={discardPending}
+      />
+
+      <div className="tos-savestate" role="status">
+        {saving ? (
+          <span>Saving…</span>
+        ) : dirty ? (
+          <span>Unsaved changes</span>
+        ) : savedAt ? (
+          <span>Saved {savedAt}</span>
+        ) : null}
+      </div>
+    </div>
+  )
+}
