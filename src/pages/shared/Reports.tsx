@@ -271,6 +271,15 @@ function Reports({ profile, onNavigate }: ReportsProps) {
     return { counts, reaches }
   }, [mapping, outcomes])
 
+  // The gaps panel reads two directions of the same missing link: learning
+  // outcomes that name nothing, and outcomes nothing names. This is the
+  // second list -- the coverage rows with no learning outcome on them.
+  const [gapView, setGapView] = useState<'clos' | 'pos'>('clos')
+  const uncoveredOutcomes = useMemo(
+    () => mapping.coverage.filter((row) => row.cloCount === 0),
+    [mapping],
+  )
+
   // ---- the export's source ----
   //
   // There is no on-screen inventory any more: the page is a report about the
@@ -595,39 +604,93 @@ function Reports({ profile, onNavigate }: ReportsProps) {
               />
             </section>
 
-            {/* 5 ---- */}
+            {/* 5 -- both directions of a gap: CLOs that name no outcome,
+                     outcomes no CLO names. The tabs carry live counts. -- */}
             <section className="panel reports-panel">
               <PanelHead icon="warning" title="Mapping Gaps" />
               <p className="reports-panel__sub">
-                CLOs with no program outcome mapping.
+                Gaps on both sides of the mapping: learning outcomes that name
+                no program outcome, and program outcomes no outcome names.
               </p>
+              <div className="rgap__tabs" role="tablist" aria-label="Gap direction">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={gapView === 'clos'}
+                  className={gapView === 'clos' ? 'rgap__tab rgap__tab--on' : 'rgap__tab'}
+                  onClick={() => setGapView('clos')}
+                >
+                  Unmapped CLOs
+                  <span className="rgap__count">{mapping.gaps.length}</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={gapView === 'pos'}
+                  className={gapView === 'pos' ? 'rgap__tab rgap__tab--on' : 'rgap__tab'}
+                  onClick={() => setGapView('pos')}
+                >
+                  Unreached POs
+                  <span className="rgap__count">{uncoveredOutcomes.length}</span>
+                </button>
+              </div>
               <div className="table-wrap reports-scroll">
                 <table className="table">
                   <thead>
-                    <tr>
-                      <th>Course Code</th>
-                      <th>CLO Description</th>
-                      <th>Status</th>
-                    </tr>
+                    {gapView === 'clos' ? (
+                      <tr>
+                        <th>Course Code</th>
+                        <th>CLO Description</th>
+                        <th>Status</th>
+                      </tr>
+                    ) : (
+                      <tr>
+                        <th>Outcome</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                      </tr>
+                    )}
                   </thead>
                   <tbody>
-                    {mapping.gaps.length === 0 ? (
+                    {gapView === 'clos' ? (
+                      mapping.gaps.length === 0 ? (
+                        <tr>
+                          <td colSpan={3} className="reports-empty">
+                            {mapping.totalClos === 0
+                              ? 'No learning outcomes to check yet.'
+                              : 'Every learning outcome maps to a program outcome.'}
+                          </td>
+                        </tr>
+                      ) : (
+                        mapping.gaps.map((gap) => (
+                          <tr key={gap.clo.id}>
+                            <td>{courseCodeOf(gap.clo.course)}</td>
+                            <td className="reports-gap-clo">
+                              {gap.clo.title || gap.clo.description || BLANK}
+                            </td>
+                            <td>
+                              <span className="status-badge status-badge--unmapped">Unmapped</span>
+                            </td>
+                          </tr>
+                        ))
+                      )
+                    ) : uncoveredOutcomes.length === 0 ? (
                       <tr>
                         <td colSpan={3} className="reports-empty">
-                          {mapping.totalClos === 0
-                            ? 'No learning outcomes to check yet.'
-                            : 'Every learning outcome maps to a program outcome.'}
+                          {mapping.coverage.length === 0
+                            ? 'No program outcomes recorded yet.'
+                            : 'Every program outcome is covered by a mapped learning outcome.'}
                         </td>
                       </tr>
                     ) : (
-                      mapping.gaps.map((gap) => (
-                        <tr key={gap.clo.id}>
-                          <td>{courseCodeOf(gap.clo.course)}</td>
-                          <td className="reports-gap-clo">
-                            {gap.clo.title || gap.clo.description || BLANK}
-                          </td>
+                      uncoveredOutcomes.map((row) => (
+                        <tr key={row.outcome.key}>
+                          <td>{poLabel(row.outcome.code)}</td>
+                          <td className="reports-gap-clo">{row.outcome.title}</td>
                           <td>
-                            <span className="status-badge status-badge--unmapped">Unmapped</span>
+                            <span className="status-badge status-badge--unmapped">
+                              No CLO coverage
+                            </span>
                           </td>
                         </tr>
                       ))
