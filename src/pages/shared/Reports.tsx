@@ -166,6 +166,8 @@ function Reports({ profile }: ReportsProps) {
     () => courseOutcomes(programCourseList, clos),
     [programCourseList, clos],
   )
+  const coursesWithoutOutcomes = courseOutcomeRows.filter((r) => r.outcomeCount === 0)
+  const coursesWithoutInstructor = programCourseList.filter((c) => !c.instructor_id)
   const mappedByCourse = useMemo(() => {
     const byCourse = new Map<string, { mapped: number; total: number }>()
     for (const course of programCourseList) {
@@ -358,10 +360,10 @@ function Reports({ profile }: ReportsProps) {
             />
             <KpiCard
               label="CQI Actions"
-              value={cqiActions.length}
-              sub="Open Recommendations"
+              value={summary.unaligned + coursesWithoutOutcomes.length + coursesWithoutInstructor.length}
+              sub="open findings"
               icon="actions"
-              tone={cqiActions.length > 0 ? 'warn' : 'neutral'}
+              tone="bad"
             />
           </div>
 
