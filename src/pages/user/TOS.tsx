@@ -859,86 +859,6 @@ export default function TOS() {
 
   return (
     <div className="syllabus-doc">
-      {/* ---- saved blueprints ----
-          The panel is the visible proof that a save landed. Before this, a
-          successful write and a keystroke that had not yet been written looked
-          identical, so "did that save?" had no answer on screen.
-
-          It re-reads itself after every save rather than assuming success, so
-          what is listed is what is actually in the database. */}
-      <div className="panel table-wrap tos-library no-print">
-        <div className="program-toolbar">
-          <div className="sd-tabs" style={{ marginBottom: 0, flex: 1 }}>
-            <button
-              className={`sd-tab ${!archived ? 'sd-tab--active' : ''}`}
-              onClick={() => setArchived(false)}
-            >
-              Active
-            </button>
-            <button
-              className={`sd-tab ${archived ? 'sd-tab--active' : ''}`}
-              onClick={() => setArchived(true)}
-            >
-              Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
-            </button>
-          </div>
-        </div>
-
-        <div className="resource-list">
-          {visibleExams.length === 0 && (
-            <div className="program-empty" style={{ marginTop: 14 }}>
-              <strong>No {archived ? 'archived' : 'saved'} blueprints yet.</strong>
-              <span>
-                {archived
-                  ? 'Archived blueprints stay here — nothing is deleted.'
-                  : 'Name the blueprint above and press Save.'}
-              </span>
-            </div>
-          )}
-
-          {visibleExams.map((row) => (
-            <div
-              key={row.id}
-              className={`resource-card ${
-                row.status === 'archived' ? 'resource-card--archived' : ''
-              } ${row.id === activeId ? 'resource-card--selected' : ''}`}
-            >
-              <div className="resource-card__body">
-                <h4>{row.code || 'Untitled blueprint'}</h4>
-                <p>{row.title || 'No course title yet'}</p>
-                <div className="resource-card__meta">
-                  <span className={`status-badge status-badge--${row.status}`}>{row.status}</span>
-                  {row.term && <span>{row.term}</span>}
-                  <span>{row.total_hours} hrs</span>
-                  <span>
-                    {new Date(row.updated_at).toLocaleString()}
-                    {row.id === activeId && dirty ? ' · edited' : ''}
-                  </span>
-                </div>
-              </div>
-              <div className="resource-card__actions">
-                {row.id !== activeId && (
-                  <button
-                    type="button"
-                    className="btn btn--ghost btn--sm"
-                    onClick={() => openExam(row)}
-                  >
-                    Open
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="btn btn--ghost btn--sm"
-                  onClick={() => setExamStatus(row.id, row.status === 'archived' ? 'active' : 'archived')}
-                >
-                  {row.status === 'archived' ? 'Restore' : 'Archive'}
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
       {/* ---- exam header ---- */}
       <div className="panel tos-panel no-print">
         <div className="tos-field-grid">
@@ -1102,6 +1022,90 @@ export default function TOS() {
         dirty={dirty}
         onDiscard={discardPending}
       />
+
+      {/* ---- saved blueprints ----
+          The panel is the visible proof that a save landed. Before this, a
+          successful write and a keystroke that had not yet been written looked
+          identical, so "did that save?" had no answer on screen.
+
+          It re-reads itself after every save rather than assuming success, so
+          what is listed is what is actually in the database.
+
+          Last on the page, below the blueprint it describes: the editor is the
+          thing you came here to use, and the list is a record of what you have
+          used. */}
+      <div className="panel table-wrap tos-library no-print">
+        <div className="program-toolbar">
+          <div className="sd-tabs" style={{ marginBottom: 0, flex: 1 }}>
+            <button
+              className={`sd-tab ${!archived ? 'sd-tab--active' : ''}`}
+              onClick={() => setArchived(false)}
+            >
+              Active
+            </button>
+            <button
+              className={`sd-tab ${archived ? 'sd-tab--active' : ''}`}
+              onClick={() => setArchived(true)}
+            >
+              Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
+            </button>
+          </div>
+        </div>
+
+        <div className="resource-list">
+          {visibleExams.length === 0 && (
+            <div className="program-empty" style={{ marginTop: 14 }}>
+              <strong>No {archived ? 'archived' : 'saved'} blueprints yet.</strong>
+              <span>
+                {archived
+                  ? 'Archived blueprints stay here — nothing is deleted.'
+                  : 'Name the blueprint above and press Save.'}
+              </span>
+            </div>
+          )}
+
+          {visibleExams.map((row) => (
+            <div
+              key={row.id}
+              className={`resource-card ${
+                row.status === 'archived' ? 'resource-card--archived' : ''
+              } ${row.id === activeId ? 'resource-card--selected' : ''}`}
+            >
+              <div className="resource-card__body">
+                <h4>{row.code || 'Untitled blueprint'}</h4>
+                <p>{row.title || 'No course title yet'}</p>
+                <div className="resource-card__meta">
+                  <span className={`status-badge status-badge--${row.status}`}>{row.status}</span>
+                  {row.term && <span>{row.term}</span>}
+                  <span>{row.total_hours} hrs</span>
+                  <span>
+                    {new Date(row.updated_at).toLocaleString()}
+                    {row.id === activeId && dirty ? ' · edited' : ''}
+                  </span>
+                </div>
+              </div>
+              <div className="resource-card__actions">
+                {row.id !== activeId && (
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm"
+                    onClick={() => openExam(row)}
+                  >
+                    Open
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--sm"
+                  onClick={() => setExamStatus(row.id, row.status === 'archived' ? 'active' : 'archived')}
+                >
+                  {row.status === 'archived' ? 'Restore' : 'Archive'}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
