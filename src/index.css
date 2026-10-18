@@ -4077,9 +4077,18 @@ button.reports-panel__more:hover {
 
 /* The donut panel's body takes whatever height its stretched panel grants:
    the coverage bar chart beside it sets the row, and an un-stretched donut
-   would sit at the top of a tall card with dead white below. Centering the
-   row in the height reads as composed, not unfinished. */
+   would sit at the top of a tall card with dead white below. The chart and
+   legend centre in the height; the reach chains and the empty-legged callout
+   stack under them, so the panel earns its space with content rather than
+   air. */
 .mixdonut {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1 1 auto;
+}
+
+.mixdonut__grid {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -4144,6 +4153,89 @@ button.reports-panel__more:hover {
 
 .mixdonut__item--zero {
   color: #b6c2d2;
+}
+
+/* The chains: one row per mapped learning outcome, each chip a document
+   that outcome's chain reaches -- program outcome first, then the PEOs and
+   goals its anchors name. */
+.mixdonut__reaches {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.mixdonut__reachhead {
+  margin: 0 0 7px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.mixdonut__reachlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mixdonut__reachrow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.mixdonut__clo {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border-radius: 7px;
+  background: #e0f2fe;
+  color: #0e7490;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.mixdonut__chain {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  min-width: 0;
+}
+
+.mixdonut__target {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #334155;
+  white-space: nowrap;
+}
+
+.mixdonut__tdot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.mixdonut__dnf {
+  color: #94a3b8;
+  font-size: 10.5px;
+}
+
+/* The empty leg: amber, not red -- nothing is broken, it is a chain that
+   stops before a document kind the school never got to recording. */
+.mixdonut__callout {
+  margin: 12px 0 0;
+  padding: 8px 11px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #92400e;
 }
 
 .mixdonut__dot {

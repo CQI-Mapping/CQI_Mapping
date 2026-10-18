@@ -58,7 +58,7 @@ import {
   coursesInProgram,
   poOutcomes,
 } from '../../utils/alignment'
-import { buildMappingReport, chartableOutcomes } from '../../utils/cloPoMapping'
+import { buildMappingReport, chartableOutcomes, poLabel } from '../../utils/cloPoMapping'
 import type { PoOutcome } from '../../utils/alignment'
 import { normalizeCode } from '../../utils/courseCodes'
 import MappedTargetsDonut from '../../components/MappedTargetsDonut'
@@ -244,17 +244,31 @@ function Reports({ profile, onNavigate }: ReportsProps) {
   const mappedTargets = useMemo(() => {
     const byKey = new Map(outcomes.map((o) => [o.key, o]))
     const counts = { po: 0, peo: 0, sg: 0, ched: 0 }
+    const reaches: Array<{ code: string; targets: { label: string; color: string }[] }> = []
     for (const link of mapping.links) {
       if (link.poKeys.length === 0) continue
       counts.po += 1
-      const reached = link.poKeys.map((k) => byKey.get(k)).filter(Boolean)
-      if (reached.some((o) => o!.peo.length > 0)) counts.peo += 1
-      if (reached.some((o) => o!.sg.length > 0)) counts.sg += 1
+      const pos = link.poKeys.map((k) => byKey.get(k)).filter(Boolean)
+      const peoSet = new Set(pos.flatMap((o) => o!.peo))
+      const sgSet = new Set(pos.flatMap((o) => o!.sg))
+      const cmoSet = new Set(pos.flatMap((o) => o!.cmo))
+      if (peoSet.size > 0) counts.peo += 1
+      if (sgSet.size > 0) counts.sg += 1
       // A CMO alignment IS a CHED memorandum reference: the memo table holds
       // them, and cmo_id points into it.
-      if (reached.some((o) => o!.cmo.length > 0)) counts.ched += 1
+      if (cmoSet.size > 0) counts.ched += 1
+      // The chain the panel names: the outcomes the CLO reaches, then the
+      // PEOs and goals those outcomes anchor to -- all chips under the ring.
+      reaches.push({
+        code: link.clo.code.trim() || '—',
+        targets: [
+          ...pos.map((o) => ({ label: poLabel(o!.code), color: '#15803d' })),
+          ...[...peoSet].map((c) => ({ label: c, color: '#4d9a2f' })),
+          ...[...sgSet].map((c) => ({ label: c, color: '#3b82f6' })),
+        ],
+      })
     }
-    return counts
+    return { counts, reaches }
   }, [mapping, outcomes])
 
   // ---- the export's source ----
@@ -570,13 +584,14 @@ function Reports({ profile, onNavigate }: ReportsProps) {
               </p>
               <MappedTargetsDonut
                 slices={[
-                  { key: 'po', label: 'PO', count: mappedTargets.po },
-                  { key: 'peo', label: 'PEO', count: mappedTargets.peo },
-                  { key: 'sg', label: 'Strategic Goal', count: mappedTargets.sg },
-                  { key: 'ched', label: 'CHED', count: mappedTargets.ched },
+                  { key: 'po', label: 'PO', count: mappedTargets.counts.po },
+                  { key: 'peo', label: 'PEO', count: mappedTargets.counts.peo },
+                  { key: 'sg', label: 'Strategic Goal', count: mappedTargets.counts.sg },
+                  { key: 'ched', label: 'CHED', count: mappedTargets.counts.ched },
                 ]}
                 mapped={mapping.mappedClos}
                 total={mapping.totalClos}
+                reaches={mappedTargets.reaches}
               />
             </section>
 
