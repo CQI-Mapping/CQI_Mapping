@@ -351,10 +351,10 @@ function Reports({ profile }: ReportsProps) {
             />
             <KpiCard
               label="Unmapped / Incomplete"
-              value={mapping.gaps.length}
-              sub="CLOs / Relationships"
+              value={summary.unaligned + mapping.gaps.length}
+              sub="outcomes / CLOs"
               icon="warning"
-              tone={mapping.gaps.length > 0 ? 'bad' : 'good'}
+              tone={summary.unaligned + mapping.gaps.length > 0 ? 'bad' : 'good'}
             />
             <KpiCard
               label="CQI Actions"
