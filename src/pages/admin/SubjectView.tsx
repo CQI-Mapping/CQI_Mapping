@@ -2689,56 +2689,58 @@ export default function SubjectView() {
             <div className="subject-view__report">
               {subjectReport ? (
                 <>
-                  <div className="sd-download" ref={dlMenuRef}>
-                    <button
-                      className="btn btn--primary btn--sm sd-download__main"
-                      onClick={handleSubjectDownload}
-                      disabled={downloading || loading}
-                      title="Save the report to a file"
-                    >
-                      <Icon name="download" />
-                      {downloading ? 'Preparing...' : `Download ${dlFormat === 'pdf' ? 'PDF' : 'Word'}`}
-                    </button>
-                    <button
-                      className="btn btn--primary btn--sm sd-download__toggle"
-                      onClick={() => setDlOpen((o) => !o)}
-                      disabled={downloading || loading}
-                      aria-expanded={dlOpen}
-                      aria-haspopup="true"
-                      aria-label="Download options"
-                      title="Choose the format"
-                    >
-                      <Icon name="chevron" />
-                    </button>
-                    {dlOpen && (
-                      <div className="sd-download__menu no-print" role="menu">
-                        <div className="sd-download__group">
-                          <span className="sd-download__label">Format</span>
-                          <div className="sd-download__opts">
-                            <button
-                              className={`sd-download__opt${dlFormat === 'pdf' ? ' is-active' : ''}`}
-                              onClick={() => setDlFormat('pdf')}
-                              role="menuitemradio"
-                              aria-checked={dlFormat === 'pdf'}
-                            >
-                              PDF
-                            </button>
-                            <button
-                              className={`sd-download__opt${dlFormat === 'docx' ? ' is-active' : ''}`}
-                              onClick={() => setDlFormat('docx')}
-                              role="menuitemradio"
-                              aria-checked={dlFormat === 'docx'}
-                            >
-                              Word
-                            </button>
+                  {subjectReport}
+                  <div className="subject-view__report-foot">
+                    {dlNotice && <p className="msg msg--success" role="status">{dlNotice}</p>}
+                    {dlError && <p className="msg msg--error" role="alert">{dlError}</p>}
+                    <div className="sd-download" ref={dlMenuRef}>
+                      <button
+                        className="btn btn--primary btn--sm sd-download__main"
+                        onClick={handleSubjectDownload}
+                        disabled={downloading || loading}
+                        title="Save the report to a file"
+                      >
+                        <Icon name="download" />
+                        {downloading ? 'Preparing...' : `Download ${dlFormat === 'pdf' ? 'PDF' : 'Word'}`}
+                      </button>
+                      <button
+                        className="btn btn--primary btn--sm sd-download__toggle"
+                        onClick={() => setDlOpen((o) => !o)}
+                        disabled={downloading || loading}
+                        aria-expanded={dlOpen}
+                        aria-haspopup="true"
+                        aria-label="Download options"
+                        title="Choose the format"
+                      >
+                        <Icon name="chevron" />
+                      </button>
+                      {dlOpen && (
+                        <div className="sd-download__menu no-print" role="menu">
+                          <div className="sd-download__group">
+                            <span className="sd-download__label">Format</span>
+                            <div className="sd-download__opts">
+                              <button
+                                className={`sd-download__opt${dlFormat === 'pdf' ? ' is-active' : ''}`}
+                                onClick={() => setDlFormat('pdf')}
+                                role="menuitemradio"
+                                aria-checked={dlFormat === 'pdf'}
+                              >
+                                PDF
+                              </button>
+                              <button
+                                className={`sd-download__opt${dlFormat === 'docx' ? ' is-active' : ''}`}
+                                onClick={() => setDlFormat('docx')}
+                                role="menuitemradio"
+                                aria-checked={dlFormat === 'docx'}
+                              >
+                                Word
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
-                  {dlNotice && <p className="msg msg--success" role="status">{dlNotice}</p>}
-                  {dlError && <p className="msg msg--error" role="alert">{dlError}</p>}
-                  {subjectReport}
                 </>
               ) : (
                 <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>

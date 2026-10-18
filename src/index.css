@@ -5200,11 +5200,20 @@ button.reports-panel__more:hover {
   margin-top: 16px;
 }
 
-/* The subject's report block opens with the same split download button the
-   Curriculum Report page uses (.sd-download), so give it breath in front of
-   the document itself. */
-.subject-view__report .sd-download {
-  margin-bottom: 14px;
+/* The subject's report block closes with the same split download button the
+   Curriculum Report page uses (.sd-download), parked at the right bottom
+   edge under the document. */
+.subject-view__report-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.subject-view__report-foot .msg {
+  margin: 0;
 }
 
 /* Full width on purpose. This card sits directly above the Curriculum Report
