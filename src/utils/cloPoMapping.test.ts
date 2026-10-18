@@ -5,6 +5,7 @@ import {
   chartableOutcomes,
   extractPoCodes,
   matrixRows,
+  poLabel,
 } from './cloPoMapping'
 import type { CourseLearningOutcomeStandalone } from '../services/database'
 import type { PoOutcome } from './alignment'
@@ -139,6 +140,13 @@ describe('chartableOutcomes', () => {
     const { rows, hidden } = chartableOutcomes(buildMappingReport(clos, many), 8)
     expect(rows).toHaveLength(8)
     expect(hidden).toBe(12)
+  })
+})
+
+describe('poLabel', () => {
+  it('presents both spellings one way, so a family reads under a single name', () => {
+    expect(poLabel('PO 12')).toBe('PO 12')
+    expect(poLabel('PO-14')).toBe('PO 14')
   })
 })
 

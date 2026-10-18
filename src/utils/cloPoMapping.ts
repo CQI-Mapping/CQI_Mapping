@@ -74,6 +74,19 @@ export function extractPoCodes(raw: string | null | undefined): string[] {
 }
 
 /**
+ * Outcome codes as they are drawn, not as they were typed: the database
+ * writes "PO 12" and "PO-14" into the same outcome (the punctuation fold
+ * keys them together), and a chart that kept every letter of whichever
+ * spelling won the count would show the one family under two names. Any run
+ * of separators becomes a single space, so every chart on the report spells
+ * the family the same way: "PO 14" -- "PO 12" -- "GOAL 3" -- whatever is in
+ * the record, presented once.
+ */
+export function poLabel(code: string): string {
+  return code.trim().replace(/[^A-Za-z0-9]+/g, ' ')
+}
+
+/**
  * Build the mapping report.
  *
  * `outcomes` is the deduplicated outcome list, so a link points at one outcome
@@ -146,7 +159,11 @@ export function chartableOutcomes(report: MappingReport, limit = 12): {
   uncovered: number
   hidden: number
 } {
-  const covered = report.coverage.filter((r) => r.cloCount > 0)
+  // Chart order is outcome order, not entry order -- the codes sort
+  // numerically, so PO 12 does not land before PO 6 however the rows arrived.
+  const covered = report.coverage
+    .filter((r) => r.cloCount > 0)
+    .sort((a, b) => a.outcome.code.localeCompare(b.outcome.code, undefined, { numeric: true }))
   const rows = covered.slice(0, limit)
   const uncovered = report.coverage.length - covered.length
   return { rows, uncovered, hidden: Math.max(covered.length - limit, 0) }

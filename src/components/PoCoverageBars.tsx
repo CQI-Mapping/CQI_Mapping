@@ -13,6 +13,8 @@
 // shows the covered outcomes plus one bar for the rest, which is the finding
 // and matches the "No Mapping" entry in the matrix legend beside it.
 
+import { poLabel } from '../utils/cloPoMapping'
+
 interface PoCoverageBar {
   code: string
   percent: number
@@ -44,7 +46,11 @@ const shortLabel = (code: string) => code.replace(/^PO[\s-]?/i, '') || code
 
 function PoCoverageBars({ rows, uncovered, hidden, totalClos }: PoCoverageBarsProps) {
   const bars: { label: string; percent: number; title: string; muted?: boolean }[] = rows.map(
-    (r) => ({ label: r.code, percent: r.percent, title: `${r.code}: ${r.count} of ${totalClos} CLOs` }),
+    (r) => ({
+      label: poLabel(r.code),
+      percent: r.percent,
+      title: `${poLabel(r.code)}: ${r.count} of ${totalClos} CLOs`,
+    }),
   )
   if (uncovered > 0) {
     bars.push({

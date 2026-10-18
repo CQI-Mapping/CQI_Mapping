@@ -19,6 +19,7 @@
 // without reading a single number.
 
 import type { PoCoverageRow } from '../utils/cloPoMapping'
+import { poLabel } from '../utils/cloPoMapping'
 
 const W = 560
 const ROW_H = 19
@@ -83,7 +84,7 @@ function OutcomeCoverageChart({ rows, totalClos }: { rows: PoCoverageRow[]; tota
               >
                 {even && <rect x={0} y={y} width={W} height={STRIDE - 1} className="ovb__band" />}
                 <text className="ovb__code" x={CODE_X} y={y + ROW_H - 5} textAnchor="end">
-                  {row.outcome.code}
+                  {poLabel(row.outcome.code)}
                 </text>
                 <rect
                   className="ovb__track"
