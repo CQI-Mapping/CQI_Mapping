@@ -3991,85 +3991,84 @@ button.reports-panel__more:hover {
   color: #94a3b8;
 }
 
-/* ---- CLO-PO alignment matrix (components/CloPoMatrix.tsx) ---- */
+/* ---- outcomes relationship network (components/OutcomesNetwork.tsx) ---- */
 
-.cpx__scroll {
-  max-height: 360px;
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
+.onet__chart {
+  width: 100%;
+  height: auto;
+  display: block;
 }
 
-.cpx__table th,
-.cpx__table td {
-  padding: 4px 6px;
+.onet__edge {
+  stroke: #cbd5e1;
+  stroke-width: 1.4;
 }
 
-.cpx__clo {
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  color: var(--text);
+/* Every node carries a hairline rim so a coloured dot holds its edge over any
+   line it overlaps; hollow is the state where nothing links to the node. */
+.onet__node circle {
+  stroke: #ffffff;
+  stroke-width: 1.5;
 }
 
-/* Outcome columns are fixed-width squares so the grid lines up however long a
-   code is; the heading shortens instead of widening the column. */
-.cpx__po,
-.cpx__cell {
-  width: 38px;
-  min-width: 38px;
-  text-align: center;
+.onet__node--isolated circle {
+  fill: #f8fafc;
+  stroke: #94a3b8;
+  stroke-dasharray: 2.5 2.5;
 }
 
-.cpx__po {
-  font-size: 9.5px;
-  font-weight: 700;
-  line-height: 1.2;
-  padding: 5px 3px !important;
-  overflow-wrap: anywhere;
+.onet__label {
+  font-size: 10px;
+  font-weight: 600;
+  fill: #475569;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.75);
+  stroke-width: 2.5;
 }
 
-.cpx__cell {
-  font-size: 11px;
-  font-weight: 700;
-  border-radius: 5px;
-  border: none !important;
+.onet__node--isolated .onet__label {
+  fill: #94a3b8;
 }
 
-.cpx__cell--on {
-  background: #16a34a;
-  color: #ffffff;
-}
-
-.cpx__cell--none {
-  background: #f1f5f9;
-  color: #cbd5e1;
-}
-
-.cpx__legend {
-  list-style: none;
+.onet__legend {
   display: flex;
-  gap: 14px;
   flex-wrap: wrap;
+  gap: 6px 14px;
   margin: 10px 0 0;
   padding: 0;
-  font-size: 11px;
+  list-style: none;
+}
+
+.onet__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
   color: #64748b;
 }
 
-.cpx__legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+.onet__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
-.cpx__swatch {
-  width: 18px;
-  height: 18px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
+.onet__dot--isolated {
+  background: #f8fafc;
+  border: 1.5px dashed #94a3b8;
+}
+
+.onet__count {
+  display: inline-block;
+  min-width: 16px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #f1f5f9;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #334155;
+  text-align: center;
 }
 
 /* ---- mapped-targets donut (components/MappedTargetsDonut.tsx) ----

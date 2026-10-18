@@ -1,10 +1,10 @@
 // Overall Report: the program's curriculum at a glance.
 //
 // Shared by all three roles (admin, manager, faculty), like the record list it
-// grew out of. A header with the export actions, the alignment spine, a row of
-// KPI cards, then panels: outcomes by anchor, the alignment matrix, course
-// outcomes, the record mix and the gaps. The searchable record inventory stays
-// below as the appendix the Excel export is built from.
+// grew out of. A header with the export actions, a row of KPI cards, then six
+// panels: the curriculum mapping summary, PO coverage, the outcomes
+// relationship network, the alignment mix, the mapping gaps and CQI
+// monitoring.
 //
 // The first version built its coverage panels on program_outcomes,
 // course_learning_outcomes and clo_po_matrix. All three are empty and nothing
@@ -59,17 +59,13 @@ import {
   coursesInProgram,
   poOutcomes,
 } from '../../utils/alignment'
-import {
-  anchorKeysOf,
-  buildMappingReport,
-  chartableOutcomes,
-  matrixRows,
-} from '../../utils/cloPoMapping'
+import { buildMappingReport, chartableOutcomes } from '../../utils/cloPoMapping'
 import type { PoOutcome } from '../../utils/alignment'
 import { normalizeCode } from '../../utils/courseCodes'
+import { buildRelationshipGraph } from '../../utils/relationshipGraph'
 import MappedTargetsDonut from '../../components/MappedTargetsDonut'
 import PoCoverageBars from '../../components/PoCoverageBars'
-import CloPoMatrix from '../../components/CloPoMatrix'
+import OutcomesNetwork from '../../components/OutcomesNetwork'
 import Icon from '../../components/icons'
 import type { IconName } from '../../components/icons'
 
@@ -209,10 +205,9 @@ function Reports({ profile, onNavigate }: ReportsProps) {
   // utils/cloPoMapping.ts for why that is narrow enough to trust.
   const mapping = useMemo(() => buildMappingReport(clos, outcomes), [clos, outcomes])
   const charted = useMemo(() => chartableOutcomes(mapping), [mapping])
-  const matrixKeys = useMemo(() => anchorKeysOf(mapping), [mapping])
-  const matrixCodes = matrixKeys.map(
-    (k) => outcomes.find((o) => o.key === k)?.code ?? k,
-  )
+  // The course a learning outcome belongs to, as a code: the gaps panel and
+  // the network's node labels resolve the learning outcomes' course text
+  // against the program's own course list.
   const courseCodeOf = useCallback(
     (courseId: string) => {
       const hit = courses.find((c) => c.id === courseId || normalizeCode(c.code) === normalizeCode(courseId))
@@ -220,9 +215,14 @@ function Reports({ profile, onNavigate }: ReportsProps) {
     },
     [courses],
   )
-  const matrix = useMemo(
-    () => matrixRows(mapping, courseCodeOf),
-    [mapping, courseCodeOf],
+
+  // The network panel's node-and-edge graph: every outcome family the report
+  // connects, joined only by what the database actually records -- learning
+  // outcomes naming program outcomes from their titles, program outcomes
+  // anchoring to the PEOs and goals their alignment rows resolve to.
+  const relationshipGraph = useMemo(
+    () => buildRelationshipGraph({ clos, outcomes, peos, goals, mapping }),
+    [clos, outcomes, peos, goals, mapping],
   )
 
   // Per course: its outcomes, and how many of them reach a program outcome.
@@ -479,7 +479,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
 
           {/* ---- panels: three across, two rows ----
               The arrangement of the CQI report brief: mapping summary, PO
-              coverage chart and the CLO-PO matrix on the first row; alignment
+              coverage chart and the outcomes network on the first row; alignment
               mix, mapping gaps and CQI monitoring on the second. */}
           <div className="reports-panels">
             {/* 1 ---- */}
@@ -559,19 +559,15 @@ function Reports({ profile, onNavigate }: ReportsProps) {
 
             {/* 3 ---- */}
             <section className="panel reports-panel">
-              <PanelHead icon="grid" title="CLO-PO Alignment Matrix" />
+              <PanelHead icon="network" title="Outcomes Relationship Network" />
               <p className="reports-panel__sub">
-                Which learning outcomes reach which program outcome.
+                Shows CLOs, POs, PEOs and strategic goals as connected nodes. Lines
+                represent actual relationships between outcomes.
               </p>
-              {matrix.length === 0 ? (
-                <p className="reports-empty">No learning outcomes recorded yet.</p>
-              ) : matrixKeys.length === 0 ? (
-                <p className="reports-empty">
-                  No learning outcome names a program outcome yet — the matrix fills in as
-                  outcomes are mapped.
-                </p>
+              {relationshipGraph.nodes.length === 0 ? (
+                <p className="reports-empty">No outcomes recorded yet.</p>
               ) : (
-                <CloPoMatrix rows={matrix} columns={matrixCodes} columnKeys={matrixKeys} />
+                <OutcomesNetwork graph={relationshipGraph} />
               )}
             </section>
 
