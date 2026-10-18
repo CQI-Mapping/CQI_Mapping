@@ -1212,6 +1212,33 @@ export async function fetchTosSheets(examId: string): Promise<TosSheetRow[]> {
   return data as TosSheetRow[]
 }
 
+/**
+ * Every sheet belonging to any of the given exams, keyed by exam id.
+ *
+ * The library panel needs each blueprint's papers to title it the way the
+ * document does. One query for all of them, rather than one per card, which is
+ * the difference between a single round trip and one per row as the list grows.
+ *
+ * Returns an empty map for an empty id list — `.in()` with no values is a
+ * syntax error server-side, and the common case on a fresh account is zero.
+ */
+export async function fetchTosSheetsByExam(
+  examIds: string[],
+): Promise<Record<string, TosSheetRow[]>> {
+  const byExam: Record<string, TosSheetRow[]> = {}
+  if (examIds.length === 0) return byExam
+  const { data, error } = await supabase
+    .from('tos_sheets')
+    .select('*')
+    .in('exam_id', examIds)
+    .order('position', { ascending: true })
+  if (error) throw error
+  for (const row of (data ?? []) as TosSheetRow[]) {
+    ;(byExam[row.exam_id] ??= []).push(row)
+  }
+  return byExam
+}
+
 export async function createTosSheet(
   payload: Partial<TosSheetRow>,
 ): Promise<TosSheetRow> {

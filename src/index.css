@@ -3373,6 +3373,16 @@ textarea.input {
   color: #64748b;
 }
 
+/* The document title line on a card — "Table of Specification for Prelim:
+   Multiple Choice Type". Set smaller and quieter than the semester so the card
+   reads as three lines of increasing specificity: which course, which term,
+   which document. */
+.tos-card__doctitle {
+  font-size: 11.5px;
+  color: #64748b;
+  font-style: italic;
+}
+
 /* Save / Discard / Export / Add, under the table, right-aligned. */
 .tos-addrow {
   display: flex;

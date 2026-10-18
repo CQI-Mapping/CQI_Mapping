@@ -36,6 +36,7 @@ import {
   fetchPrograms,
   fetchTosExams,
   fetchTosSheets,
+  fetchTosSheetsByExam,
   fetchTosTopics,
   replaceTosTopics,
   updateTosExam,
@@ -43,6 +44,7 @@ import {
   type Course,
   type Program,
   type TosExamRow,
+  type TosSheetRow,
 } from '../../services/database'
 import { supabase } from '../../utils/supabaseClient'
 import { downloadTosExcel } from '../../utils/tosXlsx'
@@ -59,6 +61,24 @@ const SHEET_KINDS: { kind: SheetKind; label: string }[] = [
   { kind: 'items', label: 'Multiple Choice' },
   { kind: 'points', label: 'Performance-based' },
 ]
+
+/**
+ * The document's title line: "Table of Specification for Prelim: Multiple
+ * Choice Type".
+ *
+ * Shared by the grid's header and the library panel's cards so a card is
+ * titled exactly as its blueprint and its exported workbook are. Written once
+ * here because it was already inline in the grid and is easy to drift the
+ * moment a second place needs it.
+ */
+const docTitle = (examType: string, kind: SheetKind) =>
+  `Table of Specification${examType.trim() ? ` for ${examType.trim()}` : ''}${
+    kind === 'items' ? ': Multiple Choice Type' : ': Performance-Based Type'
+  }`
+
+/** Every paper an exam carries, as its own title line. */
+const docTitlesFor = (examType: string, sheets: { kind: SheetKind }[]) =>
+  sheets.length > 0 ? sheets.map((s) => docTitle(examType, s.kind)) : [docTitle(examType, 'items')]
 
 /**
  * The terms a blueprint can be filed under. Both semesters carry the same
@@ -182,6 +202,8 @@ export default function TOS() {
    * a single id rather than a set.
    */
   const [editingId, setEditingId] = useState<string | null>(null)
+  /** Each exam's papers, so a card can be titled the way its document is. */
+  const [examSheets, setExamSheets] = useState<Record<string, TosSheetRow[]>>({})
   const [editDraft, setEditDraft] = useState({
     code: '',
     title: '',
@@ -462,7 +484,10 @@ export default function TOS() {
         fetchTosExams('all'),
         fetchTosExams('archived'),
       ])
+      // One extra query for every card's papers, rather than one per card.
+      const sheets = await fetchTosSheetsByExam(all.map((r) => r.id))
       setExamList(all)
+      setExamSheets(sheets)
       setArchivedCount(archivedRows.length)
     } catch {
       // A failed list must not take the editor down with it — the blueprint on
@@ -1072,9 +1097,7 @@ export default function TOS() {
           courseTitle: exam.title,
           term: exam.term,
           // Same line the exported workbook writes at A8.
-          title: `Table of Specification${exam.examType.trim() ? ` for ${exam.examType.trim()}` : ''}${
-            sheet.kind === 'items' ? ': Multiple Choice Type' : ''
-          }`,
+          title: docTitle(exam.examType, sheet.kind),
         }}
         issues={issues}
         editable={ready && !creatingKind}
@@ -1212,6 +1235,13 @@ export default function TOS() {
                       {row.title || 'No course title yet'}
                     </h4>
                     <p>{row.term || 'No semester set'}</p>
+                    {/* The document's own title line, so the card, the
+                        blueprint and the exported workbook all name the paper
+                        the same way. */}
+                    <p className="tos-card__doctitle">
+                      {docTitlesFor(row.exam_type, examSheets[row.id] ?? [])
+                        .join(' · ')}
+                    </p>
                     <div className="resource-card__meta">
                       <span className={`status-badge status-badge--${row.status}`}>{row.status}</span>
                       {row.code && <span>{row.code}</span>}
