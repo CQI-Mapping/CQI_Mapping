@@ -168,6 +168,10 @@ export default function TOS() {
    * is there anything I have not written yet.
    */
   const [dirty, setDirty] = useState(false)
+  /** Every blueprint this account owns, refreshed after each save. */
+  const [examList, setExamList] = useState<TosExamRow[]>([])
+  const [archived, setArchived] = useState(false)
+  const [archivedCount, setArchivedCount] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [savedAt, setSavedAt] = useState<string | null>(null)
 
@@ -224,7 +228,16 @@ export default function TOS() {
     setDirty(false)
     setSavedAt(new Date().toLocaleTimeString())
     setError(null)
+    // Re-read the list on every save so the panel below proves the write
+    // landed. Declared below and reached through a ref to keep this callback's
+    // identity stable for the debounced writers that depend on it.
+    refreshListRef.current?.()
   }, [])
+
+  // reportSaved() is a dependency of every debounced write, so it must not
+  // depend on refreshList directly — that would rebuild all of them whenever
+  // the list callback's identity changed.
+  const refreshListRef = useRef<(() => void) | null>(null)
 
   /**
    * Write everything that is pending, right now.
@@ -403,6 +416,7 @@ export default function TOS() {
         if (cancelled) return
         setActiveId(rows[0].id)
         await loadInto(rows[0])
+        refreshListRef.current?.()
       } catch (e) {
         fail(e, 'Could not load your Table of Specification.')
       } finally {
@@ -415,6 +429,83 @@ export default function TOS() {
       cancelled = true
     }
   }, [fail, loadInto])
+
+  /**
+   * Refresh the saved-blueprints panel.
+   *
+   * Runs after every save so the panel is proof the write landed, which is the
+   * whole point of having it: before, a successful save was indistinguishable
+   * from a keystroke that had not yet been written.
+   *
+   * Both tabs are counted on every refresh, so the Archive tab can show how
+   * many are hidden without a second round trip when it is opened.
+   */
+  const refreshList = useCallback(async () => {
+    try {
+      const [all, archivedRows] = await Promise.all([
+        fetchTosExams('all'),
+        fetchTosExams('archived'),
+      ])
+      setExamList(all)
+      setArchivedCount(archivedRows.length)
+    } catch {
+      // A failed list must not take the editor down with it — the blueprint on
+      // screen is the user's work and is unaffected.
+    }
+  }, [])
+
+  // Wired here rather than making reportSaved depend on refreshList, which
+  // would rebuild every debounced writer whenever the list callback changed.
+  refreshListRef.current = refreshList
+
+  /** Archive or restore, then re-read whichever tab is on screen. */
+  const setExamStatus = useCallback(
+    async (id: string, next: 'active' | 'archived') => {
+      const row = examList.find((r) => r.id === id)
+      try {
+        await updateTosExam(id, { status: next })
+        const all = await fetchTosExams('all')
+        setExamList(all)
+        setArchivedCount(all.filter((r) => r.status === 'archived').length)
+        // Archive and restore are separate actions, not one "status changed",
+        // so the log can tell which happened. Archiving a blueprint you are
+        // editing underneath is worth recording.
+        await addActivityLog(
+          next === 'archived' ? 'tos_exam.archived' : 'tos_exam.restored',
+          {
+            entity: 'tos_exam',
+            entity_id: id,
+            label: [row?.code, row?.title].filter(Boolean).join(' — ') || 'Table of Specification',
+          },
+        )
+      } catch (e) {
+        fail(e, 'Could not change the blueprint status.')
+      }
+    },
+    [examList, fail],
+  )
+
+  /** Open a different blueprint in the editor above. */
+  const openExam = useCallback(
+    async (row: TosExamRow) => {
+      if (row.id === activeId) return
+      if (dirty && !window.confirm('You have unsaved edits on this blueprint. Open another one and lose them?')) {
+        return
+      }
+      setActiveId(row.id)
+      await loadInto(row)
+      setDirty(false)
+      setSaving(false)
+    },
+    [activeId, dirty, loadInto],
+  )
+
+  // The panel's tab decides which half of the list it shows, the same way the
+  // Curriculum page's Active/Archive tabs do.
+  const visibleExams = useMemo(
+    () => examList.filter((r) => (archived ? r.status === 'archived' : r.status !== 'archived')),
+    [examList, archived],
+  )
 
   // Only one exam is on screen. The schema still stores many per user --
   // fetchTosExams() orders by updated_at and the page opens the first -- so
@@ -768,6 +859,86 @@ export default function TOS() {
 
   return (
     <div className="syllabus-doc">
+      {/* ---- saved blueprints ----
+          The panel is the visible proof that a save landed. Before this, a
+          successful write and a keystroke that had not yet been written looked
+          identical, so "did that save?" had no answer on screen.
+
+          It re-reads itself after every save rather than assuming success, so
+          what is listed is what is actually in the database. */}
+      <div className="panel table-wrap tos-library no-print">
+        <div className="program-toolbar">
+          <div className="sd-tabs" style={{ marginBottom: 0, flex: 1 }}>
+            <button
+              className={`sd-tab ${!archived ? 'sd-tab--active' : ''}`}
+              onClick={() => setArchived(false)}
+            >
+              Active
+            </button>
+            <button
+              className={`sd-tab ${archived ? 'sd-tab--active' : ''}`}
+              onClick={() => setArchived(true)}
+            >
+              Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
+            </button>
+          </div>
+        </div>
+
+        <div className="resource-list">
+          {visibleExams.length === 0 && (
+            <div className="program-empty" style={{ marginTop: 14 }}>
+              <strong>No {archived ? 'archived' : 'saved'} blueprints yet.</strong>
+              <span>
+                {archived
+                  ? 'Archived blueprints stay here — nothing is deleted.'
+                  : 'Name the blueprint above and press Save.'}
+              </span>
+            </div>
+          )}
+
+          {visibleExams.map((row) => (
+            <div
+              key={row.id}
+              className={`resource-card ${
+                row.status === 'archived' ? 'resource-card--archived' : ''
+              } ${row.id === activeId ? 'resource-card--selected' : ''}`}
+            >
+              <div className="resource-card__body">
+                <h4>{row.code || 'Untitled blueprint'}</h4>
+                <p>{row.title || 'No course title yet'}</p>
+                <div className="resource-card__meta">
+                  <span className={`status-badge status-badge--${row.status}`}>{row.status}</span>
+                  {row.term && <span>{row.term}</span>}
+                  <span>{row.total_hours} hrs</span>
+                  <span>
+                    {new Date(row.updated_at).toLocaleString()}
+                    {row.id === activeId && dirty ? ' · edited' : ''}
+                  </span>
+                </div>
+              </div>
+              <div className="resource-card__actions">
+                {row.id !== activeId && (
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm"
+                    onClick={() => openExam(row)}
+                  >
+                    Open
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--sm"
+                  onClick={() => setExamStatus(row.id, row.status === 'archived' ? 'active' : 'archived')}
+                >
+                  {row.status === 'archived' ? 'Restore' : 'Archive'}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* ---- exam header ---- */}
       <div className="panel tos-panel no-print">
         <div className="tos-field-grid">

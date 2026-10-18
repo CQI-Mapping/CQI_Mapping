@@ -3344,6 +3344,24 @@ textarea.input {
   color: #475569;
 }
 
+/* Saved-blueprints panel, above the editor. Reuses the Curriculum page's
+   panel / toolbar / tabs / card classes so the two read as one app. */
+.tos-library {
+  margin-bottom: 12px;
+}
+
+.tos-library .resource-card__body h4 {
+  margin: 0 0 2px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.tos-library .resource-card__body p {
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  color: #475569;
+}
+
 /* Save / Discard / Export / Add, under the table, right-aligned. */
 .tos-addrow {
   display: flex;

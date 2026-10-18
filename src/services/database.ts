@@ -1146,12 +1146,19 @@ export interface TosTopicRow {
  * restricts this to rows the caller owns, so no user filter is needed
  * here and adding one would only risk disagreeing with the policy.
  */
-export async function fetchTosExams(): Promise<TosExamRow[]> {
-  const { data, error } = await supabase
-    .from('tos_exams')
-    .select('*')
-    .eq('status', 'active')
-    .order('updated_at', { ascending: false })
+/**
+ * The caller's blueprints, newest-touched first.
+ *
+ * `status` defaults to 'active' because that is what every caller wants: an
+ * archived blueprint is out of the way, not deleted. Pass 'all' for the
+ * Archive tab, which is the only way archived rows are reachable at all.
+ */
+export async function fetchTosExams(
+  status: 'active' | 'archived' | 'all' = 'active',
+): Promise<TosExamRow[]> {
+  let query = supabase.from('tos_exams').select('*')
+  if (status !== 'all') query = query.eq('status', status)
+  const { data, error } = await query.order('updated_at', { ascending: false })
   if (error) throw error
   return data as TosExamRow[]
 }

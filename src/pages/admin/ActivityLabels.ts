@@ -80,6 +80,8 @@ export const ACTION_LABELS: Record<string, string> = {
   // Table of Specification blueprints (faculty "Generate TOS" page)
   'tos_exam.created': 'Created exam blueprint',
   'tos_exam.updated': 'Updated exam blueprint',
+  'tos_exam.archived': 'Archived exam blueprint',
+  'tos_exam.restored': 'Restored exam blueprint',
   'tos_exam.exported': 'Exported exam blueprint to Excel',
 
   // Pages that only read
