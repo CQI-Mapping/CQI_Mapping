@@ -46,6 +46,7 @@ import {
 } from '../../services/database'
 import { supabase } from '../../utils/supabaseClient'
 import { downloadTosExcel } from '../../utils/tosXlsx'
+import Icon from '../../components/icons'
 
 const SAVE_DEBOUNCE_MS = 600
 
@@ -172,6 +173,21 @@ export default function TOS() {
   const [examList, setExamList] = useState<TosExamRow[]>([])
   const [archived, setArchived] = useState(false)
   const [archivedCount, setArchivedCount] = useState(0)
+  /**
+   * Inline card editing, mirroring the Curriculum page's cards.
+   *
+   * Editing goes through this rather than opening the blueprint because a card
+   * is a list entry: renaming one does not mean scrolling up to the editor and
+   * hunting the right field. Only one card edits at a time, so `editingId` is
+   * a single id rather than a set.
+   */
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState({
+    code: '',
+    title: '',
+    term: '',
+    totalHours: '0',
+  })
   const [error, setError] = useState<string | null>(null)
   const [savedAt, setSavedAt] = useState<string | null>(null)
 
@@ -498,6 +514,57 @@ export default function TOS() {
       setSaving(false)
     },
     [activeId, dirty, loadInto],
+  )
+
+  /** Load a card's fields into the inline form. */
+  const startCardEdit = useCallback((row: TosExamRow) => {
+    setEditingId(row.id)
+    setEditDraft({
+      code: row.code,
+      title: row.title,
+      term: row.term,
+      totalHours: String(row.total_hours),
+    })
+  }, [])
+
+  const cancelCardEdit = useCallback(() => {
+    setEditingId(null)
+  }, [])
+
+  /**
+   * Write the inline form back.
+   *
+   * The blueprint currently on screen is updated from the same values when it
+   * is the one being edited, so a rename is visible immediately rather than
+   * only after reopening. Otherwise the editor and the card would disagree
+   * until a reload.
+   */
+  const saveCardEdit = useCallback(
+    async (row: TosExamRow) => {
+      try {
+        const next = {
+          code: editDraft.code.trim(),
+          title: editDraft.title.trim(),
+          term: editDraft.term.trim(),
+          total_hours: num(editDraft.totalHours),
+        }
+        await updateTosExam(row.id, next)
+        setEditingId(null)
+        if (row.id === activeId) setExam((prev) => ({ ...prev, ...next }))
+        await refreshListRef.current?.()
+        setDirty(false)
+        setSaving(false)
+        setSavedAt(new Date().toLocaleTimeString())
+        await addActivityLog('tos_exam.updated', {
+          entity: 'tos_exam',
+          entity_id: row.id,
+          label: [next.code, next.title].filter(Boolean).join(' — ') || 'Table of Specification',
+        })
+      } catch (e) {
+        fail(e, 'Could not save the blueprint details.')
+      }
+    },
+    [editDraft, activeId, fail],
   )
 
   // The panel's tab decides which half of the list it shows, the same way the
@@ -1071,37 +1138,106 @@ export default function TOS() {
                 row.status === 'archived' ? 'resource-card--archived' : ''
               } ${row.id === activeId ? 'resource-card--selected' : ''}`}
             >
-              <div className="resource-card__body">
-                <h4>{row.code || 'Untitled blueprint'}</h4>
-                <p>{row.title || 'No course title yet'}</p>
-                <div className="resource-card__meta">
-                  <span className={`status-badge status-badge--${row.status}`}>{row.status}</span>
-                  {row.term && <span>{row.term}</span>}
-                  <span>{row.total_hours} hrs</span>
-                  <span>
-                    {new Date(row.updated_at).toLocaleString()}
-                    {row.id === activeId && dirty ? ' · edited' : ''}
-                  </span>
+              {editingId === row.id ? (
+                /* Same inline form the Curriculum page's cards use, so the two
+                   lists behave identically. */
+                <div className="resource-card__edit">
+                  <label className="field">
+                    <span>Program</span>
+                    <input
+                      className="input input--sm"
+                      value={editDraft.code}
+                      onChange={(e) => setEditDraft({ ...editDraft, code: e.target.value })}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Course title</span>
+                    <input
+                      className="input input--sm"
+                      value={editDraft.title}
+                      onChange={(e) => setEditDraft({ ...editDraft, title: e.target.value })}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Semester</span>
+                    <input
+                      className="input input--sm"
+                      value={editDraft.term}
+                      onChange={(e) => setEditDraft({ ...editDraft, term: e.target.value })}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Total hours</span>
+                    <input
+                      className="input input--sm"
+                      type="number"
+                      min="0"
+                      value={editDraft.totalHours}
+                      onChange={(e) => setEditDraft({ ...editDraft, totalHours: e.target.value })}
+                    />
+                  </label>
+                  <div className="resource-card__actions">
+                    <button
+                      className="btn btn--primary btn--sm"
+                      onClick={() => saveCardEdit(row)}
+                      aria-label="Save changes"
+                      title="Save"
+                    >
+                      <Icon name="check" size={13} />
+                    </button>
+                    <button
+                      className="btn btn--ghost btn--sm"
+                      onClick={cancelCardEdit}
+                      aria-label="Cancel"
+                      title="Cancel"
+                    >
+                      <Icon name="x" size={13} />
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div className="resource-card__actions">
-                {row.id !== activeId && (
-                  <button
-                    type="button"
-                    className="btn btn--ghost btn--sm"
-                    onClick={() => openExam(row)}
-                  >
-                    Open
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="btn btn--ghost btn--sm"
-                  onClick={() => setExamStatus(row.id, row.status === 'archived' ? 'active' : 'archived')}
-                >
-                  {row.status === 'archived' ? 'Restore' : 'Archive'}
-                </button>
-              </div>
+              ) : (
+                <>
+                  <div className="resource-card__body">
+                    <h4>{row.code || 'Untitled blueprint'}</h4>
+                    <p>{row.title || 'No course title yet'}</p>
+                    <div className="resource-card__meta">
+                      <span className={`status-badge status-badge--${row.status}`}>{row.status}</span>
+                      {row.term && <span>{row.term}</span>}
+                      <span>{row.total_hours} hrs</span>
+                      <span>
+                        {new Date(row.updated_at).toLocaleString()}
+                        {row.id === activeId && dirty ? ' · edited' : ''}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="resource-card__actions">
+                    <button
+                      className="btn btn--ghost btn--sm"
+                      onClick={() => startCardEdit(row)}
+                      aria-label={`Edit ${row.code || row.title || 'blueprint'}`}
+                      title="Edit"
+                    >
+                      <Icon name="edit" size={13} />
+                    </button>
+                    {row.id !== activeId && (
+                      <button
+                        type="button"
+                        className="btn btn--ghost btn--sm"
+                        onClick={() => openExam(row)}
+                      >
+                        Open
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--sm"
+                      onClick={() => setExamStatus(row.id, row.status === 'archived' ? 'active' : 'archived')}
+                    >
+                      {row.status === 'archived' ? 'Restore' : 'Archive'}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           ))}
         </div>
