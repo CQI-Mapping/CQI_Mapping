@@ -98,8 +98,8 @@ function academicYearOptions(today = new Date()): string[] {
  * October, the second November through May's close of the school year --
  * so January sits at the tail of the pairing academicYearOptions chose for
  * it, not on a new first semester. Returns the option string the selects
- * trade in, "1" or "2", so it can be stated in the banner and used as the
- * summary cells' fallback without translation.
+ * trade in, "1" or "2", so it backs the summary cells' fallback and the CSV
+ * header without translation.
  */
 function currentSemester(today = new Date()): string {
   return today.getMonth() >= 5 && today.getMonth() <= 9 ? '1' : '2'
@@ -194,10 +194,11 @@ function Reports({ profile, onNavigate }: ReportsProps) {
   const [academicYear] = useState(academicYearOptions()[1])
 
   /**
-   * The semester the report covers: read once per mount from the date, by
-   * the same June-start calendar the academic year uses. Like the year, the
-   * banner states it as text rather than offering it -- and it doubles as
-   * the fallback the summary's semester cells display and confirm.
+   * The report's semester context, read once per mount from the date on the
+   * same June-start calendar the academic year uses. The banner does not
+   * state it; it backs the summary's semester cells -- shown as their
+   * fallback and confirmable into the record -- and rides into the CSV
+   * header.
    */
   const [reportSemester] = useState(currentSemester())
 
@@ -515,14 +516,6 @@ function Reports({ profile, onNavigate }: ReportsProps) {
                 Academic Year
               </span>
               <span className="reports-filter__when">{academicYear}</span>
-            </div>
-
-            <div className="reports-filter">
-              <span className="reports-filter__label">
-                <Icon name="calendar" size={11} />
-                Semester
-              </span>
-              <span className="reports-filter__when">{reportSemester}</span>
             </div>
 
             <label className="reports-filter">
