@@ -36,6 +36,7 @@ import {
   fetchStrategicGoals,
   fetchChedMemoOrders,
   fetchCqiActions,
+  updateCourse,
 } from '../../services/database'
 import type {
   Program,
@@ -46,6 +47,7 @@ import type {
   StrategicGoal,
   ChedMemoOrder,
   CqiAction,
+  UserRole,
 } from '../../services/database'
 import { buildReport } from '../../utils/reports'
 import { SCHOOL } from '../../utils/report'
@@ -73,7 +75,7 @@ import Icon from '../../components/icons'
 import type { IconName } from '../../components/icons'
 
 interface ReportsProps {
-  profile: { email?: string | null }
+  profile: { email?: string | null; role?: UserRole }
 }
 
 /**
@@ -88,7 +90,56 @@ function academicYearOptions(today = new Date()): string[] {
   return [start - 1, start, start + 1].map((s) => `${s} - ${s + 1}`)
 }
 
+/** College year levels a curriculum can sit a course in. */
+const YEAR_OPTIONS = [1, 2, 3, 4]
+
+/** Two regular semesters plus the optional mid-year term. */
+const SEMESTER_OPTIONS = [1, 2, 3]
+
+/**
+ * The term cell of a course the user may write: a select dressed as table
+ * text, so thirty-two extra controls do not turn the summary into a form.
+ * The empty option is the "not recorded yet" state the read-only cell shows
+ * as a dash.
+ */
+function TermSelect({
+  course,
+  field,
+  options,
+  busy,
+  onChange,
+}: {
+  course: Course
+  field: 'year_level' | 'semester'
+  options: number[]
+  busy: boolean
+  onChange: (course: Course, field: 'year_level' | 'semester', raw: string) => void
+}) {
+  return (
+    <select
+      className="reports-termsel"
+      value={course[field] ?? ''}
+      disabled={busy}
+      onChange={(e) => onChange(course, field, e.target.value)}
+      aria-label={`${field === 'year_level' ? 'Year level' : 'Semester'} of ${course.code}`}
+    >
+      <option value="">—</option>
+      {options.map((o) => (
+        <option key={o} value={o}>
+          {o}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+
 function Reports({ profile }: ReportsProps) {
+  // Terms are curriculum data, and the RLS policies let managers and admins
+  // write them; everyone else just reads. So the gate is made here too:
+  // faculty see the term columns as values, not as selects that would only
+  // fail on save.
+  const canEditTerm = profile.role === 'admin' || profile.role === 'manager'
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -104,6 +155,14 @@ function Reports({ profile }: ReportsProps) {
   const [cmos, setCmos] = useState<ChedMemoOrder[]>([])
   const [cqiActions, setCqiActions] = useState<CqiAction[]>([])
   const [academicYear, setAcademicYear] = useState(academicYearOptions()[1])
+
+  /**
+   * Which summary cells are mid-save, keyed "courseId:field". A cell that is
+   * saving is disabled, so one cell never double-fires, and the busy set —
+   * not a single flag — lets several rows be set at once without blocking
+   * each other.
+   */
+  const [termBusy, setTermBusy] = useState<Set<string>>(new Set())
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -152,6 +211,14 @@ function Reports({ profile }: ReportsProps) {
   const programCourseList = useMemo(
     () => (program ? coursesInProgram(courses, program.id) : []),
     [courses, program],
+  )
+
+  // Year levels this curriculum actually spans, once the term columns carry
+  // data. Zero until then -- the tile keeps its fallback rather than
+  // announcing "Across 0 years".
+  const yearsOffered = useMemo(
+    () => new Set(programCourseList.map((c) => c.year_level).filter((y) => y != null)).size,
+    [programCourseList],
   )
 
   // The mapping the report is built on: which program outcomes each learning
@@ -261,6 +328,78 @@ function Reports({ profile }: ReportsProps) {
       setDownloading(false)
     }
   }
+
+
+  /**
+   * Sets one term field of one course, from one cell of the summary table.
+   *
+   * The write is optimistic: a summarized board of 33 courses should not grow
+   * a spinner per cell, so the cell takes the value at once and reverts it if
+   * the save fails. The busy key disables only the one cell that is saving.
+   *
+   * The value arrives as the select's string and leaves as a small integer
+   * (null for the blank option), which is what the column holds.
+   */
+  const setTerm = useCallback(
+    async (course: Course, field: 'year_level' | 'semester', raw: string) => {
+      const value = raw === '' ? null : Number(raw)
+      if ((course[field] ?? null) === value) return
+
+      const key = `${course.id}:${field}`
+      const previous = course[field] ?? null
+      setTermBusy((busy) => new Set(busy).add(key))
+      setCourses((all) =>
+        all.map((c) => {
+          if (c.id !== course.id) return c
+          const next = { ...c }
+          if (field === 'year_level') next.year_level = value
+          else next.semester = value
+          return next
+        }),
+      )
+
+      try {
+        const patch: Partial<Course> =
+          field === 'year_level' ? { year_level: value } : { semester: value }
+        await updateCourse(course.id, patch)
+        addActivityLog('course.term_set', {
+          entity: 'course',
+          entity_id: course.id,
+          label: `${course.code} — ${field === 'year_level' ? 'year level' : 'semester'} set to ${value ?? 'none'}`,
+        }).catch(() => {})
+      } catch (e) {
+        setCourses((all) =>
+          all.map((c) => {
+            if (c.id !== course.id) return c
+            const next = { ...c }
+            if (field === 'year_level') next.year_level = previous
+            else next.semester = previous
+            return next
+          }),
+        )
+        const msg = e instanceof Error ? e.message : String(e)
+        // The one failure this table can hit today: the term columns are in
+        // supabase-schema.sql but not yet in the live database. Naming the
+        // exact statements beats "network error" from a report page.
+        if (/year_level|semester|column|schema/i.test(msg)) {
+          setError(
+            'The courses table has no year_level/semester columns yet. Run in the Supabase SQL editor, then reload: ' +
+              'ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS year_level INTEGER; ' +
+              'ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS semester INTEGER;',
+          )
+        } else {
+          setError(`Could not save ${course.code}: ${msg}`)
+        }
+      } finally {
+        setTermBusy((busy) => {
+          const next = new Set(busy)
+          next.delete(key)
+          return next
+        })
+      }
+    },
+    [],
+  )
 
   // Captured once per mount. Computing it inline would re-stamp on every
   // render -- typing in the search box would scroll the timestamp forward.
@@ -379,7 +518,11 @@ function Reports({ profile }: ReportsProps) {
             <KpiCard
               label="Total Courses"
               value={programCourseList.length}
-              sub="Across all year levels"
+              sub={
+                yearsOffered
+                  ? `Across ${yearsOffered} year${yearsOffered === 1 ? '' : 's'}`
+                  : 'Across all year levels'
+              }
               icon="book"
             />
             <KpiCard
@@ -456,8 +599,32 @@ function Reports({ profile }: ReportsProps) {
                           <tr key={course.id}>
                             <td>{course.code}</td>
                             <td className="reports-course-title">{course.title}</td>
-                            <td className="reports-num">{course.year_level ?? BLANK}</td>
-                            <td className="reports-num">{course.semester ?? BLANK}</td>
+                            <td className="reports-num">
+                              {canEditTerm ? (
+                                <TermSelect
+                                  course={course}
+                                  field="year_level"
+                                  options={YEAR_OPTIONS}
+                                  busy={termBusy.has(`${course.id}:year_level`)}
+                                  onChange={setTerm}
+                                />
+                              ) : (
+                                course.year_level ?? BLANK
+                              )}
+                            </td>
+                            <td className="reports-num">
+                              {canEditTerm ? (
+                                <TermSelect
+                                  course={course}
+                                  field="semester"
+                                  options={SEMESTER_OPTIONS}
+                                  busy={termBusy.has(`${course.id}:semester`)}
+                                  onChange={setTerm}
+                                />
+                              ) : (
+                                course.semester ?? BLANK
+                              )}
+                            </td>
                             <td className="reports-num">{outcomeCount}</td>
                             <td><span className={badge.className}>{badge.label}</span></td>
                           </tr>
