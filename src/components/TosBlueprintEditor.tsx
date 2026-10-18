@@ -452,80 +452,124 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
 
   return (
     <div className="tos-card__editor">
-      {/* ---- identifying fields ---- */}
-      <div className="tos-card__fields">
-        <label className="field">
-          <span>Program</span>
-          <select
-            className="input input--sm"
-            value={form.code}
-            onChange={(e) => patchExam({ code: e.target.value })}
-          >
-            <option value="">
-              {programs.length === 0 ? 'No programs available' : '- select program -'}
-            </option>
-            {programOptions.map((o) => (
-              <option key={o.id} value={o.value}>{o.value}</option>
-            ))}
-          </select>
-        </label>
-        <label className="field">
-          <span>Course title</span>
-          <select
-            className="input input--sm"
-            value={form.title}
-            onChange={(e) => patchExam({ title: e.target.value })}
-          >
-            <option value="">
-              {courses.length === 0 ? 'No courses available' : '- select course (all programs) -'}
-            </option>
-            {courseOptions.map((o) => (
-              <option key={o.id} value={o.value}>{o.value}</option>
-            ))}
-          </select>
-        </label>
-        <label className="field">
-          <span>Semester</span>
-          <select
-            className="input input--sm"
-            value={form.term}
-            onChange={(e) => patchExam({ term: e.target.value })}
-          >
-            <option value="">- select semester -</option>
-            {termOptions.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
-        </label>
-        <label className="field">
-          <span>Total hours</span>
-          <input
-            className="input input--sm"
-            type="number"
-            min="0"
-            value={form.totalHours}
-            onChange={(e) => patchExam({ totalHours: num(e.target.value) })}
-          />
-        </label>
+      {/* ---- identifying fields ----
+          Deliberately the page's own panel and field-grid classes, not a card-
+          specific layout. A blueprint opened from a card has to look identical
+          to the same blueprint opened at the top of the page; the earlier
+          four-across row read as a different form for the same fields. */}
+      <div className="panel tos-panel">
+        <div className="tos-field-grid">
+          <label className="field">
+            <span>Program</span>
+            <select
+              className="input input--sm"
+              value={form.code}
+              disabled={!ready}
+              onChange={(e) => patchExam({ code: e.target.value })}
+            >
+              <option value="">
+                {programs.length === 0 ? 'No programs available' : '- select program -'}
+              </option>
+              {programOptions.map((o) => (
+                <option key={o.id} value={o.value}>
+                  {o.value}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>Course title</span>
+            <select
+              className="input input--sm"
+              value={form.title}
+              disabled={!ready}
+              onChange={(e) => patchExam({ title: e.target.value })}
+            >
+              <option value="">
+                {courses.length === 0
+                  ? 'No courses available'
+                  : selectedProgramId
+                    ? '- select course -'
+                    : '- select course (all programs) -'}
+              </option>
+              {courseOptions.map((o) => (
+                <option key={o.id} value={o.value}>
+                  {o.value}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>Semester</span>
+            <select
+              className="input input--sm"
+              value={form.term}
+              disabled={!ready}
+              onChange={(e) => patchExam({ term: e.target.value })}
+            >
+              <option value="">- select semester -</option>
+              {termOptions.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="tos-savestate" role="status">
+          {error ? (
+            <span className="tos-savestate__error">{error}</span>
+          ) : saving ? (
+            <span>Saving…</span>
+          ) : savedAt ? (
+            <span>Saved {savedAt}</span>
+          ) : null}
+        </div>
       </div>
 
-      {/* ---- paper tabs ---- */}
-      <div className="tos-tabs" role="tablist" aria-label="Blueprint paper">
-        {SHEET_KINDS.map(({ kind, label }) => (
-          <button
-            key={kind}
-            type="button"
-            role="tab"
-            aria-selected={kind === activeKind}
-            className={`tos-tab${kind === activeKind ? ' tos-tab--on' : ''}`}
-            onClick={() => switchTo(kind)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {/* ---- paper tabs ----
+          Same tab strip as the page, keyboard handling included, so the two
+          behave identically rather than merely looking alike. */}
+      <div
+        className="tos-tabs no-print"
+        role="tablist"
+        aria-label="Blueprint paper"
+        onKeyDown={(e) => {
+          // The page's own handling: arrows move, Home/End jump to the ends,
+          // written against SHEET_KINDS so a third paper needs no change here.
+          const at = SHEET_KINDS.findIndex((s) => s.kind === sheet.kind)
+          const last = SHEET_KINDS.length - 1
+          let to: number
+          if (e.key === 'ArrowRight') to = at + 1 > last ? 0 : at + 1
+          else if (e.key === 'ArrowLeft') to = at - 1 < 0 ? last : at - 1
+          else if (e.key === 'Home') to = 0
+          else if (e.key === 'End') to = last
+          else return
 
-      {error && <p className="msg msg--error" role="alert">{error}</p>}
+          e.preventDefault()
+          switchTo(SHEET_KINDS[to].kind)
+          e.currentTarget.querySelectorAll<HTMLButtonElement>('.tos-tab')[to]?.focus()
+        }}
+      >
+        {SHEET_KINDS.map(({ kind, label }) => {
+          const selected = sheet.kind === kind
+          return (
+            <button
+              key={kind}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              tabIndex={selected ? 0 : -1}
+              className={`tos-tab${selected ? ' tos-tab--on' : ''}`}
+              disabled={!ready || creatingKind !== null}
+              onClick={() => switchTo(kind)}
+            >
+              {label}
+            </button>
+          )
+        })}
+      </div>
 
       <TosSheetGrid
         sheet={sheet}
@@ -547,16 +591,6 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
         dirty={dirty}
         onDiscard={discardPending}
       />
-
-      <div className="tos-savestate" role="status">
-        {saving ? (
-          <span>Saving…</span>
-        ) : dirty ? (
-          <span>Unsaved changes</span>
-        ) : savedAt ? (
-          <span>Saved {savedAt}</span>
-        ) : null}
-      </div>
     </div>
   )
 }

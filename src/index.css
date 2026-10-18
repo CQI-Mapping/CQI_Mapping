@@ -3402,20 +3402,6 @@ textarea.input {
   margin-bottom: 4px;
 }
 
-/* The identifying fields sit in one row of four above the document, the same
-   order they appear in the blueprint header. */
-.tos-card__fields {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 10px;
-}
-
-.tos-card__fields .field {
-  flex: 1 1 200px;
-  margin-bottom: 0;
-}
-
 .tos-card__loading {
   margin: 8px 0;
   font-size: 13px;
