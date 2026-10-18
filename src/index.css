@@ -5200,16 +5200,16 @@ button.reports-panel__more:hover {
   margin-top: 16px;
 }
 
-/* The subject's report block closes with the same split download button the
-   Curriculum Report page uses (.sd-download), parked at the right bottom
-   edge under the document. */
+/* The subject's report page carries its own screen-only download footer
+   (SyllabusReport's `footer` slot), aligned right within the page's own
+   padding so it looks like part of the document's last row. */
 .subject-view__report-foot {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: 10px;
-  margin-top: 14px;
+  margin-top: 12px;
 }
 
 .subject-view__report-foot .msg {

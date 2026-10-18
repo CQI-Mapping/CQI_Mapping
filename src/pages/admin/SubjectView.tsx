@@ -2259,23 +2259,6 @@ export default function SubjectView() {
   // The Curriculum Report belongs to the subject root alone. While a branch
   // below it is being inspected the card stands on its own, so the syllabus on
   // screen always matches the card above it.
-  const subjectReport = (() => {
-    if (!datasets || !selectedCourse || rootType !== 'subject' || isInspecting) return null
-    return (
-      <SyllabusReport
-        rootRef={reportRootRef}
-        course={selectedCourse}
-        courses={courses}
-        goals={datasets.sgs}
-        peos={datasets.peos}
-        adminGroups={subjectGroups.adminGroups}
-        managerGroups={subjectGroups.managerGroups}
-        subjectClos={datasets.clos.filter((c) =>
-          cloMatchesSubject(c.course || '', normalizeCode(selectedCourse.code)))}
-      />
-    )
-  })()
-
   // ── Download the Curriculum Report (subject root only) ────────────────────
   // The same two exports the Curriculum Report page offers, scoped to the
   // subject on screen: PDF rasterises the live report node ref; Word rebuilds
@@ -2323,6 +2306,81 @@ export default function SubjectView() {
       setDownloading(false)
     }
   }
+
+  // The download control rides inside the report page's own padding, at its
+  // right bottom edge — SyllabusReport renders it as a screen-only footer
+  // that the PDF snapshot strips, so the exported file stays clean.
+  const reportDownloadFoot = (
+    <div className="subject-view__report-foot" ref={dlMenuRef}>
+      {dlNotice && <p className="msg msg--success" role="status">{dlNotice}</p>}
+      {dlError && <p className="msg msg--error" role="alert">{dlError}</p>}
+      <div className="sd-download">
+        <button
+          className="btn btn--primary btn--sm sd-download__main"
+          onClick={handleSubjectDownload}
+          disabled={downloading || loading}
+          title="Save the report to a file"
+        >
+          <Icon name="download" />
+          {downloading ? 'Preparing...' : `Download ${dlFormat === 'pdf' ? 'PDF' : 'Word'}`}
+        </button>
+        <button
+          className="btn btn--primary btn--sm sd-download__toggle"
+          onClick={() => setDlOpen((o) => !o)}
+          disabled={downloading || loading}
+          aria-expanded={dlOpen}
+          aria-haspopup="true"
+          aria-label="Download options"
+          title="Choose the format"
+        >
+          <Icon name="chevron" />
+        </button>
+        {dlOpen && (
+          <div className="sd-download__menu no-print" role="menu">
+            <div className="sd-download__group">
+              <span className="sd-download__label">Format</span>
+              <div className="sd-download__opts">
+                <button
+                  className={`sd-download__opt${dlFormat === 'pdf' ? ' is-active' : ''}`}
+                  onClick={() => setDlFormat('pdf')}
+                  role="menuitemradio"
+                  aria-checked={dlFormat === 'pdf'}
+                >
+                  PDF
+                </button>
+                <button
+                  className={`sd-download__opt${dlFormat === 'docx' ? ' is-active' : ''}`}
+                  onClick={() => setDlFormat('docx')}
+                  role="menuitemradio"
+                  aria-checked={dlFormat === 'docx'}
+                >
+                  Word
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
+  const subjectReport = (() => {
+    if (!datasets || !selectedCourse || rootType !== 'subject' || isInspecting) return null
+    return (
+      <SyllabusReport
+        rootRef={reportRootRef}
+        footer={reportDownloadFoot}
+        course={selectedCourse}
+        courses={courses}
+        goals={datasets.sgs}
+        peos={datasets.peos}
+        adminGroups={subjectGroups.adminGroups}
+        managerGroups={subjectGroups.managerGroups}
+        subjectClos={datasets.clos.filter((c) =>
+          cloMatchesSubject(c.course || '', normalizeCode(selectedCourse.code)))}
+      />
+    )
+  })()
 
   if (loading) return <p role="status">Loading subjects...</p>
 
@@ -2687,62 +2745,7 @@ export default function SubjectView() {
           )}
           {rootType === 'subject' && (
             <div className="subject-view__report">
-              {subjectReport ? (
-                <>
-                  {subjectReport}
-                  <div className="subject-view__report-foot">
-                    {dlNotice && <p className="msg msg--success" role="status">{dlNotice}</p>}
-                    {dlError && <p className="msg msg--error" role="alert">{dlError}</p>}
-                    <div className="sd-download" ref={dlMenuRef}>
-                      <button
-                        className="btn btn--primary btn--sm sd-download__main"
-                        onClick={handleSubjectDownload}
-                        disabled={downloading || loading}
-                        title="Save the report to a file"
-                      >
-                        <Icon name="download" />
-                        {downloading ? 'Preparing...' : `Download ${dlFormat === 'pdf' ? 'PDF' : 'Word'}`}
-                      </button>
-                      <button
-                        className="btn btn--primary btn--sm sd-download__toggle"
-                        onClick={() => setDlOpen((o) => !o)}
-                        disabled={downloading || loading}
-                        aria-expanded={dlOpen}
-                        aria-haspopup="true"
-                        aria-label="Download options"
-                        title="Choose the format"
-                      >
-                        <Icon name="chevron" />
-                      </button>
-                      {dlOpen && (
-                        <div className="sd-download__menu no-print" role="menu">
-                          <div className="sd-download__group">
-                            <span className="sd-download__label">Format</span>
-                            <div className="sd-download__opts">
-                              <button
-                                className={`sd-download__opt${dlFormat === 'pdf' ? ' is-active' : ''}`}
-                                onClick={() => setDlFormat('pdf')}
-                                role="menuitemradio"
-                                aria-checked={dlFormat === 'pdf'}
-                              >
-                                PDF
-                              </button>
-                              <button
-                                className={`sd-download__opt${dlFormat === 'docx' ? ' is-active' : ''}`}
-                                onClick={() => setDlFormat('docx')}
-                                role="menuitemradio"
-                                aria-checked={dlFormat === 'docx'}
-                              >
-                                Word
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </>
-              ) : (
+              {subjectReport ?? (
                 <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
                   {isInspecting
                     ? 'Click “Back to root” above to return to the full Curriculum Report.'

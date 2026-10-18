@@ -42,6 +42,11 @@ interface SyllabusReportProps {
    */
   rootRef?: Ref<HTMLDivElement>
 
+  /** Screen-only extras rendered at the foot of the page, inside its padding
+   * (e.g. SubjectView's download control). Never exported: the PDF snapshot
+   * strips .no-print nodes, the Word export rebuilds from data alone. */
+  footer?: ReactNode
+
   // ── Optional inline-editing hooks (admin only) ────────────────────────────
   editMode?: boolean
   edit?: EditState | null
@@ -65,6 +70,7 @@ export default function SyllabusReport({
   managerGroups,
   subjectClos,
   rootRef,
+  footer,
   editMode,
   edit,
   busy,
@@ -269,6 +275,7 @@ export default function SyllabusReport({
         coreqItems={selectedCourse ? uniqueResolvedRefs(selectedCourse.corequisite, courses) : []}
         clos={subjectClos.map((c) => ({ id: c.id, code: c.code, text: c.description || '' }))}
       />
+      {footer}
     </div>
   )
 }
