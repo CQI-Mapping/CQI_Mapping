@@ -212,6 +212,20 @@ export default function TosSheetGrid({
                     <span>{topic.slo}</span>
                   )}
                 </div>
+                {/* Delete lives on the row it deletes. It used to sit in a
+                    separate list below the blueprint, which repeated every
+                    topic a second time just to carry one button. */}
+                {editable && (
+                  <button
+                    type="button"
+                    className="tos-topic__remove no-print"
+                    onClick={() => onRemoveTopic(topic.id)}
+                    title={`Remove topic ${topic.position}`}
+                    aria-label={`Remove topic ${topic.position}`}
+                  >
+                    ×
+                  </button>
+                )}
               </td>
 
               <td className="tos-td--num">
@@ -368,41 +382,6 @@ export default function TosSheetGrid({
         </div>
       )}
     </div>
-
-      {/* Row controls get their own panel, clear of the blueprint, so the
-          document above stays a document. Nothing here prints.
-
-          Each row renames in place. The title is also editable in the grid
-          above, but that cell is inside a wide row several columns deep — with
-          a dozen topics the list here is the natural place to scan and fix
-          them, and scrolling back up to find the right row is the part that
-          made the list feel read-only. Same onPatchTopic the grid uses, so
-          both routes write one debounced save. */}
-      {editable && (
-        <div className="panel tos-rows no-print">
-          {sheet.topics.map((topic) => (
-            <span key={topic.id} className="tos-rows__item">
-              <span className="tos-rows__label">{topic.position}.</span>
-              <input
-                className="tos-rows__input"
-                type="text"
-                value={topic.title}
-                placeholder="Untitled topic"
-                aria-label={`Topic ${topic.position} title`}
-                onChange={(e) => onPatchTopic(topic.id, { title: e.target.value })}
-              />
-              <button
-                type="button"
-                className="btn btn--danger btn--sm"
-                onClick={() => onRemoveTopic(topic.id)}
-                aria-label={`Delete topic ${topic.position}`}
-              >
-                Delete
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
     </>
   )
 }

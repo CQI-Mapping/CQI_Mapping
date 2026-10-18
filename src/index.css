@@ -3182,6 +3182,9 @@ textarea.input {
 .tos-td--topic {
   padding: 3px 5px;
   background: #cbe7b7;
+  /* Anchors the per-row remove button to its own cell, so it cannot drift onto
+     the neighbouring topic when the column is resized. */
+  position: relative;
 }
 
 .tos-td--num {
@@ -3215,6 +3218,45 @@ textarea.input {
 
 .tos-topic__slo strong {
   flex: 0 0 auto;
+}
+
+/* Per-row remove. Pinned to the top-right of the topic cell rather than sitting
+   in the row flow, so it does not push the title input narrower as topics are
+   added. Transparent until the row is hovered, matching the rest of the grid's
+   "reads as a document until you go looking" approach. */
+.tos-topic__remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1;
+  color: #7f1d1d;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.tos-td--topic:hover .tos-topic__remove {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.tos-topic__remove:hover {
+  background: #dc2626 !important;
+  border-color: #dc2626 !important;
+  color: #fff;
+}
+
+.tos-topic__remove:focus-visible {
+  outline: 2px solid #16a34a;
+  outline-offset: 1px;
 }
 
 /* The input is invisible until you go looking for it, so a filled grid still
@@ -3293,71 +3335,6 @@ textarea.input {
 
 .tos-table tfoot td {
   vertical-align: middle;
-}
-
-/* Row controls, in their own panel below the blueprint (never printed).
-   One full-width row per topic so the Delete buttons line up into a single
-   column instead of scattering with the chip widths. */
-.tos-rows {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 6px;
-}
-
-.tos-rows__item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 4px 6px 4px 10px;
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-}
-
-.tos-rows__label {
-  flex: 0 0 auto;
-  min-width: 18px;
-  color: #64748b;
-  font-variant-numeric: tabular-nums;
-}
-
-/* The title is an input, so it reads as plain text until hovered or focused —
-   the list still looks like a list rather than a form. Flat border, no fill,
-   because a boxed field on every row would out-shout the blueprint above. */
-.tos-rows__input {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: 3px 6px;
-  font: inherit;
-  font-weight: 600;
-  color: inherit;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-}
-
-.tos-rows__input::placeholder {
-  font-weight: 400;
-  font-style: italic;
-  color: #94a3b8;
-}
-
-.tos-rows__input:hover {
-  border-color: var(--border);
-}
-
-.tos-rows__input:focus {
-  outline: none;
-  background: #fff;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
-}
-
-.tos-rows__item .btn {
-  flex: 0 0 auto;
-  margin-left: auto;
 }
 
 /* Caption above the table: margin below it, not above. */
