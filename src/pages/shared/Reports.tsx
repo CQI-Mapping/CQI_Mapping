@@ -116,8 +116,8 @@ const YEAR_OPTIONS = academicYearOptions().map((ay) => ({
   label: ay,
 }))
 
-/** Two regular semesters plus the optional mid-year term. */
-const SEMESTER_OPTIONS = [1, 2, 3].map((n) => ({ value: String(n), label: String(n) }))
+/** The school year's two semesters; no mid-year term is recorded. */
+const SEMESTER_OPTIONS = [1, 2].map((n) => ({ value: String(n), label: String(n) }))
 
 /** "2026 - 2027" from the starting year the column stores. */
 function ayLabel(v: number | null | undefined): string | null {

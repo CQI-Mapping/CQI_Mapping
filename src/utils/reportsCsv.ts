@@ -30,7 +30,7 @@ export function csvLine(cells: (string | number)[]): string {
 export interface ReportsCsvMeta {
   /** Academic year the report is for, e.g. "2026 - 2027". */
   academicYear: string
-  /** The report's semester context ("1", "2", "3"); omitted when none is set. */
+  /** The report's semester context ("1", "2"); omitted when none is set. */
   semester?: string
   /** The human timestamp shown on screen, carried into the file. */
   generated: string
