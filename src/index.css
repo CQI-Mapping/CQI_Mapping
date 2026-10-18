@@ -3621,21 +3621,8 @@ textarea.input {
   gap: 8px;
 }
 
-/* Solid green print action: the one push-chrome button a report page needs. */
-.reports-banner__print {
-  background: #15803d;
-  border-color: #15803d;
-  color: #fff;
-  box-shadow: none;
-}
-
-.reports-banner__print:hover {
-  background: #166534;
-  border-color: #166534;
-}
-
-/* Flat-white export action with a green edge: the pair reads as one primary
-   and its quieter twin, not two competing buttons. */
+/* Flat-white export action with a green edge: the one export action the
+   report banner carries, reading as an action, not a decoration. */
 .reports-banner__csv {
   background: #fff;
   border: 1px solid #86efac;

@@ -1,7 +1,7 @@
 // Overall Report: the program's curriculum at a glance.
 //
 // Shared by all three roles (admin, manager, faculty), like the record list it
-// grew out of. A header with the export actions, a row of KPI cards, then five
+// grew out of. A header with the CSV export, a row of KPI cards, then five
 // panels: the curriculum mapping summary, PO coverage, the outcome coverage
 // chart, the alignment mix and the mapping gaps across the last row.
 //
@@ -407,14 +407,6 @@ function Reports({ profile, onNavigate }: ReportsProps) {
           </div>
 
           <div className="reports-banner__actions">
-            <button
-              className="btn btn--sm reports-banner__print"
-              onClick={() => window.print()}
-              title="Print the report as it is on screen"
-            >
-              <Icon name="print" />
-              Print Report
-            </button>
             <button
               className="btn btn--sm reports-banner__csv"
               onClick={download}
