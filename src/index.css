@@ -5581,6 +5581,62 @@ button.reports-panel__more:hover {
   min-height: calc(100vh - 260px);
 }
 
+/* Printing the Subject View prints the map and nothing else, the way the bare
+   figure reads: no selector console, no crumbs, no toolbar buttons, no hint
+   or legend, and not the about card or the syllabus document the page
+   continues into. The svg carries a viewBox set at render time, so forcing
+   its width over the pixel attributes re-frames the whole drawing to the
+   page instead of shrinking a fixed canvas. */
+@media print {
+  .subject-view__left,
+  .subject-view__crumbs,
+  .subject-view__graph-toolbar,
+  .subject-view__graph-hint,
+  .subject-view__legend,
+  .subject-view__placeholder,
+  .subject-view__loading,
+  .subject-view__tooltip,
+  .subject-view__about,
+  .subject-view__report {
+    display: none !important;
+  }
+
+  .subject-view__panels {
+    display: block;
+    min-height: 0;
+  }
+
+  .subject-view__right {
+    padding: 0;
+    overflow: visible;
+    width: auto;
+    border: 0;
+    box-shadow: none;
+  }
+
+  .subject-view__right--fullscreen {
+    position: static;
+    inset: auto;
+    background: #fff;
+  }
+
+  .subject-view__right--fullscreen .subject-view__graph-wrap,
+  .subject-view__right--fullscreen .subject-view__svg {
+    min-height: 0;
+  }
+
+  .subject-view__graph-wrap {
+    min-height: 0;
+    border: 0;
+  }
+
+  .subject-view__svg {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+}
+
 .subject-view__loading {
   padding: 40px 24px;
   display: flex;
