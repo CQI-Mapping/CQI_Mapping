@@ -14,12 +14,20 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   fetchActivityLogs,
-  fetchActivityRollup,
+  
   fetchActivityActors,
+  fetchAllProfiles,
   ACTIVITY_LOG_LIMIT,
 } from '../../services/database'
-import type { ActivityLogEntry, ActivityRollupRow } from '../../services/database'
-import { labelAction, labelCategory, labelReason, ACTION_LABELS } from './ActivityLabels'
+import type { ActivityLogEntry, ActivityRollupRow, UserRole } from '../../services/database'
+import {
+  labelAction,
+  labelCategory,
+  labelReason,
+  labelRole,
+  ROLE_ORDER,
+  ACTION_LABELS,
+} from './ActivityLabels'
 
 // The `label` is the only part of details a person would search for. The raw
 // id and entity key are machine identifiers and would just add noise.
@@ -45,8 +53,19 @@ function summarise(row: ActivityRollupRow): string {
 
 function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogsViewProps = {}) {
   const [entries, setEntries] = useState<ActivityLogEntry[]>([])
-  const [rollup, setRollup] = useState<ActivityRollupRow[]>([])
   const [actors, setActors] = useState<string[]>([])
+  /**
+   * Each actor's role, resolved from profiles.
+   *
+   * The log stores an email and nothing else, so without this every actor is an
+   * opaque address — which defeats the question the page exists to answer. An
+   * admin wanting to monitor the managers cannot tell which rows are a manager's;
+   * a manager cannot tell a colleague from faculty.
+   *
+   * RLS on profiles allows admin and manager to read all rows, which is exactly
+   * who reaches this page, so the join needs no policy of its own.
+   */
+  const [roleByEmail, setRoleByEmail] = useState<Record<string, UserRole>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -54,6 +73,7 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
   const [search, setSearch] = useState('')
   const [actionFilter, setActionFilter] = useState('')
   const [userFilter, setUserFilter] = useState('')
+  const [roleFilter, setRoleFilter] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
 
@@ -74,6 +94,21 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
     fetchActivityActors()
       .then((rows) => { if (!cancelled) setActors(rows) })
       .catch(() => { /* the dropdown simply stays empty */ })
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    fetchAllProfiles()
+      .then((rows) => {
+        if (cancelled) return
+        setRoleByEmail(Object.fromEntries(rows.map((p) => [p.email, p.role])))
+      })
+      .catch(() => {
+        // No roles, not no log. The entries are still all there; they just
+        // cannot be attributed, so the badge shows Unknown rather than the
+        // page failing to render.
+      })
     return () => { cancelled = true }
   }, [])
 
@@ -98,13 +133,9 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
     setLoading(true)
     setError('')
     try {
-      const [rows, summary] = await Promise.all([
-        fetchActivityLogs(filters),
-        fetchActivityRollup(filters),
-      ])
+      const rows = await fetchActivityLogs(filters)
       if (token !== requestRef.current) return
       setEntries(rows)
-      setRollup(summary)
     } catch (e) {
       if (token !== requestRef.current) return
       setError('Unable to load activity logs: ' + (e instanceof Error ? e.message : String(e)))
@@ -124,10 +155,59 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
    * already applied by the query.
    */
   const rows = useMemo(() => {
+    // Role is resolved in the browser from profiles, not on the row, so it
+    // cannot be a server-side filter. That is the same trade as the label
+    // search below, and it is why both live here rather than in the query.
+    const roleOk = (e: ActivityLogEntry) =>
+      !roleFilter || roleByEmail[e.user_email || ''] === roleFilter
+
     const q = search.trim().toLowerCase()
-    if (!q) return entries
-    return entries.filter((e) => searchableDetails(e).includes(q))
-  }, [entries, search])
+    return entries.filter(
+      (e) =>
+        roleOk(e) &&
+        (!q || searchableDetails(e).includes(q)),
+    )
+  }, [entries, search, roleFilter, roleByEmail])
+
+  /**
+   * The per-actor summary, ordered by role then by volume.
+   *
+   * Role first because that is how someone reads this: an admin wants their own
+   * line, then the managers, then faculty. Volume breaks ties inside a role.
+   * Recomputed from the loaded rows so it always describes the current filter
+   * rather than a separate query that could disagree with the table.
+   */
+  const summaryByRole = useMemo(() => {
+    const byUser = new Map<string, ActivityRollupRow>()
+    for (const entry of rows) {
+      const key = entry.user_email || '(unknown actor)'
+      let row = byUser.get(key)
+      if (!row) {
+        row = {
+          user_email: key,
+          total: 0,
+          failedLogins: 0,
+          successfulLogins: 0,
+          lastSeen: entry.created_at,
+          byCategory: {},
+        }
+        byUser.set(key, row)
+      }
+      row.total += 1
+      if (entry.action === 'auth.login_failed') row.failedLogins += 1
+      if (entry.action === 'auth.login') row.successfulLogins += 1
+      if (entry.created_at > row.lastSeen) row.lastSeen = entry.created_at
+      const category = entry.action.split('.')[0]
+      row.byCategory[category] = (row.byCategory[category] ?? 0) + 1
+    }
+    return [...byUser.values()].sort(
+      (a, b) =>
+        (ROLE_ORDER[roleByEmail[a.user_email] ?? ''] ?? 9) -
+          (ROLE_ORDER[roleByEmail[b.user_email] ?? ''] ?? 9) ||
+        b.total - a.total ||
+        a.user_email.localeCompare(b.user_email),
+    )
+  }, [rows, roleByEmail])
 
   // Every action the app can emit, not just the ones present in this page of
   // results — otherwise picking an action would shrink the dropdown to nothing.
@@ -142,12 +222,13 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
     [rows],
   )
 
-  const hasFilters = search || actionFilter || userFilter || dateFrom || dateTo
+  const hasFilters = search || actionFilter || userFilter || roleFilter || dateFrom || dateTo
 
   const clearFilters = () => {
     setSearch('')
     setActionFilter('')
     setUserFilter('')
+    setRoleFilter('')
     setDateFrom('')
     setDateTo('')
   }
@@ -250,7 +331,7 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
         </div>
         <div className="program-stat">
           <div className="program-stat__label">Actors</div>
-          <div className="program-stat__value" style={{ color: '#0f172a' }}>{rollup.length}</div>
+          <div className="program-stat__value" style={{ color: '#0f172a' }}>{summaryByRole.length}</div>
           <div className="program-stat__sub">In current view</div>
         </div>
         <div className="program-stat">
@@ -284,6 +365,27 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+          </label>
+
+          <label className="activity-filter">
+            <span>Role</span>
+            <select
+              className="input input--sm"
+              value={roleFilter}
+              onChange={(e) => {
+                setRoleFilter(e.target.value)
+                // Role and User narrow the same axis, so picking one clears the
+                // other. Leaving both set reads as a contradiction and shows an
+                // empty table that looks like data loss.
+                if (e.target.value) setUserFilter('')
+              }}
+              aria-label="Filter the log by role"
+            >
+              <option value="">All roles</option>
+              <option value="admin">Admins</option>
+              <option value="manager">Managers</option>
+              <option value="user">Faculty</option>
+            </select>
           </label>
 
           <label className="activity-filter">
@@ -349,7 +451,7 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
 
       {/* Per-actor summary. This is the "who has been doing what" view that the
           row table cannot give you without reading every line. */}
-      {!loading && rollup.length > 0 && (
+      {!loading && summaryByRole.length > 0 && (
         <div className="panel activity-rollup program-panel">
           <h3>Who's been active</h3>
           <div className="table-wrap">
@@ -357,6 +459,7 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
               <thead>
                 <tr>
                   <th>User</th>
+                  <th>Role</th>
                   <th>Entries</th>
                   <th>Activity</th>
                   <th>Last seen</th>
@@ -364,7 +467,7 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
                 {/* Click a user to filter the table below to just them. */}
               </thead>
               <tbody>
-                {rollup.map((r) => {
+                {summaryByRole.map((r) => {
                   const active = userFilter === r.user_email
                   return (
                     <tr
@@ -391,6 +494,11 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
                             {r.failedLogins} failed sign-in{r.failedLogins === 1 ? '' : 's'}
                           </span>
                         )}
+                      </td>
+                      <td>
+                        <span className={`role-badge role-badge--${roleByEmail[r.user_email] ?? 'unknown'}`}>
+                          {labelRole(roleByEmail[r.user_email])}
+                        </span>
                       </td>
                       <td>{r.total}</td>
                       <td className="activity-rollup__summary">{summarise(r)}</td>
@@ -430,7 +538,12 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
               {rows.map((entry) => (
                 <tr key={entry.id}>
                   <td>{new Date(entry.created_at).toLocaleString()}</td>
-                  <td>{entry.user_email || '—'}</td>
+                  <td>
+                    {entry.user_email || '—'}
+                    <span className={`role-badge role-badge--${roleByEmail[entry.user_email ?? ''] ?? 'unknown'}`}>
+                      {labelRole(roleByEmail[entry.user_email ?? ''])}
+                    </span>
+                  </td>
                   <td>
                     <span className={`action-badge action-badge--${entry.action.split('.')[0]}`}>
                       {labelAction(entry.action)}

@@ -1009,48 +1009,6 @@ export interface ActivityRollupRow {
   byCategory: Record<string, number>
 }
 
-/**
- * Per-actor totals over the filtered window.
- *
- * Aggregated in the browser rather than in SQL: PostgREST cannot GROUP BY, so
- * this would need either a database view or a round trip per row. Fetching the
- * window once and folding it here is one query and is well within budget at
- * this table's size.
- *
- * `user_email` can be null for a row whose writer could not resolve a profile,
- * which would otherwise collapse into one nameless bucket.
- */
-export async function fetchActivityRollup(
-  filters: ActivityLogFilters = {},
-): Promise<ActivityRollupRow[]> {
-  const entries = await fetchActivityLogs({ ...filters, limit: ACTIVITY_LOG_LIMIT })
-  const byUser = new Map<string, ActivityRollupRow>()
-
-  for (const entry of entries) {
-    const key = entry.user_email || '(unknown actor)'
-    let row = byUser.get(key)
-    if (!row) {
-      row = {
-        user_email: key,
-        total: 0,
-        failedLogins: 0,
-        successfulLogins: 0,
-        lastSeen: entry.created_at,
-        byCategory: {},
-      }
-      byUser.set(key, row)
-    }
-    row.total += 1
-    if (entry.action === 'auth.login_failed') row.failedLogins += 1
-    if (entry.action === 'auth.login') row.successfulLogins += 1
-    // Entries arrive newest-first, so the first one seen is the latest.
-    if (entry.created_at > row.lastSeen) row.lastSeen = entry.created_at
-    const category = entry.action.split('.')[0]
-    row.byCategory[category] = (row.byCategory[category] ?? 0) + 1
-  }
-
-  return [...byUser.values()].sort((a, b) => b.total - a.total || a.user_email.localeCompare(b.user_email))
-}
 
 /**
  * The distinct actors present in the log, for the user filter's dropdown.

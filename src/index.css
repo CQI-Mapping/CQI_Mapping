@@ -2385,6 +2385,50 @@ code {
   color: #b91c1c;
 }
 
+/* Role on an actor's line. The log stores an email and nothing else, so this is
+   what turns an opaque address into something a supervisor can act on. Coloured
+   by role so the summary is scannable down the column rather than read row by
+   row: oversight at the top, then managers, then faculty. */
+.role-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.role-badge--admin {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+.role-badge--manager {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.role-badge--user {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+/* An actor with no resolvable profile — deleted account, or a row written
+   before their profile existed. Not an error, so not styled as one. */
+.role-badge--unknown {
+  background: #f8fafc;
+  color: #94a3b8;
+  font-style: italic;
+  text-transform: none;
+}
+
+.activity-rollup td .role-badge {
+  margin-left: 0;
+}
+
 .activity-detail {
   display: flex;
   flex-wrap: wrap;
