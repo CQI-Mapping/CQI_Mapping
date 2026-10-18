@@ -287,6 +287,29 @@ AS $$
     SELECT role FROM public.profiles WHERE id = auth.uid();
 $$;
 
+-- Is this address an admin's? Used by the activity log's read policy to keep a
+-- manager out of the admin's entries. SECURITY DEFINER so the answer does not
+-- depend on profiles' own RLS being left as permissive as it is today -- two
+-- policies coupled together would mean tightening one silently changing the
+-- other, with nothing to indicate why.
+CREATE OR REPLACE FUNCTION public.is_admin_email(p_email TEXT)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+    SELECT EXISTS (
+        SELECT 1
+        FROM public.profiles
+        WHERE role = 'admin'
+          AND email IS NOT DISTINCT FROM p_email
+    );
+$$;
+
+REVOKE ALL ON FUNCTION public.is_admin_email(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.is_admin_email(TEXT) TO authenticated;
+
 -- ============================================================
 -- TRIGGER: auto-create profile on signup
 -- ============================================================
@@ -431,8 +454,20 @@ CREATE POLICY "Admins can delete course learning outcomes" ON public.course_lear
 -- No INSERT policy: rows are written server-side only, via the SECURITY DEFINER
 -- functions log_activity(p_action) and record_login_event(...), so users cannot
 -- forge log entries with someone else's email.
+--
+-- The two supervisory tiers are separated: an admin reads everything, a manager
+-- reads everything except the admin's entries. A row whose actor is null counts
+-- as unattributable and is hidden from managers too. See
+-- migrations/003-activity-log-role-visibility.sql.
 CREATE POLICY "Admins and managers can view activity logs" ON public.activity_logs FOR SELECT
-    USING (public.current_user_role() IN ('admin', 'manager'));
+    USING (
+        public.current_user_role() = 'admin'
+        OR (
+            public.current_user_role() = 'manager'
+            AND user_email IS NOT NULL
+            AND NOT public.is_admin_email(user_email)
+        )
+    );
 
 -- STRATEGIC GOALS
 CREATE POLICY "Authenticated users can read strategic_goals" ON public.strategic_goals FOR SELECT
