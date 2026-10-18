@@ -371,27 +371,80 @@ export interface CqiAction {
   updated_at: string
 }
 
+/** A status a recommendation moves through. */
+export type CqiStatus = CqiAction['status']
+
+/** The CQI panel's data: the actions fetched, and whether the table exists. */
+export interface CqiResult {
+  rows: CqiAction[]
+  /** PostgREST answers a table it does not know with PGRST205. */
+  missing: boolean
+}
+
+const MISSING_TABLE_CODES = new Set(['PGRST205', '42P01'])
+
 /**
- * Latest CQI actions.
+ * The CQI actions, latest first.
  *
- * Fails SOFT, deliberately. cqi_actions is a migration that may not have been
- * applied to the database yet, and a report whose last panel throws over a
- * missing table is worse than one that shows no recommendations. A rejected
- * query and a table with no rows both come back as an empty list, so the panel
- * renders the same empty state either way.
+ * A rejection is no longer swallowed into an empty list: cqi_actions is a
+ * migration that may not have been applied to a given database, and a panel
+ * that can tell "the table is not here" apart from "nothing has been
+ * recorded" can ask for the setup SQL where a plain empty list would lie.
+ * A genuinely empty table still reads as no rows, the true state it is.
  */
-export async function fetchCqiActions(limit = 5): Promise<CqiAction[]> {
+export async function fetchCqiActions(limit = 5): Promise<CqiResult> {
   try {
     const { data, error } = await supabase
       .from('cqi_actions')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(limit)
-    if (error) return []
-    return (data ?? []) as CqiAction[]
+    if (error) return { rows: [], missing: MISSING_TABLE_CODES.has(error.code) }
+    return { rows: (data ?? []) as CqiAction[], missing: false }
   } catch {
-    return []
+    return { rows: [], missing: false }
   }
+}
+
+/**
+ * Record a recommendation. RLS lets any authenticated user write, and the
+ * one database constraint that matters -- code is unique -- surfaces raw;
+ * the form translates it into "take the next code".
+ */
+export async function createCqiAction(payload: {
+  code: string
+  recommendation: string
+  responsible: string
+  status: CqiStatus
+  target_date: string | null
+  program_id: string | null
+}): Promise<CqiAction> {
+  const { data, error } = await supabase
+    .from('cqi_actions')
+    .insert(payload)
+    .select('*')
+    .single()
+  if (error) throw new Error(error.message)
+  return data as CqiAction
+}
+
+/**
+ * Move a recommendation along its pipeline. updated_at is written here: the
+ * column has a default but no trigger, so a change that did not stamp it
+ * would leave the row claiming it was never touched.
+ */
+export async function updateCqiActionStatus(
+  id: string,
+  status: CqiStatus,
+): Promise<CqiAction> {
+  const { data, error } = await supabase
+    .from('cqi_actions')
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select('*')
+    .single()
+  if (error) throw new Error(error.message)
+  return data as CqiAction
 }
 
 export async function assignCourseInstructor(courseId: string, instructorId: string | null): Promise<Course> {
