@@ -3739,7 +3739,7 @@ textarea.input {
 .reports-panels {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: start;
+  align-items: stretch;
   gap: var(--reports-gap);
   margin-bottom: 18px;
 }
@@ -3749,6 +3749,11 @@ textarea.input {
   min-width: 0;
   padding: 14px 15px 12px;
   border-radius: var(--reports-radius);
+  /* A column so the foot can pin: every panel in a row is stretched to the
+     row height -- the scrollable tables need it no more than the charts --
+     and the footer line reads at one shared bottom edge. */
+  display: flex;
+  flex-direction: column;
 }
 
 /* Icon-and-title line, so all six headers read as six of the same thing rather
@@ -3794,7 +3799,7 @@ textarea.input {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 10px;
+  margin-top: auto;
   padding-top: 9px;
   border-top: 1px solid #f1f5f9;
   font-size: 11.5px;
@@ -3985,6 +3990,8 @@ button.reports-panel__more:hover {
    would only move the confusion below the fold. */
 .reports-scroll {
   max-height: 360px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
 }
 
@@ -4079,7 +4086,9 @@ button.reports-panel__more:hover {
 /* ---- CLO-PO alignment matrix (components/CloPoMatrix.tsx) ---- */
 
 .cpx__scroll {
-  max-height: 340px;
+  max-height: 360px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
 }
 
