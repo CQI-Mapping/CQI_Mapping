@@ -15,7 +15,19 @@ export type IconName =
   | 'plus'
   | 'x'
   | 'download'
+  | 'print'
   | 'chevron'
+  | 'chart'
+  | 'table'
+  | 'warning'
+  | 'target'
+  | 'people'
+  | 'doc'
+  | 'cap'
+  | 'book'
+  | 'actions'
+  | 'calendar'
+  | 'checkCircle'
 
 const PATHS: Record<IconName, React.ReactNode> = {
   edit: <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />,
@@ -84,6 +96,95 @@ const PATHS: Record<IconName, React.ReactNode> = {
     </>
   ),
   chevron: <polyline points="6 9 12 15 18 9" />,
+  print: (
+    <>
+      <polyline points="6 9 6 2 18 2 18 9" />
+      <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+      <rect x="6" y="14" width="12" height="8" rx="1" />
+    </>
+  ),
+  // Icons for the report's panel headers, so each panel carries the same
+  // icon-and-title line rather than a bare heading.
+  chart: (
+    <>
+      <line x1="18" x2="18" y1="20" y2="10" />
+      <line x1="12" x2="12" y1="20" y2="4" />
+      <line x1="6" x2="6" y1="20" y2="14" />
+    </>
+  ),
+  table: (
+    <>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <line x1="3" x2="21" y1="9" y2="9" />
+      <line x1="3" x2="21" y1="15" y2="15" />
+      <line x1="9" x2="9" y1="3" y2="21" />
+    </>
+  ),
+  warning: (
+    <>
+      <path d="m10.29 3.86-8.4 14.55A2 2 0 0 0 3.6 21h16.8a2 2 0 0 0 1.71-2.59L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+      <line x1="12" x2="12" y1="9" y2="13" />
+      <line x1="12" x2="12.01" y1="17" y2="17" />
+    </>
+  ),
+  target: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="5" />
+      <circle cx="12" cy="12" r="1.5" />
+    </>
+  ),
+  people: (
+    <>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </>
+  ),
+  doc: (
+    <>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="9" x2="15" y1="13" y2="13" />
+      <line x1="9" x2="15" y1="17" y2="17" />
+    </>
+  ),
+  cap: (
+    <>
+      <path d="m22 10-10-5L2 10l10 5Z" />
+      <path d="M6 12v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5" />
+      <path d="M22 10v6" />
+    </>
+  ),
+  book: (
+    <>
+      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2Z" />
+      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7Z" />
+    </>
+  ),
+  actions: (
+    <>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <polyline points="8 12 11 15 16 9" />
+    </>
+  ),
+  calendar: (
+    <>
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <line x1="16" x2="16" y1="2" y2="6" />
+      <line x1="8" x2="8" y1="2" y2="6" />
+      <line x1="3" x2="21" y1="10" y2="10" />
+    </>
+  ),
+  // Solid badge form of `check` for the coverage tile: the filled disc carries
+  // the colour, the tick is knocked out of it so it stays legible on any fill.
+  checkCircle: (
+    <>
+      <circle cx="12" cy="12" r="10" fill="currentColor" stroke="none" />
+      <path d="m8 12.5 2.5 2.5 5.5-6" stroke="#fff" />
+    </>
+  ),
 }
 
 interface IconProps extends SVGProps<SVGSVGElement> {

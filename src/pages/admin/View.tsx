@@ -7,8 +7,8 @@
 // All report data is loaded from the database: strategic goals, PEOs and
 // program outcomes (standalone tables), course learning outcomes, and the
 // courses list. Institutional letterhead and vision/mission text are static
-// (they are school branding, not input data). Records support inline editing
-// and archiving directly on this page via the "Edit" toggle.
+// (they are school branding, not input data). The report reads read-only:
+// editing and archiving happen on the pages that own each record.
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
@@ -18,10 +18,6 @@ import {
   fetchCourseLearningOutcomesStandalone,
   fetchCourses,
   fetchChedMemoOrders,
-  updateStrategicGoal,
-  updateProgramEducationalObjective,
-  updateProgramOutcomeStandalone,
-  addActivityLog,
 } from '../../services/database'
 import type {
   StrategicGoal,
@@ -33,12 +29,10 @@ import type {
 } from '../../services/database'
 import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
 import { isActive, buildGroups, splitReportPos, poNumber } from '../../utils/report'
-import type { EditableItem, EditableKind, EditState } from '../../utils/report'
 import SyllabusReport from '../../components/SyllabusReport'
 import Icon from '../../components/icons'
 import { downloadSyllabusPdf } from '../../utils/syllabusPdf'
 import { reportFileName } from '../../utils/download'
-import type { ReportOrientation } from '../../utils/syllabusPdf'
 
 interface ViewProps {
   userEmail: string
@@ -56,16 +50,13 @@ function View({ userEmail }: ViewProps) {
   const [cmos, setCmos] = useState<ChedMemoOrder[]>([])
   const [selectedCourseId, setSelectedCourseId] = useState('')
 
-  const [editMode, setEditMode] = useState(false)
-  const [edit, setEdit] = useState<EditState | null>(null)
-  const [busy, setBusy] = useState(false)
   const [downloading, setDownloading] = useState(false)
 
   // Download options. PDF rasterises the live DOM; Word rebuilds the document
-  // from the same data so the file stays editable.
+  // from the same data so the file stays editable. Orientation is fixed
+  // landscape: the report's tables need the width, and the chooser is gone.
   const [dlOpen, setDlOpen] = useState(false)
   const [dlFormat, setDlFormat] = useState<'pdf' | 'docx'>('pdf')
-  const [dlOrientation, setDlOrientation] = useState<ReportOrientation>('landscape')
   const dlMenuRef = useRef<HTMLDivElement>(null)
 
   // Close the options popover on outside click or Escape.
@@ -114,68 +105,6 @@ function View({ userEmail }: ViewProps) {
 
   useEffect(() => { load() }, [load])
 
-  const itemOf = (kind: EditableKind, id: string) => {
-    const list =
-      kind === 'goal' ? goals :
-      kind === 'peo' ? peos :
-      pos
-    return list.find((i) => i.id === id)
-  }
-
-  const startEdit = (kind: EditableKind, id: string) => {
-    const item = itemOf(kind, id)
-    if (!item) return
-    setEdit({ kind, id, code: item.code, title: item.title, description: item.description || '' })
-    setNotice(null)
-  }
-
-  const saveEdit = async () => {
-    if (!edit) return
-    setBusy(true)
-    setError(null)
-    try {
-      const updates =
-        edit.kind === 'peo'
-          ? { title: edit.title.trim(), description: edit.description.trim() || null }
-          : { title: edit.title.trim() }
-      if (edit.kind === 'goal') await updateStrategicGoal(edit.id, updates)
-      else if (edit.kind === 'peo') await updateProgramEducationalObjective(edit.id, updates)
-      else await updateProgramOutcomeStandalone(edit.id, updates)
-      setEdit(null)
-      await load()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save changes.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const toggleArchive = async (kind: EditableKind, id: string) => {
-    const item = itemOf(kind, id)
-    if (!item) return
-    setBusy(true)
-    setError(null)
-    setNotice(null)
-    const next = isActive(item) ? 'archived' : 'active'
-    try {
-      if (kind === 'goal') {
-        await updateStrategicGoal(id, { status: next })
-        await addActivityLog(`strategic_goal.${next}`, { entity: 'strategic_goal', entity_id: id })
-      } else if (kind === 'peo') {
-        await updateProgramEducationalObjective(id, { status: next })
-        await addActivityLog(`peo.${next}`, { entity: 'peo', entity_id: id })
-      } else {
-        await updateProgramOutcomeStandalone(id, { status: next })
-        await addActivityLog(`program_outcome.${next}`, { entity: 'program_outcome', entity_id: id })
-      }
-      await load()
-    } catch {
-      setError('Could not change status. If this keeps happening, the status column is missing — run the archive migration SQL in the Supabase SQL Editor (see supabase-schema.sql).')
-    } finally {
-      setBusy(false)
-    }
-  }
-
   // Save the report in the chosen format. Snapshotting a PDF takes a moment
   // (the whole document is rasterised), so the button shows a working state.
   const downloadPdf = async () => {
@@ -189,7 +118,7 @@ function View({ userEmail }: ViewProps) {
         await downloadSyllabusPdf(
           reportRef.current,
           reportFileName(selectedCourse?.code ?? 'report', 'pdf'),
-          dlOrientation,
+          'landscape',
         )
       } else {
         // Lazy: docx is ~450kB and only needed on the Word path. Importing it
@@ -205,7 +134,7 @@ function View({ userEmail }: ViewProps) {
             managerGroups,
             subjectClos,
           },
-          dlOrientation,
+          'landscape',
         )
       }
       setNotice(dlFormat === 'pdf' ? 'PDF downloaded.' : 'Word document downloaded.')
@@ -213,7 +142,7 @@ function View({ userEmail }: ViewProps) {
       setError(
         e instanceof Error
           ? `Could not create the ${dlFormat === 'pdf' ? 'PDF' : 'Word document'}: ${e.message}`
-          : `Could not create the file. Try the Print button instead.`,
+          : `Could not create the file.`,
       )
     } finally {
       setDownloading(false)
@@ -246,64 +175,6 @@ function View({ userEmail }: ViewProps) {
   const adminGroups = buildGroups(adminPos, cmos)
   const managerGroups = buildGroups(managerPos, cmos)
 
-  // Inline edit controls for one record (Save / Cancel or Edit / Archive).
-  const rowActions = (kind: EditableKind, id: string) => {
-    const item = itemOf(kind, id)
-    if (!item) return null
-    if (edit && edit.kind === kind && edit.id === id) {
-      return (
-        <span className="sd-actions">
-          <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>Save</button>
-          <button className="btn btn--ghost btn--sm" onClick={() => setEdit(null)} disabled={busy}>Cancel</button>
-        </span>
-      )
-    }
-    return (
-      <span className="sd-actions">
-        <button className="btn btn--ghost btn--sm" onClick={() => startEdit(kind, id)} disabled={busy || !!edit}>Edit</button>
-        <button
-          className="btn btn--ghost btn--sm"
-          onClick={() => toggleArchive(kind, id)}
-          disabled={busy || !!edit}
-          title={isActive(item) ? 'Hide from the report without deleting' : 'Show on the report again'}
-        >
-          {isActive(item) ? 'Archive' : 'Restore'}
-        </button>
-      </span>
-    )
-  }
-
-  // One editable record inside the Vision/Goals/PEO table cells.
-  const editableListRow = (kind: EditableKind, item: EditableItem, display: React.ReactNode) => {
-    const editingThis = edit && edit.kind === kind && edit.id === item.id
-    return (
-      <div key={item.id} className={`sd-edit-row${isActive(item) ? '' : ' sd-archived'}`}>
-        {editingThis ? (
-          <div className="sd-edit-fields">
-            <input
-              className="input input--sm"
-              value={edit.title}
-              onChange={(e) => setEdit({ ...edit, title: e.target.value })}
-              disabled={busy}
-            />
-            {kind === 'peo' && (
-              <textarea
-                className="input input--sm"
-                rows={3}
-                value={edit.description}
-                onChange={(e) => setEdit({ ...edit, description: e.target.value })}
-                disabled={busy}
-              />
-            )}
-          </div>
-        ) : (
-          <span className="sd-edit-row__text">{display}</span>
-        )}
-        {editMode && rowActions(kind, item.id)}
-      </div>
-    )
-  }
-
   return (
     <div className="syllabus-doc">
       <div className="syllabus-doc__toolbar no-print">
@@ -328,18 +199,6 @@ function View({ userEmail }: ViewProps) {
               </select>
             </label>
           )}
-          <button
-            className={`btn btn--sm ${editMode ? 'btn--primary' : 'btn--ghost'}`}
-            onClick={() => { setEditMode(!editMode); setEdit(null) }}
-          >
-            {editMode ? 'Done' : 'Edit'}
-          </button>
-          <button
-            className="btn btn--ghost btn--sm"
-            onClick={() => window.print()}
-          >
-            Print
-          </button>
           <div className="sd-download" ref={dlMenuRef}>
             <button
               className="btn btn--primary btn--sm sd-download__main"
@@ -357,7 +216,7 @@ function View({ userEmail }: ViewProps) {
               aria-expanded={dlOpen}
               aria-haspopup="true"
               aria-label="Download options"
-              title="Choose format and orientation"
+              title="Choose the format"
             >
               <Icon name="chevron" />
             </button>
@@ -384,27 +243,6 @@ function View({ userEmail }: ViewProps) {
                     </button>
                   </div>
                 </div>
-                <div className="sd-download__group">
-                  <span className="sd-download__label">Orientation</span>
-                  <div className="sd-download__opts">
-                    <button
-                      className={`sd-download__opt${dlOrientation === 'landscape' ? ' is-active' : ''}`}
-                      onClick={() => setDlOrientation('landscape')}
-                      role="menuitemradio"
-                      aria-checked={dlOrientation === 'landscape'}
-                    >
-                      Landscape
-                    </button>
-                    <button
-                      className={`sd-download__opt${dlOrientation === 'portrait' ? ' is-active' : ''}`}
-                      onClick={() => setDlOrientation('portrait')}
-                      role="menuitemradio"
-                      aria-checked={dlOrientation === 'portrait'}
-                    >
-                      Portrait
-                    </button>
-                  </div>
-                </div>
               </div>
             )}
           </div>
@@ -413,9 +251,6 @@ function View({ userEmail }: ViewProps) {
 
       {error && <p className="msg msg--error">{error}</p>}
       {notice && <p className="msg msg--success">{notice}</p>}
-      {editMode && !error && (
-        <p className="msg">Edit mode: click Edit on a row to change it, or Archive to hide it from the report. Click Done when finished.</p>
-      )}
       {loading ? (
         <p>Loading curriculum map...</p>
       ) : (
@@ -428,12 +263,6 @@ function View({ userEmail }: ViewProps) {
           adminGroups={adminGroups}
           managerGroups={managerGroups}
           subjectClos={subjectClos}
-          editMode={editMode}
-          edit={edit}
-          busy={busy}
-          onEditChange={setEdit}
-          rowActions={rowActions}
-          editableListRow={editableListRow}
         />
       )}
     </div>

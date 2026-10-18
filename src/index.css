@@ -2251,6 +2251,15 @@ code {
   color: var(--text-muted);
 }
 
+/* The note explaining why admin entries are absent for a manager. Muted like
+   the count line, and never interactive — it is context, not a control. */
+.activity-filters__scope {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 .action-badge {
   display: inline-block;
   padding: 2px 8px;
@@ -2383,6 +2392,50 @@ code {
   font-size: 11px;
   font-weight: 700;
   color: #b91c1c;
+}
+
+/* Role on an actor's line. The log stores an email and nothing else, so this is
+   what turns an opaque address into something a supervisor can act on. Coloured
+   by role so the summary is scannable down the column rather than read row by
+   row: oversight at the top, then managers, then faculty. */
+.role-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.role-badge--admin {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+.role-badge--manager {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.role-badge--user {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+/* An actor with no resolvable profile — deleted account, or a row written
+   before their profile existed. Not an error, so not styled as one. */
+.role-badge--unknown {
+  background: #f8fafc;
+  color: #94a3b8;
+  font-style: italic;
+  text-transform: none;
+}
+
+.activity-rollup td .role-badge {
+  margin-left: 0;
 }
 
 .activity-detail {
@@ -3182,6 +3235,9 @@ textarea.input {
 .tos-td--topic {
   padding: 3px 5px;
   background: #cbe7b7;
+  /* Anchors the per-row remove button to its own cell, so it cannot drift onto
+     the neighbouring topic when the column is resized. */
+  position: relative;
 }
 
 .tos-td--num {
@@ -3215,6 +3271,45 @@ textarea.input {
 
 .tos-topic__slo strong {
   flex: 0 0 auto;
+}
+
+/* Per-row remove. Pinned to the top-right of the topic cell rather than sitting
+   in the row flow, so it does not push the title input narrower as topics are
+   added. Transparent until the row is hovered, matching the rest of the grid's
+   "reads as a document until you go looking" approach. */
+.tos-topic__remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1;
+  color: #7f1d1d;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.tos-td--topic:hover .tos-topic__remove {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.tos-topic__remove:hover {
+  background: #dc2626 !important;
+  border-color: #dc2626 !important;
+  color: #fff;
+}
+
+.tos-topic__remove:focus-visible {
+  outline: 2px solid #16a34a;
+  outline-offset: 1px;
 }
 
 /* The input is invisible until you go looking for it, so a filled grid still
@@ -3295,47 +3390,6 @@ textarea.input {
   vertical-align: middle;
 }
 
-/* Row controls, in their own panel below the blueprint (never printed).
-   One full-width row per topic so the Delete buttons line up into a single
-   column instead of scattering with the chip widths. */
-.tos-rows {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 6px;
-}
-
-.tos-rows__item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 4px 6px 4px 10px;
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-}
-
-.tos-rows__label {
-  flex: 0 0 auto;
-  min-width: 18px;
-  color: #64748b;
-  font-variant-numeric: tabular-nums;
-}
-
-.tos-rows__name {
-  flex: 1 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 600;
-}
-
-.tos-rows__item .btn {
-  flex: 0 0 auto;
-  margin-left: auto;
-}
-
 /* Caption above the table: margin below it, not above. */
 .tos-foot {
   margin-bottom: 10px;
@@ -3343,12 +3397,103 @@ textarea.input {
   color: #475569;
 }
 
-/* Reset / Print / Add, under the table, right-aligned. */
+/* Saved-blueprints panel, below the editor. Reuses the Curriculum page's
+   panel / toolbar / tabs / card classes so the two read as one app. */
+.tos-library {
+  margin-top: 16px;
+}
+
+.tos-library .resource-card__body h4 {
+  margin: 0 0 2px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.tos-library .resource-card__body p {
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  color: #475569;
+}
+
+/* "Course Title:" in the card heading, matching the blueprint document's own
+   first line. Light and unbolded so it reads as a label rather than part of
+   the title. */
+.tos-card__label {
+  font-weight: 400;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+/* The document title line on a card — "Table of Specification for Prelim:
+   Multiple Choice Type". Set smaller and quieter than the semester so the card
+   reads as three lines of increasing specificity: which course, which term,
+   which document. */
+.tos-card__doctitle {
+  font-size: 11.5px;
+  color: #64748b;
+  font-style: italic;
+}
+
+/* An expanded card holds a whole editable blueprint, so it leaves the card
+   layout entirely — a resource-card is a single row of text and cannot
+   contain a nine-column table without fighting its own padding and shadow. */
+.resource-card__edit.tos-card__expanded {
+  grid-column: 1 / -1;
+  width: 100%;
+  max-width: none;
+}
+
+.tos-card__expanded .tos-sheet {
+  margin-top: 8px;
+}
+
+.tos-card__editorhead {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 4px;
+}
+
+.tos-card__loading {
+  margin: 8px 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+/* Save / Discard / Export / Add, under the table, right-aligned. */
 .tos-addrow {
   display: flex;
   justify-content: flex-end;
   gap: 6px;
   margin-top: 12px;
+}
+
+/* Save with unsaved edits: an amber edge plus a pulse, so a pending change is
+   visible from across the table without reading the label. The label already
+   says "Save pending"; this is the part you notice peripherally. */
+.btn--pending {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.22);
+  animation: tosPendingPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes tosPendingPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.22);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(245, 158, 11, 0.12);
+  }
+}
+
+/* Respect a reduced-motion preference: the label and the amber border still
+   carry the meaning, so the pulse is decoration only. */
+@media (prefers-reduced-motion: reduce) {
+  .btn--pending {
+    animation: none;
+  }
 }
 
 /* Printing: strip the input chrome so the sheet looks like a document. */
@@ -3478,76 +3623,909 @@ textarea.input {
 
 
 /* ---- Reports (pages/shared/Reports.tsx) ----
-   Laid out with the app's own .panel / .table / .page-heading chrome rather
-   than the Curriculum Report's document framing, so only the parts the other
-   list pages do not already provide are defined here. */
+   The Overall Report. Dense and quiet on purpose: eight figures across the top,
+   then six panels of equal weight, and every number stated as a number rather
+   than as a feeling. Nothing here borrows the Curriculum Report's document
+   framing -- this is a dashboard, and it is read at a glance.
 
-.reports-controls {
+   Colours are the app's own green scale plus the four badge tones the tables
+   need (mapped / partial / unmapped / none). The greys come from the theme's
+   --border and --text-muted so the panels sit in the same world as the rest of
+   the app. */
+
+.reports {
+  --reports-gap: 14px;
+  --reports-radius: 12px;
+  --reports-band: #f8fafc;
+}
+
+/* ---- banner header ----
+   The title band from the report brief: a dark-green document mark, the title
+   in green, the one-line scope of the page, and — on the right — the academic
+   year, program and generated stamp as labelled fields above the two actions.
+   One card, not floating text: it is the report's title page compressed. */
+
+.reports-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding: 16px 18px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+  margin-bottom: 14px;
+}
+
+.reports-banner__id {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+  flex: 1 1 420px;
+}
+
+.reports-banner__mark {
+  width: 50px;
+  height: 50px;
+  flex: 0 0 50px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #14532d;
+  color: #fff;
+}
+
+.reports-banner h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #14532d;
+}
+
+/* The lead sentence is flagged with a small green square, as in the brief --
+   the marker is decorative, so the sentence itself stays what an `h2+p` pair
+   is to a screen reader: the heading followed by its description. */
+.reports-banner__lead {
+  margin: 5px 0 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: #334155;
+}
+
+.reports-banner__lead::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 7px;
+  border-radius: 2px;
+  background: #16a34a;
+  vertical-align: 1px;
+}
+
+.reports-banner__crumb {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  color: #94a3b8;
+}
+
+/* The right-hand column: labelled fields in a row, actions under them, both
+   right-aligned against the title block. */
+.reports-banner__side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.reports-banner__controls {
   display: flex;
   align-items: flex-end;
-  gap: 16px;
+  gap: 18px;
   flex-wrap: wrap;
-  margin-bottom: 16px;
 }
 
-.reports-search {
-  flex: 1;
-  min-width: 220px;
-  margin-bottom: 0 !important;
+.reports-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
 }
 
-.reports-toggle {
+.reports-filter__label {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  /* Matches the input's own height so the row reads as one line of controls. */
-  height: 38px;
-  font-size: 13.5px;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
   color: #475569;
-  cursor: pointer;
   white-space: nowrap;
 }
 
-.reports-toggle input {
-  cursor: pointer;
+.reports-filter__select {
+  width: 140px;
+  height: 36px;
+  padding: 0 10px;
+  font-size: 12.5px;
+  border-radius: 8px;
 }
 
-.reports-export {
+.reports-filter__when {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  white-space: nowrap;
+  padding: 8px 0 1px;
+}
+
+.reports-banner__actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Flat-white export action with a green edge: the one export action the
+   report banner carries, reading as an action, not a decoration. */
+.reports-banner__csv {
+  background: #fff;
+  border: 1px solid #86efac;
+  color: #15803d;
+}
+
+.reports-banner__csv:hover {
+  background: #f0fdf4;
+}
+
+/* ---- KPI row: eight tiles, one row ----
+   min() against a max is deliberate: the row always fits eight across on a
+   wide screen, and below that it wraps to four and two rather than squeezing
+   the figures until they are unreadable. */
+
+.reports-kpis {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.reports-kpi {
+  min-width: 0;
+  padding: 14px 8px 13px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 3px;
+}
+
+/* Icon and label travel together on the tile's first line, centred: the icon
+   points at what the figure counts, the label names it. */
+.reports-kpi__top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.reports-kpi .stat-card__label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #334155;
+  /* A long label ("Program Educational Objectives" as the sub of another tile;
+     "Mapping Coverage" as this one) must not wrap and make this tile taller
+     than its seven neighbours. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.reports-kpi .stat-card__value {
+  font-size: 25px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  margin-top: 2px;
+}
+
+.reports-kpi .stat-card__sub {
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: #94a3b8;
+  margin-top: 1px;
+}
+
+/* Raw icons, no chip behind them. The tone shades the icon: neutral keeps the
+   slate the dark labels use, the coverage tick and CQI tick go green, and the
+   warning goes amber -- meaning carried by icon colour, not by shouting. */
+.reports-kpi__icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: #334155;
+}
+
+.reports-kpi__icon--good {
+  color: #16a34a;
+}
+
+.reports-kpi__icon--warn {
+  color: #d97706;
+}
+
+.reports-kpi__icon--bad {
+  color: #dc2626;
+}
+
+/* ---- panel grid: two across, three rows ----
+   Two columns at every width -- the six panels each answer one question and
+   none is a continuation of another: a reader jumps straight to the matrix
+   or the gaps. Two across also gives the summary's six-column table the room
+   it needs without sideways scrolling. */
+
+.reports-panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: var(--reports-gap);
+  margin-bottom: 18px;
+}
+
+.reports-panel {
+  margin: 0;
+  min-width: 0;
+  padding: 14px 15px 12px;
+  border-radius: var(--reports-radius);
+  /* A column so the foot can pin: every panel in a row is stretched to the
+     row height -- the scrollable tables need it no more than the charts --
+     and the footer line reads at one shared bottom edge. */
+  display: flex;
+  flex-direction: column;
+}
+
+/* Icon-and-title line, so all six headers read as six of the same thing rather
+   than six bare headings. The title is the h3: the panel is a section of the
+   report, and that is what a screen reader and the print outline navigate by. */
+.reports-panel__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.reports-panel__head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.reports-panel__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  border-radius: 7px;
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.reports-panel__sub {
+  margin: 0 0 10px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: #64748b;
+}
+
+/* Footer line: a count on the left, the "view all" action on the right. */
+.reports-panel__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 9px;
+  border-top: 1px solid #f1f5f9;
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+/* The footer action. When it has somewhere to go it is a real button styled
+   back into plain green text, and behaves like one: a pointer cursor and an
+   underline on hover, nothing louder. */
+.reports-panel__more {
+  color: #15803d;
+  font-weight: 600;
   white-space: nowrap;
 }
 
-.reports-summary {
-  margin-bottom: 12px;
+button.reports-panel__more {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
 }
 
-.reports-summary th:not(:first-child),
-.reports-summary td:not(:first-child),
+button.reports-panel__more:hover {
+  text-decoration: underline;
+}
+
+/* ---- tables inside panels ----
+   Compact and hairline-ruled: six panels of tables on one screen is a lot of
+   rows, and the default .table padding turns the page into a scroll. */
+
+.reports-panel .table {
+  font-size: 12.5px;
+}
+
+.reports-panel .table thead th {
+  background: var(--reports-band);
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 7px 8px;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.reports-panel .table tbody td {
+  padding: 7px 8px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.reports-panel .table tbody tr:last-child td {
+  border-bottom: none;
+}
+
 .reports-num {
   text-align: center;
   white-space: nowrap;
 }
 
-.reports-shown {
-  margin: 0 0 12px;
-  font-size: 13px;
-  color: #64748b;
+/* The course title is the only prose in the summary table, and it wraps to four
+   lines in a third-width panel. Two lines is enough to recognise a course; the
+   full title is its own page's job. */
+.reports-course-title {
+  max-width: 190px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.35;
+  color: #475569;
 }
 
-.reports-section {
-  margin-bottom: 16px;
+.reports-gap-clo {
+  max-width: 220px;
+  line-height: 1.35;
+  color: #475569;
+}
+
+.reports-cqi__date {
+  white-space: nowrap;
+  color: #64748b;
 }
 
 .reports-empty {
   color: #94a3b8;
   font-style: italic;
   text-align: center;
+  padding: 18px 8px !important;
 }
 
-/* An archived record, shown only when the toggle is on. Muted rather than
-   struck through: an archived record still exists, it is just not current. */
-.reports-row--archived td {
+/* The tables scroll inside their panels: the summary alone is 33 courses,
+   and letting it set its own height would let one panel outgrow the row of
+   six it sits in. The depth was chosen against the PO coverage chart, so
+   the first row's panels read as equal siblings again. The column header
+   sticks through the scroll -- a table that lost its headings at depth
+   would only move the confusion below the fold. */
+.reports-scroll {
+  max-height: 360px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.reports-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+/* ---- badges ---- */
+
+.status-badge {
+  text-transform: capitalize;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.status-badge--mapped {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-badge--partial {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.status-badge--unmapped {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+/* The gaps panel reads both directions of the same missing link. The tabs
+   carry live counts so each view advertises its size before being opened;
+   the active one takes the page's green, tinted rather than solid so it
+   reads as a view switch, not an action. */
+.rgap__tabs {
+  display: flex;
+  gap: 6px;
+  margin: 10px 0 10px;
+}
+
+.rgap__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748b;
+  background: transparent;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background 0.15s var(--ease-smooth), border-color 0.15s var(--ease-smooth);
+}
+
+.rgap__tab:hover {
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+.rgap__tab--on,
+.rgap__tab--on:hover {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.rgap__count {
+  padding: 0 6px;
+  border-radius: 9px;
+  background: rgba(15, 23, 42, 0.07);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.rgap__tab--on .rgap__count {
+  background: #bbf7d0;
+  color: #14532d;
+}
+
+/* The last row's only panel spans both columns: a half-empty grid row is
+   not how a report ends. */
+.reports-panel--span {
+  grid-column: 1 / -1;
+}
+
+/* "No outcomes yet" is a neutral fact, so it reads grey rather than red. */
+.status-badge--none {
+  background: #f1f5f9;
   color: #94a3b8;
+}
+
+/* ---- PO coverage chart (components/PoCoverageBars.tsx) ---- */
+
+.pocov__chart {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.pocov__grid {
+  stroke: #e2e8f0;
+  stroke-width: 1;
+}
+
+.pocov__axis {
+  font-size: 10px;
+  fill: #94a3b8;
+}
+
+/* Upright bars in the app's green, with the height carrying the meaning. */
+.pocov__bar {
+  fill: #16a34a;
+}
+
+/* The "nothing maps here" bar is a gap, not a value: grey, so a reader does not
+   read it as the tallest bar on the chart. */
+.pocov__bar--muted {
+  fill: #cbd5e1;
+}
+
+.pocov__bar:hover {
+  fill: #15803d;
+}
+
+.pocov__bar--muted:hover {
+  fill: #94a3b8;
+}
+
+.pocov__value {
+  font-size: 10.5px;
+  font-weight: 700;
+  fill: #15803d;
+}
+
+.pocov__note {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #94a3b8;
+}
+
+/* ---- outcome coverage chart (components/OutcomeCoverageChart.tsx) ---- */
+
+.ovb-scroll {
+  max-height: 360px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.ovb__chart {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.ovb__band {
+  fill: #f8fafc;
+}
+
+.ovb__code {
+  font-size: 11px;
+  font-weight: 600;
+  fill: #334155;
+}
+
+.ovb__track {
+  fill: #f1f5f9;
+}
+
+.ovb__pct {
+  font-size: 10.5px;
+  font-weight: 700;
+  fill: #475569;
+  font-variant-numeric: tabular-nums;
+}
+
+.ovb__count {
+  font-size: 10px;
+  fill: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The status chip is the row's verdict: one glance per row and the grey
+   stones -- the outcomes nothing maps -- collect themselves. */
+.ovb__chiptext {
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+.ovb__legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ovb__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.ovb__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.ovb__note {
+  margin-left: auto;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+/* ---- mapped-targets donut (components/MappedTargetsDonut.tsx) ----
+   Donut on the left, legend on the right, the way the alignment mix reads in
+   the report brief. */
+
+/* The donut panel's body takes whatever height its stretched panel grants:
+   the coverage bar chart beside it sets the row, and an un-stretched donut
+   would sit at the top of a tall card with dead white below. The chart and
+   legend centre in the height; the reach chains and the empty-legged callout
+   stack under them, so the panel earns its space with content rather than
+   air. */
+.mixdonut {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1 1 auto;
+}
+
+.mixdonut__grid {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 auto;
+}
+
+.mixdonut__chart {
+  flex: 0 0 auto;
+  width: 200px;
+  height: auto;
+  overflow: visible;
+}
+
+.mixdonut__chart path {
+  transition: opacity 0.18s var(--ease-smooth);
+}
+
+/* Hovering one slice dims the rest rather than growing it: a donut that
+   reflows under the cursor moves the legend out from under the pointer. */
+.mixdonut__chart:hover path {
+  opacity: 0.45;
+}
+
+.mixdonut__chart path:hover {
+  opacity: 1;
+}
+
+.mixdonut__count {
+  font-size: 26px;
+  font-weight: 700;
+  fill: var(--text);
+}
+
+.mixdonut__unit {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  fill: #94a3b8;
+}
+
+.mixdonut__legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+}
+
+.mixdonut__item {
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  color: #475569;
+}
+
+.mixdonut__item--zero {
+  color: #b6c2d2;
+}
+
+/* The chains: one row per mapped learning outcome, each chip a document
+   that outcome's chain reaches -- program outcome first, then the PEOs and
+   goals its anchors name. */
+.mixdonut__reaches {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.mixdonut__reachhead {
+  margin: 0 0 7px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.mixdonut__reachlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mixdonut__reachrow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.mixdonut__clo {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border-radius: 7px;
+  background: #e0f2fe;
+  color: #0e7490;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.mixdonut__chain {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  min-width: 0;
+}
+
+.mixdonut__target {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #334155;
+  white-space: nowrap;
+}
+
+.mixdonut__tdot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.mixdonut__dnf {
+  color: #94a3b8;
+  font-size: 10.5px;
+}
+
+/* The empty leg: amber, not red -- nothing is broken, it is a chain that
+   stops before a document kind the school never got to recording. */
+.mixdonut__callout {
+  margin: 12px 0 0;
+  padding: 8px 11px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #92400e;
+}
+
+.mixdonut__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+}
+
+.mixdonut__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mixdonut__pct {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+/* ---- footer ---- */
+
+.reports-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 11px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--reports-radius);
+  background: #fff;
+}
+
+.reports-footer__who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #166534;
+}
+
+.reports-footer__mark {
+  display: inline-flex;
+  color: #15803d;
+}
+
+.reports-footer__sep {
+  color: #cbd5e1;
+  font-weight: 400;
+}
+
+.reports-footer__note {
+  margin: 0;
+  font-size: 11px;
   font-style: italic;
+  color: #64748b;
+  text-align: right;
+  max-width: 460px;
+}
+
+/* ---- responsive: the row of eight is the first thing to give way ----
+   The tiles wrap to four, then two; the panels go to two columns, then one.
+   Both happen at the width where a figure would otherwise start truncating. */
+
+@media (max-width: 1400px) {
+  .reports-kpis {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .reports-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .reports-banner__side,
+  .reports-banner__controls {
+    align-items: flex-start;
+  }
+
+  .reports-footer__note {
+    text-align: left;
+  }
+}
+
+/* Printing prints the dashboard and nothing else: the export actions are
+   chrome, and there is no on-screen inventory to print. */
+@media print {
+  .reports-banner__actions,
+  .reports-footer__mark {
+    display: none !important;
+  }
+
+  .reports-panel,
+  .reports-kpis,
+  .reports-kpi {
+    break-inside: avoid;
+  }
 }
 
 @media print {
@@ -4367,6 +5345,22 @@ textarea.input {
   margin-top: 16px;
 }
 
+/* The subject's report page carries its own screen-only download footer
+   (SyllabusReport's `footer` slot), aligned right within the page's own
+   padding so it looks like part of the document's last row. */
+.subject-view__report-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.subject-view__report-foot .msg {
+  margin: 0;
+}
+
 /* Full width on purpose. This card sits directly above the Curriculum Report
    document (.syllabus-doc__page), which sets no width cap of its own — the old
    `max-width: 720px` was the only thing stopping the card short, leaving an
@@ -4746,6 +5740,62 @@ textarea.input {
 
 .subject-view__right--fullscreen .subject-view__svg {
   min-height: calc(100vh - 260px);
+}
+
+/* Printing the Subject View prints the map and nothing else, the way the bare
+   figure reads: no selector console, no crumbs, no toolbar buttons, no hint
+   or legend, and not the about card or the syllabus document the page
+   continues into. The svg carries a viewBox set at render time, so forcing
+   its width over the pixel attributes re-frames the whole drawing to the
+   page instead of shrinking a fixed canvas. */
+@media print {
+  .subject-view__left,
+  .subject-view__crumbs,
+  .subject-view__graph-toolbar,
+  .subject-view__graph-hint,
+  .subject-view__legend,
+  .subject-view__placeholder,
+  .subject-view__loading,
+  .subject-view__tooltip,
+  .subject-view__about,
+  .subject-view__report {
+    display: none !important;
+  }
+
+  .subject-view__panels {
+    display: block;
+    min-height: 0;
+  }
+
+  .subject-view__right {
+    padding: 0;
+    overflow: visible;
+    width: auto;
+    border: 0;
+    box-shadow: none;
+  }
+
+  .subject-view__right--fullscreen {
+    position: static;
+    inset: auto;
+    background: #fff;
+  }
+
+  .subject-view__right--fullscreen .subject-view__graph-wrap,
+  .subject-view__right--fullscreen .subject-view__svg {
+    min-height: 0;
+  }
+
+  .subject-view__graph-wrap {
+    min-height: 0;
+    border: 0;
+  }
+
+  .subject-view__svg {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
 }
 
 .subject-view__loading {

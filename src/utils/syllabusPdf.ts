@@ -158,6 +158,9 @@ export async function downloadSyllabusPdf(
   // The header is placed on every page below, so drop the in-flow copy that
   // would otherwise put a second letterhead at the top of page 1.
   clone.querySelector('.sd-letterhead')?.remove()
+  // Screen-only elements (the no-print download footer SubjectView renders
+  // inside the page) must never end up in the snapshot.
+  clone.querySelectorAll('.no-print').forEach((el) => el.remove())
   host.appendChild(clone)
   document.body.appendChild(host)
 

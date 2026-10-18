@@ -15,7 +15,7 @@
 
 import { SCHOOL } from './report'
 import { saveBlob } from './download'
-import { COLUMNS } from './reports'
+import { columns, rowCells, COURSE_COLUMN } from './reports'
 import type { Report, ReportSection, SectionKey, SummaryLine } from './reports'
 
 const XLSX_MIME =
@@ -40,20 +40,25 @@ const SHEET_NAMES: Record<SectionKey, string> = {
 /** Excel rejects these outright in a tab name, on top of the length cap. */
 const tabSafe = (name: string) => name.replace(/[\\/*?:[\]]/g, ' ').trim().slice(0, 31)
 
-/** "No." plus the shared COLUMNS list. */
-const HEADINGS = ['No.', ...COLUMNS]
-const LAST_COL = HEADINGS.length
+/** "No." plus the report's own headings -- both from utils/reports. */
+const headingsFor = (hasCourse: boolean) => ['No.', ...columns(hasCourse)]
+
+/**
+ * One width per column, shared by every sheet: a narrow index, a roomy code
+ * column (some course codes carry a prerequisite chain), a narrow course column
+ * when there is one, and the rest to the name.
+ *
+ * Built from the headings rather than fixed, so a sheet is never handed a width
+ * list of a different length than its header.
+ */
+const widthsFor = (headings: string[]) =>
+  headings.map((h, i) =>
+    i === 0 ? 6 : h === COURSE_COLUMN ? 14 : i === headings.length - 1 ? 78 : 22,
+  )
 
 /** Header row, and the first row under it. */
 const HEADER_ROW = 4
 const FIRST_DATA_ROW = HEADER_ROW + 1
-
-/**
- * One width per column, shared by every sheet: a narrow index, a roomy code
- * column (some course codes carry a prerequisite chain), and the rest to the
- * name.
- */
-const COLUMN_WIDTHS = [6, 22, 78]
 
 const CELL = {
   heading: 'FF1E293B',
@@ -142,8 +147,11 @@ export async function buildReportsWorkbook(report: Report, generatedBy = '') {
   for (let c = 2; c <= summaryHeadings.length; c++) summary.getColumn(c).width = 12
   summary.views = [{ state: 'frozen', ySplit: HEADER_ROW }]
 
-  // ---- one worksheet per section ----
-  report.sections.forEach((section) => writeSectionSheet(wb, section, generatedBy, stamp))
+  // ---- one worksheet per section: a sheet carries the Course column only on
+  // the Learning Outcomes sheet, where the rows can actually fill it ----
+  report.sections.forEach((section) =>
+    writeSectionSheet(wb, section, generatedBy, stamp, section.hasCourse),
+  )
 
   return wb
 }
@@ -153,6 +161,7 @@ function writeSectionSheet(
   section: ReportSection,
   generatedBy: string,
   stamp: string,
+  hasCourse: boolean,
 ) {
   const ws = wb.addWorksheet(tabSafe(SHEET_NAMES[section.key]))
   const noun = section.rows.length === 1 ? 'record' : 'records'
@@ -164,7 +173,10 @@ function writeSectionSheet(
   ws.getCell('A3').value = `${section.rows.length} ${noun} · ${stamped(generatedBy, stamp)}`
   ws.getCell('A3').font = { italic: true, size: 10 }
 
-  HEADINGS.forEach((label, i) => {
+  const headings = headingsFor(hasCourse)
+  const lastCol = headings.length
+
+  headings.forEach((label, i) => {
     const cell = ws.getCell(HEADER_ROW, i + 1)
     cell.value = label
     styleHeader(cell)
@@ -173,8 +185,8 @@ function writeSectionSheet(
   // The No. column counts from 1 and is written as a number so Excel sorts it
   // numerically rather than lexically (10 would otherwise sort before 2).
   section.rows.forEach((row, r) => {
-    const values = [r + 1, row.code, row.name]
-    for (let c = 0; c < LAST_COL; c++) {
+    const values = [r + 1, ...rowCells(row, hasCourse)]
+    for (let c = 0; c < lastCol; c++) {
       const cell = ws.getCell(FIRST_DATA_ROW + r, c + 1)
       const v = values[c]
       // A written empty string still counts as content and extends the sheet's
@@ -184,13 +196,13 @@ function writeSectionSheet(
       cell.alignment = {
         horizontal: c === 0 ? 'center' : 'left',
         vertical: 'top',
-        wrapText: c === LAST_COL - 1,
+        wrapText: c === lastCol - 1,
       }
       if (r % 2 === 1) cell.fill = fill(CELL.band)
     }
   })
 
-  COLUMN_WIDTHS.forEach((w, i) => {
+  widthsFor(headings).forEach((w, i) => {
     ws.getColumn(i + 1).width = w
   })
 
@@ -202,7 +214,7 @@ function writeSectionSheet(
     const lastRow = FIRST_DATA_ROW + section.rows.length - 1
     ws.autoFilter = {
       from: { row: HEADER_ROW, column: 1 },
-      to: { row: lastRow, column: LAST_COL },
+      to: { row: lastRow, column: lastCol },
     }
   }
 }

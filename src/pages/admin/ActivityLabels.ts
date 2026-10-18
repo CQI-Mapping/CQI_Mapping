@@ -80,6 +80,8 @@ export const ACTION_LABELS: Record<string, string> = {
   // Table of Specification blueprints (faculty "Generate TOS" page)
   'tos_exam.created': 'Created exam blueprint',
   'tos_exam.updated': 'Updated exam blueprint',
+  'tos_exam.archived': 'Archived exam blueprint',
+  'tos_exam.restored': 'Restored exam blueprint',
   'tos_exam.exported': 'Exported exam blueprint to Excel',
 
   // Pages that only read
@@ -127,6 +129,33 @@ export function labelAction(raw: string): string {
 export function labelCategory(action: string): string {
   const prefix = action.split('.')[0]
   return CATEGORY_LABELS[prefix] ?? prefix.replace(/_/g, ' ')
+}
+
+// ---------------------------------------------------------------------------
+// Roles
+// ---------------------------------------------------------------------------
+
+export const ROLE_LABELS: Record<string, string> = {
+  admin: 'Admin',
+  manager: 'Manager',
+  user: 'Faculty',
+}
+
+/**
+ * Roles in the order a viewer cares about: oversight first, then the people
+ * being supervised. Used to order the per-actor summary, so an admin scanning
+ * it reads their own line, then the managers, then the faculty.
+ */
+export const ROLE_ORDER: Record<string, number> = {
+  admin: 0,
+  manager: 1,
+  user: 2,
+}
+
+/** A role for display. An unknown value passes through rather than going blank. */
+export function labelRole(role: string | null | undefined): string {
+  if (!role) return 'Unknown'
+  return ROLE_LABELS[role] ?? role.charAt(0).toUpperCase() + role.slice(1)
 }
 
 /** Human-readable text for a failure reason recorded on `auth.login_failed`. */

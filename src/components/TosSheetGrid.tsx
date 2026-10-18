@@ -58,8 +58,27 @@ export interface TosSheetGridProps {
   onRemoveTopic: (id: string) => void
   /** Write the paper on screen out as a workbook. */
   onExportExcel: () => void
-  /** Discard local edits and return to the shipped blueprint. */
-  onReset: () => void
+  /**
+   * Write every pending edit now.
+   *
+   * Edits already autosave on a debounce, so this is not the only way data
+   * reaches the database — it closes the window between "I stopped typing" and
+   * the debounce firing, and tells you it landed.
+   */
+  onSave: () => void
+  /** True while a write is in flight, for the button's own state. */
+  saving?: boolean
+  /**
+   * True when an edit has not reached the database yet.
+   *
+   * Distinct from `saving`, which is set the instant you type and so describes
+   * the whole debounce window rather than a request in flight. This is the one
+   * that says "there is work on this screen that is not in the database", and
+   * it is what raises the pending marker on the Save button.
+   */
+  dirty?: boolean
+  /** Throw away unsaved edits and re-read the blueprint from the database. */
+  onDiscard?: () => void
 }
 
 /** A green input cell that reads as a flat cell until you click it. */
@@ -117,7 +136,10 @@ export default function TosSheetGrid({
   onAddTopic,
   onRemoveTopic,
   onExportExcel,
-  onReset,
+  onSave,
+  saving,
+  dirty,
+  onDiscard,
 }: TosSheetGridProps) {
   const totals = bloomTotals(sheet.topics)
   const share = shares(sheet.topics, sheet.total)
@@ -203,6 +225,20 @@ export default function TosSheetGrid({
                     <span>{topic.slo}</span>
                   )}
                 </div>
+                {/* Delete lives on the row it deletes. It used to sit in a
+                    separate list below the blueprint, which repeated every
+                    topic a second time just to carry one button. */}
+                {editable && (
+                  <button
+                    type="button"
+                    className="tos-topic__remove no-print"
+                    onClick={() => onRemoveTopic(topic.id)}
+                    title={`Remove topic ${topic.position}`}
+                    aria-label={`Remove topic ${topic.position}`}
+                  >
+                    ×
+                  </button>
+                )}
               </td>
 
               <td className="tos-td--num">
@@ -323,9 +359,30 @@ export default function TosSheetGrid({
           Reset and Export sit alongside it. */}
       {editable && (
         <div className="tos-addrow no-print">
-          <button type="button" className="btn btn--ghost btn--sm" onClick={onReset}>
-            Reset
+          <button
+            type="button"
+            className={`btn btn--primary btn--sm${dirty ? ' btn--pending' : ''}`}
+            onClick={onSave}
+            disabled={saving}
+            title="Write every pending edit to the database now"
+          >
+            {/* The marker is a real character, not a CSS pseudo-element, so it
+                is announced by a screen reader along with the label. */}
+            {saving ? 'Saving…' : dirty ? <><span aria-hidden="true">•</span> Save pending</> : 'Save'}
           </button>
+          {/* Only offered when there is something to throw away, so it cannot
+              be clicked to "reset" a blueprint that was never edited — which is
+              what the old Reset button did. */}
+          {dirty && (
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              onClick={onDiscard}
+              title="Discard unsaved edits and reload the blueprint from the database"
+            >
+              Discard
+            </button>
+          )}
           <button
             type="button"
             className="btn btn--ghost btn--sm"
@@ -333,7 +390,7 @@ export default function TosSheetGrid({
           >
             Export Excel
           </button>
-          <button type="button" className="btn btn--primary btn--sm" onClick={onAddTopic}>
+          <button type="button" className="btn btn--ghost btn--sm" onClick={onAddTopic}>
             Add topic
           </button>
         </div>
@@ -353,27 +410,6 @@ export default function TosSheetGrid({
         </div>
       )}
     </div>
-
-      {/* Row controls get their own panel, clear of the blueprint, so the
-          document above stays a document. Nothing here prints. */}
-      {editable && (
-        <div className="panel tos-rows no-print">
-          {sheet.topics.map((topic) => (
-            <span key={topic.id} className="tos-rows__item">
-              <span className="tos-rows__label">{topic.position}.</span>
-              <span className="tos-rows__name">{topic.title || 'Untitled topic'}</span>
-              <button
-                type="button"
-                className="btn btn--danger btn--sm"
-                onClick={() => onRemoveTopic(topic.id)}
-                aria-label={`Delete topic ${topic.position}`}
-              >
-                Delete
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
     </>
   )
 }

@@ -86,6 +86,15 @@ export interface Course {
     instructor_id: string | { id: string; full_name: string | null; email: string } | null
     prerequisite: string
     corequisite: string
+    /**
+     * Year level and semester, for the Curriculum Mapping Summary. Optional
+     * because the columns are a migration that may not have been applied to the
+     * database yet: absent columns come back undefined and the report renders a
+     * dash. Nothing writes them yet, so a database without the migration behaves
+     * exactly as before.
+     */
+    year_level?: number | null
+    semester?: number | null
     status: string
     created_at: string
     updated_at: string
@@ -128,16 +137,6 @@ export interface Resource {
 export interface NavItem {
   id: string
   label: string
-}
-
-export interface ChedMemoOrder {
-  id: string
-  code: string
-  title: string
-  description: string | null
-  status?: string
-  created_at: string
-  updated_at: string
 }
 
 // ---------- Profiles ----------
@@ -348,12 +347,104 @@ export async function deleteProgram(id: string): Promise<void> {
 // COURSES
 
 export async function fetchCourses(): Promise<Course[]> {
+  // No explicit column list on purpose: the select is '*' plus relation joins,
+  // so an optional column a database predates simply comes back absent rather
+  // than making the whole query fail.
   const { data, error } = await supabase
 .from('courses')
       .select('*, program_id ( id, code, name ), curriculum_id ( id, code ), instructor_id ( id, full_name, email )')
       .order('code', { ascending: true })
   if (error) throw error
   return data
+}
+
+/** A CQI recommendation, for the Overall Report's monitoring panel. */
+export interface CqiAction {
+  id: string
+  code: string
+  recommendation: string
+  responsible: string
+  status: 'pending' | 'in_progress' | 'completed'
+  target_date: string | null
+  program_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** A status a recommendation moves through. */
+export type CqiStatus = CqiAction['status']
+
+/** The CQI panel's data: the actions fetched, and whether the table exists. */
+export interface CqiResult {
+  rows: CqiAction[]
+  /** PostgREST answers a table it does not know with PGRST205. */
+  missing: boolean
+}
+
+const MISSING_TABLE_CODES = new Set(['PGRST205', '42P01'])
+
+/**
+ * The CQI actions, latest first.
+ *
+ * A rejection is no longer swallowed into an empty list: cqi_actions is a
+ * migration that may not have been applied to a given database, and a panel
+ * that can tell "the table is not here" apart from "nothing has been
+ * recorded" can ask for the setup SQL where a plain empty list would lie.
+ * A genuinely empty table still reads as no rows, the true state it is.
+ */
+export async function fetchCqiActions(limit = 5): Promise<CqiResult> {
+  try {
+    const { data, error } = await supabase
+      .from('cqi_actions')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit)
+    if (error) return { rows: [], missing: MISSING_TABLE_CODES.has(error.code) }
+    return { rows: (data ?? []) as CqiAction[], missing: false }
+  } catch {
+    return { rows: [], missing: false }
+  }
+}
+
+/**
+ * Record a recommendation. RLS lets any authenticated user write, and the
+ * one database constraint that matters -- code is unique -- surfaces raw;
+ * the form translates it into "take the next code".
+ */
+export async function createCqiAction(payload: {
+  code: string
+  recommendation: string
+  responsible: string
+  status: CqiStatus
+  target_date: string | null
+  program_id: string | null
+}): Promise<CqiAction> {
+  const { data, error } = await supabase
+    .from('cqi_actions')
+    .insert(payload)
+    .select('*')
+    .single()
+  if (error) throw new Error(error.message)
+  return data as CqiAction
+}
+
+/**
+ * Move a recommendation along its pipeline. updated_at is written here: the
+ * column has a default but no trigger, so a change that did not stamp it
+ * would leave the row claiming it was never touched.
+ */
+export async function updateCqiActionStatus(
+  id: string,
+  status: CqiStatus,
+): Promise<CqiAction> {
+  const { data, error } = await supabase
+    .from('cqi_actions')
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select('*')
+    .single()
+  if (error) throw new Error(error.message)
+  return data as CqiAction
 }
 
 export async function assignCourseInstructor(courseId: string, instructorId: string | null): Promise<Course> {
@@ -383,6 +474,24 @@ export async function updateCourse(id: string, updates: Partial<Course>): Promis
     .single()
   if (error) throw error
   return data
+}
+
+/**
+ * Whether the courses table already carries the term columns. The statements
+ * ship in supabase-schema.sql, but a live database older than them lacks the
+ * columns, and the summary should show a setup note rather than controls
+ * that can only fail on save.
+ *
+ * A missing column is exactly what this probes for; any other error --
+ * network, auth -- is not a schema question, so it answers true and lets a
+ * real save surface the real problem.
+ */
+export async function courseTermColumnsExist(): Promise<boolean> {
+  const { error } = await supabase.from('courses').select('year_level').limit(1)
+  if (!error) return true
+  const code = (error as { code?: string }).code
+  if (code === '42703' || /does not exist/i.test(error.message)) return false
+  return true
 }
 
 export async function deleteCourse(id: string): Promise<void> {
@@ -900,48 +1009,6 @@ export interface ActivityRollupRow {
   byCategory: Record<string, number>
 }
 
-/**
- * Per-actor totals over the filtered window.
- *
- * Aggregated in the browser rather than in SQL: PostgREST cannot GROUP BY, so
- * this would need either a database view or a round trip per row. Fetching the
- * window once and folding it here is one query and is well within budget at
- * this table's size.
- *
- * `user_email` can be null for a row whose writer could not resolve a profile,
- * which would otherwise collapse into one nameless bucket.
- */
-export async function fetchActivityRollup(
-  filters: ActivityLogFilters = {},
-): Promise<ActivityRollupRow[]> {
-  const entries = await fetchActivityLogs({ ...filters, limit: ACTIVITY_LOG_LIMIT })
-  const byUser = new Map<string, ActivityRollupRow>()
-
-  for (const entry of entries) {
-    const key = entry.user_email || '(unknown actor)'
-    let row = byUser.get(key)
-    if (!row) {
-      row = {
-        user_email: key,
-        total: 0,
-        failedLogins: 0,
-        successfulLogins: 0,
-        lastSeen: entry.created_at,
-        byCategory: {},
-      }
-      byUser.set(key, row)
-    }
-    row.total += 1
-    if (entry.action === 'auth.login_failed') row.failedLogins += 1
-    if (entry.action === 'auth.login') row.successfulLogins += 1
-    // Entries arrive newest-first, so the first one seen is the latest.
-    if (entry.created_at > row.lastSeen) row.lastSeen = entry.created_at
-    const category = entry.action.split('.')[0]
-    row.byCategory[category] = (row.byCategory[category] ?? 0) + 1
-  }
-
-  return [...byUser.values()].sort((a, b) => b.total - a.total || a.user_email.localeCompare(b.user_email))
-}
 
 /**
  * The distinct actors present in the log, for the user filter's dropdown.
@@ -1037,12 +1104,19 @@ export interface TosTopicRow {
  * restricts this to rows the caller owns, so no user filter is needed
  * here and adding one would only risk disagreeing with the policy.
  */
-export async function fetchTosExams(): Promise<TosExamRow[]> {
-  const { data, error } = await supabase
-    .from('tos_exams')
-    .select('*')
-    .eq('status', 'active')
-    .order('updated_at', { ascending: false })
+/**
+ * The caller's blueprints, newest-touched first.
+ *
+ * `status` defaults to 'active' because that is what every caller wants: an
+ * archived blueprint is out of the way, not deleted. Pass 'all' for the
+ * Archive tab, which is the only way archived rows are reachable at all.
+ */
+export async function fetchTosExams(
+  status: 'active' | 'archived' | 'all' = 'active',
+): Promise<TosExamRow[]> {
+  let query = supabase.from('tos_exams').select('*')
+  if (status !== 'all') query = query.eq('status', status)
+  const { data, error } = await query.order('updated_at', { ascending: false })
   if (error) throw error
   return data as TosExamRow[]
 }
@@ -1094,6 +1168,33 @@ export async function fetchTosSheets(examId: string): Promise<TosSheetRow[]> {
     .order('position', { ascending: true })
   if (error) throw error
   return data as TosSheetRow[]
+}
+
+/**
+ * Every sheet belonging to any of the given exams, keyed by exam id.
+ *
+ * The library panel needs each blueprint's papers to title it the way the
+ * document does. One query for all of them, rather than one per card, which is
+ * the difference between a single round trip and one per row as the list grows.
+ *
+ * Returns an empty map for an empty id list — `.in()` with no values is a
+ * syntax error server-side, and the common case on a fresh account is zero.
+ */
+export async function fetchTosSheetsByExam(
+  examIds: string[],
+): Promise<Record<string, TosSheetRow[]>> {
+  const byExam: Record<string, TosSheetRow[]> = {}
+  if (examIds.length === 0) return byExam
+  const { data, error } = await supabase
+    .from('tos_sheets')
+    .select('*')
+    .in('exam_id', examIds)
+    .order('position', { ascending: true })
+  if (error) throw error
+  for (const row of (data ?? []) as TosSheetRow[]) {
+    ;(byExam[row.exam_id] ??= []).push(row)
+  }
+  return byExam
 }
 
 export async function createTosSheet(

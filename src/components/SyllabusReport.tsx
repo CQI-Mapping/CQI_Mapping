@@ -5,8 +5,9 @@
 //
 // Extracted so the Subject Graph's About card can show the same document. The
 // inline-edit controls are optional: pass `editMode` + `rowActions` +
-// `editableListRow` + `onEditChange` (View.tsx does) for the admin editing
-// experience, or omit them for a read-only copy (SubjectView does).
+// `editableListRow` + `onEditChange` for an editing copy, or omit them for a
+// read-only one. Both current readers read read-only -- the Curriculum Report
+// dropped its Edit toggle and owns records on their own pages.
 import type { ReactNode, Ref } from 'react'
 import type {
   Course,
@@ -41,6 +42,11 @@ interface SyllabusReportProps {
    */
   rootRef?: Ref<HTMLDivElement>
 
+  /** Screen-only extras rendered at the foot of the page, inside its padding
+   * (e.g. SubjectView's download control). Never exported: the PDF snapshot
+   * strips .no-print nodes, the Word export rebuilds from data alone. */
+  footer?: ReactNode
+
   // ── Optional inline-editing hooks (admin only) ────────────────────────────
   editMode?: boolean
   edit?: EditState | null
@@ -64,6 +70,7 @@ export default function SyllabusReport({
   managerGroups,
   subjectClos,
   rootRef,
+  footer,
   editMode,
   edit,
   busy,
@@ -268,6 +275,7 @@ export default function SyllabusReport({
         coreqItems={selectedCourse ? uniqueResolvedRefs(selectedCourse.corequisite, courses) : []}
         clos={subjectClos.map((c) => ({ id: c.id, code: c.code, text: c.description || '' }))}
       />
+      {footer}
     </div>
   )
 }

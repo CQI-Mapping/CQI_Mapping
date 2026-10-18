@@ -25,6 +25,7 @@ import type {
   ProgramOutcomeStandalone,
 } from '../services/database'
 import { isActive, poNumber } from './report'
+import { normalizeCode } from './courseCodes'
 
 export type SectionKey = 'programs' | 'courses' | 'pos' | 'peos' | 'clos'
 
@@ -33,12 +34,27 @@ export interface ReportRow {
   code: string
   name: string
   status: string
+  /**
+   * The course a learning outcome belongs to. Only CLO rows carry it; every
+   * other section leaves it undefined.
+   *
+   * Without it, CLO-1 of one course and CLO-1 of another were two rows that
+   * looked identical, in a list sorted by the very field it hid -- so the order
+   * made sense and the rows did not.
+   */
+  course?: string
 }
 
 export interface ReportSection {
   key: SectionKey
   title: string
   rows: ReportRow[]
+  /**
+   * Whether this section renders the Course column. Only the CLO section can,
+   * and only when its outcomes actually name a course — a Course column of
+   * nothing over on Programs would be a bordered hole nobody asked for.
+   */
+  hasCourse: boolean
 }
 
 /**
@@ -49,8 +65,31 @@ export interface ReportSection {
  * body could disagree — a fixed row shape under a varying header shifts every
  * column after the short one. A single shared list removes that whole class of
  * bug by not having anywhere for it to live.
+ *
+ * Learning outcomes are the one exception, and columns() is how it stays an
+ * exception rather than a per-section map again: the Course column appears or
+ * disappears for the whole report on one flag, so the header and the body still
+ * come from the same place.
  */
 export const COLUMNS = ['Code', 'Name']
+
+/** Heading for the learning outcome's owning course. */
+export const COURSE_COLUMN = 'Course'
+
+/** Headings for a report, given whether it shows the course column. */
+export function columns(hasCourse: boolean): string[] {
+  return hasCourse ? ['Code', COURSE_COLUMN, 'Name'] : [...COLUMNS]
+}
+
+/**
+ * A row's cell values, in columns() order.
+ *
+ * The page and the Excel export both render through this, so a row cannot show
+ * one set of values under a header built from another list.
+ */
+export function rowCells(row: ReportRow, hasCourse: boolean): string[] {
+  return hasCourse ? [row.code, row.course ?? BLANK_NAME, row.name] : [row.code, row.name]
+}
 
 /** Section titles, in report order: broad scope down to per-subject detail. */
 export const SECTION_ORDER: SectionKey[] = ['programs', 'peos', 'pos', 'courses', 'clos']
@@ -84,6 +123,25 @@ export interface SummaryLine {
   active: number
   archived: number
   total: number
+}
+
+/**
+ * One wedge of the record-mix donut: what share of everything on the books a
+ * single record type is. Derived from the same summary lines the Totals table
+ * renders, so the two can never disagree.
+ */
+export interface MixSlice {
+  key: SectionKey
+  title: string
+  total: number
+  /** Share of the grand total, 0-100, to one decimal place. */
+  percent: number
+}
+
+export interface RecordMix {
+  /** Every named record in the system, active and archived. */
+  total: number
+  slices: MixSlice[]
 }
 
 export interface Report {
@@ -135,6 +193,30 @@ export const BLANK_NAME = '—'
 export const isArchived = (row: { status?: string }) => !isActive(row)
 
 /**
+ * The course code to show for a learning outcome.
+ *
+ * `course` is free text and inconsistent the way course codes are everywhere
+ * else in this schema — "IT 21", "it21", "IT21 - OOP" all mean IT21 — so it is
+ * resolved to the course list's own spelling whenever one matches exactly. That
+ * makes the column read as codes rather than as whatever was typed that day.
+ *
+ * An exact match only. courseCodes.cloMatchesSubject also accepts a substring,
+ * which is right for the Subject Graph's fuzzy grouping but wrong here: with
+ * "IT2" and "IT21" both on file it would attribute an outcome to the wrong
+ * subject, and this column is a claim about ownership.
+ *
+ * A value that matches nothing is left as typed. That is an orphaned outcome,
+ * and blanking it would hide the one thing on this page worth noticing.
+ */
+function courseCodeFor(raw: string | null | undefined, courses: Course[]): string {
+  const typed = text(raw)
+  if (!typed) return ''
+  const key = normalizeCode(typed)
+  const match = courses.find((c) => normalizeCode(c.code) === key)
+  return match ? text(match.code) : typed
+}
+
+/**
  * Flatten the five lists into report sections.
  *
  * Every list is flattened BEFORE the archive and search filters are applied, so
@@ -148,6 +230,10 @@ export function buildReport(input: ReportInput, options: ReportOptions = {}): Re
 
   const nameOf = (raw: string | null | undefined, fallback: string | null = '') =>
     text(raw) || text(fallback) || BLANK_NAME
+
+  // Decided from the whole dataset, before either filter, so the column cannot
+  // flicker on and off while the search box is being typed in.
+  const hasCourse = clos.some((c) => text(c.course) !== '')
 
   // ---- flatten ----
   const programRows: ReportRow[] = [...programs]
@@ -170,15 +256,25 @@ export function buildReport(input: ReportInput, options: ReportOptions = {}): Re
   // code within it — the order the faculty reads them in on the CLO page. The
   // subject is not shown (this is a name list, not the CLO map) but it is the
   // only thing that makes CLO-1 of one course distinguishable from CLO-1 of
-  // another, so it decides the order.
+  // another, so it decides the order — and it is now shown too, which is what
+  // finally makes that order legible.
   const cloRows: ReportRow[] = [...clos]
     .sort((a, b) => byText(a.course, b.course) || byText(a.code, b.code))
-    .map((c) => ({ code: text(c.code), name: nameOf(c.title, c.description), status: c.status }))
+    .map((c) => ({
+      code: text(c.code),
+      name: nameOf(c.title, c.description),
+      status: c.status,
+      course: courseCodeFor(c.course, courses) || BLANK_NAME,
+    }))
 
   // ---- filter ----
-  // Search matches only the two columns the table shows. Matching a hidden
-  // column would return rows whose reason for matching is invisible, which is
-  // worse than not matching at all.
+  // Search matches the columns the table shows. Matching a hidden column would
+  // return rows whose reason for matching is invisible, which is worse than not
+  // matching at all.
+  //
+  // The course matches only on the rows that carry one, which is exactly the
+  // rows whose table shows a Course column: typing "IT21" finds that course's
+  // outcomes, and there is no other way to ask.
   //
   // Archived rows are dropped before the search runs, so the filter never has
   // to know about them.
@@ -186,7 +282,8 @@ export function buildReport(input: ReportInput, options: ReportOptions = {}): Re
     (includeArchived || isActive(row)) &&
     (needle === '' ||
       normalize(row.code).includes(needle) ||
-      normalize(row.name).includes(needle))
+      normalize(row.name).includes(needle) ||
+      normalize(row.course ?? '').includes(needle))
 
   const built: Record<SectionKey, ReportRow[]> = {
     programs: programRows,
@@ -200,6 +297,7 @@ export function buildReport(input: ReportInput, options: ReportOptions = {}): Re
     key,
     title: SECTION_TITLES[key],
     rows: built[key].filter(keep),
+    hasCourse: key === 'clos' && hasCourse,
   }))
 
   // The summary counts the flattened rows, before either filter.
@@ -219,5 +317,30 @@ export function buildReport(input: ReportInput, options: ReportOptions = {}): Re
     sections,
     summary,
     shownCount: sections.reduce((n, s) => n + s.rows.length, 0),
+  }
+}
+
+/**
+ * Turn the Totals rows into donut wedges.
+ *
+ * Percentages are of the grand total, not of each section — the chart answers
+ * "what is most of this system made of", which is the one question the flat
+ * tables cannot answer at a glance.
+ *
+ * Every section is kept, including one with no records, so the legend stays the
+ * same length as the data changes instead of silently losing a row. The
+ * percentage is rounded to one decimal because that is all a donut can honestly
+ * show; two would imply a precision nobody can read off an arc.
+ */
+export function buildRecordMix(summary: SummaryLine[]): RecordMix {
+  const total = summary.reduce((n, line) => n + line.total, 0)
+  return {
+    total,
+    slices: summary.map((line) => ({
+      key: line.key,
+      title: line.title,
+      total: line.total,
+      percent: total === 0 ? 0 : Math.round((line.total / total) * 1000) / 10,
+    })),
   }
 }
