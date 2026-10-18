@@ -4075,15 +4075,20 @@ button.reports-panel__more:hover {
    Donut on the left, legend on the right, the way the alignment mix reads in
    the report brief. */
 
+/* The donut panel's body takes whatever height its stretched panel grants:
+   the coverage bar chart beside it sets the row, and an un-stretched donut
+   would sit at the top of a tall card with dead white below. Centering the
+   row in the height reads as composed, not unfinished. */
 .mixdonut {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex: 1 1 auto;
 }
 
 .mixdonut__chart {
   flex: 0 0 auto;
-  width: 150px;
+  width: 200px;
   height: auto;
   overflow: visible;
 }
@@ -4124,7 +4129,8 @@ button.reports-panel__more:hover {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  justify-content: center;
+  gap: 10px;
 }
 
 .mixdonut__item {
