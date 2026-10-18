@@ -5,8 +5,9 @@
 //
 // Extracted so the Subject Graph's About card can show the same document. The
 // inline-edit controls are optional: pass `editMode` + `rowActions` +
-// `editableListRow` + `onEditChange` (View.tsx does) for the admin editing
-// experience, or omit them for a read-only copy (SubjectView does).
+// `editableListRow` + `onEditChange` for an editing copy, or omit them for a
+// read-only one. Both current readers read read-only -- the Curriculum Report
+// dropped its Edit toggle and owns records on their own pages.
 import type { ReactNode, Ref } from 'react'
 import type {
   Course,
