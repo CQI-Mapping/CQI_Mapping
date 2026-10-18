@@ -93,6 +93,19 @@ function academicYearOptions(today = new Date()): string[] {
 }
 
 /**
+ * The semester in progress on `today`, worked out on the same June-start
+ * calendar the academic year follows: the first semester runs June through
+ * October, the second November through May's close of the school year --
+ * so January sits at the tail of the pairing academicYearOptions chose for
+ * it, not on a new first semester. Returns the option string the selects
+ * trade in, "1" or "2", so it can be stated in the banner and used as the
+ * summary cells' fallback without translation.
+ */
+function currentSemester(today = new Date()): string {
+  return today.getMonth() >= 5 && today.getMonth() <= 9 ? '1' : '2'
+}
+
+/**
  * Academic years a course can be offered in, the same list the banner's
  * picker offers. The column stores the starting year -- "2026" for
  * "2026 - 2027" -- so the value stays a plain integer while the cell shows
@@ -181,11 +194,12 @@ function Reports({ profile, onNavigate }: ReportsProps) {
   const [academicYear] = useState(academicYearOptions()[1])
 
   /**
-   * The report's semester, the banner field the semester column falls back
-   * to. Kept as the option string the selects hold, since both the banner
-   * and the summary cells trade in the same vocabulary.
+   * The semester the report covers: read once per mount from the date, by
+   * the same June-start calendar the academic year uses. Like the year, the
+   * banner states it as text rather than offering it -- and it doubles as
+   * the fallback the summary's semester cells display and confirm.
    */
-  const [reportSemester, setReportSemester] = useState('1')
+  const [reportSemester] = useState(currentSemester())
 
   /**
    * Which summary cells are mid-save, keyed "courseId:field". A cell that is
@@ -503,22 +517,13 @@ function Reports({ profile, onNavigate }: ReportsProps) {
               <span className="reports-filter__when">{academicYear}</span>
             </div>
 
-            <label className="reports-filter">
+            <div className="reports-filter">
               <span className="reports-filter__label">
+                <Icon name="calendar" size={11} />
                 Semester
               </span>
-              <select
-                className="input reports-filter__select reports-filter__select--short"
-                value={reportSemester}
-                onChange={(e) => setReportSemester(e.target.value)}
-              >
-                {SEMESTER_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+              <span className="reports-filter__when">{reportSemester}</span>
+            </div>
 
             <label className="reports-filter">
               <span className="reports-filter__label">Program</span>

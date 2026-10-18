@@ -3608,11 +3608,6 @@ textarea.input {
   border-radius: 8px;
 }
 
-/* A semester is one digit; the double-width control would be all air. */
-.reports-filter__select--short {
-  width: 64px;
-}
-
 .reports-filter__when {
   font-size: 12px;
   font-weight: 600;
