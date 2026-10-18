@@ -140,6 +140,17 @@ function Reports({ profile, onNavigate }: ReportsProps) {
   const courseListPage =
     profile.role === 'manager' ? 'course' : profile.role === 'admin' ? 'curriculum' : null
 
+  // Where "View All Gaps" leads, per gap direction, and only where the
+  // reader's sidebar can actually go. The CLO side opens the mapping work:
+  // faculty's own Course Learning Outcomes page, everyone else's curriculum,
+  // which is where their courses -- and the outcomes each one maps -- live.
+  // The PO side opens the program-outcomes list for admin and manager; a
+  // faculty reader has no outcomes page, so that direction's footer stays
+  // inert text rather than a link that cannot go anywhere.
+  const cloGapPage = profile.role === 'user' ? 'clo' : 'curriculum'
+  const poGapPage = profile.role === 'user' ? null : 'program-outcomes'
+
+
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -698,7 +709,15 @@ function Reports({ profile, onNavigate }: ReportsProps) {
                   </tbody>
                 </table>
               </div>
-              <PanelFoot left="" action="View All Gaps" />
+              <PanelFoot
+                left=""
+                action="View All Gaps"
+                onAction={
+                  (gapView === 'clos' ? cloGapPage : poGapPage)
+                    ? () => onNavigate?.(gapView === 'clos' ? cloGapPage : poGapPage!)
+                    : undefined
+                }
+              />
             </section>
 
             {/* 6 ---- */}
