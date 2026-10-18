@@ -643,6 +643,9 @@ function Reports({ profile, onNavigate }: ReportsProps) {
             {/* 1 ---- */}
             <section className="panel reports-panel">
               <PanelHead icon="book" title="Curriculum Mapping Summary" />
+              <p className="reports-panel__sub">
+                Term placement and mapping coverage of every course in the program.
+              </p>
               {roleCanEditTerm && !termsReady && <TermSetupNote />}
               <div className="table-wrap">
                 <table className="table reports-summary">
@@ -738,6 +741,9 @@ function Reports({ profile, onNavigate }: ReportsProps) {
             {/* 3 ---- */}
             <section className="panel reports-panel">
               <PanelHead icon="grid" title="CLO-PO Alignment Matrix" />
+              <p className="reports-panel__sub">
+                Which learning outcomes reach which program outcome.
+              </p>
               {matrix.length === 0 ? (
                 <p className="reports-empty">No learning outcomes recorded yet.</p>
               ) : matrixKeys.length === 0 ? (
