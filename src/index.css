@@ -3323,12 +3323,36 @@ textarea.input {
   font-variant-numeric: tabular-nums;
 }
 
-.tos-rows__name {
+/* The title is an input, so it reads as plain text until hovered or focused —
+   the list still looks like a list rather than a form. Flat border, no fill,
+   because a boxed field on every row would out-shout the blueprint above. */
+.tos-rows__input {
   flex: 1 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  padding: 3px 6px;
+  font: inherit;
   font-weight: 600;
+  color: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+}
+
+.tos-rows__input::placeholder {
+  font-weight: 400;
+  font-style: italic;
+  color: #94a3b8;
+}
+
+.tos-rows__input:hover {
+  border-color: var(--border);
+}
+
+.tos-rows__input:focus {
+  outline: none;
+  background: #fff;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
 }
 
 .tos-rows__item .btn {
