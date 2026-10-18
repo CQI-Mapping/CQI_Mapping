@@ -3977,6 +3977,23 @@ button.reports-panel__more:hover {
   padding: 18px 8px !important;
 }
 
+/* The tables scroll inside their panels: the summary alone is 33 courses,
+   and letting it set its own height would let one panel outgrow the row of
+   six it sits in. The depth was chosen against the PO coverage chart, so
+   the first row's panels read as equal siblings again. The column header
+   sticks through the scroll -- a table that lost its headings at depth
+   would only move the confusion below the fold. */
+.reports-scroll {
+  max-height: 360px;
+  overflow: auto;
+}
+
+.reports-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
 /* ---- badges ---- */
 
 .status-badge {

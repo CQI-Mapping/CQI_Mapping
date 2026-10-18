@@ -647,7 +647,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
                 Term placement and mapping coverage of every course in the program.
               </p>
               {roleCanEditTerm && !termsReady && <TermSetupNote />}
-              <div className="table-wrap">
+              <div className="table-wrap reports-scroll">
                 <table className="table reports-summary">
                   <thead>
                     <tr>
@@ -780,7 +780,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
               <p className="reports-panel__sub">
                 CLOs with no program outcome mapping.
               </p>
-              <div className="table-wrap">
+              <div className="table-wrap reports-scroll">
                 <table className="table">
                   <thead>
                     <tr>
@@ -823,7 +823,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
               <p className="reports-panel__sub">
                 Latest recommendations and action items.
               </p>
-              <div className="table-wrap">
+              <div className="table-wrap reports-scroll">
                 <table className="table reports-cqi">
                   <thead>
                     <tr>
