@@ -36,8 +36,6 @@ import {
   fetchStrategicGoals,
   fetchChedMemoOrders,
   fetchCqiActions,
-  updateCourse,
-  courseTermColumnsExist,
 } from '../../services/database'
 import type {
   Program,
@@ -105,71 +103,10 @@ function currentSemester(today = new Date()): string {
   return today.getMonth() >= 5 && today.getMonth() <= 9 ? '1' : '2'
 }
 
-/**
- * Academic years a course can be offered in, the same list the banner's
- * picker offers. The column stores the starting year -- "2026" for
- * "2026 - 2027" -- so the value stays a plain integer while the cell shows
- * the pair the academic calendar actually calls it.
- */
-const YEAR_OPTIONS = academicYearOptions().map((ay) => ({
-  value: ay.split(' - ')[0] ?? ay,
-  label: ay,
-}))
-
-/** The school year's two semesters; no mid-year term is recorded. */
-const SEMESTER_OPTIONS = [1, 2].map((n) => ({ value: String(n), label: String(n) }))
-
 /** "2026 - 2027" from the starting year the column stores. */
 function ayLabel(v: number | null | undefined): string | null {
   return v == null ? null : `${v} - ${v + 1}`
 }
-
-/**
- * The term cell of a course the user may write: a select dressed as table
- * text, so thirty-two extra controls do not turn the summary into a form.
- * The empty option is the "not recorded yet" state the read-only cell shows
- * as a dash.
- */
-function TermSelect({
-  course,
-  field,
-  options,
-  busy,
-  onChange,
-  fallback,
-}: {
-  course: Course
-  field: 'year_level' | 'semester'
-  options: { value: string; label: string }[]
-  busy: boolean
-  onChange: (course: Course, field: 'year_level' | 'semester', raw: string) => void
-  /**
-   * What the cell shows -- and offers to save -- when the course records
-   * nothing of its own. Academic year and semester fall back to the report's
-   * banner context, so the columns display a value on every row; without a
-   * fallback the blank option stands for "not recorded".
-   */
-  fallback?: string
-}) {
-  const raw = course[field]
-  return (
-    <select
-      className="reports-termsel"
-      value={raw == null ? (fallback ?? '') : String(raw)}
-      disabled={busy}
-      onChange={(e) => onChange(course, field, e.target.value)}
-      aria-label={`${field === 'year_level' ? 'Academic year' : 'Semester'} of ${course.code}`}
-    >
-      {fallback == null && <option value="">—</option>}
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
-  )
-}
-
 
 function Reports({ profile, onNavigate }: ReportsProps) {
   const [loading, setLoading] = useState(true)
@@ -196,34 +133,10 @@ function Reports({ profile, onNavigate }: ReportsProps) {
   /**
    * The report's semester context, read once per mount from the date on the
    * same June-start calendar the academic year uses. The banner does not
-   * state it; it backs the summary's semester cells -- shown as their
-   * fallback and confirmable into the record -- and rides into the CSV
-   * header.
+   * state it; it backs the summary's semester cells -- the dash-fallback a
+   * course without a term displays -- and rides into the CSV header.
    */
   const [reportSemester] = useState(currentSemester())
-
-  /**
-   * Which summary cells are mid-save, keyed "courseId:field". A cell that is
-   * saving is disabled, so one cell never double-fires, and the busy set —
-   * not a single flag — lets several rows be set at once without blocking
-   * each other.
-   */
-  const [termBusy, setTermBusy] = useState<Set<string>>(new Set())
-
-  /**
-   * Whether the database actually has the term columns. Probed once on load,
-   * and a save that hits the missing columns flips it too, so the panel and
-   * the cells agree no matter which of them noticed first.
-   */
-  const [termsReady, setTermsReady] = useState(true)
-
-  // Terms are curriculum data, and the RLS policies let managers and admins
-  // write them; everyone else just reads. On top of the role gate sits a
-  // schema check: the term columns ship as a migration, and a database that
-  // has not run it gets a setup note in the panel rather than controls that
-  // could only fail on save.
-  const roleCanEditTerm = profile.role === 'admin' || profile.role === 'manager'
-  const canEditTerm = roleCanEditTerm && termsReady
 
   // Where "View All Courses" leads: the courses page each role is actually
   // allowed into -- the manager's course list, the admin's curriculum, which
@@ -232,12 +145,6 @@ function Reports({ profile, onNavigate }: ReportsProps) {
   // than a link that cannot go anywhere.
   const courseListPage =
     profile.role === 'manager' ? 'course' : profile.role === 'admin' ? 'curriculum' : null
-
-  // The report's own academic year -- the banner's picker. A course with no
-  // term recorded displays it, so the summary column reads a value on every
-  // row instead of a dash; picking a cell's value materialises it on the
-  // course. Courses that do record their own year always win.
-  const reportYearStart = academicYear.split(' - ')[0] ?? ''
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -261,9 +168,6 @@ function Reports({ profile, onNavigate }: ReportsProps) {
       setGoals(sg)
       setCmos(cmo)
       setCqiActions(cqi)
-      courseTermColumnsExist()
-        .then(setTermsReady)
-        .catch(() => setTermsReady(true))
       // Default to the first program; the selector below lets any role change it.
       setProgramId((current) => current ?? p[0]?.id ?? null)
     } catch (e) {
@@ -407,76 +311,6 @@ function Reports({ profile, onNavigate }: ReportsProps) {
     }
   }
 
-
-  /**
-   * Sets one term field of one course, from one cell of the summary table.
-   *
-   * The write is optimistic: a summarized board of 33 courses should not grow
-   * a spinner per cell, so the cell takes the value at once and reverts it if
-   * the save fails. The busy key disables only the one cell that is saving.
-   *
-   * The value arrives as the select's string and leaves as a small integer
-   * (null for the blank option), which is what the column holds.
-   */
-  const setTerm = useCallback(
-    async (course: Course, field: 'year_level' | 'semester', raw: string) => {
-      const value = raw === '' ? null : Number(raw)
-      if ((course[field] ?? null) === value) return
-
-      const key = `${course.id}:${field}`
-      const previous = course[field] ?? null
-      setTermBusy((busy) => new Set(busy).add(key))
-      setCourses((all) =>
-        all.map((c) => {
-          if (c.id !== course.id) return c
-          const next = { ...c }
-          if (field === 'year_level') next.year_level = value
-          else next.semester = value
-          return next
-        }),
-      )
-
-      try {
-        const patch: Partial<Course> =
-          field === 'year_level' ? { year_level: value } : { semester: value }
-        await updateCourse(course.id, patch)
-        addActivityLog('course.term_set', {
-          entity: 'course',
-          entity_id: course.id,
-          label: `${course.code} — ${field === 'year_level' ? 'academic year' : 'semester'} set to ${value == null ? 'none' : ayLabel(value)}`,
-        }).catch(() => {})
-      } catch (e) {
-        setCourses((all) =>
-          all.map((c) => {
-            if (c.id !== course.id) return c
-            const next = { ...c }
-            if (field === 'year_level') next.year_level = previous
-            else next.semester = previous
-            return next
-          }),
-        )
-        const msg = e instanceof Error ? e.message : String(e)
-        // The one failure this table can hit today: the term columns are in
-        // supabase-schema.sql but not yet in the live database. Naming the
-        // exact statements beats "network error" from a report page.
-        if (/year_level|semester|column|schema/i.test(msg)) {
-          // The columns are simply not there yet. The setup note -- the SQL
-          // and its copy button -- appears in the panel itself and the
-          // selects stand down; that is the whole message, nothing lost.
-          setTermsReady(false)
-        } else {
-          setError(`Could not save ${course.code}: ${msg}`)
-        }
-      } finally {
-        setTermBusy((busy) => {
-          const next = new Set(busy)
-          next.delete(key)
-          return next
-        })
-      }
-    },
-    [],
-  )
 
   // Captured once per mount. Computing it inline would re-stamp on every
   // render -- typing in the search box would scroll the timestamp forward.
@@ -654,7 +488,6 @@ function Reports({ profile, onNavigate }: ReportsProps) {
               <p className="reports-panel__sub">
                 Term placement and mapping coverage of every course in the program.
               </p>
-              {roleCanEditTerm && !termsReady && <TermSetupNote />}
               <div className="table-wrap reports-scroll">
                 <table className="table reports-summary">
                   <thead>
@@ -681,32 +514,10 @@ function Reports({ profile, onNavigate }: ReportsProps) {
                             <td>{course.code}</td>
                             <td className="reports-course-title">{course.title}</td>
                             <td className="reports-num">
-                              {canEditTerm ? (
-                                <TermSelect
-                                  course={course}
-                                  field="year_level"
-                                  options={YEAR_OPTIONS}
-                                  busy={termBusy.has(`${course.id}:year_level`)}
-                                  onChange={setTerm}
-                                  fallback={reportYearStart}
-                                />
-                              ) : (
-                                ayLabel(course.year_level) ?? academicYear
-                              )}
+                              {ayLabel(course.year_level) ?? academicYear}
                             </td>
                             <td className="reports-num">
-                              {canEditTerm ? (
-                                <TermSelect
-                                  course={course}
-                                  field="semester"
-                                  options={SEMESTER_OPTIONS}
-                                  busy={termBusy.has(`${course.id}:semester`)}
-                                  onChange={setTerm}
-                                  fallback={reportSemester}
-                                />
-                              ) : (
-                                course.semester ?? reportSemester
-                              )}
+                              {course.semester ?? reportSemester}
                             </td>
                             <td className="reports-num">{outcomeCount}</td>
                             <td><span className={badge.className}>{badge.label}</span></td>
@@ -979,43 +790,6 @@ function PanelHead({ icon, title }: { icon: IconName; title: string }) {
   )
 }
 
-/**
- * The summary's setup note: the term migration exists on disk, the database
- * has not run it. States the fix as runnable SQL with a one-click copy,
- * because the action between "read this" and "columns exist" is a paste into
- * another tab.
- */
-function TermSetupNote() {
-  const sql =
-    'ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS year_level INTEGER;\n' +
-    'ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS semester INTEGER;'
-  const [copied, setCopied] = useState(false)
-  return (
-    <div className="reports-setup">
-      <p>
-        Term editing is off: the database is missing the <code>year_level</code> and{' '}
-        <code>semester</code> columns. Paste this into the Supabase SQL editor, run it,
-        then reload this page.
-      </p>
-      <pre>{sql}</pre>
-      <button
-        type="button"
-        className="reports-setup__copy"
-        onClick={() => {
-          navigator.clipboard
-            .writeText(sql)
-            .then(() => {
-              setCopied(true)
-              window.setTimeout(() => setCopied(false), 2000)
-            })
-            .catch(() => {})
-        }}
-      >
-        {copied ? 'Copied ✓' : 'Copy SQL'}
-      </button>
-    </div>
-  )
-}
 
 /**
  * One KPI tile.
