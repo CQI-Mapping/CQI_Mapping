@@ -123,22 +123,31 @@ function TermSelect({
   options,
   busy,
   onChange,
+  fallback,
 }: {
   course: Course
   field: 'year_level' | 'semester'
   options: { value: string; label: string }[]
   busy: boolean
   onChange: (course: Course, field: 'year_level' | 'semester', raw: string) => void
+  /**
+   * What the cell shows -- and offers to save -- when the course records
+   * nothing of its own. The academic year falls back to the report's year,
+   * so the column displays a value on every row; without a fallback the
+   * blank option stands for "not recorded".
+   */
+  fallback?: string
 }) {
+  const raw = course[field]
   return (
     <select
       className="reports-termsel"
-      value={course[field] ?? ''}
+      value={raw == null ? (fallback ?? '') : String(raw)}
       disabled={busy}
       onChange={(e) => onChange(course, field, e.target.value)}
       aria-label={`${field === 'year_level' ? 'Academic year' : 'Semester'} of ${course.code}`}
     >
-      <option value="">—</option>
+      {fallback == null && <option value="">—</option>}
       {options.map((o) => (
         <option key={o.value} value={o.value}>
           {o.label}
@@ -196,6 +205,12 @@ function Reports({ profile, onNavigate }: ReportsProps) {
   // than a link that cannot go anywhere.
   const courseListPage =
     profile.role === 'manager' ? 'course' : profile.role === 'admin' ? 'curriculum' : null
+
+  // The report's own academic year -- the banner's picker. A course with no
+  // term recorded displays it, so the summary column reads a value on every
+  // row instead of a dash; picking a cell's value materialises it on the
+  // course. Courses that do record their own year always win.
+  const reportYearStart = academicYear.split(' - ')[0] ?? ''
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -643,9 +658,10 @@ function Reports({ profile, onNavigate }: ReportsProps) {
                                   options={YEAR_OPTIONS}
                                   busy={termBusy.has(`${course.id}:year_level`)}
                                   onChange={setTerm}
+                                  fallback={reportYearStart}
                                 />
                               ) : (
-                                ayLabel(course.year_level) ?? BLANK
+                                ayLabel(course.year_level) ?? academicYear
                               )}
                             </td>
                             <td className="reports-num">
