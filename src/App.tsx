@@ -337,7 +337,7 @@ function App() {
     if (page === 'curriculum' && role !== 'user') return <Page userEmail={profile?.email} allowDelete={role === 'admin'} />
     if (page === 'curriculum' && role === 'user') return <Page />
     if (page === 'view') return <Page userEmail={profile?.email} />
-    if (page === 'reports') return <Page profile={profile} />
+    if (page === 'reports') return <Page profile={profile} onNavigate={navigate} />
     return <Page profile={profile} onNavigate={navigate} />
   }
 

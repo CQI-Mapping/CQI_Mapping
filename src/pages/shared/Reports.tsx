@@ -76,6 +76,7 @@ import type { IconName } from '../../components/icons'
 
 interface ReportsProps {
   profile: { email?: string | null; role?: UserRole }
+  onNavigate?: (page: string) => void
 }
 
 /**
@@ -134,12 +135,20 @@ function TermSelect({
 }
 
 
-function Reports({ profile }: ReportsProps) {
+function Reports({ profile, onNavigate }: ReportsProps) {
   // Terms are curriculum data, and the RLS policies let managers and admins
   // write them; everyone else just reads. So the gate is made here too:
   // faculty see the term columns as values, not as selects that would only
   // fail on save.
   const canEditTerm = profile.role === 'admin' || profile.role === 'manager'
+
+  // Where "View All Courses" leads: the courses page each role is actually
+  // allowed into -- the manager's course list, the admin's curriculum, which
+  // is where its programs and their courses live. A faculty reader has no
+  // courses page in their sidebar, so their footer stays inert text rather
+  // than a link that cannot go anywhere.
+  const courseListPage =
+    profile.role === 'manager' ? 'course' : profile.role === 'admin' ? 'curriculum' : null
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -574,7 +583,7 @@ function Reports({ profile }: ReportsProps) {
             {/* 1 ---- */}
             <section className="panel reports-panel">
               <PanelHead icon="book" title="Curriculum Mapping Summary" />
-              <div className="table-wrap reports-scroll">
+              <div className="table-wrap">
                 <table className="table reports-summary">
                   <thead>
                     <tr>
@@ -635,8 +644,9 @@ function Reports({ profile }: ReportsProps) {
                 </table>
               </div>
               <PanelFoot
-                left={`Showing ${courseOutcomeRows.length} of ${programCourseList.length} courses`}
+                left={`${courseOutcomeRows.length} courses`}
                 action="View All Courses"
+                onAction={courseListPage ? () => onNavigate?.(courseListPage) : undefined}
               />
             </section>
 
@@ -701,7 +711,7 @@ function Reports({ profile }: ReportsProps) {
               <p className="reports-panel__sub">
                 CLOs with no program outcome mapping.
               </p>
-              <div className="table-wrap reports-scroll">
+              <div className="table-wrap">
                 <table className="table">
                   <thead>
                     <tr>
@@ -744,7 +754,7 @@ function Reports({ profile }: ReportsProps) {
               <p className="reports-panel__sub">
                 Latest recommendations and action items.
               </p>
-              <div className="table-wrap reports-scroll">
+              <div className="table-wrap">
                 <table className="table reports-cqi">
                   <thead>
                     <tr>
@@ -845,17 +855,30 @@ function formatTarget(date: string | null): string {
 }
 
 /**
- * A panel's footer line: a count on the left, a "view all" action on the right.
- *
- * The action is deliberately inert for now -- there is no second page to send
- * it to, and a link that goes nowhere is worse than one that is obviously not
- * there yet. It is a span, not a button, so it cannot be clicked and fail.
+ * A panel's footer line: a count on the left, a "view all" action on the
+ * right. The action earns its arrow only where it leads somewhere; without a
+ * destination it stays a span, because a control that cannot do anything is
+ * worse than the text admitting it.
  */
-function PanelFoot({ left, action }: { left: string; action: string }) {
+function PanelFoot({
+  left,
+  action,
+  onAction,
+}: {
+  left: string
+  action: string
+  onAction?: () => void
+}) {
   return (
     <div className="reports-panel__foot">
       <span>{left}</span>
-      <span className="reports-panel__more">{action} →</span>
+      {onAction ? (
+        <button type="button" className="reports-panel__more" onClick={onAction}>
+          {action} →
+        </button>
+      ) : (
+        <span className="reports-panel__more">{action} →</span>
+      )}
     </div>
   )
 }

@@ -3796,12 +3796,25 @@ textarea.input {
   color: #64748b;
 }
 
-/* A span, not a link: there is no second page to send it to, and a link that
-   goes nowhere is worse than one that is obviously not there yet. */
+/* The footer action. When it has somewhere to go it is a real button styled
+   back into plain green text, and behaves like one: a pointer cursor and an
+   underline on hover, nothing louder. */
 .reports-panel__more {
   color: #15803d;
   font-weight: 600;
   white-space: nowrap;
+}
+
+button.reports-panel__more {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+button.reports-panel__more:hover {
+  text-decoration: underline;
 }
 
 /* ---- tables inside panels ----
@@ -3893,11 +3906,6 @@ textarea.input {
 .reports-termsel:disabled {
   opacity: 0.5;
   cursor: progress;
-}
-
-.reports-scroll {
-  max-height: 340px;
-  overflow: auto;
 }
 
 .reports-empty {
