@@ -160,6 +160,14 @@ export default function TOS() {
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  /**
+   * True from the first keystroke until the write lands.
+   *
+   * Separate from `saving`, which is set at the same moment but is really
+   * "an edit is in flight somewhere". The Save button needs the other question:
+   * is there anything I have not written yet.
+   */
+  const [dirty, setDirty] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [savedAt, setSavedAt] = useState<string | null>(null)
 
@@ -213,6 +221,7 @@ export default function TOS() {
 
   const reportSaved = useCallback(() => {
     setSaving(false)
+    setDirty(false)
     setSavedAt(new Date().toLocaleTimeString())
     setError(null)
   }, [])
@@ -298,6 +307,10 @@ export default function TOS() {
     await Promise.all(writes)
     reportSaved()
   }, [ready, exam, activeId, fail, reportSaved])
+
+  // A failed write leaves the edit unsaved, so the pending marker must stay up.
+  // setError already covers the diagnosis; this covers "your work is still
+  // only on this screen".
 
   // ---- loading an exam -------------------------------------------------
 
@@ -481,7 +494,57 @@ export default function TOS() {
   // Every setter updates local state immediately and schedules a write, so a
   // burst of keystrokes in one cell collapses into a single request.
 
-  const afterEdit = useCallback(() => setSaving(true), [])
+  const afterEdit = useCallback(() => {
+    setSaving(true)
+    // `saving` alone cannot carry the Save button. It is set the moment a
+    // keystroke lands and cleared when the write resolves, so it reads as
+    // "saving" for the whole debounce window whether or not a request is
+    // actually in flight. `dirty` is what the button asks about: is there an
+    // edit that has not reached the database yet.
+    setDirty(true)
+  }, [])
+
+  /**
+   * Throw away edits that have not been saved and re-read the blueprint.
+   *
+   * This is what the old "Reset" button pretended to be. Reloading is not
+   * enough on its own: the pending debounce timer would still fire and write
+   * the discarded state straight back, so every timer is cancelled first.
+   */
+  const discardPending = useCallback(async () => {
+    for (const kind of ['items', 'points'] as const) {
+      const sheetTimerId = sheetTimer.current[kind]
+      if (sheetTimerId) {
+        window.clearTimeout(sheetTimerId)
+        sheetTimer.current[kind] = null
+      }
+      const topicsTimerId = topicsTimer.current[kind]
+      if (topicsTimerId) {
+        window.clearTimeout(topicsTimerId)
+        topicsTimer.current[kind] = null
+      }
+    }
+    if (examTimer.current) {
+      window.clearTimeout(examTimer.current)
+      examTimer.current = null
+    }
+
+    setLoading(true)
+    setError(null)
+    try {
+      const rows = await fetchTosExams()
+      if (rows.length === 0) return
+      setActiveId(rows[0].id)
+      await loadInto(rows[0])
+      setDirty(false)
+      setSaving(false)
+      setSavedAt(null)
+    } catch (e) {
+      fail(e, 'Could not reload the blueprint.')
+    } finally {
+      setLoading(false)
+    }
+  }, [loadInto, fail])
 
   const patchExam = useCallback(
     (patch: Partial<TosExam>) => {
@@ -865,6 +928,8 @@ export default function TOS() {
         onExportExcel={exportExcel}
         onSave={saveNow}
         saving={saving}
+        dirty={dirty}
+        onDiscard={discardPending}
       />
     </div>
   )

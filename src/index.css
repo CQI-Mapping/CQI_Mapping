@@ -3344,12 +3344,39 @@ textarea.input {
   color: #475569;
 }
 
-/* Reset / Print / Add, under the table, right-aligned. */
+/* Save / Discard / Export / Add, under the table, right-aligned. */
 .tos-addrow {
   display: flex;
   justify-content: flex-end;
   gap: 6px;
   margin-top: 12px;
+}
+
+/* Save with unsaved edits: an amber edge plus a pulse, so a pending change is
+   visible from across the table without reading the label. The label already
+   says "Save pending"; this is the part you notice peripherally. */
+.btn--pending {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.22);
+  animation: tosPendingPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes tosPendingPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.22);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(245, 158, 11, 0.12);
+  }
+}
+
+/* Respect a reduced-motion preference: the label and the amber border still
+   carry the meaning, so the pulse is decoration only. */
+@media (prefers-reduced-motion: reduce) {
+  .btn--pending {
+    animation: none;
+  }
 }
 
 /* Printing: strip the input chrome so the sheet looks like a document. */
