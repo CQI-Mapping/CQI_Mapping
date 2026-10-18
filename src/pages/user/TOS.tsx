@@ -48,6 +48,12 @@ import {
 } from '../../services/database'
 import { supabase } from '../../utils/supabaseClient'
 import { downloadTosExcel } from '../../utils/tosXlsx'
+import {
+  buildProgramOptions,
+  buildCourseOptions,
+  buildTermOptions,
+  programIdForLabel,
+} from '../../utils/tosOptions'
 import Icon from '../../components/icons'
 import TosBlueprintEditor from '../../components/TosBlueprintEditor'
 
@@ -80,15 +86,6 @@ const docTitle = (examType: string, kind: SheetKind) =>
 /** Every paper an exam carries, as its own title line. */
 const docTitlesFor = (examType: string, sheets: { kind: SheetKind }[]) =>
   sheets.length > 0 ? sheets.map((s) => docTitle(examType, s.kind)) : [docTitle(examType, 'items')]
-
-/**
- * The terms a blueprint can be filed under. Both semesters carry the same
- * academic year -- the usual Aug-July calendar puts 1st Sem in Aug-Dec 2026 and
- * 2nd Sem in Jan-May 2027, so they share 2026-2027. Spelled out in full because
- * this string is what the exported workbook prints.
- */
-const SCHOOL_YEAR = '2026-2027'
-const TERMS = [`1st Semester, ${SCHOOL_YEAR}`, `2nd Semester, ${SCHOOL_YEAR}`]
 
 /** A blank exam: identity left for the user, one empty blueprint sheet. */
 const blankSheet = (): TosSheet => ({
@@ -123,18 +120,6 @@ const newSheet = (kind: SheetKind): TosSheet => {
  * both halves -- "BSCS - Bachelor of Science in Computer Science". One string
  * keeps tos_exams.code self-contained: no extra column, no lookup on print.
  */
-const programLabel = (p: Program): string => `${p.code} - ${p.name}`
-
-/** The course header follows the same shape as the program one. */
-const courseLabel = (c: Course): string => `${c.code} - ${c.title}`
-
-/**
- * fetchCourses() embeds the program join, so program_id arrives as an object on
- * a course that came through that select and as a bare uuid elsewhere.
- */
-const relId = (v: string | { id: string } | null | undefined) =>
-  v && typeof v === 'object' ? v.id : v || ''
-
 /** Archived rows stay in the database but out of a new pick. */
 const isActive = <T extends { status?: string }>(x: T) => !x.status || x.status === 'active'
 
@@ -575,54 +560,23 @@ export default function TOS() {
 
   /** The program the exam is currently filed under, or '' when none/unlisted. */
   const selectedProgramId = useMemo(
-    () => programs.find((p) => programLabel(p) === exam.code)?.id ?? '',
+    () => programIdForLabel(programs, exam.code),
     [programs, exam.code],
   )
 
-  /**
-   * A stored code that matches no listed program -- the program was archived or
-   * deleted, or the value was typed before this picker existed -- is kept as its
-   * own option. Without it the <select> would fall back to the placeholder and
-   * the next unrelated edit would overwrite the saved program.
-   */
-  const programOptions = useMemo(() => {
-    const options = programs.map((p) => ({ id: p.id, value: programLabel(p) }))
-    if (exam.code && !options.some((o) => o.value === exam.code)) {
-      options.unshift({ id: 'unlisted', value: exam.code })
-    }
-    return options
-  }, [programs, exam.code])
+  // Built by the shared helpers so the page and an expanded card offer the same
+  // lists; see utils/tosOptions.ts for why an unmatched saved value is kept.
+  const programOptions = useMemo(
+    () => buildProgramOptions(programs, exam.code),
+    [programs, exam.code],
+  )
 
-  /**
-   * Courses are scoped to the chosen program, but an exam saved before the
-   * picker existed has no program to scope by -- listing every course keeps
-   * those reachable instead of hiding them behind a prerequisite. A course that
-   * is off-list (archived, or belonging to a program the user just switched
-   * away from) stays visible as its own option, so changing Program never
-   * silently discards a course the user already picked.
-   */
-  const courseOptions = useMemo(() => {
-    const scoped = selectedProgramId
-      ? courses.filter((c) => relId(c.program_id) === selectedProgramId)
-      : courses
-    const options = scoped.map((c) => ({ id: c.id, value: courseLabel(c) }))
-    if (exam.title && !options.some((o) => o.value === exam.title)) {
-      options.unshift({ id: 'unlisted', value: exam.title })
-    }
-    return options
-  }, [courses, selectedProgramId, exam.title])
+  const courseOptions = useMemo(
+    () => buildCourseOptions(courses, selectedProgramId, exam.title),
+    [courses, selectedProgramId, exam.title],
+  )
 
-  /**
-   * Terms saved before this picker existed read like "1st Semester, 2026-2027"
-   * and match neither option, so the stored value stays as its own entry.
-   * Dropping it would leave the select on the placeholder and overwrite the
-   * saved term on the next unrelated edit.
-   */
-  const termOptions = useMemo(() => {
-    const options = [...TERMS]
-    if (exam.term && !options.includes(exam.term)) options.unshift(exam.term)
-    return options
-  }, [exam.term])
+  const termOptions = useMemo(() => buildTermOptions(exam.term), [exam.term])
 
   // ---- debounced writes -----------------------------------------------
 

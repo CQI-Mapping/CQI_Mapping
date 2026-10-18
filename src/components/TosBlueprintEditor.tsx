@@ -17,6 +17,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  fetchPrograms,
+  fetchCourses,
   fetchTosSheets,
   fetchTosTopics,
   createTosSheet,
@@ -30,6 +32,13 @@ import TosSheetGrid from './TosSheetGrid'
 import { blankTopic, renumber, validateSheet, num } from '../utils/tosMath'
 import type { BloomLevel, SheetKind, TosExam, TosSheet, TosTopic } from '../utils/tosMath'
 import { downloadTosExcel } from '../utils/tosXlsx'
+import {
+  buildProgramOptions,
+  buildCourseOptions,
+  buildTermOptions,
+  programIdForLabel,
+} from '../utils/tosOptions'
+import type { Course, Program } from '../services/database'
 
 const SAVE_DEBOUNCE_MS = 600
 
@@ -85,6 +94,14 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [creatingKind, setCreatingKind] = useState<SheetKind | null>(null)
+  /**
+   * Option sources for the three identifying fields.
+   *
+   * Read once per mounted card rather than per keystroke, and built through the
+   * shared helpers so a card's dropdowns offer exactly what the page's do.
+   */
+  const [programs, setPrograms] = useState<Program[]>([])
+  const [courses, setCourses] = useState<Course[]>([])
 
   // Held in refs, not state: the debounced writers read them when the timer
   // fires, and re-rendering on every keystroke to keep a ref current would
@@ -153,6 +170,34 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
   useEffect(() => {
     load()
   }, [load])
+
+  // Picker sources are auxiliary: the blueprint is fully usable without them,
+  // so a failed read degrades to empty dropdowns rather than locking the card.
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([fetchPrograms(), fetchCourses()])
+      .then(([p, c]) => {
+        if (cancelled) return
+        setPrograms(p)
+        setCourses(c)
+      })
+      .catch(() => { /* dropdowns stay empty; the fields below still save */ })
+    return () => { cancelled = true }
+  }, [])
+
+  const selectedProgramId = useMemo(
+    () => programIdForLabel(programs, form.code),
+    [programs, form.code],
+  )
+  const programOptions = useMemo(
+    () => buildProgramOptions(programs, form.code),
+    [programs, form.code],
+  )
+  const courseOptions = useMemo(
+    () => buildCourseOptions(courses, selectedProgramId, form.title),
+    [courses, selectedProgramId, form.title],
+  )
+  const termOptions = useMemo(() => buildTermOptions(form.term), [form.term])
 
   const sheet = useMemo(
     () => sheets.find((s) => s.kind === activeKind) ?? newSheet(activeKind),
@@ -411,30 +456,46 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
       <div className="tos-card__fields">
         <label className="field">
           <span>Program</span>
-          <input
+          <select
             className="input input--sm"
             value={form.code}
-            placeholder="BSIT - Bachelor of Science in Information Technology"
             onChange={(e) => patchExam({ code: e.target.value })}
-          />
+          >
+            <option value="">
+              {programs.length === 0 ? 'No programs available' : '- select program -'}
+            </option>
+            {programOptions.map((o) => (
+              <option key={o.id} value={o.value}>{o.value}</option>
+            ))}
+          </select>
         </label>
         <label className="field">
           <span>Course title</span>
-          <input
+          <select
             className="input input--sm"
             value={form.title}
-            placeholder="IT20 - Data Structures and Algorithm"
             onChange={(e) => patchExam({ title: e.target.value })}
-          />
+          >
+            <option value="">
+              {courses.length === 0 ? 'No courses available' : '- select course (all programs) -'}
+            </option>
+            {courseOptions.map((o) => (
+              <option key={o.id} value={o.value}>{o.value}</option>
+            ))}
+          </select>
         </label>
         <label className="field">
           <span>Semester</span>
-          <input
+          <select
             className="input input--sm"
             value={form.term}
-            placeholder="1st Semester, 2026-2027"
             onChange={(e) => patchExam({ term: e.target.value })}
-          />
+          >
+            <option value="">- select semester -</option>
+            {termOptions.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
         </label>
         <label className="field">
           <span>Total hours</span>
