@@ -132,9 +132,9 @@ function TermSelect({
   onChange: (course: Course, field: 'year_level' | 'semester', raw: string) => void
   /**
    * What the cell shows -- and offers to save -- when the course records
-   * nothing of its own. The academic year falls back to the report's year,
-   * so the column displays a value on every row; without a fallback the
-   * blank option stands for "not recorded".
+   * nothing of its own. Academic year and semester fall back to the report's
+   * banner context, so the columns display a value on every row; without a
+   * fallback the blank option stands for "not recorded".
    */
   fallback?: string
 }) {
@@ -174,6 +174,13 @@ function Reports({ profile, onNavigate }: ReportsProps) {
   const [cmos, setCmos] = useState<ChedMemoOrder[]>([])
   const [cqiActions, setCqiActions] = useState<CqiAction[]>([])
   const [academicYear, setAcademicYear] = useState(academicYearOptions()[1])
+
+  /**
+   * The report's semester, the banner field the semester column falls back
+   * to. Kept as the option string the selects hold, since both the banner
+   * and the summary cells trade in the same vocabulary.
+   */
+  const [reportSemester, setReportSemester] = useState('1')
 
   /**
    * Which summary cells are mid-save, keyed "courseId:field". A cell that is
@@ -366,7 +373,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
       // Plain text, no dependency to fetch: every section flattened into one
       // CSV grid, with the academic year and stamp riding in the header so the
       // file can be forwarded without the app that produced it.
-      const csv = buildReportsCsv(report, { academicYear, generated })
+      const csv = buildReportsCsv(report, { academicYear, semester: reportSemester, generated })
       saveBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), overallReportFileName())
       setNotice('CSV file downloaded.')
     } catch (e) {
@@ -496,6 +503,23 @@ function Reports({ profile, onNavigate }: ReportsProps) {
                 {academicYearOptions().map((ay) => (
                   <option key={ay} value={ay}>
                     {ay}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="reports-filter">
+              <span className="reports-filter__label">
+                Semester
+              </span>
+              <select
+                className="input reports-filter__select reports-filter__select--short"
+                value={reportSemester}
+                onChange={(e) => setReportSemester(e.target.value)}
+              >
+                {SEMESTER_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </select>
@@ -672,9 +696,10 @@ function Reports({ profile, onNavigate }: ReportsProps) {
                                   options={SEMESTER_OPTIONS}
                                   busy={termBusy.has(`${course.id}:semester`)}
                                   onChange={setTerm}
+                                  fallback={reportSemester}
                                 />
                               ) : (
-                                course.semester ?? BLANK
+                                course.semester ?? reportSemester
                               )}
                             </td>
                             <td className="reports-num">{outcomeCount}</td>

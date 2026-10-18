@@ -30,6 +30,8 @@ export function csvLine(cells: (string | number)[]): string {
 export interface ReportsCsvMeta {
   /** Academic year the report is for, e.g. "2026 - 2027". */
   academicYear: string
+  /** The report's semester context ("1", "2", "3"); omitted when none is set. */
+  semester?: string
   /** The human timestamp shown on screen, carried into the file. */
   generated: string
 }
@@ -46,6 +48,7 @@ export function buildReportsCsv(report: Report, meta: ReportsCsvMeta): string {
   // what it is without the app that produced it.
   lines.push(csvLine(['CQI Monitoring System — Overall Report']))
   lines.push(csvLine(['Academic Year', meta.academicYear]))
+  if (meta.semester != null) lines.push(csvLine(['Semester', meta.semester]))
   lines.push(csvLine(['Report Generated', meta.generated]))
   lines.push('')
 

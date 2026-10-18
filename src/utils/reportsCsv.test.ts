@@ -84,6 +84,17 @@ describe('buildReportsCsv', () => {
   })
 })
 
+describe('buildReportsCsv with semester context', () => {
+  it('carries the semester line between the year and the stamp', () => {
+    const csv = buildReportsCsv(report, {
+      academicYear: '2026 - 2027',
+      semester: '1',
+      generated: 'Oct 17, 2026 02:24 PM',
+    })
+    expect(csv).toContain('Academic Year,2026 - 2027\r\nSemester,1\r\nReport Generated')
+  })
+})
+
 describe('overallReportFileName', () => {
   it('names the file by date', () => {
     expect(overallReportFileName(new Date(2026, 9, 18))).toBe('overall-report-2026-10-18.csv')
