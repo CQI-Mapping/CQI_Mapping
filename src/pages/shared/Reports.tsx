@@ -49,6 +49,8 @@ import type {
 } from '../../services/database'
 import { buildReport } from '../../utils/reports'
 import { SCHOOL } from '../../utils/report'
+import { saveBlob } from '../../utils/download'
+import { buildReportsCsv, overallReportFileName } from '../../utils/reportsCsv'
 import {
   alignmentSummary,
   buildAnchors,
@@ -74,6 +76,18 @@ interface ReportsProps {
   profile: { email?: string | null }
 }
 
+/**
+ * Academic years around the current one. The school year is named by the two
+ * calendar years it spans, starting in June: by June the current year is
+ * "2026 - 2027", from January to May it is still the previous pair. Nothing in
+ * the database keys to it yet, so it rides on the banner and travels into the
+ * CSV header until records carry a term.
+ */
+function academicYearOptions(today = new Date()): string[] {
+  const start = today.getFullYear() - (today.getMonth() >= 5 ? 0 : 1)
+  return [start - 1, start, start + 1].map((s) => `${s} - ${s + 1}`)
+}
+
 function Reports({ profile }: ReportsProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -89,6 +103,7 @@ function Reports({ profile }: ReportsProps) {
   const [goals, setGoals] = useState<StrategicGoal[]>([])
   const [cmos, setCmos] = useState<ChedMemoOrder[]>([])
   const [cqiActions, setCqiActions] = useState<CqiAction[]>([])
+  const [academicYear, setAcademicYear] = useState(academicYearOptions()[1])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -230,15 +245,17 @@ function Reports({ profile }: ReportsProps) {
     setError(null)
     setNotice(null)
     try {
-      // Lazy: exceljs is ~1MB and only needed once someone exports.
-      const { downloadReportsExcel } = await import('../../utils/reportsXlsx')
-      await downloadReportsExcel(report, profile.email ?? '')
-      setNotice('Excel workbook downloaded.')
+      // Plain text, no dependency to fetch: every section flattened into one
+      // CSV grid, with the academic year and stamp riding in the header so the
+      // file can be forwarded without the app that produced it.
+      const csv = buildReportsCsv(report, { academicYear, generated })
+      saveBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), overallReportFileName())
+      setNotice('CSV file downloaded.')
     } catch (e) {
       setError(
         e instanceof Error
-          ? `Could not create the workbook: ${e.message}`
-          : 'Could not create the workbook.',
+          ? `Could not create the CSV: ${e.message}`
+          : 'Could not create the CSV.',
       )
     } finally {
       setDownloading(false)
@@ -251,39 +268,78 @@ function Reports({ profile }: ReportsProps) {
 
   return (
     <div className="reports">
-      <div className="reports-header">
-        <div className="page-heading">
-          <h2>Overall Report</h2>
-          <p>
-            Outcome alignment, curriculum coverage and the record inventory —
-            read-only; edit records on their own pages.
-          </p>
-          {program && (
-            <p className="reports-header__crumb">
-              {SCHOOL.institute} · {program.code} Program
+      {/* The banner is the image's title band: a document mark against the
+          title and its one-line scope on the left; the academic year, program
+          and generated stamp in labelled fields above the two actions on the
+          right. Every part is chrome a report page needs, which is why it is
+          one card and not floating text. */}
+      <div className="reports-banner">
+        <div className="reports-banner__id">
+          <span className="reports-banner__mark">
+            <Icon name="doc" size={24} />
+          </span>
+          <div className="reports-banner__title">
+            <h2>Overall Report</h2>
+            <p className="reports-banner__lead">
+              Comprehensive overview of curriculum mapping, outcomes alignment,
+              and continuous quality improvement.
             </p>
-          )}
+            {program && (
+              <p className="reports-banner__crumb">
+                {SCHOOL.institute} · {program.code} Program
+              </p>
+            )}
+          </div>
         </div>
-        <div className="reports-header__side">
-          <label className="field reports-header__select">
-            <span>Program</span>
-            <select
-              className="input"
-              value={programId ?? ''}
-              disabled={loading || programs.length === 0}
-              onChange={(e) => setProgramId(e.target.value)}
-            >
-              {programs.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.code}
-                </option>
-              ))}
-            </select>
-          </label>
-          <span className="reports-header__stamp">Report Generated {generated}</span>
-          <div className="reports-header__actions">
+
+        <div className="reports-banner__side">
+          <div className="reports-banner__controls">
+            <label className="reports-filter">
+              <span className="reports-filter__label">
+                <Icon name="calendar" size={11} />
+                Academic Year
+              </span>
+              <select
+                className="input reports-filter__select"
+                value={academicYear}
+                onChange={(e) => setAcademicYear(e.target.value)}
+              >
+                {academicYearOptions().map((ay) => (
+                  <option key={ay} value={ay}>
+                    {ay}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="reports-filter">
+              <span className="reports-filter__label">Program</span>
+              <select
+                className="input reports-filter__select"
+                value={programId ?? ''}
+                disabled={loading || programs.length === 0}
+                onChange={(e) => setProgramId(e.target.value)}
+              >
+                {programs.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.code}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="reports-filter">
+              <span className="reports-filter__label">
+                <Icon name="calendar" size={11} />
+                Report Generated
+              </span>
+              <span className="reports-filter__when">{generated}</span>
+            </div>
+          </div>
+
+          <div className="reports-banner__actions">
             <button
-              className="btn btn--secondary btn--sm"
+              className="btn btn--sm reports-banner__print"
               onClick={() => window.print()}
               title="Print the report as it is on screen"
             >
@@ -291,13 +347,13 @@ function Reports({ profile }: ReportsProps) {
               Print Report
             </button>
             <button
-              className="btn btn--primary btn--sm"
+              className="btn btn--sm reports-banner__csv"
               onClick={download}
               disabled={downloading || loading}
-              title="Save every section to one Excel workbook"
+              title="Save every section to one CSV file"
             >
               <Icon name="download" />
-              {downloading ? 'Preparing…' : 'Export Excel'}
+              {downloading ? 'Preparing…' : 'Export CSV'}
             </button>
           </div>
         </div>
@@ -347,23 +403,23 @@ function Reports({ profile }: ReportsProps) {
             <KpiCard
               label="Mapping Coverage"
               value={mapping.totalClos === 0 ? '—' : `${mapping.coveragePercent}%`}
-              sub={`(${mapping.mappedClos} / ${mapping.totalClos} CLOs)`}
-              icon="check"
+              sub={`(${mapping.mappedClos}) / ${mapping.totalClos} CLOs`}
+              icon="checkCircle"
               tone="good"
             />
             <KpiCard
               label="Unmapped / Incomplete"
               value={summary.unaligned + mapping.gaps.length}
-              sub="outcomes / CLOs"
+              sub="CLOs / Relationships"
               icon="warning"
-              tone={summary.unaligned + mapping.gaps.length > 0 ? 'bad' : 'good'}
+              tone="warn"
             />
             <KpiCard
               label="CQI Actions"
               value={summary.unaligned + coursesWithoutOutcomes.length + coursesWithoutInstructor.length}
-              sub="open findings"
+              sub="Open Recommendations"
               icon="actions"
-              tone="bad"
+              tone="good"
             />
           </div>
 
@@ -659,10 +715,13 @@ function PanelHead({ icon, title }: { icon: IconName; title: string }) {
 /**
  * One KPI tile.
  *
- * `tone` colours the figure only. A count of zero is not an error, so the tiles
- * that can legitimately be zero default to neutral and the caller decides
- * whether a number deserves attention -- "2 unaligned" in amber is information,
- * the same 2 in red would read as a failure.
+ * The image's tile reads icon-and-label on the first line, then the figure,
+ * then the qualifier — centred as one column, so the eye drops from the icon
+ * to the number it explains without a left edge to hunt for.
+ *
+ * `tone` colours the icon only. All figures are dark: a coloured number is a
+ * judgement, and the tile beside it ("45 unmapped") is neither good nor bad —
+ * it is the count of what still isn't written down.
  */
 function KpiCard({
   label,
@@ -679,13 +738,13 @@ function KpiCard({
 }) {
   return (
     <div className="stat-card stat-card--2026 reports-kpi card-enter">
-      <div className="stat-card__icon stat-card__icon--reports">
-        <Icon name={icon} size={16} />
+      <div className="reports-kpi__top">
+        <span className={`reports-kpi__icon reports-kpi__icon--${tone}`}>
+          <Icon name={icon} size={17} />
+        </span>
+        <span className="stat-card__label">{label}</span>
       </div>
-      <span className="stat-card__label">{label}</span>
-      <span className={`stat-card__value reports-kpi__value reports-kpi__value--${tone}`}>
-        {value}
-      </span>
+      <span className="stat-card__value reports-kpi__value">{value}</span>
       <span className="stat-card__sub">{sub}</span>
     </div>
   )

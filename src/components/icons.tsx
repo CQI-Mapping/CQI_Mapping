@@ -26,6 +26,8 @@ export type IconName =
   | 'cap'
   | 'book'
   | 'actions'
+  | 'calendar'
+  | 'checkCircle'
 
 const PATHS: Record<IconName, React.ReactNode> = {
   edit: <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />,
@@ -165,6 +167,22 @@ const PATHS: Record<IconName, React.ReactNode> = {
     <>
       <rect x="3" y="3" width="18" height="18" rx="2" />
       <polyline points="8 12 11 15 16 9" />
+    </>
+  ),
+  calendar: (
+    <>
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <line x1="16" x2="16" y1="2" y2="6" />
+      <line x1="8" x2="8" y1="2" y2="6" />
+      <line x1="3" x2="21" y1="10" y2="10" />
+    </>
+  ),
+  // Solid badge form of `check` for the coverage tile: the filled disc carries
+  // the colour, the tick is knocked out of it so it stays legible on any fill.
+  checkCircle: (
+    <>
+      <circle cx="12" cy="12" r="10" fill="currentColor" stroke="none" />
+      <path d="m8 12.5 2.5 2.5 5.5-6" stroke="#fff" />
     </>
   ),
 }

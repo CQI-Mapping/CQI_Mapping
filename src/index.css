@@ -3494,54 +3494,156 @@ textarea.input {
   --reports-band: #f8fafc;
 }
 
-/* ---- header ---- */
+/* ---- banner header ----
+   The title band from the report brief: a dark-green document mark, the title
+   in green, the one-line scope of the page, and — on the right — the academic
+   year, program and generated stamp as labelled fields above the two actions.
+   One card, not floating text: it is the report's title page compressed. */
 
-.reports-header {
+.reports-banner {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 24px;
   flex-wrap: wrap;
+  padding: 16px 18px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
   margin-bottom: 14px;
 }
 
-/* The heading is a panel of its own here, so its own outside margin is spent
-   inside the header, and the header gets one margin for both of them. */
-.reports-header .page-heading {
-  margin-bottom: 0;
-  flex: 1;
-  min-width: 280px;
+.reports-banner__id {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+  flex: 1 1 420px;
 }
 
-.reports-header__crumb {
-  margin: 2px 0 0;
-  font-size: 12px;
-  color: var(--text-muted);
+.reports-banner__mark {
+  width: 50px;
+  height: 50px;
+  flex: 0 0 50px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #14532d;
+  color: #fff;
 }
 
-/* The right-hand column of the header: program picker, generated stamp and the
-   export actions, top-aligned against the title block. */
-.reports-header__side {
+.reports-banner h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #14532d;
+}
+
+/* The lead sentence is flagged with a small green square, as in the brief --
+   the marker is decorative, so the sentence itself stays what an `h2+p` pair
+   is to a screen reader: the heading followed by its description. */
+.reports-banner__lead {
+  margin: 5px 0 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: #334155;
+}
+
+.reports-banner__lead::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 7px;
+  border-radius: 2px;
+  background: #16a34a;
+  vertical-align: 1px;
+}
+
+.reports-banner__crumb {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  color: #94a3b8;
+}
+
+/* The right-hand column: labelled fields in a row, actions under them, both
+   right-aligned against the title block. */
+.reports-banner__side {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 8px;
+  gap: 10px;
 }
 
-.reports-header__select {
-  width: 220px;
-  margin-bottom: 0 !important;
+.reports-banner__controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  flex-wrap: wrap;
 }
 
-.reports-header__stamp {
-  font-size: 12px;
-  color: var(--text-muted);
+.reports-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.reports-filter__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
   white-space: nowrap;
 }
 
-.reports-header__actions {
+.reports-filter__select {
+  width: 140px;
+  height: 36px;
+  padding: 0 10px;
+  font-size: 12.5px;
+  border-radius: 8px;
+}
+
+.reports-filter__when {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  white-space: nowrap;
+  padding: 8px 0 1px;
+}
+
+.reports-banner__actions {
   display: flex;
   gap: 8px;
+}
+
+/* Solid green print action: the one push-chrome button a report page needs. */
+.reports-banner__print {
+  background: #15803d;
+  border-color: #15803d;
+  color: #fff;
+  box-shadow: none;
+}
+
+.reports-banner__print:hover {
+  background: #166534;
+  border-color: #166534;
+}
+
+/* Flat-white export action with a green edge: the pair reads as one primary
+   and its quieter twin, not two competing buttons. */
+.reports-banner__csv {
+  background: #fff;
+  border: 1px solid #86efac;
+  color: #15803d;
+}
+
+.reports-banner__csv:hover {
+  background: #f0fdf4;
 }
 
 /* ---- KPI row: eight tiles, one row ----
@@ -3558,21 +3660,32 @@ textarea.input {
 
 .reports-kpi {
   min-width: 0;
-  padding: 12px 13px 13px;
+  padding: 14px 8px 13px;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
+  align-items: center;
+  text-align: center;
+  gap: 3px;
+}
+
+/* Icon and label travel together on the tile's first line, centred: the icon
+   points at what the figure counts, the label names it. */
+.reports-kpi__top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 0;
 }
 
 .reports-kpi .stat-card__label {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: #64748b;
-  /* A two-word label ("Mapping Coverage") must not wrap to two lines and make
-     this tile taller than its neighbours. */
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #334155;
+  /* A long label ("Program Educational Objectives" as the sub of another tile;
+     "Mapping Coverage" as this one) must not wrap and make this tile taller
+     than its seven neighbours. */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3580,41 +3693,38 @@ textarea.input {
 }
 
 .reports-kpi .stat-card__value {
-  font-size: 26px;
+  font-size: 25px;
   line-height: 1.1;
   letter-spacing: -0.02em;
+  margin-top: 2px;
 }
 
 .reports-kpi .stat-card__sub {
-  font-size: 11px;
+  font-size: 10.5px;
   line-height: 1.35;
   color: #94a3b8;
+  margin-top: 1px;
 }
 
-.stat-card__icon--reports {
-  width: 26px;
-  height: 26px;
-  flex: 0 0 26px;
-  border-radius: 7px;
+/* Raw icons, no chip behind them. The tone shades the icon: neutral keeps the
+   slate the dark labels use, the coverage tick and CQI tick go green, and the
+   warning goes amber -- meaning carried by icon colour, not by shouting. */
+.reports-kpi__icon {
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: #dcfce7;
-  color: #15803d;
+  flex: 0 0 auto;
+  color: #334155;
 }
 
-/* Figure tones. Only the figure is coloured -- a coloured label reads as a
-   heading about something wrong, and most of these counts are perfectly fine. */
-.reports-kpi__value--good {
-  color: #15803d;
+.reports-kpi__icon--good {
+  color: #16a34a;
 }
 
-.reports-kpi__value--warn {
-  color: #b45309;
+.reports-kpi__icon--warn {
+  color: #d97706;
 }
 
-.reports-kpi__value--bad {
-  color: #b91c1c;
+.reports-kpi__icon--bad {
+  color: #dc2626;
 }
 
 /* ---- panel grid: three across, two rows ----
@@ -4082,7 +4192,8 @@ textarea.input {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .reports-header__side {
+  .reports-banner__side,
+  .reports-banner__controls {
     align-items: flex-start;
   }
 
@@ -4094,8 +4205,7 @@ textarea.input {
 /* Printing prints the dashboard and nothing else: the export actions are
    chrome, and there is no on-screen inventory to print. */
 @media print {
-  .reports-header__actions,
-  .reports-header__select,
+  .reports-banner__actions,
   .reports-footer__mark {
     display: none !important;
   }
@@ -4105,500 +4215,6 @@ textarea.input {
   .reports-kpi {
     break-inside: avoid;
   }
-}
-
-.stat-card__icon--reports {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(22, 163, 74, 0.12);
-  color: var(--primary-dark);
-}
-
-/* ---- panel grid: three across, two rows ----
-   The arrangement of the mapping report this is built from. Three equal
-   columns rather than an asymmetric split, because the panels here answer one
-   question each and none of them is a continuation of another: a reader jumps
-   to the matrix or the gaps directly, and equal columns say so. */
-
-.reports-panels {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: start;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.reports-panel {
-  margin: 0;
-  min-width: 0;
-}
-
-/* Spans the two panels above it, so the pie gets room to breathe. */
-.reports-panel--wide {
-  grid-column: 1 / -1;
-}
-
-/* Pie on the left, the outcomes in the worrying slice named beside it: the pie
-   says "two are unanchored", the list says which two. */
-.reports-alignpie {
-  display: grid;
-  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
-  align-items: center;
-  gap: 24px;
-}
-
-.reports-alignpie__detail h4 {
-  margin: 0 0 6px;
-  font-size: 12.5px;
-  font-weight: 700;
-  color: #b91c1c;
-}
-
-.reports-alignpie__detail ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 12.5px;
-  color: #475569;
-}
-
-.reports-alignpie__detail strong {
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
-}
-
-/* Icon-and-title line, so all six panel headers read as six of the same thing
-   rather than six bare headings. */
-.reports-panel__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 2px;
-}
-
-.reports-panel__head h3 {
-  margin: 0;
-  font-size: 14.5px;
-  font-weight: 700;
-  color: var(--text);
-}
-
-.reports-panel__icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  flex: 0 0 26px;
-  border-radius: 8px;
-  background: rgba(22, 163, 74, 0.12);
-  color: var(--primary-dark);
-}
-
-.reports-panel__foot {
-  margin: 8px 0 0;
-  font-size: 11.5px;
-  color: var(--text-muted);
-  text-align: right;
-}
-
-
-.reports-panel h3 {
-  margin: 0 0 2px;
-  font-size: 14.5px;
-  font-weight: 700;
-}
-
-.reports-panel__sub {
-  margin: 0 0 12px;
-  font-size: 12.5px;
-  color: var(--text-muted);
-}
-
-.reports-panel__note {
-  margin: 10px 0 0;
-  font-size: 12.5px;
-  color: #b45309;
-}
-
-/* Mapping-status badges. The base .status-badge shape is shared with the rest
-   of the app; these are the three coverage tones. */
-.status-badge--mapped {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.status-badge--partial {
-  background: #fef3c7;
-  color: #b45309;
-}
-
-.status-badge--unmapped {
-  background: #fee2e2;
-  color: #b91c1c;
-}
-
-/* "No outcomes yet" is a neutral fact, so it reads grey rather than red. */
-.status-badge--none {
-  background: #f1f5f9;
-  color: #94a3b8;
-  text-transform: none;
-}
-
-/* The course title is the only prose in the summary table, and it wraps to
-   three or four lines in a third-width panel. Two lines and an ellipsis is
-   enough to recognise a course; the full title is its own page's job. */
-.reports-course-title {
-  font-size: 12.5px;
-  line-height: 1.35;
-  color: #475569;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-/* ---- outcomes by anchor (components/OutcomeBars.tsx) ---- */
-
-.anchors__chart {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-.anchors__grid {
-  stroke: var(--border);
-  stroke-width: 1;
-}
-
-.anchors__axis {
-  font-size: 11px;
-  fill: var(--text-muted);
-}
-
-.anchors__family {
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  fill: #b6c2d2;
-}
-
-.anchors__value {
-  font-size: 11.5px;
-  font-weight: 700;
-  fill: var(--primary-dark);
-}
-
-/* The bars need not total 100 -- an outcome aligned to two memoranda is in both
-   bars. Said under the chart, because a reader who assumes a part-to-whole will
-   misread the whole thing. */
-.anchors__note {
-  margin: 6px 0 0;
-  font-size: 11.5px;
-  color: var(--text-muted);
-}
-
-/* ---- alignment pie (components/AnchorPie.tsx) ---- */
-
-.anchorpie__chart {
-  display: block;
-  width: 100%;
-  height: auto;
-  max-width: 220px;
-  margin: 0 auto 12px;
-  overflow: visible;
-}
-
-.anchorpie__chart path {
-  transition: opacity 0.18s var(--ease-smooth);
-}
-
-/* Hovering one slice dims the rest rather than growing it: a pie that reflows
-   under the cursor moves the legend out from under the pointer. */
-.anchorpie__chart:hover path {
-  opacity: 0.45;
-}
-
-.anchorpie__chart path:hover {
-  opacity: 1;
-}
-
-.anchorpie__count {
-  font-size: 32px;
-  font-weight: 700;
-  fill: var(--text);
-}
-
-.anchorpie__unit {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  fill: #94a3b8;
-}
-
-.anchorpie__legend {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.anchorpie__item {
-  display: grid;
-  grid-template-columns: 10px minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 8px;
-  padding: 3px 0;
-  font-size: 12.5px;
-  color: #475569;
-}
-
-.anchorpie__swatch {
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
-}
-
-.anchorpie__name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Percent and count are right-aligned and tabular: they change whenever the
-   data does, and proportional digits make that shimmer. */
-.anchorpie__value,
-.anchorpie__count {
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.anchorpie__value {
-  font-weight: 600;
-  color: var(--text);
-  min-width: 44px;
-  text-align: right;
-}
-
-.anchorpie__count {
-  color: #94a3b8;
-  min-width: 30px;
-  text-align: right;
-}
-
-/* ---- gaps ---- */
-
-.reports-gaps {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.reports-gaps__item {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: baseline;
-  gap: 4px 10px;
-}
-
-.reports-gaps__n {
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  color: #b91c1c;
-  font-variant-numeric: tabular-nums;
-  min-width: 34px;
-  text-align: right;
-}
-
-/* A zero is good news, and it should not be shouted in red. */
-.reports-gaps__item--none .reports-gaps__n {
-  color: #16a34a;
-}
-
-.reports-gaps__label {
-  font-size: 12.5px;
-  color: #475569;
-}
-
-.reports-gaps__detail {
-  grid-column: 2;
-  font-size: 11.5px;
-  color: #94a3b8;
-  font-variant-numeric: tabular-nums;
-  word-break: break-word;
-}
-
-/* One column below the two-column threshold. */
-@media (max-width: 860px) {
-  .reports-panels {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-.reports-num {
-  text-align: center;
-  white-space: nowrap;
-}
-
-/* ---- Record-mix donut (components/RecordMixDonut.tsx) ----
-   The chart and the Totals table it draws from sit side by side, chart first.
-   The table is given the wider track on purpose: it is the one with four
-   columns, and the chart has already said what it needed to say by then. */
-
-.reports-overview {
-  display: grid;
-  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
-  align-items: start;
-  gap: 16px;
-  margin-bottom: 12px;
-}
-
-.reports-mix {
-  margin: 0;
-  padding: 18px 20px 20px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-}
-
-.reports-mix__title {
-  margin: 0 0 4px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-/* The arc and its legend are one unit: the legend is what makes the colours
-   mean anything, so it is never separated from the chart. */
-.reports-mix__chart {
-  display: block;
-  width: 100%;
-  height: auto;
-  max-width: 220px;
-  margin: 4px auto 12px;
-  overflow: visible;
-}
-
-.reports-mix__chart path {
-  transition: opacity 0.18s var(--ease-smooth);
-}
-
-/* Hovering one wedge dims the rest rather than growing it: a donut that
-   reflows under the cursor moves the legend out from under the pointer. */
-.reports-mix__chart:hover path {
-  opacity: 0.45;
-}
-
-.reports-mix__chart path:hover {
-  opacity: 1;
-}
-
-.reports-mix__count {
-  font-size: 34px;
-  font-weight: 700;
-  fill: var(--text);
-}
-
-.reports-mix__unit {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  fill: #94a3b8;
-}
-
-.reports-mix__legend {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.reports-mix__item {
-  display: grid;
-  grid-template-columns: 10px minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 8px;
-  padding: 3px 0;
-  font-size: 12.5px;
-  color: #475569;
-}
-
-.reports-mix__item--empty {
-  color: #a8b3c2;
-}
-
-.reports-mix__swatch {
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
-}
-
-.reports-mix__name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Percent and count are right-aligned and tabular: they sit in a column and
-   change with every keystroke in the search box, and proportional digits make
-   that shimmer. */
-.reports-mix__value,
-.reports-mix__count {
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.reports-mix__value {
-  font-weight: 600;
-  color: var(--text);
-  min-width: 44px;
-  text-align: right;
-}
-
-.reports-mix__count {
-  color: #94a3b8;
-  min-width: 34px;
-  text-align: right;
-}
-
-/* Below the two-column threshold the table is the one worth keeping on screen
-   next to the chart's summary, so the chart goes its own full-width row. */
-@media (max-width: 860px) {
-  .reports-overview {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-.reports-empty {
-  color: #94a3b8;
-  font-style: italic;
-  text-align: center;
-}
-
-/* An archived record, shown only when the toggle is on. Muted rather than
-   struck through: an archived record still exists, it is just not current. */
-.reports-row--archived td {
-  color: #94a3b8;
-  font-style: italic;
 }
 
 @media print {
