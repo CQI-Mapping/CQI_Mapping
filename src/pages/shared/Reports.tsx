@@ -37,6 +37,7 @@ import {
   fetchChedMemoOrders,
   fetchCqiActions,
   updateCourse,
+  courseTermColumnsExist,
 } from '../../services/database'
 import type {
   Program,
@@ -149,19 +150,6 @@ function TermSelect({
 
 
 function Reports({ profile, onNavigate }: ReportsProps) {
-  // Terms are curriculum data, and the RLS policies let managers and admins
-  // write them; everyone else just reads. So the gate is made here too:
-  // faculty see the term columns as values, not as selects that would only
-  // fail on save.
-  const canEditTerm = profile.role === 'admin' || profile.role === 'manager'
-
-  // Where "View All Courses" leads: the courses page each role is actually
-  // allowed into -- the manager's course list, the admin's curriculum, which
-  // is where its programs and their courses live. A faculty reader has no
-  // courses page in their sidebar, so their footer stays inert text rather
-  // than a link that cannot go anywhere.
-  const courseListPage =
-    profile.role === 'manager' ? 'course' : profile.role === 'admin' ? 'curriculum' : null
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -186,6 +174,29 @@ function Reports({ profile, onNavigate }: ReportsProps) {
    */
   const [termBusy, setTermBusy] = useState<Set<string>>(new Set())
 
+  /**
+   * Whether the database actually has the term columns. Probed once on load,
+   * and a save that hits the missing columns flips it too, so the panel and
+   * the cells agree no matter which of them noticed first.
+   */
+  const [termsReady, setTermsReady] = useState(true)
+
+  // Terms are curriculum data, and the RLS policies let managers and admins
+  // write them; everyone else just reads. On top of the role gate sits a
+  // schema check: the term columns ship as a migration, and a database that
+  // has not run it gets a setup note in the panel rather than controls that
+  // could only fail on save.
+  const roleCanEditTerm = profile.role === 'admin' || profile.role === 'manager'
+  const canEditTerm = roleCanEditTerm && termsReady
+
+  // Where "View All Courses" leads: the courses page each role is actually
+  // allowed into -- the manager's course list, the admin's curriculum, which
+  // is where its programs and their courses live. A faculty reader has no
+  // courses page in their sidebar, so their footer stays inert text rather
+  // than a link that cannot go anywhere.
+  const courseListPage =
+    profile.role === 'manager' ? 'course' : profile.role === 'admin' ? 'curriculum' : null
+
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -208,6 +219,9 @@ function Reports({ profile, onNavigate }: ReportsProps) {
       setGoals(sg)
       setCmos(cmo)
       setCqiActions(cqi)
+      courseTermColumnsExist()
+        .then(setTermsReady)
+        .catch(() => setTermsReady(true))
       // Default to the first program; the selector below lets any role change it.
       setProgramId((current) => current ?? p[0]?.id ?? null)
     } catch (e) {
@@ -404,11 +418,10 @@ function Reports({ profile, onNavigate }: ReportsProps) {
         // supabase-schema.sql but not yet in the live database. Naming the
         // exact statements beats "network error" from a report page.
         if (/year_level|semester|column|schema/i.test(msg)) {
-          setError(
-            'The courses table has no year_level/semester columns yet. Run in the Supabase SQL editor, then reload: ' +
-              'ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS year_level INTEGER; ' +
-              'ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS semester INTEGER;',
-          )
+          // The columns are simply not there yet. The setup note -- the SQL
+          // and its copy button -- appears in the panel itself and the
+          // selects stand down; that is the whole message, nothing lost.
+          setTermsReady(false)
         } else {
           setError(`Could not save ${course.code}: ${msg}`)
         }
@@ -596,6 +609,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
             {/* 1 ---- */}
             <section className="panel reports-panel">
               <PanelHead icon="book" title="Curriculum Mapping Summary" />
+              {roleCanEditTerm && !termsReady && <TermSetupNote />}
               <div className="table-wrap">
                 <table className="table reports-summary">
                   <thead>
@@ -911,6 +925,44 @@ function PanelHead({ icon, title }: { icon: IconName; title: string }) {
         <Icon name={icon} size={15} />
       </span>
       <h3>{title}</h3>
+    </div>
+  )
+}
+
+/**
+ * The summary's setup note: the term migration exists on disk, the database
+ * has not run it. States the fix as runnable SQL with a one-click copy,
+ * because the action between "read this" and "columns exist" is a paste into
+ * another tab.
+ */
+function TermSetupNote() {
+  const sql =
+    'ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS year_level INTEGER;\n' +
+    'ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS semester INTEGER;'
+  const [copied, setCopied] = useState(false)
+  return (
+    <div className="reports-setup">
+      <p>
+        Term editing is off: the database is missing the <code>year_level</code> and{' '}
+        <code>semester</code> columns. Paste this into the Supabase SQL editor, run it,
+        then reload this page.
+      </p>
+      <pre>{sql}</pre>
+      <button
+        type="button"
+        className="reports-setup__copy"
+        onClick={() => {
+          navigator.clipboard
+            .writeText(sql)
+            .then(() => {
+              setCopied(true)
+              window.setTimeout(() => setCopied(false), 2000)
+            })
+            .catch(() => {})
+        }}
+      >
+        {copied ? 'Copied ✓' : 'Copy SQL'}
+      </button>
     </div>
   )
 }

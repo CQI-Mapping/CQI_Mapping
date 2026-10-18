@@ -139,16 +139,6 @@ export interface NavItem {
   label: string
 }
 
-export interface ChedMemoOrder {
-  id: string
-  code: string
-  title: string
-  description: string | null
-  status?: string
-  created_at: string
-  updated_at: string
-}
-
 // ---------- Profiles ----------
 
 export async function ensureProfile(user: User): Promise<Profile> {
@@ -431,6 +421,24 @@ export async function updateCourse(id: string, updates: Partial<Course>): Promis
     .single()
   if (error) throw error
   return data
+}
+
+/**
+ * Whether the courses table already carries the term columns. The statements
+ * ship in supabase-schema.sql, but a live database older than them lacks the
+ * columns, and the summary should show a setup note rather than controls
+ * that can only fail on save.
+ *
+ * A missing column is exactly what this probes for; any other error --
+ * network, auth -- is not a schema question, so it answers true and lets a
+ * real save surface the real problem.
+ */
+export async function courseTermColumnsExist(): Promise<boolean> {
+  const { error } = await supabase.from('courses').select('year_level').limit(1)
+  if (!error) return true
+  const code = (error as { code?: string }).code
+  if (code === '42703' || /does not exist/i.test(error.message)) return false
+  return true
 }
 
 export async function deleteCourse(id: string): Promise<void> {
