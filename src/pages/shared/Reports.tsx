@@ -83,9 +83,9 @@ interface ReportsProps {
 /**
  * Academic years around the current one. The school year is named by the two
  * calendar years it spans, starting in June: by June the current year is
- * "2026 - 2027", from January to May it is still the previous pair. Nothing in
- * the database keys to it yet, so it rides on the banner and travels into the
- * CSV header until records carry a term.
+ * "2026 - 2027", from January to May it is still the previous pair. The
+ * banner displays the middle entry as the report's year; the summary's
+ * per-course academic-year selects offer the whole list.
  */
 function academicYearOptions(today = new Date()): string[] {
   const start = today.getFullYear() - (today.getMonth() >= 5 ? 0 : 1)
@@ -173,7 +173,12 @@ function Reports({ profile, onNavigate }: ReportsProps) {
   const [goals, setGoals] = useState<StrategicGoal[]>([])
   const [cmos, setCmos] = useState<ChedMemoOrder[]>([])
   const [cqiActions, setCqiActions] = useState<CqiAction[]>([])
-  const [academicYear, setAcademicYear] = useState(academicYearOptions()[1])
+  /**
+   * The academic year the report covers: the current one by the June-start
+   * calendar, read once per mount. It is a fact of the report, stated as
+   * text in the banner -- not a filter, and not offered as a choice.
+   */
+  const [academicYear] = useState(academicYearOptions()[1])
 
   /**
    * The report's semester, the banner field the semester column falls back
@@ -490,23 +495,13 @@ function Reports({ profile, onNavigate }: ReportsProps) {
 
         <div className="reports-banner__side">
           <div className="reports-banner__controls">
-            <label className="reports-filter">
+            <div className="reports-filter">
               <span className="reports-filter__label">
                 <Icon name="calendar" size={11} />
                 Academic Year
               </span>
-              <select
-                className="input reports-filter__select"
-                value={academicYear}
-                onChange={(e) => setAcademicYear(e.target.value)}
-              >
-                {academicYearOptions().map((ay) => (
-                  <option key={ay} value={ay}>
-                    {ay}
-                  </option>
-                ))}
-              </select>
-            </label>
+              <span className="reports-filter__when">{academicYear}</span>
+            </div>
 
             <label className="reports-filter">
               <span className="reports-filter__label">
