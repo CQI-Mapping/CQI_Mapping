@@ -91,11 +91,24 @@ function academicYearOptions(today = new Date()): string[] {
   return [start - 1, start, start + 1].map((s) => `${s} - ${s + 1}`)
 }
 
-/** College year levels a curriculum can sit a course in. */
-const YEAR_OPTIONS = [1, 2, 3, 4]
+/**
+ * Academic years a course can be offered in, the same list the banner's
+ * picker offers. The column stores the starting year -- "2026" for
+ * "2026 - 2027" -- so the value stays a plain integer while the cell shows
+ * the pair the academic calendar actually calls it.
+ */
+const YEAR_OPTIONS = academicYearOptions().map((ay) => ({
+  value: ay.split(' - ')[0] ?? ay,
+  label: ay,
+}))
 
 /** Two regular semesters plus the optional mid-year term. */
-const SEMESTER_OPTIONS = [1, 2, 3]
+const SEMESTER_OPTIONS = [1, 2, 3].map((n) => ({ value: String(n), label: String(n) }))
+
+/** "2026 - 2027" from the starting year the column stores. */
+function ayLabel(v: number | null | undefined): string | null {
+  return v == null ? null : `${v} - ${v + 1}`
+}
 
 /**
  * The term cell of a course the user may write: a select dressed as table
@@ -112,7 +125,7 @@ function TermSelect({
 }: {
   course: Course
   field: 'year_level' | 'semester'
-  options: number[]
+  options: { value: string; label: string }[]
   busy: boolean
   onChange: (course: Course, field: 'year_level' | 'semester', raw: string) => void
 }) {
@@ -122,12 +135,12 @@ function TermSelect({
       value={course[field] ?? ''}
       disabled={busy}
       onChange={(e) => onChange(course, field, e.target.value)}
-      aria-label={`${field === 'year_level' ? 'Year level' : 'Semester'} of ${course.code}`}
+      aria-label={`${field === 'year_level' ? 'Academic year' : 'Semester'} of ${course.code}`}
     >
       <option value="">—</option>
       {options.map((o) => (
-        <option key={o} value={o}>
-          {o}
+        <option key={o.value} value={o.value}>
+          {o.label}
         </option>
       ))}
     </select>
@@ -222,8 +235,8 @@ function Reports({ profile, onNavigate }: ReportsProps) {
     [courses, program],
   )
 
-  // Year levels this curriculum actually spans, once the term columns carry
-  // data. Zero until then -- the tile keeps its fallback rather than
+  // Academic years this curriculum actually spans, once the term columns
+  // carry data. Zero until then -- the tile keeps its fallback rather than
   // announcing "Across 0 years".
   const yearsOffered = useMemo(
     () => new Set(programCourseList.map((c) => c.year_level).filter((y) => y != null)).size,
@@ -374,7 +387,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
         addActivityLog('course.term_set', {
           entity: 'course',
           entity_id: course.id,
-          label: `${course.code} — ${field === 'year_level' ? 'year level' : 'semester'} set to ${value ?? 'none'}`,
+          label: `${course.code} — ${field === 'year_level' ? 'academic year' : 'semester'} set to ${value == null ? 'none' : ayLabel(value)}`,
         }).catch(() => {})
       } catch (e) {
         setCourses((all) =>
@@ -530,7 +543,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
               sub={
                 yearsOffered
                   ? `Across ${yearsOffered} year${yearsOffered === 1 ? '' : 's'}`
-                  : 'Across all year levels'
+                  : 'Across all academic years'
               }
               icon="book"
             />
@@ -589,7 +602,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
                     <tr>
                       <th>Course Code</th>
                       <th>Course Title</th>
-                      <th className="reports-num">Year Level</th>
+                      <th className="reports-num">Academic Year</th>
                       <th className="reports-num">Semester</th>
                       <th className="reports-num"># of CLOs</th>
                       <th>Mapping Status</th>
@@ -618,7 +631,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
                                   onChange={setTerm}
                                 />
                               ) : (
-                                course.year_level ?? BLANK
+                                ayLabel(course.year_level) ?? BLANK
                               )}
                             </td>
                             <td className="reports-num">

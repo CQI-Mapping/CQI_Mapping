@@ -119,7 +119,8 @@ CREATE TABLE public.courses (
 -- Migration for existing databases (fresh setups already include instructor_id):
 -- ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS instructor_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL;
 
--- Year level and semester, for the Curriculum Mapping Summary in the Overall
+-- Academic year (stored as its starting year; "2026" shows as "2026 - 2027") and
+-- semester, for the Curriculum Mapping Summary in the Overall
 -- Report. Nullable on purpose: 33 courses are on file and none of them has this
 -- recorded, so the report renders a dash rather than a guess. Filling it in is
 -- data entry, not a migration -- the columns are here so there is somewhere to
