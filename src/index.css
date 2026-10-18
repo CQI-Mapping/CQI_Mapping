@@ -3362,6 +3362,17 @@ textarea.input {
   color: #475569;
 }
 
+/* "Course Title:" in the card heading, matching the blueprint document's own
+   first line. Light and unbolded so it reads as a label rather than part of
+   the title. */
+.tos-card__label {
+  font-weight: 400;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
 /* Save / Discard / Export / Add, under the table, right-aligned. */
 .tos-addrow {
   display: flex;

@@ -1198,11 +1198,23 @@ export default function TOS() {
               ) : (
                 <>
                   <div className="resource-card__body">
-                    <h4>{row.code || 'Untitled blueprint'}</h4>
-                    <p>{row.title || 'No course title yet'}</p>
+                    {/* Mirrors the blueprint's own two header lines —
+                        "Course Title: …" then the semester — so a card
+                        identifies a blueprint the same way the document and
+                        the exported workbook do.
+
+                        The program used to head this card, because the
+                        Program field is stored in `code` (see programOptions),
+                        which read as a natural title and is not one. It is
+                        context, so it moves down to the meta line. */}
+                    <h4>
+                      <span className="tos-card__label">Course Title:</span>{' '}
+                      {row.title || 'No course title yet'}
+                    </h4>
+                    <p>{row.term || 'No semester set'}</p>
                     <div className="resource-card__meta">
                       <span className={`status-badge status-badge--${row.status}`}>{row.status}</span>
-                      {row.term && <span>{row.term}</span>}
+                      {row.code && <span>{row.code}</span>}
                       <span>{row.total_hours} hrs</span>
                       <span>
                         {new Date(row.updated_at).toLocaleString()}
