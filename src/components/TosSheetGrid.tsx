@@ -58,8 +58,16 @@ export interface TosSheetGridProps {
   onRemoveTopic: (id: string) => void
   /** Write the paper on screen out as a workbook. */
   onExportExcel: () => void
-  /** Discard local edits and return to the shipped blueprint. */
-  onReset: () => void
+  /**
+   * Write every pending edit now.
+   *
+   * Edits already autosave on a debounce, so this is not the only way data
+   * reaches the database — it closes the window between "I stopped typing" and
+   * the debounce firing, and tells you it landed.
+   */
+  onSave: () => void
+  /** True while a write is in flight, for the button's own state. */
+  saving?: boolean
 }
 
 /** A green input cell that reads as a flat cell until you click it. */
@@ -117,7 +125,8 @@ export default function TosSheetGrid({
   onAddTopic,
   onRemoveTopic,
   onExportExcel,
-  onReset,
+  onSave,
+  saving,
 }: TosSheetGridProps) {
   const totals = bloomTotals(sheet.topics)
   const share = shares(sheet.topics, sheet.total)
@@ -323,8 +332,14 @@ export default function TosSheetGrid({
           Reset and Export sit alongside it. */}
       {editable && (
         <div className="tos-addrow no-print">
-          <button type="button" className="btn btn--ghost btn--sm" onClick={onReset}>
-            Reset
+          <button
+            type="button"
+            className="btn btn--primary btn--sm"
+            onClick={onSave}
+            disabled={saving}
+            title="Write every pending edit to the database now"
+          >
+            {saving ? 'Saving…' : 'Save'}
           </button>
           <button
             type="button"
@@ -333,7 +348,7 @@ export default function TosSheetGrid({
           >
             Export Excel
           </button>
-          <button type="button" className="btn btn--primary btn--sm" onClick={onAddTopic}>
+          <button type="button" className="btn btn--ghost btn--sm" onClick={onAddTopic}>
             Add topic
           </button>
         </div>

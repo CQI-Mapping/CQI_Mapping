@@ -217,6 +217,88 @@ export default function TOS() {
     setError(null)
   }, [])
 
+  /**
+   * Write everything that is pending, right now.
+   *
+   * Every edit on this page autosaves on a 600ms debounce, so there is a window
+   * after you stop typing where nothing has reached the database yet. This
+   * cancels that window: each pending timer is cleared and its write is run
+   * immediately against the current refs.
+   *
+   * It writes every sheet, not just the visible one. A pending topic change on
+   * the paper you cannot see is still pending, and a Save button that silently
+   * dropped it would be worse than having none.
+   *
+   * The write bodies are repeated rather than extracted, because each debounce
+   * closure already carries its own `id` and `kind`. Sharing one helper across
+   * all three call sites means threading those through, for a page this size
+   * the duplication is cheaper than the indirection.
+   */
+  const saveNow = useCallback(async () => {
+    if (!ready) return
+    setSaving(true)
+    setError(null)
+
+    // Clear first, so a debounce that fires while this runs cannot start a
+    // second, identical write after this one has already read the state.
+    if (examTimer.current) {
+      window.clearTimeout(examTimer.current)
+      examTimer.current = null
+    }
+    for (const { kind } of SHEET_KINDS) {
+      const sheetTimerId = sheetTimer.current[kind]
+      if (sheetTimerId) {
+        window.clearTimeout(sheetTimerId)
+        sheetTimer.current[kind] = null
+      }
+      const topicsTimerId = topicsTimer.current[kind]
+      if (topicsTimerId) {
+        window.clearTimeout(topicsTimerId)
+        topicsTimer.current[kind] = null
+      }
+    }
+
+    const writes: Promise<void>[] = []
+
+    if (activeId && exam) {
+      writes.push(
+        updateTosExam(activeId, {
+          code: exam.code,
+          title: exam.title,
+          term: exam.term,
+          prepared_by: exam.preparedBy,
+          total_hours: num(exam.totalHours),
+        }).then(() => undefined).catch((e) => fail(e, 'Could not save the exam details.')),
+      )
+    }
+
+    for (const { kind } of SHEET_KINDS) {
+      const id = sheetIds.current[kind]
+      const target = sheetsRef.current.find((s) => s.kind === kind)
+      if (!id || !target) continue
+      writes.push(
+        updateTosSheet(id, { total: num(target.total) })
+          .then(() => undefined)
+          .catch((e) => fail(e, 'Could not save the blueprint total.')),
+      )
+      writes.push(
+        replaceTosTopics(
+          id,
+          target.topics.map((t) => ({
+            id: t.id,
+            title: t.title,
+            slo: t.slo,
+            hours: num(t.hours),
+            bloom: t.bloom,
+          })),
+        ).catch((e) => fail(e, 'Could not save the topics.')),
+      )
+    }
+
+    await Promise.all(writes)
+    reportSaved()
+  }, [ready, exam, activeId, fail, reportSaved])
+
   // ---- loading an exam -------------------------------------------------
 
   /**
@@ -667,14 +749,18 @@ export default function TOS() {
             </select>
           </label>
           <label className="field">
-            <span>Term</span>
+            {/* Labelled Semester, matching how the options actually read
+                ("1st Semester, 2026-2027") and how the faculty says it. The
+                column and the variable stay `term` — that is the stored name
+                and the exported workbook's own wording. */}
+            <span>Semester</span>
             <select
               className="input input--sm"
               value={exam.term}
               disabled={!ready}
               onChange={(e) => patchExam({ term: e.target.value })}
             >
-              <option value="">- select term -</option>
+              <option value="">- select semester -</option>
               {termOptions.map((t) => (
                 <option key={t} value={t}>
                   {t}
@@ -777,7 +863,8 @@ export default function TOS() {
         onAddTopic={addTopic}
         onRemoveTopic={removeTopic}
         onExportExcel={exportExcel}
-        onReset={() => window.location.reload()}
+        onSave={saveNow}
+        saving={saving}
       />
     </div>
   )
