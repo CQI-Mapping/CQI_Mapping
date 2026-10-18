@@ -2255,13 +2255,17 @@ export default function SubjectView() {
             >
               <option value="">--- select to Visualize ---</option>
               <option value="subject">Subject</option>
-              <option value="clo">Course Learning Outcomes</option>
-              <option value="po">Program Outcomes</option>
-              <option value="peo">Program Educational Objectives</option>
-              <option value="sg">Strategic Goals</option>
-              <option value="cmo">CHED Memorandum Orders</option>
-              <option value="curriculum">Curriculum</option>
-              <option value="program">Program</option>
+              <option value="po">PO</option>
+              <option value="peo">PEO</option>
+              {/* Hidden roots — never offered here. They stay in the DOM so
+                  the select keeps a valid value when one of them is active,
+                  which only happens by clicking a node inside an open graph
+                  (PO, CLO, PEO, SG and CMO nodes all re-root on click). */}
+              <option value="clo" hidden>Course Learning Outcomes</option>
+              <option value="sg" hidden>Strategic Goals</option>
+              <option value="cmo" hidden>CHED Memorandum Orders</option>
+              <option value="curriculum" hidden>Curriculum</option>
+              <option value="program" hidden>Program</option>
             </select>
           </label>
 
@@ -2491,8 +2495,8 @@ export default function SubjectView() {
                     <path d="M8 7l2.5 9M16 7l-3.5 9M6 6h12" />
                   </svg>
                 </div>
-                <h4>Visualization from any point in the chain</h4>
-                <p>Choose <strong>Subject</strong>, <strong>CLO</strong>, <strong>PO</strong>, <strong>PEO</strong>, <strong>Strategic Goal</strong>, <strong>CHED memorandum</strong>, <strong>Curriculum</strong>, or <strong>Program</strong> on the left, pick its code, then press <strong>Visualization</strong>. Clicking a PO, CLO, PEO, goal, or memorandum re-roots the graph there; clicking a subject jumps back to that subject; clicking a curriculum opens its sibling subjects.</p>
+                <h4>Visualization for a subject, PO, or PEO</h4>
+                <p>Choose <strong>Subject</strong>, <strong>PO</strong>, or <strong>PEO</strong> on the left, pick a code, then press <strong>Visualization</strong>. Once a map is open, clicking any PO, CLO, PEO, strategic goal, or CHED memorandum re-roots the branch right there — wherever you click becomes where the graph starts. Clicking a subject jumps back to that subject; clicking a curriculum opens its sibling subjects.</p>
               </div>
             </div>
           ) : graphError ? (
