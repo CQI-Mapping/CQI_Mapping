@@ -55,6 +55,9 @@ import type {
 } from '../../services/database'
 import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
 import { splitReportPos, buildGroups, isManagerCmCategory } from '../../utils/report'
+import { reportFileName } from '../../utils/download'
+import { downloadSyllabusPdf } from '../../utils/syllabusPdf'
+import Icon from '../../components/icons'
 import SyllabusReport from '../../components/SyllabusReport'
 import OutcomeDetailsCard from '../../components/OutcomeDetailsCard'
 import type { ConnectedGroup, ConnectedItem } from '../../components/OutcomeDetailsCard'
@@ -259,7 +262,16 @@ export default function SubjectView() {
   // and not just the root; cleared whenever the root changes.
   const [inspectedNodeId, setInspectedNodeId] = useState<string | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [dlOpen, setDlOpen] = useState(false)
+  const [dlFormat, setDlFormat] = useState<'pdf' | 'docx'>('pdf')
+  const [downloading, setDownloading] = useState(false)
+  const [dlNotice, setDlNotice] = useState<string | null>(null)
+  const [dlError, setDlError] = useState<string | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
+  const dlMenuRef = useRef<HTMLDivElement>(null)
+  // Snapshot target for the PDF export: the document root inside the rendered
+  // Curriculum Report (the same element the Curriculum Report page snapshots).
+  const reportRootRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null)
   // Read inside the render effect without appearing in its dependency list. The
@@ -290,6 +302,22 @@ export default function SubjectView() {
       document.body.style.overflow = prev
     }
   }, [isFullscreen])
+
+  // Close the download's format menu on outside click or Escape — the same
+  // behaviour the Curriculum Report page's download menu has.
+  useEffect(() => {
+    if (!dlOpen) return
+    const onPointer = (e: MouseEvent) => {
+      if (dlMenuRef.current && !dlMenuRef.current.contains(e.target as Node)) setDlOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setDlOpen(false) }
+    document.addEventListener('mousedown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [dlOpen])
 
   useEffect(() => {
     let cancelled = false
@@ -2216,25 +2244,85 @@ export default function SubjectView() {
     )
   })()
 
+  // The Curriculum Report's two PO groupings (admin list vs the manager
+  // Curriculum Mapping matrix). Shared by the on-screen document and the Word
+  // download so both spell out the same groups.
+  const subjectGroups = useMemo(() => {
+    if (!datasets || rootType !== 'subject') return { adminGroups: [], managerGroups: [] }
+    const { adminPos, managerPos } = splitReportPos(datasets.pos)
+    return {
+      adminGroups: buildGroups(adminPos, datasets.cmos),
+      managerGroups: buildGroups(managerPos, datasets.cmos),
+    }
+  }, [datasets, rootType])
+
   // The Curriculum Report belongs to the subject root alone. While a branch
   // below it is being inspected the card stands on its own, so the syllabus on
   // screen always matches the card above it.
   const subjectReport = (() => {
     if (!datasets || !selectedCourse || rootType !== 'subject' || isInspecting) return null
-    const { adminPos, managerPos } = splitReportPos(datasets.pos)
     return (
       <SyllabusReport
+        rootRef={reportRootRef}
         course={selectedCourse}
         courses={courses}
         goals={datasets.sgs}
         peos={datasets.peos}
-        adminGroups={buildGroups(adminPos, datasets.cmos)}
-        managerGroups={buildGroups(managerPos, datasets.cmos)}
+        adminGroups={subjectGroups.adminGroups}
+        managerGroups={subjectGroups.managerGroups}
         subjectClos={datasets.clos.filter((c) =>
           cloMatchesSubject(c.course || '', normalizeCode(selectedCourse.code)))}
       />
     )
   })()
+
+  // ── Download the Curriculum Report (subject root only) ────────────────────
+  // The same two exports the Curriculum Report page offers, scoped to the
+  // subject on screen: PDF rasterises the live report node ref; Word rebuilds
+  // the document from the exact same groups the screen shows.
+  const handleSubjectDownload = async () => {
+    if (!selectedCourse || !datasets) return
+    setDlOpen(false)
+    setDownloading(true)
+    setDlNotice(null)
+    setDlError(null)
+    try {
+      if (dlFormat === 'pdf') {
+        if (!reportRootRef.current) throw new Error('The report is not ready yet.')
+        await downloadSyllabusPdf(
+          reportRootRef.current,
+          reportFileName(selectedCourse.code, 'pdf'),
+          'landscape',
+        )
+        setDlNotice('PDF downloaded.')
+      } else {
+        // Lazy: docx is ~450kB and only needed on the Word path.
+        const { downloadSyllabusDocx } = await import('../../utils/syllabusDocx')
+        await downloadSyllabusDocx(
+          {
+            course: selectedCourse,
+            courses,
+            goals: datasets.sgs,
+            peos: datasets.peos,
+            adminGroups: subjectGroups.adminGroups,
+            managerGroups: subjectGroups.managerGroups,
+            subjectClos: datasets.clos.filter((c) =>
+              cloMatchesSubject(c.course || '', normalizeCode(selectedCourse.code))),
+          },
+          'landscape',
+        )
+        setDlNotice('Word document downloaded.')
+      }
+    } catch (e) {
+      setDlError(
+        e instanceof Error
+          ? `Could not create the ${dlFormat === 'pdf' ? 'PDF' : 'Word document'}: ${e.message}`
+          : 'Download failed.',
+      )
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   if (loading) return <p role="status">Loading subjects...</p>
 
@@ -2599,7 +2687,60 @@ export default function SubjectView() {
           )}
           {rootType === 'subject' && (
             <div className="subject-view__report">
-              {subjectReport ?? (
+              {subjectReport ? (
+                <>
+                  <div className="sd-download" ref={dlMenuRef}>
+                    <button
+                      className="btn btn--primary btn--sm sd-download__main"
+                      onClick={handleSubjectDownload}
+                      disabled={downloading || loading}
+                      title="Save the report to a file"
+                    >
+                      <Icon name="download" />
+                      {downloading ? 'Preparing...' : `Download ${dlFormat === 'pdf' ? 'PDF' : 'Word'}`}
+                    </button>
+                    <button
+                      className="btn btn--primary btn--sm sd-download__toggle"
+                      onClick={() => setDlOpen((o) => !o)}
+                      disabled={downloading || loading}
+                      aria-expanded={dlOpen}
+                      aria-haspopup="true"
+                      aria-label="Download options"
+                      title="Choose the format"
+                    >
+                      <Icon name="chevron" />
+                    </button>
+                    {dlOpen && (
+                      <div className="sd-download__menu no-print" role="menu">
+                        <div className="sd-download__group">
+                          <span className="sd-download__label">Format</span>
+                          <div className="sd-download__opts">
+                            <button
+                              className={`sd-download__opt${dlFormat === 'pdf' ? ' is-active' : ''}`}
+                              onClick={() => setDlFormat('pdf')}
+                              role="menuitemradio"
+                              aria-checked={dlFormat === 'pdf'}
+                            >
+                              PDF
+                            </button>
+                            <button
+                              className={`sd-download__opt${dlFormat === 'docx' ? ' is-active' : ''}`}
+                              onClick={() => setDlFormat('docx')}
+                              role="menuitemradio"
+                              aria-checked={dlFormat === 'docx'}
+                            >
+                              Word
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {dlNotice && <p className="msg msg--success" role="status">{dlNotice}</p>}
+                  {dlError && <p className="msg msg--error" role="alert">{dlError}</p>}
+                  {subjectReport}
+                </>
+              ) : (
                 <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
                   {isInspecting
                     ? 'Click “Back to root” above to return to the full Curriculum Report.'
