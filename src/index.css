@@ -3727,13 +3727,15 @@ textarea.input {
   color: #dc2626;
 }
 
-/* ---- panel grid: three across, two rows ----
-   Equal columns, because the six panels each answer one question and none is a
-   continuation of another: a reader jumps straight to the matrix or the gaps. */
+/* ---- panel grid: two across, three rows ----
+   Two columns at every width -- the six panels each answer one question and
+   none is a continuation of another: a reader jumps straight to the matrix
+   or the gaps. Two across also gives the summary's six-column table the room
+   it needs without sideways scrolling. */
 
 .reports-panels {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: stretch;
   gap: var(--reports-gap);
   margin-bottom: 18px;
@@ -4211,19 +4213,9 @@ button.reports-panel__more:hover {
   }
 }
 
-@media (max-width: 1100px) {
-  .reports-panels {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
 @media (max-width: 860px) {
   .reports-kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .reports-panels {
-    grid-template-columns: minmax(0, 1fr);
   }
 
   .reports-banner__side,
