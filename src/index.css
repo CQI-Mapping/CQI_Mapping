@@ -3991,55 +3991,66 @@ button.reports-panel__more:hover {
   color: #94a3b8;
 }
 
-/* ---- outcomes relationship network (components/OutcomesNetwork.tsx) ---- */
+/* ---- outcome coverage chart (components/OutcomeCoverageChart.tsx) ---- */
 
-.onet__chart {
+.ovb-scroll {
+  max-height: 360px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.ovb__chart {
   width: 100%;
   height: auto;
   display: block;
 }
 
-.onet__edge {
-  stroke: #cbd5e1;
-  stroke-width: 1.4;
-}
-
-/* Every node carries a hairline rim so a coloured dot holds its edge over any
-   line it overlaps; hollow is the state where nothing links to the node. */
-.onet__node circle {
-  stroke: #ffffff;
-  stroke-width: 1.5;
-}
-
-.onet__node--isolated circle {
+.ovb__band {
   fill: #f8fafc;
-  stroke: #94a3b8;
-  stroke-dasharray: 2.5 2.5;
 }
 
-.onet__label {
-  font-size: 10px;
+.ovb__code {
+  font-size: 11px;
   font-weight: 600;
+  fill: #334155;
+}
+
+.ovb__track {
+  fill: #f1f5f9;
+}
+
+.ovb__pct {
+  font-size: 10.5px;
+  font-weight: 700;
   fill: #475569;
-  paint-order: stroke;
-  stroke: rgba(255, 255, 255, 0.75);
-  stroke-width: 2.5;
+  font-variant-numeric: tabular-nums;
 }
 
-.onet__node--isolated .onet__label {
-  fill: #94a3b8;
+.ovb__count {
+  font-size: 10px;
+  fill: #64748b;
+  font-variant-numeric: tabular-nums;
 }
 
-.onet__legend {
+/* The status chip is the row's verdict: one glance per row and the grey
+   stones -- the outcomes nothing maps -- collect themselves. */
+.ovb__chiptext {
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+.ovb__legend {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 6px 14px;
   margin: 10px 0 0;
   padding: 0;
   list-style: none;
 }
 
-.onet__item {
+.ovb__item {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -4047,28 +4058,17 @@ button.reports-panel__more:hover {
   color: #64748b;
 }
 
-.onet__dot {
+.ovb__dot {
   width: 9px;
   height: 9px;
   border-radius: 50%;
   border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
-.onet__dot--isolated {
-  background: #f8fafc;
-  border: 1.5px dashed #94a3b8;
-}
-
-.onet__count {
-  display: inline-block;
-  min-width: 16px;
-  padding: 0 5px;
-  border-radius: 9px;
-  background: #f1f5f9;
-  font-size: 10.5px;
-  font-weight: 700;
-  color: #334155;
-  text-align: center;
+.ovb__note {
+  margin-left: auto;
+  font-size: 11px;
+  color: #94a3b8;
 }
 
 /* ---- mapped-targets donut (components/MappedTargetsDonut.tsx) ----

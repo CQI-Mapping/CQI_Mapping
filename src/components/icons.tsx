@@ -28,7 +28,6 @@ export type IconName =
   | 'actions'
   | 'calendar'
   | 'checkCircle'
-  | 'network'
 
 const PATHS: Record<IconName, React.ReactNode> = {
   edit: <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />,
@@ -184,17 +183,6 @@ const PATHS: Record<IconName, React.ReactNode> = {
     <>
       <circle cx="12" cy="12" r="10" fill="currentColor" stroke="none" />
       <path d="m8 12.5 2.5 2.5 5.5-6" stroke="#fff" />
-    </>
-  ),
-  // Three joined nodes: the outcomes network's own mark. Stroke circles so
-  // the dots read as nodes, not bullets.
-  network: (
-    <>
-      <circle cx="18" cy="5" r="2.6" />
-      <circle cx="6" cy="12" r="2.6" />
-      <circle cx="18" cy="19" r="2.6" />
-      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
     </>
   ),
 }
