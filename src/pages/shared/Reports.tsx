@@ -1,9 +1,9 @@
 // Overall Report: the program's curriculum at a glance.
 //
 // Shared by all three roles (admin, manager, faculty), like the record list it
-// grew out of. A header with the export actions, a row of KPI cards, then six
+// grew out of. A header with the export actions, a row of KPI cards, then five
 // panels: the curriculum mapping summary, PO coverage, the outcome coverage
-// chart, the alignment mix, the mapping gaps and CQI monitoring.
+// chart, the alignment mix and the mapping gaps across the last row.
 //
 // The first version built its coverage panels on program_outcomes,
 // course_learning_outcomes and clo_po_matrix. All three are empty and nothing
@@ -34,9 +34,6 @@ import {
   fetchCourseLearningOutcomesStandalone,
   fetchStrategicGoals,
   fetchChedMemoOrders,
-  fetchCqiActions,
-  createCqiAction,
-  updateCqiActionStatus,
 } from '../../services/database'
 import type {
   Program,
@@ -46,8 +43,6 @@ import type {
   CourseLearningOutcomeStandalone,
   StrategicGoal,
   ChedMemoOrder,
-  CqiAction,
-  CqiStatus,
   UserRole,
 } from '../../services/database'
 import { buildReport } from '../../utils/reports'
@@ -119,11 +114,6 @@ function Reports({ profile, onNavigate }: ReportsProps) {
   const [clos, setClos] = useState<CourseLearningOutcomeStandalone[]>([])
   const [goals, setGoals] = useState<StrategicGoal[]>([])
   const [cmos, setCmos] = useState<ChedMemoOrder[]>([])
-  const [cqiActions, setCqiActions] = useState<CqiAction[]>([])
-  // True when the database is missing the cqi_actions migration: the table
-  // itself does not exist, which deserves its own message rather than the
-  // "nothing recorded" line an empty-but-real table earns.
-  const [cqiMissing, setCqiMissing] = useState(false)
   /**
    * The academic year the report covers. It opens on the current school
    * year by the June-start calendar, and the banner offers to turn it to a
@@ -157,12 +147,11 @@ function Reports({ profile, onNavigate }: ReportsProps) {
   const cloGapPage = profile.role === 'user' ? 'clo' : 'curriculum'
   const poGapPage = profile.role === 'user' ? null : 'program-outcomes'
 
-
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const [p, c, po, peo, clo, sg, cmo, cqi] = await Promise.all([
+      const [p, c, po, peo, clo, sg, cmo] = await Promise.all([
         fetchPrograms(),
         fetchCourses(),
         fetchProgramOutcomesStandalone(),
@@ -170,7 +159,6 @@ function Reports({ profile, onNavigate }: ReportsProps) {
         fetchCourseLearningOutcomesStandalone(),
         fetchStrategicGoals(),
         fetchChedMemoOrders(),
-        fetchCqiActions(50),
       ])
       setPrograms(p)
       setCourses(c)
@@ -179,8 +167,6 @@ function Reports({ profile, onNavigate }: ReportsProps) {
       setClos(clo)
       setGoals(sg)
       setCmos(cmo)
-      setCqiActions(cqi.rows)
-      setCqiMissing(cqi.missing)
       // Default to the first program; the selector below lets any role change it.
       setProgramId((current) => current ?? p[0]?.id ?? null)
     } catch (e) {
@@ -299,94 +285,6 @@ function Reports({ profile, onNavigate }: ReportsProps) {
     [mapping],
   )
 
-  // ---- CQI Monitoring -------------------------------------------------
-  // No other page writes to cqi_actions, so the report's last panel is both
-  // the reader and the ledger: admin and manager record recommendations and
-  // advance them along pending -> in progress -> completed; faculty reads
-  // the same history read-only.
-
-  const canManageCqi = profile.role === 'admin' || profile.role === 'manager'
-  const [cqiShowAll, setCqiShowAll] = useState(false)
-  const [cqiFormOpen, setCqiFormOpen] = useState(false)
-  const [cqiBusy, setCqiBusy] = useState(false)
-  const [cqiError, setCqiError] = useState<string | null>(null)
-  const [cqiDraft, setCqiDraft] = useState({
-    code: '',
-    recommendation: '',
-    responsible: '',
-    status: 'pending' as CqiStatus,
-    target_date: '',
-  })
-
-  /** The code the form suggests: what is recorded, plus one, zero-padded. */
-  const nextCqiCode = () => `CQI-${String(cqiActions.length + 1).padStart(2, '0')}`
-
-  const openCqiForm = () => {
-    setCqiError(null)
-    setCqiDraft({
-      code: nextCqiCode(),
-      recommendation: '',
-      responsible: '',
-      status: 'pending',
-      target_date: '',
-    })
-    setCqiFormOpen(true)
-  }
-
-  const closeCqiForm = () => {
-    setCqiFormOpen(false)
-    setCqiError(null)
-  }
-
-  const addCqiAction = async () => {
-    if (!cqiDraft.recommendation.trim()) {
-      setCqiError('The recommendation text is required.')
-      return
-    }
-    setCqiBusy(true)
-    setCqiError(null)
-    try {
-      const created = await createCqiAction({
-        code: cqiDraft.code.trim() || nextCqiCode(),
-        recommendation: cqiDraft.recommendation.trim(),
-        responsible: cqiDraft.responsible.trim(),
-        status: cqiDraft.status,
-        target_date: cqiDraft.target_date || null,
-        program_id: program?.id ?? null,
-      })
-      setCqiActions((rows) => [created, ...rows])
-      closeCqiForm()
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Saving failed.'
-      setCqiError(
-        message.includes('cqi_actions_code_key')
-          ? 'That code is already used — take the next one.'
-          : message,
-      )
-    } finally {
-      setCqiBusy(false)
-    }
-  }
-
-  /** The pipeline in one step: pending -> in progress -> completed. */
-  const CQI_NEXT: Record<CqiStatus, CqiStatus> = {
-    pending: 'in_progress',
-    in_progress: 'completed',
-    completed: 'pending',
-  }
-
-  const cycleCqiStatus = async (action: CqiAction) => {
-    setCqiError(null)
-    try {
-      const updated = await updateCqiActionStatus(action.id, CQI_NEXT[action.status])
-      setCqiActions((rows) => rows.map((r) => (r.id === updated.id ? updated : r)))
-    } catch (e) {
-      setCqiError(e instanceof Error ? e.message : 'Updating the status failed.')
-    }
-  }
-
-  const cqiShown = cqiShowAll ? cqiActions : cqiActions.slice(0, 5)
-
   // ---- the export's source ----
   //
   // There is no on-screen inventory any more: the page is a report about the
@@ -432,7 +330,6 @@ function Reports({ profile, onNavigate }: ReportsProps) {
       setDownloading(false)
     }
   }
-
 
   // Captured once per mount. Computing it inline would re-stamp on every
   // render -- typing in the search box would scroll the timestamp forward.
@@ -599,10 +496,10 @@ function Reports({ profile, onNavigate }: ReportsProps) {
             />
           </div>
 
-          {/* ---- panels: three across, two rows ----
-              The arrangement of the CQI report brief: mapping summary, PO
-              coverage chart and the outcome coverage bars below it; alignment
-              mix, mapping gaps and CQI monitoring on the second. */}
+          {/* ---- panels: two columns, three rows ----
+              The arrangement of the report brief: mapping summary, PO
+              coverage chart and the outcome coverage bars below it; the
+              alignment mix beside it, the mapping gaps full-width last. */}
           <div className="reports-panels">
             {/* 1 ---- */}
             <section className="panel reports-panel">
@@ -712,8 +609,9 @@ function Reports({ profile, onNavigate }: ReportsProps) {
             </section>
 
             {/* 5 -- both directions of a gap: CLOs that name no outcome,
-                     outcomes no CLO names. The tabs carry live counts. -- */}
-            <section className="panel reports-panel">
+                     outcomes no CLO names. The tabs carry live counts.
+                     Full width: the row's only panel since CQI left. -- */}
+            <section className="panel reports-panel reports-panel--span">
               <PanelHead icon="warning" title="Mapping Gaps" />
               <p className="reports-panel__sub">
                 Gaps on both sides of the mapping: learning outcomes that name
@@ -816,158 +714,6 @@ function Reports({ profile, onNavigate }: ReportsProps) {
               />
             </section>
 
-            {/* 6 -- CQI monitoring: the read-out and the ledger in one.
-                     The table only exists after its migration runs, and the
-                     panel says so instead of posing as an empty ledger. -- */}
-            <section className="panel reports-panel">
-              <PanelHead icon="actions" title="CQI Monitoring" />
-              <p className="reports-panel__sub">
-                Latest recommendations and action items.
-              </p>
-              {cqiMissing ? (
-                <div className="rcqi__setup">
-                  <p>The cqi_actions table isn&apos;t set up in this database yet.</p>
-                  <p className="rcqi__setuphint">
-                    Paste the CQI block (supabase/migrations/004-cqi-actions.sql) into
-                    the Supabase SQL editor, then reopen this report — the panel
-                    records and advances recommendations from here.
-                  </p>
-                </div>
-              ) : (
-                <>
-                  {cqiError && <p className="rcqi__error">{cqiError}</p>}
-                  {canManageCqi && !cqiFormOpen && (
-                    <div className="rcqi__bar">
-                      <button type="button" className="rcqi__add" onClick={openCqiForm}>
-                        Record an action
-                      </button>
-                    </div>
-                  )}
-                  {canManageCqi && cqiFormOpen && (
-                    <div className="rcqi__form">
-                      <label className="rcqi__field rcqi__code">
-                        <span>Code</span>
-                        <input
-                          value={cqiDraft.code}
-                          onChange={(e) => setCqiDraft({ ...cqiDraft, code: e.target.value })}
-                        />
-                      </label>
-                      <label className="rcqi__field rcqi__rec">
-                        <span>Recommendation</span>
-                        <input
-                          placeholder="What was recommended"
-                          value={cqiDraft.recommendation}
-                          onChange={(e) =>
-                            setCqiDraft({ ...cqiDraft, recommendation: e.target.value })
-                          }
-                        />
-                      </label>
-                      <label className="rcqi__field">
-                        <span>Responsible</span>
-                        <input
-                          value={cqiDraft.responsible}
-                          onChange={(e) =>
-                            setCqiDraft({ ...cqiDraft, responsible: e.target.value })
-                          }
-                        />
-                      </label>
-                      <label className="rcqi__field">
-                        <span>Status</span>
-                        <select
-                          value={cqiDraft.status}
-                          onChange={(e) =>
-                            setCqiDraft({ ...cqiDraft, status: e.target.value as CqiStatus })
-                          }
-                        >
-                          <option value="pending">Pending</option>
-                          <option value="in_progress">In Progress</option>
-                          <option value="completed">Completed</option>
-                        </select>
-                      </label>
-                      <label className="rcqi__field">
-                        <span>Target date</span>
-                        <input
-                          type="date"
-                          value={cqiDraft.target_date}
-                          onChange={(e) => setCqiDraft({ ...cqiDraft, target_date: e.target.value })}
-                        />
-                      </label>
-                      <div className="rcqi__formbtns">
-                        <button
-                          type="button"
-                          className="rcqi__save"
-                          onClick={addCqiAction}
-                          disabled={cqiBusy}
-                        >
-                          {cqiBusy ? 'Saving…' : 'Save'}
-                        </button>
-                        <button type="button" className="rcqi__cancel" onClick={closeCqiForm}>
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  <div className="table-wrap reports-scroll">
-                    <table className="table reports-cqi">
-                      <thead>
-                        <tr>
-                          <th>ID</th>
-                          <th>Recommendation</th>
-                          <th>Responsible</th>
-                          <th>Status</th>
-                          <th>Target Date</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {cqiShown.length === 0 ? (
-                          <tr>
-                            <td colSpan={5} className="reports-empty">
-                              {canManageCqi
-                                ? 'No recommendations recorded yet — record the first action.'
-                                : 'No recommendations recorded yet.'}
-                            </td>
-                          </tr>
-                        ) : (
-                          cqiShown.map((a) => (
-                            <tr key={a.id}>
-                              <td>{a.code}</td>
-                              <td>{a.recommendation}</td>
-                              <td>{a.responsible || BLANK}</td>
-                              <td>
-                                {canManageCqi ? (
-                                  <button
-                                    type="button"
-                                    className={`status-badge status-badge--${cqiTone(a.status)} rcqi__status`}
-                                    title="Click to advance the status"
-                                    onClick={() => cycleCqiStatus(a)}
-                                  >
-                                    {cqiLabel(a.status)}
-                                  </button>
-                                ) : (
-                                  <span
-                                    className={`status-badge status-badge--${cqiTone(a.status)}`}
-                                  >
-                                    {cqiLabel(a.status)}
-                                  </span>
-                                )}
-                              </td>
-                              <td className="reports-cqi__date">{formatTarget(a.target_date)}</td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                  <PanelFoot
-                    left={`${cqiActions.length} recorded`}
-                    action={cqiShowAll ? 'Show Latest Five' : 'View All Actions'}
-                    onAction={
-                      cqiActions.length > 5 ? () => setCqiShowAll((v) => !v) : undefined
-                    }
-                  />
-                </>
-              )}
-            </section>
           </div>
 
           {/* ---- footer: who produced this and what it is not ---- */}
@@ -1010,24 +756,6 @@ function statusBadge({ mapped, total }: { mapped: number; total: number }) {
   if (mapped < total)
     return { label: 'Partially Mapped', className: 'status-badge status-badge--partial' }
   return { label: 'Mapped', className: 'status-badge status-badge--mapped' }
-}
-
-const CQI_LABELS = {
-  pending: 'Pending',
-  in_progress: 'In Progress',
-  completed: 'Completed',
-} as const
-
-const cqiLabel = (status: keyof typeof CQI_LABELS) => CQI_LABELS[status] ?? 'Pending'
-const cqiTone = (status: keyof typeof CQI_LABELS) =>
-  status === 'completed' ? 'mapped' : status === 'in_progress' ? 'partial' : 'unmapped'
-
-/** "2026-12-01" -> "Dec 2026". A null target date is not an error. */
-function formatTarget(date: string | null): string {
-  if (!date) return BLANK
-  const d = new Date(`${date}T00:00:00`)
-  if (Number.isNaN(d.getTime())) return BLANK
-  return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
 }
 
 /**
@@ -1077,7 +805,6 @@ function PanelHead({ icon, title }: { icon: IconName; title: string }) {
     </div>
   )
 }
-
 
 /**
  * One KPI tile.
