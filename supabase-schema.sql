@@ -287,29 +287,6 @@ AS $$
     SELECT role FROM public.profiles WHERE id = auth.uid();
 $$;
 
--- Is this address an admin's? Used by the activity log's read policy to keep a
--- manager out of the admin's entries. SECURITY DEFINER so the answer does not
--- depend on profiles' own RLS being left as permissive as it is today -- two
--- policies coupled together would mean tightening one silently changing the
--- other, with nothing to indicate why.
-CREATE OR REPLACE FUNCTION public.is_admin_email(p_email TEXT)
-RETURNS BOOLEAN
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-    SELECT EXISTS (
-        SELECT 1
-        FROM public.profiles
-        WHERE role = 'admin'
-          AND email IS NOT DISTINCT FROM p_email
-    );
-$$;
-
-REVOKE ALL ON FUNCTION public.is_admin_email(TEXT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.is_admin_email(TEXT) TO authenticated;
-
 -- ============================================================
 -- TRIGGER: auto-create profile on signup
 -- ============================================================
@@ -455,18 +432,27 @@ CREATE POLICY "Admins can delete course learning outcomes" ON public.course_lear
 -- functions log_activity(p_action) and record_login_event(...), so users cannot
 -- forge log entries with someone else's email.
 --
--- The two supervisory tiers are separated: an admin reads everything, a manager
--- reads everything except the admin's entries. A row whose actor is null counts
--- as unattributable and is hidden from managers too. See
--- migrations/003-activity-log-role-visibility.sql.
-CREATE POLICY "Admins and managers can view activity logs" ON public.activity_logs FOR SELECT
+-- Visibility is a hierarchy, not a flat grant: an admin sees every entry, a
+-- manager sees faculty and other managers but never an admin's. The earlier
+-- form of this policy granted both roles every row, which let a manager read
+-- the admin's activity. Existing databases get the same policy from
+-- migrations/003-manager-log-visibility.sql — apply that one there, never this
+-- file.
+--
+-- The role is resolved from profiles at read time, so visibility follows an
+-- actor's CURRENT role; see the migration for the reasoning.
+CREATE POLICY "Scoped activity log visibility" ON public.activity_logs FOR SELECT
     USING (
-        public.current_user_role() = 'admin'
-        OR (
-            public.current_user_role() = 'manager'
-            AND user_email IS NOT NULL
-            AND NOT public.is_admin_email(user_email)
-        )
+        CASE public.current_user_role()
+            WHEN 'admin' THEN TRUE
+            WHEN 'manager' THEN NOT EXISTS (
+                SELECT 1
+                FROM public.profiles p
+                WHERE p.email = activity_logs.user_email
+                  AND p.role = 'admin'
+            )
+            ELSE FALSE
+        END
     );
 
 -- STRATEGIC GOALS

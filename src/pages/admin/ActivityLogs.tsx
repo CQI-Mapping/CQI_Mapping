@@ -40,7 +40,29 @@ function searchableDetails(entry: ActivityLogEntry): string {
 interface ActivityLogsViewProps {
   title?: string
   description?: string
+  /**
+   * The signed-in user's role, so the filters offer what the database will
+   * actually return. Defaults to 'user' — least privilege, matching the
+   * fallback App.tsx already uses for a profile it has not loaded. Getting
+   * this wrong costs only a filter option: the RLS policy decides what rows
+   * exist regardless (migrations/003-manager-log-visibility.sql).
+   */
+  viewerRole?: UserRole
 }
+
+/**
+ * Role filter options, in the order a supervisor reads them down the column.
+ *
+ * Admins are dropped for a manager because their entries are filtered out of
+ * the table by RLS, and an option that can only ever return an empty table is
+ * a defect rather than a choice. Enforcement stays in the database; this only
+ * stops the UI from advertising a filter that cannot be satisfied.
+ */
+const ROLE_FILTER_OPTIONS = [
+  { value: 'admin', label: 'Admins' },
+  { value: 'manager', label: 'Managers' },
+  { value: 'user', label: 'Faculty' },
+]
 
 /** "3 Courses · 2 Sign-ins · 1 Outcomes" — busiest categories first. */
 function summarise(row: ActivityRollupRow): string {
@@ -51,7 +73,11 @@ function summarise(row: ActivityRollupRow): string {
     .join(' · ')
 }
 
-function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogsViewProps = {}) {
+function ActivityLogsView({ title = 'Activity Logs', description, viewerRole = 'user' }: ActivityLogsViewProps = {}) {
+  const isAdminViewer = viewerRole === 'admin'
+  const roleOptions = isAdminViewer
+    ? ROLE_FILTER_OPTIONS
+    : ROLE_FILTER_OPTIONS.filter((o) => o.value !== 'admin')
   const [entries, setEntries] = useState<ActivityLogEntry[]>([])
   const [actors, setActors] = useState<string[]>([])
   /**
@@ -382,9 +408,9 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
               aria-label="Filter the log by role"
             >
               <option value="">All roles</option>
-              <option value="admin">Admins</option>
-              <option value="manager">Managers</option>
-              <option value="user">Faculty</option>
+              {roleOptions.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
             </select>
           </label>
 
@@ -445,6 +471,14 @@ function ActivityLogsView({ title = 'Activity Logs', description }: ActivityLogs
         {hasFilters && (
           <p className="activity-filters__count">
             Showing {rows.length} of {entries.length} loaded entries
+          </p>
+        )}
+        {/* Say why the admin is missing rather than letting a manager conclude
+            the log is broken or that entries are being withheld from them. */}
+        {!isAdminViewer && (
+          <p className="activity-filters__scope">
+            Showing faculty and manager activity. Admin entries are outside your
+            level.
           </p>
         )}
       </div>

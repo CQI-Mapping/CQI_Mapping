@@ -338,6 +338,10 @@ function App() {
     if (page === 'curriculum' && role === 'user') return <Page />
     if (page === 'view') return <Page userEmail={profile?.email} />
     if (page === 'reports') return <Page profile={profile} onNavigate={navigate} />
+    // The log page filters by role, and which roles it may offer depends on
+    // the viewer: RLS hides admin-authored rows from managers (migration 003),
+    // so offering them an Admins filter would only ever yield an empty table.
+    if (page === 'activity-logs') return <Page viewerRole={role} />
     return <Page profile={profile} onNavigate={navigate} />
   }
 
