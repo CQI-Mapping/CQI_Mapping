@@ -30,8 +30,11 @@ interface PoCoverageBarsProps {
   totalClos: number
 }
 
+// 320 tall: the panel's row height is set by the 33-row summary beside it,
+// and a chart drawn short floats at the top of a stretched panel with dead
+// white below -- the height reads where that row lands and fills it instead.
 const WIDTH = 520
-const HEIGHT = 240
+const HEIGHT = 320
 const LEFT = 40
 const RIGHT = 8
 const TOP = 24
