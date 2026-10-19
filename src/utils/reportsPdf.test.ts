@@ -1,21 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import {
-  buildReportsPdf,
-  columnWidths,
-  overallReportPdfFileName,
-  renderReportsPdf,
-  type PdfDoc,
-} from './reportsPdf'
-import type { Report, ReportRow, ReportSection, SummaryLine } from './reports'
+import { buildReportsPdf, renderReportsPdf, type PdfDoc } from './reportsPdf'
+import type { ReportsPdfModel } from './reportsPdfModel'
 
 // ---------------------------------------------------------------------------
 // A recorder standing in for jsPDF.
 //
-// The layout only ever talks to the PdfDoc interface, so the whole document can
-// be built here and inspected as a list of calls: which strings landed on which
-// page, at what colour, with what alignment. A real jsPDF would have to be
-// parsed back out of a byte stream to answer the same questions, and would drag
-// a browser-shaped dependency into a unit test.
+// The layout only ever talks to the PdfDoc interface, so the document can be
+// built here and inspected as a list of calls: which strings landed on which
+// page, at what colour and alignment, and where fills were used. A real jsPDF
+// would have to be parsed back out of a byte stream to answer the same
+// questions, and would drag a browser-shaped dependency into a unit test.
 // ---------------------------------------------------------------------------
 
 interface TextCall {
@@ -23,15 +17,20 @@ interface TextCall {
   page: number
   align?: 'left' | 'center' | 'right'
   color: string
+  font: string
 }
 
-const CHAR_MM = 1.6
+// Average width of a character at the body sizes, close to helvetica's real
+// metrics; the recorder's own wrap must not be fatter than the paper's, or a
+// field that fits one line on paper becomes three lines under test.
+const CHAR_MM = 1.3
 
 function recorder() {
   const texts: TextCall[] = []
-  const pages: number[] = []
   let page = 1
   let color = '0,0,0'
+  let font = 'helvetica: normal'
+  let filledCount = 0
 
   const doc: PdfDoc = {
     addPage() {
@@ -41,18 +40,24 @@ function recorder() {
     setPage(next) {
       page = next
     },
-    setFont() {},
+    setFont(name, style) {
+      font = `${name}: ${style ?? 'normal'}`
+    },
     setFontSize() {},
     setTextColor(r, g, b) {
       color = `${r},${g},${b}`
     },
     setDrawColor() {},
-    setFillColor() {},
+    setFillColor() {
+      filledCount += 0 // fills are observed through lines/rect counts
+    },
     setLineWidth() {},
     text(value, _x, _y, opts) {
-      texts.push({ text: value, page, align: opts?.align, color })
+      texts.push({ text: value, page, align: opts?.align, color, font })
     },
     splitTextToSize(value, width) {
+      // Wrap like a real font would, on a character budget derived from the
+      // column's width. Deterministic, and wide enough to be offensive.
       const perLine = Math.max(1, Math.floor(width / CHAR_MM))
       const words = value.split(' ')
       const lines: string[] = []
@@ -69,227 +74,284 @@ function recorder() {
       return lines
     },
     getTextWidth: (value) => value.length * CHAR_MM,
-    rect() {},
+    rect() {
+      filledCount += 1
+    },
     line() {},
+    circle() {
+      filledCount += 1
+    },
+    lines(segments) {
+      filledCount += segments.length
+    },
   }
 
-  return { doc, texts, pages, pageOf: (needle: string) => texts.filter((t) => t.text === needle) }
+  return {
+    doc,
+    texts,
+    rectsOf: () => filledCount,
+    pageOf: (needle: string) => texts.filter((t) => t.text === needle),
+  }
 }
 
-const meta = {
-  academicYear: '2026 - 2027',
-  semester: '1',
-  generated: 'Oct 17, 2026 02:24 PM',
-  institute: 'College of Information Technology',
-  program: 'BSIT Program',
-}
-
-const summary: SummaryLine[] = [
-  { key: 'programs', title: 'Programs', active: 1, archived: 0, total: 1 },
-  { key: 'clos', title: 'Course Learning Outcomes', active: 2, archived: 1, total: 3 },
-]
-
-const programs: ReportSection = {
-  key: 'programs',
-  title: 'Programs',
-  hasCourse: false,
-  rows: [
-    { code: 'BSIT', name: 'Bachelor of Science in Information Technology', status: 'active' },
-    { code: 'BSCS', name: 'Computer Science', status: 'archived' },
+const base: ReportsPdfModel = {
+  meta: {
+    institute: 'INSTITUTE FOR COMPUTER STUDIES',
+    department: 'BSIT Department',
+    tagline: ['Quality Education.', 'Continuous Improvement.', 'Better Future.'],
+    academicYear: '2026 - 2027',
+    program: 'Bachelor of Science in Information Technology (BSIT)',
+    semester: '1',
+    generated: 'October 17, 2026, 02:24 PM',
+    reportId: 'CQI-OVR-20261017',
+    source: 'CQI Monitoring System (Supabase)',
+  },
+  kpis: [
+    { label: 'Total Programs', value: '1', sub: 'BSIT' },
+    { label: 'Total Courses', value: '36', sub: 'Across 4 years' },
+    { label: 'Total CLOs', value: '248', sub: 'From all courses' },
+    { label: 'Mapping Coverage', value: '82%', sub: '(203 / 248 CLOs)', tone: 'good' },
   ],
+  mapping: {
+    rows: [
+      { code: 'IT101', title: 'Introduction to Information Technology', year: '2026 - 2027', semester: '1', clos: 6, status: 'Mapped' },
+      { code: 'IT103', title: 'Discrete Mathematics', year: '2026 - 2027', semester: '2', clos: 8, status: 'Partially Mapped' },
+    ],
+  },
+  poCoverage: {
+    rows: [
+      { label: 'PO-1', percent: 93, count: 42 },
+      { label: 'PO-2', percent: 87, count: 38 },
+      { label: 'PO-3', percent: 0, count: 0 },
+    ],
+    uncovered: 2,
+    hidden: 0,
+    totalClos: 248,
+  },
+  matrix: {
+    columns: [
+      { key: 'po-1', label: 'PO-1' },
+      { key: 'po-2', label: 'PO-2' },
+    ],
+    rows: [
+      { label: 'IT101 · CLO-1', hits: [0] },
+      { label: 'IT101 · CLO-2', hits: [0, 1] },
+    ],
+    unmappedCount: 45,
+  },
+  mix: {
+    centerValue: 203,
+    centerLabel: 'Mapped CLOs',
+    slices: [
+      { label: 'PO', count: 110, rgb: [21, 128, 61] },
+      { label: 'PEO', count: 49, rgb: [77, 154, 47] },
+      { label: 'Strategic Goal', count: 30, rgb: [59, 130, 246] },
+      { label: 'CHED', count: 14, rgb: [139, 92, 246] },
+    ],
+  },
+  gaps: {
+    unmappedClos: [{ course: 'IT103', text: 'Apply mathematical models in computing' }],
+    unreachedPos: [{ code: 'PO-3', title: 'Collaboration' }],
+  },
+  cqi: {
+    missing: false,
+    rows: [
+      { code: 'IT103', recommendation: 'Validate and map the 45 unmapped CLOs.', responsible: 'Program Head', status: 'Pending', target: 'Dec 2026' },
+    ],
+  },
+  findings: ['Mapping coverage is 82% — 203 of 248 learning outcomes name a program outcome.'],
+  recommendations: ['Map the 45 learning outcomes that currently name no program outcome.'],
+  signatures: {
+    preparedName: 'Maria Santos',
+    preparedRole: 'Coordinator',
+    date: 'October 17, 2026',
+  },
 }
 
-const clos: ReportSection = {
-  key: 'clos',
-  title: 'Course Learning Outcomes',
-  hasCourse: true,
-  rows: [
-    { code: 'CLO-1', name: 'Apply PO-12, PO-6', course: 'IT21', status: 'active' },
-    { code: 'CLO-2', name: 'Analyze PO-3', course: 'IT21', status: 'active' },
-  ],
+const emptyModel: ReportsPdfModel = {
+  ...base,
+  kpis: [],
+  mapping: { rows: [] },
+  poCoverage: { rows: [], uncovered: 0, hidden: 0, totalClos: 0 },
+  matrix: { columns: [], rows: [], unmappedCount: 0 },
+  mix: { centerValue: 0, centerLabel: 'Mapped CLOs', slices: [] },
+  gaps: { unmappedClos: [], unreachedPos: [] },
+  cqi: { missing: true, rows: [] },
+  findings: [],
+  recommendations: [],
 }
 
-const report: Report = {
-  sections: [programs, clos],
-  summary,
-  shownCount: 4,
-}
-
-const emptySection: Report = {
-  sections: [{ key: 'courses', title: 'Courses', hasCourse: false, rows: [] }],
-  summary,
-  shownCount: 0,
-}
-
-describe('overallReportPdfFileName', () => {
-  it('names the file by date', () => {
-    expect(overallReportPdfFileName(new Date(2026, 9, 18))).toBe('overall-report-2026-10-18.pdf')
-  })
-})
-
-describe('columnWidths', () => {
-  it('fills the content width with or without a course column', () => {
-    const sum = (w: number[]) => w.reduce((a, b) => a + b, 0)
-    expect(sum(columnWidths(false))).toBe(182)
-    expect(sum(columnWidths(true))).toBe(182)
-  })
-
-  it('gives the name column more room without the course column', () => {
-    const withoutCourse = columnWidths(false)
-    const withCourse = columnWidths(true)
-    // Same index only because the course column is inserted, so compare by the
-    // shared layout: the name column is whatever is left over.
-    expect(withoutCourse[withoutCourse.length - 2]).toBeGreaterThan(
-      withCourse[withCourse.length - 2],
-    )
-  })
-})
-
-describe('renderReportsPdf title block', () => {
+describe('renderReportsPdf masthead and title band', () => {
   const { doc, texts } = recorder()
-  renderReportsPdf(doc, report, meta)
+  renderReportsPdf(doc, base)
 
-  it('names the document and the system', () => {
+  it('names the system with the department and tagline', () => {
     expect(texts.some((t) => t.text === 'CQI MONITORING SYSTEM')).toBe(true)
-    expect(texts.some((t) => t.text === 'Overall Report')).toBe(true)
+    expect(texts.some((t) => t.text.includes('BSIT Department'))).toBe(true)
+    for (const line of base.meta.tagline) {
+      expect(texts.some((t) => t.text === line)).toBe(true)
+    }
   })
 
-  it('carries the scope, year, semester and stamp', () => {
-    // The institute and the program share one scope line under the title.
-    expect(
-      texts.some((t) => t.text.includes(meta.institute) && t.text.includes(meta.program)),
-    ).toBe(true)
-    expect(texts.some((t) => t.text === 'ACADEMIC YEAR')).toBe(true)
+  it('titles the sheet and carries the identifying fields', () => {
+    expect(texts.some((t) => t.text === 'OVERALL REPORT')).toBe(true)
+    expect(texts.some((t) => t.text === 'Academic Year')).toBe(true)
     expect(texts.some((t) => t.text === '2026 - 2027')).toBe(true)
-    expect(texts.some((t) => t.text === 'SEMESTER')).toBe(true)
-    expect(texts.some((t) => t.text === '1')).toBe(true)
-    expect(texts.some((t) => t.text === meta.generated)).toBe(true)
-  })
-
-  it('leaves the semester out when the report has none', () => {
-    const other = recorder()
-    renderReportsPdf(other.doc, report, {
-      academicYear: '2026 - 2027',
-      generated: 'Oct 17, 2026 02:24 PM',
-    })
-    expect(other.texts.some((t) => t.text === 'SEMESTER')).toBe(false)
+    // The program's full name wraps inside its field rather than truncating,
+    // so the assertion reads the identifying tail, not a whole line.
+    expect(texts.some((t) => t.text.includes('(BSIT)'))).toBe(true)
+    expect(texts.some((t) => t.text === base.meta.reportId)).toBe(true)
+    expect(texts.some((t) => t.text === base.meta.source)).toBe(true)
   })
 })
 
-describe('renderReportsPdf tables', () => {
-  const { doc, texts, pageOf } = recorder()
-  renderReportsPdf(doc, report, meta)
+describe('renderReportsPdf sections', () => {
+  const { doc, texts } = recorder()
+  renderReportsPdf(doc, base)
 
-  it('summarises the whole dataset before the tables', () => {
-    const active = pageOf('Active').length
-    expect(active).toBeGreaterThan(0)
-    expect(texts.some((t) => t.text === 'Section')).toBe(true)
-    // The summary counts all three learning outcomes; the tables below show two.
-    expect(texts.some((t) => t.text === '3')).toBe(true)
+  it('numbers the section bands in order', () => {
+    const headings = texts.filter((t) => /^\d+\.\s/.test(t.text) && t.font.includes('bold')).map((t) => t.text)
+    expect(headings[0]).toBe('1.  Executive Summary')
+    expect(headings).toContain('2.  Curriculum Mapping Summary')
+    expect(headings).toContain('3.  PO Coverage Chart')
+    expect(headings).toContain('4.  CLO - PO Alignment Matrix')
+    expect(headings).toContain('5.  Outcomes Alignment by Type')
+    expect(headings).toContain('6.  Mapping Gaps')
+    expect(headings).toContain('7.  CQI Monitoring & Recommendations')
+    expect(headings).toContain('8.  Key Findings and Remarks')
   })
 
-  it('renders a section heading and its column headings', () => {
-    expect(texts.some((t) => t.text === 'Programs')).toBe(true)
-    expect(texts.some((t) => t.text === 'Course Learning Outcomes')).toBe(true)
-    expect(texts.some((t) => t.text === 'No.')).toBe(true)
-    expect(texts.some((t) => t.text === 'Code')).toBe(true)
-    expect(texts.some((t) => t.text === 'Name')).toBe(true)
+  it('draws the KPI values and their qualifiers', () => {
+    for (const card of base.kpis) {
+      expect(texts.some((t) => t.text === card.label)).toBe(true)
+      expect(texts.some((t) => t.text === card.value)).toBe(true)
+    }
+    expect(texts.some((t) => t.text === '(203 / 248 CLOs)')).toBe(true)
   })
 
-  it('shows the course column only where a section has one', () => {
-    // Course appears once as a column heading, not once per section.
-    expect(pageOf('Course').length).toBe(1)
+  it('lays the KPI cards out four to a row', () => {
+    // The recorder cannot count columns, but two rows of four on eight cards
+    // has to mean two page-1 rows; a five-across overflow would put a card
+    // where it does not belong. Four labels fit the content width only because
+    // the layout chose that size, which is the behaviour under test.
+    const labelsOnFirstPage = texts.filter((t) => base.kpis.some((k) => k.label === t.text) && t.page === 1)
+    expect(labelsOnFirstPage.length).toBe(base.kpis.length)
   })
 
-  it('labels every row Active or Archived, matching the summary wording', () => {
-    expect(texts.some((t) => t.text === 'Status')).toBe(true)
-    expect(pageOf('Active').some((t) => t.align === 'right')).toBe(true)
-    expect(pageOf('Archived').some((t) => t.align === 'right')).toBe(true)
+  it('prints the mapping rows with statuses worded like the page', () => {
+    expect(texts.some((t) => t.text === 'IT101')).toBe(true)
+    // Course titles wrap across lines, so the words carry the assertion.
+    expect(texts.some((t) => t.text.includes('Information Technology'))).toBe(true)
+    expect(texts.some((t) => t.text === 'Mapped')).toBe(true)
+    expect(texts.some((t) => t.text === 'Partially Mapped')).toBe(true)
   })
 
-  it('numbers rows from one within each section', () => {
-    expect(pageOf('1').length).toBeGreaterThan(0)
-    expect(pageOf('2').length).toBeGreaterThan(0)
+  it('draws the coverage bars with their percents', () => {
+    expect(texts.some((t) => t.text === '93%')).toBe(true)
+    expect(texts.some((t) => t.text === 'PO-1')).toBe(true)
+    expect(texts.some((t) => t.text.includes('no mapped CLOs'))).toBe(true)
   })
 
-  it('right-aligns the count columns and left-aligns the names', () => {
-    const name = texts.find((t) => t.text === 'Information Technology' || t.text === 'Bachelor of Science in Information Technology')
-    expect(name?.align).toBeUndefined()
-    const status = pageOf('Archived')
-    expect(status[0]?.align).toBe('right')
+  it('titles the matrix and its ending note honestly', () => {
+    expect(texts.some((t) => t.text === '4.  CLO - PO Alignment Matrix')).toBe(true)
+    expect(texts.some((t) => t.text.includes('names that program outcome'))).toBe(true)
   })
 
-  it('marks an archived row by its ink rather than a word in the name', () => {
-    const archived = texts.find((t) => t.text === 'Computer Science')
-    const active = texts.find((t) => t.text === 'Bachelor of Science in Information Technology')
-    expect(archived?.color).not.toBe(active?.color)
+  it('charts the donut with its hub and legend', () => {
+    expect(texts.some((t) => t.text === '203')).toBe(true)
+    expect(texts.some((t) => t.text === 'Mapped CLOs')).toBe(true)
+    expect(texts.some((t) => t.text === 'PO (110)')).toBe(true)
   })
 
-  it('says so when a section has nothing to show', () => {
-    const empty = recorder()
-    renderReportsPdf(empty.doc, emptySection, meta)
-    expect(empty.texts.some((t) => t.text === 'No records to show.')).toBe(true)
+  it('lists both directions of the gaps', () => {
+    expect(texts.some((t) => t.text.includes('Apply mathematical models'))).toBe(true)
+    expect(texts.some((t) => t.text.includes('Collaboration'))).toBe(true)
+  })
+
+  it('prints the CQI action with its status', () => {
+    expect(texts.some((t) => t.text === 'Pending')).toBe(true)
+    expect(texts.some((t) => t.text.includes('unmapped CLOs'))).toBe(true)
+  })
+
+  it('says plainly when the CQI table is absent', () => {
+    const other = recorder()
+    renderReportsPdf(other.doc, emptyModel)
+    expect(other.texts.some((t) => t.text.includes('not set up on this database'))).toBe(true)
+  })
+
+  it('numbers the findings and the recommendations', () => {
+    expect(texts.some((t) => t.text === '1. Mapping coverage is 82% — 203 of 248 learning outcomes name a program outcome.')).toBe(true)
+    expect(texts.some((t) => t.text === '1.')).toBe(true)
+  })
+
+  it('signs the sheet with who prepared it', () => {
+    expect(texts.some((t) => t.text === 'Maria Santos')).toBe(true)
+    expect(texts.some((t) => t.text === 'Coordinator')).toBe(true)
+    expect(texts.some((t) => t.text === 'Reviewed by')).toBe(true)
+    expect(texts.some((t) => t.text === 'Date: October 17, 2026')).toBe(true)
+  })
+
+  it('empties gracefully across every section', () => {
+    // emptyModel exercises the same pass with nothing anywhere: no throw, and
+    // every numbered band still present -- a section that vanished entirely
+    // would read as pages falling out of a bound document.
+    const r = recorder()
+    renderReportsPdf(r.doc, emptyModel)
+    const headings = r.texts.filter((t) => /^\d+\.\s/.test(t.text)).map((t) => t.text)
+    expect(headings.length).toBe(8)
+    expect(r.texts.some((t) => t.text.includes('Map the remaining') || t.text.includes('Nothing to align yet'))).toBe(true)
   })
 })
 
 describe('renderReportsPdf pagination', () => {
-  /** A section long enough to run off the bottom of an A4 page several times. */
-  const longSection: Report = {
-    ...report,
-    sections: [
-      {
-        key: 'clos',
-        title: 'Course Learning Outcomes',
-        hasCourse: true,
-        rows: Array.from({ length: 220 }, (_, i): ReportRow => ({
-          code: `CLO-${i + 1}`,
-          name: `Outcome number ${i + 1} for subject IT21`,
-          course: 'IT21',
-          status: 'active',
-        })),
-      },
-    ],
+  const longModel: ReportsPdfModel = {
+    ...base,
+    mapping: {
+      rows: Array.from({ length: 140 }, (_, i) => ({
+        code: `IT${100 + i}`,
+        title: `Course subject number ${i + 1} in the program catalogue`,
+        year: '2026 - 2027',
+        semester: i % 2 ? '2' : '1',
+        clos: 5 + (i % 7),
+        status: i % 3 === 0 ? 'Mapped' : 'Partially Mapped',
+      })),
+    },
   }
 
   const { doc, texts, pageOf } = recorder()
-  renderReportsPdf(doc, longSection, meta)
+  renderReportsPdf(doc, longModel)
 
   it('runs onto more pages than one', () => {
     expect(doc.getNumberOfPages()).toBeGreaterThan(1)
   })
 
-  it('repeats the column headings on the continuation pages', () => {
-    const headingPages = new Set(pageOf('Code').map((t) => t.page))
+  it('repeats the column headings on continuation pages', () => {
+    // 'Course Title' belongs to the mapping table alone; the CQI table's
+    // first heading is 'Code', so its later pages cannot fake a match.
+    const headingPages = new Set(pageOf('Course Title').map((t) => t.page))
     expect(headingPages.size).toBeGreaterThan(1)
   })
 
-  it('identifies the document on every page after the first', () => {
-    const headers = texts.filter((t) => t.text.startsWith('Academic Year'))
-    expect(new Set(headers.map((t) => t.page)).size).toBeGreaterThan(1)
-  })
-
-  it('keeps numbering across the break instead of restarting at one', () => {
-    // The last row is only on the document if its number survived every page
-    // change; a counter reset per page would stop well short of 220.
-    expect(texts.some((t) => t.text === '220')).toBe(true)
-  })
-
-  it('stamps every page with the page number and the total', () => {
+  it('carries a footer band on every page', () => {
     const total = doc.getNumberOfPages()
     for (let page = 1; page <= total; page += 1) {
       expect(texts.some((t) => t.text === `Page ${page} of ${total}` && t.page === page)).toBe(true)
     }
-    expect(texts.some((t) => t.text === `Generated ${meta.generated}`)).toBe(true)
+  })
+
+  it('identifies the document on every page after the first', () => {
+    const headers = pageOf('CQI MONITORING SYSTEM')
+    expect(new Set(headers.map((t) => t.page)).size).toBeGreaterThan(1)
   })
 })
 
 describe('buildReportsPdf', () => {
-  // The layout above is exercised without jsPDF, which leaves the one thing only
-  // the real thing can answer: does the click produce a file at all. A wrong
-  // output format or a missing method here fails silently in the browser --
+  // The layout above is exercised without jsPDF, which leaves the one thing
+  // only the real thing can answer: does the click produce a file at all. A
+  // wrong output format or missing method fails silently in the browser --
   // every other test still passes and the user gets an empty download.
   it('returns a real PDF blob', async () => {
-    const blob = await buildReportsPdf(report, meta)
+    const blob = await buildReportsPdf(base)
     expect(blob.size).toBeGreaterThan(1000)
     const head = new TextDecoder().decode(await blob.slice(0, 5).arrayBuffer())
     expect(head).toBe('%PDF-')

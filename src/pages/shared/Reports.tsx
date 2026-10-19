@@ -34,6 +34,7 @@ import {
   fetchCourseLearningOutcomesStandalone,
   fetchStrategicGoals,
   fetchChedMemoOrders,
+  fetchCqiActions,
 } from '../../services/database'
 import type {
   Program,
@@ -44,11 +45,13 @@ import type {
   StrategicGoal,
   ChedMemoOrder,
   UserRole,
+  CqiResult,
 } from '../../services/database'
-import { buildReport } from '../../utils/reports'
 import { SCHOOL } from '../../utils/report'
 import { saveBlob } from '../../utils/download'
 import { buildReportsPdf, overallReportPdfFileName } from '../../utils/reportsPdf'
+import type { ReportsPdfModel, MappingStatus } from '../../utils/reportsPdfModel'
+import { anchorKeysOf } from '../../utils/cloPoMapping'
 import {
   alignmentSummary,
   buildAnchors,
@@ -66,8 +69,13 @@ import Icon from '../../components/icons'
 import type { IconName } from '../../components/icons'
 
 interface ReportsProps {
-  profile: { email?: string | null; role?: UserRole }
+  profile: { email?: string | null; role?: UserRole; full_name?: string | null }
   onNavigate?: (page: string) => void
+}
+
+/** The role as a person is introduced on a signed document, not as a slug. */
+function signatureRole(role: UserRole): string {
+  return role === 'admin' ? 'Administrator' : role === 'manager' ? 'Manager' : 'Faculty'
 }
 
 /**
@@ -115,6 +123,12 @@ function Reports({ profile, onNavigate }: ReportsProps) {
   const [goals, setGoals] = useState<StrategicGoal[]>([])
   const [cmos, setCmos] = useState<ChedMemoOrder[]>([])
   /**
+   * The CQI actions table, fetched beside everything else the report reads.
+   * `missing` is not an error: a database provisioned before the table gets an
+   * absent section in the PDF, not a failed export.
+   */
+  const [cqi, setCqi] = useState<CqiResult>({ rows: [], missing: false })
+  /**
    * The academic year the report covers. It opens on the current school
    * year by the June-start calendar, and the banner offers to turn it to a
    * neighbouring year -- the choice a picker, not a stated fact.
@@ -151,7 +165,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
     setLoading(true)
     setError(null)
     try {
-      const [p, c, po, peo, clo, sg, cmo] = await Promise.all([
+      const [p, c, po, peo, clo, sg, cmo, cqiResult] = await Promise.all([
         fetchPrograms(),
         fetchCourses(),
         fetchProgramOutcomesStandalone(),
@@ -159,6 +173,8 @@ function Reports({ profile, onNavigate }: ReportsProps) {
         fetchCourseLearningOutcomesStandalone(),
         fetchStrategicGoals(),
         fetchChedMemoOrders(),
+        // An absent table is a finding, not a load failure.
+        fetchCqiActions().catch(() => ({ rows: [], missing: true })),
       ])
       setPrograms(p)
       setCourses(c)
@@ -167,6 +183,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
       setClos(clo)
       setGoals(sg)
       setCmos(cmo)
+      setCqi(cqiResult)
       // Default to the first program; the selector below lets any role change it.
       setProgramId((current) => current ?? p[0]?.id ?? null)
     } catch (e) {
@@ -287,17 +304,19 @@ function Reports({ profile, onNavigate }: ReportsProps) {
 
   // ---- the export's source ----
   //
-  // There is no on-screen inventory any more: the page is a report about the
-  // program, not a listing of the database. The Excel export still carries
-  // every record, built the same way -- the whole dataset, nothing filtered --
-  // because that is the one artifact that has to leave the app complete.
-  const report = buildReport({ programs, courses, pos, peos, clos })
+  // The PDF is the sheet the page shows: the same memoised KPI tiles, mapping
+  // rows, coverage chart, matrix, mixes and gaps, assembled inside download()
+  // from what the panels display. There is no separate computation for the
+  // document to drift into, and no record inventory built here -- buildReport's
+  // five flattened lists were the CSV's shape, and the CSV is gone. The Excel
+  // exporter (utils/reportsXlsx.ts) still owns that flattened shape, unchanged,
+  // so re-hanging an inventory export costs one import rather than a rethink.
 
   /**
    * Opening the page is the event worth recording — it has no other action of
    * its own. Logged once per load, not per render, and deliberately not keyed
-   * on `report` (a fresh object every render, which would log on every
-   * keystroke in the search box).
+   * on any of the dashboard's memoised values (each is a fresh object every
+   * render, which would log on every keystroke in the search box).
    */
   const loggedOpen = useRef(false)
   useEffect(() => {
@@ -314,18 +333,159 @@ function Reports({ profile, onNavigate }: ReportsProps) {
     setError(null)
     setNotice(null)
     try {
-      // Drawn as a document rather than a grid: the title block, the academic
-      // year and stamp, the totals, then one table per record family. jsPDF is
-      // fetched here, on the click, so it never rides in the initial bundle —
-      // this page is on every role's dashboard.
-      const blob = await buildReportsPdf(report, {
-        academicYear,
-        semester: reportSemester,
-        generated,
-        institute: SCHOOL.institute,
-        program: program ? `${program.code} Program` : undefined,
-      })
-      saveBlob(blob, overallReportPdfFileName())
+      // The document is the page, not a second opinion of the data: every value
+      // below is the one the corresponding panel shows, computed above. jsPDF
+      // is fetched here, on the click, so it never rides in the initial bundle.
+      const now = new Date()
+      const stamp = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('')
+      const openCqiActions = cqi.missing
+        ? summary.unaligned + coursesWithoutOutcomes.length + coursesWithoutInstructor.length
+        : cqi.rows.filter((r) => r.status !== 'completed').length
+
+      // Coverage's weakest outcomes, for the findings section.
+      const weakest = [...charted.rows].sort((a, b) => a.percent - b.percent).slice(0, 2)
+
+      // The matrix: mapped learning outcomes against the outcomes they reach.
+      const matrixKeys = anchorKeysOf(mapping)
+      const matrixRows = mapping.links
+        .map((link, i) => ({
+          label: `${courseCodeOf(link.clo.course)} · ${link.clo.code || `CLO ${i + 1}`}`,
+          hits: link.poKeys.map((key) => matrixKeys.indexOf(key)).filter((ix) => ix >= 0),
+        }))
+        .filter((row) => row.hits.length > 0)
+
+      // Alignment slices: one per document family a mapped outcome reaches.
+      // Counts overlap by design -- a CLO reaching a PO that also carries a PEO
+      // counts in both families -- which is what the legend's totals are for.
+      const sliceColors: Record<'po' | 'peo' | 'sg' | 'ched', [number, number, number]> = {
+        po: [21, 128, 61],
+        peo: [77, 154, 47],
+        sg: [59, 130, 246],
+        ched: [139, 92, 246],
+      }
+      const mixSlices = (['po', 'peo', 'sg', 'ched'] as const)
+        .map((family) => ({
+          label: family === 'sg' ? 'Strategic Goal' : family === 'ched' ? 'CHED' : family.toUpperCase(),
+          count: mappedTargets.counts[family],
+          rgb: sliceColors[family],
+        }))
+        .filter((slice) => slice.count > 0)
+
+      const model: ReportsPdfModel = {
+        meta: {
+          institute: SCHOOL.institute,
+          department: `${program!.code} Department`,
+          tagline: ['Quality Education.', 'Continuous Improvement.', 'Better Future.'],
+          academicYear,
+          program: `${program!.name} (${program!.code})`,
+          semester: reportSemester,
+          generated,
+          reportId: `CQI-OVR-${stamp}`,
+          source: 'CQI Monitoring System (Supabase)',
+        },
+        kpis: [
+          { label: 'Total Programs', value: String(programs.length), sub: program!.code },
+          {
+            label: 'Total Courses',
+            value: String(programCourseList.length),
+            sub: yearsOffered ? `Across ${yearsOffered} year${yearsOffered === 1 ? '' : 's'}` : 'Across all academic years',
+          },
+          { label: 'Total CLOs', value: String(clos.length), sub: 'From all courses' },
+          { label: 'Total POs', value: String(summary.outcomes), sub: 'Program Outcomes' },
+          { label: 'Total PEOs', value: String(peos.length), sub: 'Educational Objectives' },
+          {
+            label: 'Mapping Coverage',
+            value: mapping.totalClos === 0 ? '—' : `${mapping.coveragePercent}%`,
+            sub: `(${mapping.mappedClos} / ${mapping.totalClos} CLOs)`,
+            tone: 'good',
+          },
+          {
+            label: 'Unmapped / Incomplete',
+            value: String(summary.unaligned + mapping.gaps.length),
+            sub: 'CLOs / Relationships',
+            tone: 'warn',
+          },
+          { label: 'CQI Actions', value: String(openCqiActions), sub: 'Open Recommendations', tone: 'good' },
+        ],
+        mapping: {
+          rows: courseOutcomeRows.map(({ course, outcomeCount }) => {
+            const roll = mappedByCourse.get(course.id) ?? { mapped: 0, total: 0 }
+            return {
+              code: course.code,
+              title: course.title || '—',
+              year: ayLabel(course.year_level) ?? academicYear,
+              semester: String(course.semester ?? reportSemester),
+              clos: outcomeCount,
+              status: statusBadge(roll).label,
+            }
+          }),
+        },
+        poCoverage: {
+          rows: charted.rows.map((r) => ({ label: poLabel(r.outcome.code), percent: r.percent, count: r.cloCount })),
+          uncovered: charted.uncovered,
+          hidden: charted.hidden,
+          totalClos: mapping.totalClos,
+        },
+        matrix: {
+          columns: matrixKeys.map((key) => {
+            const row = mapping.coverage.find((r) => r.outcome.key === key)
+            return { key, label: poLabel(row?.outcome.code ?? key) }
+          }),
+          rows: matrixRows,
+          unmappedCount: mapping.gaps.length,
+        },
+        mix: {
+          centerValue: mapping.mappedClos,
+          centerLabel: 'Mapped CLOs',
+          slices: mixSlices,
+        },
+        gaps: {
+          unmappedClos: mapping.gaps.map((gap) => ({
+            course: courseCodeOf(gap.clo.course),
+            text: gap.clo.title || gap.clo.description || '—',
+          })),
+          unreachedPos: uncoveredOutcomes.map((row) => ({
+            code: poLabel(row.outcome.code),
+            title: row.outcome.title || '—',
+          })),
+        },
+        cqi: {
+          missing: cqi.missing,
+          rows: cqi.rows.map((action) => ({
+            code: action.code,
+            recommendation: action.recommendation,
+            responsible: action.responsible || '—',
+            status: action.status === 'in_progress' ? 'In Progress' : action.status === 'completed' ? 'Completed' : 'Pending',
+            target: action.target_date ? new Date(action.target_date).toLocaleDateString() : null,
+          })),
+        },
+        findings: [
+          `Mapping coverage is ${mapping.coveragePercent}% — ${mapping.mappedClos} of ${mapping.totalClos} learning outcomes name a program outcome.`,
+          weakest.length > 0
+            ? `Lowest coverage: ${weakest.map((r) => `${poLabel(r.outcome.code)} at ${r.percent}%`).join(' and ')}.`
+            : '',
+          mapping.gaps.length > 0 ? `${mapping.gaps.length} learning outcome(s) name no program outcome.` : '',
+          uncoveredOutcomes.length > 0 ? `${uncoveredOutcomes.length} program outcome(s) have no learning-outcome coverage.` : '',
+          coursesWithoutOutcomes.length > 0 ? `${coursesWithoutOutcomes.length} course(s) have no learning outcomes recorded.` : '',
+          coursesWithoutInstructor.length > 0 ? `${coursesWithoutInstructor.length} course(s) have no instructor assigned.` : '',
+          `${openCqiActions} CQI action(s) remain open.`,
+        ].filter(Boolean) as string[],
+        recommendations: [
+          mapping.gaps.length > 0 ? `Map the ${mapping.gaps.length} learning outcome(s) that currently name no program outcome.` : '',
+          uncoveredOutcomes.length > 0 ? `Settle coverage for the ${uncoveredOutcomes.length} program outcome(s) no learning outcome reaches.` : '',
+          coursesWithoutOutcomes.length > 0 ? `Record learning outcomes for the ${coursesWithoutOutcomes.length} course(s) that have none.` : '',
+          coursesWithoutInstructor.length > 0 ? `Assign instructors to the ${coursesWithoutInstructor.length} course(s) missing one.` : '',
+          'Monitor and update CQI action items regularly.',
+        ].filter(Boolean) as string[],
+        signatures: {
+          preparedName: profile.full_name ?? profile.email ?? '',
+          preparedRole: signatureRole(profile.role ?? 'user'),
+          date: generated,
+        },
+      }
+
+      const blob = await buildReportsPdf(model)
+      saveBlob(blob, overallReportPdfFileName(now))
       setNotice('PDF file downloaded.')
     } catch (e) {
       setError(
@@ -749,7 +909,10 @@ const BLANK = '—'
  * nothing to map, which is a different fact from having outcomes and leaving
  * them unmapped, and the report says which it is.
  */
-function statusBadge({ mapped, total }: { mapped: number; total: number }) {
+function statusBadge({ mapped, total }: { mapped: number; total: number }): {
+  label: MappingStatus
+  className: string
+} {
   if (total === 0) return { label: 'No CLOs', className: 'status-badge status-badge--none' }
   if (mapped === 0) return { label: 'Unmapped', className: 'status-badge status-badge--unmapped' }
   if (mapped < total)
