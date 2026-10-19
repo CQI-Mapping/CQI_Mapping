@@ -3768,13 +3768,13 @@ textarea.input {
 
 /* Flat-white export action with a green edge: the one export action the
    report banner carries, reading as an action, not a decoration. */
-.reports-banner__csv {
+.reports-banner__pdf {
   background: #fff;
   border: 1px solid #86efac;
   color: #15803d;
 }
 
-.reports-banner__csv:hover {
+.reports-banner__pdf:hover {
   background: #f0fdf4;
 }
 

@@ -1,7 +1,7 @@
 // Overall Report: the program's curriculum at a glance.
 //
 // Shared by all three roles (admin, manager, faculty), like the record list it
-// grew out of. A header with the CSV export, a row of KPI cards, then five
+// grew out of. A header with the PDF export, a row of KPI cards, then five
 // panels: the curriculum mapping summary, PO coverage, the outcome coverage
 // chart, the alignment mix and the mapping gaps across the last row.
 //
@@ -48,7 +48,7 @@ import type {
 import { buildReport } from '../../utils/reports'
 import { SCHOOL } from '../../utils/report'
 import { saveBlob } from '../../utils/download'
-import { buildReportsCsv, overallReportFileName } from '../../utils/reportsCsv'
+import { buildReportsPdf, overallReportPdfFileName } from '../../utils/reportsPdf'
 import {
   alignmentSummary,
   buildAnchors,
@@ -88,7 +88,7 @@ function academicYearOptions(today = new Date()): string[] {
  * October, the second November through May's close of the school year --
  * so January sits at the tail of the pairing academicYearOptions chose for
  * it, not on a new first semester. Returns the option string the selects
- * trade in, "1" or "2", so it backs the summary cells' fallback and the CSV
+ * trade in, "1" or "2", so it backs the summary cells' fallback and the PDF
  * header without translation.
  */
 function currentSemester(today = new Date()): string {
@@ -125,7 +125,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
    * The report's semester context, read once per mount from the date on the
    * same June-start calendar the academic year uses. The banner does not
    * state it; it backs the summary's semester cells -- the dash-fallback a
-   * course without a term displays -- and rides into the CSV header.
+   * course without a term displays -- and rides into the PDF title block.
    */
   const [reportSemester] = useState(currentSemester())
 
@@ -314,17 +314,24 @@ function Reports({ profile, onNavigate }: ReportsProps) {
     setError(null)
     setNotice(null)
     try {
-      // Plain text, no dependency to fetch: every section flattened into one
-      // CSV grid, with the academic year and stamp riding in the header so the
-      // file can be forwarded without the app that produced it.
-      const csv = buildReportsCsv(report, { academicYear, semester: reportSemester, generated })
-      saveBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), overallReportFileName())
-      setNotice('CSV file downloaded.')
+      // Drawn as a document rather than a grid: the title block, the academic
+      // year and stamp, the totals, then one table per record family. jsPDF is
+      // fetched here, on the click, so it never rides in the initial bundle —
+      // this page is on every role's dashboard.
+      const blob = await buildReportsPdf(report, {
+        academicYear,
+        semester: reportSemester,
+        generated,
+        institute: SCHOOL.institute,
+        program: program ? `${program.code} Program` : undefined,
+      })
+      saveBlob(blob, overallReportPdfFileName())
+      setNotice('PDF file downloaded.')
     } catch (e) {
       setError(
         e instanceof Error
-          ? `Could not create the CSV: ${e.message}`
-          : 'Could not create the CSV.',
+          ? `Could not create the PDF: ${e.message}`
+          : 'Could not create the PDF.',
       )
     } finally {
       setDownloading(false)
@@ -408,13 +415,13 @@ function Reports({ profile, onNavigate }: ReportsProps) {
 
           <div className="reports-banner__actions">
             <button
-              className="btn btn--sm reports-banner__csv"
+              className="btn btn--sm reports-banner__pdf"
               onClick={download}
               disabled={downloading || loading}
-              title="Save every section to one CSV file"
+              title="Save every section as one PDF document"
             >
               <Icon name="download" />
-              {downloading ? 'Preparing…' : 'Export CSV'}
+              {downloading ? 'Preparing…' : 'Export PDF'}
             </button>
           </div>
         </div>
