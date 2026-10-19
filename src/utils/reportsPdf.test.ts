@@ -15,6 +15,8 @@ import type { ReportsPdfModel } from './reportsPdfModel'
 interface TextCall {
   text: string
   page: number
+  x: number
+  y: number
   align?: 'left' | 'center' | 'right'
   color: string
   font: string
@@ -52,8 +54,8 @@ function recorder() {
       filledCount += 0 // fills are observed through lines/rect counts
     },
     setLineWidth() {},
-    text(value, _x, _y, opts) {
-      texts.push({ text: value, page, align: opts?.align, color, font })
+    text(value, x, y, opts) {
+      texts.push({ text: value, page, x, y, align: opts?.align, color, font })
     },
     splitTextToSize(value, width) {
       // Wrap like a real font would, on a character budget derived from the
@@ -149,6 +151,13 @@ const base: ReportsPdfModel = {
       { label: 'CHED', count: 14, rgb: [139, 92, 246] },
     ],
   },
+  documents: {
+    rows: [
+      { label: 'PEO 1', detail: 'Graduates demonstrate professional and ethical competence.', codes: ['PO-1', 'PO-2'] },
+      { label: 'Strategic Goal 2', detail: 'Strengthen instruction quality.', codes: [] },
+      { label: 'CHED', detail: 'CMO 25 s. 2015', codes: ['PO-1'] },
+    ],
+  },
   gaps: {
     unmappedClos: [{ course: 'IT103', text: 'Apply mathematical models in computing' }],
     unreachedPos: [{ code: 'PO-3', title: 'Collaboration' }],
@@ -175,6 +184,7 @@ const emptyModel: ReportsPdfModel = {
   poCoverage: { rows: [], uncovered: 0, hidden: 0, totalClos: 0 },
   matrix: { columns: [], rows: [], unmappedCount: 0 },
   mix: { centerValue: 0, centerLabel: 'Mapped CLOs', slices: [] },
+  documents: { rows: [] },
   gaps: { unmappedClos: [], unreachedPos: [] },
   cqi: { missing: true, rows: [] },
   findings: [],
@@ -216,9 +226,10 @@ describe('renderReportsPdf sections', () => {
     expect(headings).toContain('3.  PO Coverage Chart')
     expect(headings).toContain('4.  CLO - PO Alignment Matrix')
     expect(headings).toContain('5.  Outcomes Alignment by Type')
-    expect(headings).toContain('6.  Mapping Gaps')
-    expect(headings).toContain('7.  CQI Monitoring & Recommendations')
-    expect(headings).toContain('8.  Key Findings and Remarks')
+    expect(headings).toContain('6.  Alignment to PEOs, Goals and CHED Memoranda')
+    expect(headings).toContain('7.  Mapping Gaps')
+    expect(headings).toContain('8.  CQI Monitoring & Recommendations')
+    expect(headings).toContain('9.  Key Findings and Remarks')
   })
 
   it('draws the KPI values and their qualifiers', () => {
@@ -263,6 +274,22 @@ describe('renderReportsPdf sections', () => {
     expect(texts.some((t) => t.text === 'PO (110)')).toBe(true)
   })
 
+  it('names each document behind the donut with its outcomes', () => {
+    expect(texts.some((t) => t.text === 'PEO 1')).toBe(true)
+    expect(texts.some((t) => t.text === 'Graduates demonstrate professional and ethical competence.')).toBe(true)
+    expect(texts.some((t) => t.text === 'Program outcomes (2): PO-1, PO-2')).toBe(true)
+    expect(texts.some((t) => t.text === 'Strategic Goal 2')).toBe(true)
+    // A document nothing cites is listed and said so, not skipped: the count
+    // is a finding here. Silence would read as a missing record.
+    expect(texts.some((t) => t.text === 'Program outcomes aligned: none')).toBe(true)
+  })
+
+  it('says plainly when no documents are recorded', () => {
+    const r = recorder()
+    renderReportsPdf(r.doc, { ...emptyModel, documents: { rows: [] } })
+    expect(r.texts.some((t) => t.text.includes('No PEOs, strategic goals or memoranda recorded'))).toBe(true)
+  })
+
   it('lists both directions of the gaps', () => {
     expect(texts.some((t) => t.text.includes('Apply mathematical models'))).toBe(true)
     expect(texts.some((t) => t.text.includes('Collaboration'))).toBe(true)
@@ -298,8 +325,25 @@ describe('renderReportsPdf sections', () => {
     const r = recorder()
     renderReportsPdf(r.doc, emptyModel)
     const headings = r.texts.filter((t) => /^\d+\.\s/.test(t.text)).map((t) => t.text)
-    expect(headings.length).toBe(8)
-    expect(r.texts.some((t) => t.text.includes('Map the remaining') || t.text.includes('Nothing to align yet'))).toBe(true)
+    expect(headings.length).toBe(9)
+    expect(r.texts.some((t) => t.text.includes('Nothing to align yet'))).toBe(true)
+  })
+
+  it('keeps every line out of the footer band and clear of the running header', () => {
+    // The defect this pins: a caption drawn with nothing behind it landed
+    // where the footer stamps, and glyphs from the two interleaved. Body ink
+    // is capped above the stamp zone on every page, and page 2 onward leaves
+    // the running header band (0..8mm) untouched.
+    const tall: ReportsPdfModel = {
+      ...base,
+      findings: Array.from({ length: 40 }, (_, i) => `Finding number ${i + 1}, stated at length to keep the section flowing past page breaks.`),
+    }
+    const r = recorder()
+    renderReportsPdf(r.doc, tall)
+    const inFooterZone = r.texts.filter((t) => t.y > 283.5 && t.y < 292)
+    expect(inFooterZone).toEqual([])
+    const underHeader = r.texts.filter((t) => t.page > 1 && t.y > 6 && t.y < 9.5)
+    expect(underHeader).toEqual([])
   })
 })
 

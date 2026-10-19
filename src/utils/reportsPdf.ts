@@ -195,13 +195,32 @@ class Writer {
     d.text(`Overall Report  ·  ${this.model.meta.academicYear}`, MARGIN + CONTENT_W, 5.6, { align: 'right' })
   }
 
+  /**
+   * Body text, wrapped to the content width and reserved before it draws.
+   * Two rules every other drawer already obeyed, that this one skipped: a
+   * line must not run past the right margin, and it must not land where the
+   * footer band is about to be stamped. The findings section's sentences and
+   * the section captions go through here.
+   */
   put(text: string, x: number, opts?: { align?: 'left' | 'center' | 'right'; color?: [number, number, number]; size?: number; style?: string; font?: string }): void {
     const d = this.doc
+    const size = opts?.size ?? SIZE.body
     d.setFont(opts?.font ?? SANS, opts?.style ?? 'normal')
-    d.setFontSize(opts?.size ?? SIZE.body)
+    d.setFontSize(size)
+    // Explicitly aligned one-liners (the footer's, the masthead's) keep their
+    // geometry; body text wraps inside the space left of its indent.
+    const wrapped = opts?.align ? [text] : cellLines(d, text, CONTENT_W - (x - MARGIN))
+    if (!opts?.align) this.space(wrapped.length * LEADING + 1.4)
+    // A page break may have run its own header-and-heading drawing, which
+    // leaves the document font wherever that ended -- re-assert before ink.
+    d.setFont(opts?.font ?? SANS, opts?.style ?? 'normal')
+    d.setFontSize(size)
     d.setTextColor(...(opts?.color ?? INK))
-    d.text(text, x, this.y, opts?.align ? { align: opts.align } : undefined)
-    this.y += (opts?.size ?? SIZE.body) * MM_PER_PT * 1.35
+    const firstBaseline = size * MM_PER_PT
+    wrapped.forEach((line, li) => {
+      d.text(line, x, this.y + firstBaseline + li * LEADING, opts?.align ? { align: opts.align } : undefined)
+    })
+    this.y += wrapped.length * LEADING + 1.2
   }
 
   get cursor(): number {
@@ -291,6 +310,11 @@ class Writer {
 
   gap(): void {
     this.y += 5
+  }
+
+  /** Finer than gap(): the small air between list entries. */
+  nudge(height: number): void {
+    this.y += height
   }
 
   // ---- KPI cards ----
@@ -656,16 +680,44 @@ export function renderReportsPdf(doc: PdfDoc, model: ReportsPdfModel): void {
   if (model.mix.slices.length === 0) {
     w.empty('No mapped learning outcomes to distribute yet.')
   } else {
-    // Room for a 50mm ring plus its legend rows before the next band.
+    // Room for a 50mm ring plus its legend rows before the next band: the
+    // taller of the two is whichever the legend's row count grows past.
     w.space(62)
     const cy = w.cursor + 27 + (model.mix.slices.length * 6.4) / 2
     w.donut(MARGIN + 27, cy, 25, 16)
-    w.at(cy + 29)
+    const legendBottom = cy - 19 + model.mix.slices.length * 6.4
+    w.at(Math.max(cy + 27, legendBottom) + 4)
   }
   w.gap()
 
-  // ---- 6. Mapping Gaps ----
-  w.sectionHeading(6, 'Mapping Gaps')
+  // ---- 6. Alignment to PEOs, Goals and CHED Memoranda ----
+  // The donut above is these documents counted; this is them named. Each
+  // document with the program outcomes that cite it, so the reader can walk
+  // 'Strategic Goal (2) - 33%' back to which documents and which outcomes.
+  w.sectionHeading(6, 'Alignment to PEOs, Goals and CHED Memoranda')
+  if (model.documents.rows.length === 0) {
+    w.empty('No PEOs, strategic goals or memoranda recorded yet.')
+  } else {
+    for (const entry of model.documents.rows) {
+      // Keep a document and its outcome list together: an entry split across
+      // a page break reads as two documents.
+      w.space(3 * LEADING + 4)
+      w.put(entry.label, MARGIN, { style: 'bold', size: SIZE.body })
+      if (entry.detail) w.put(entry.detail, MARGIN, { color: MUTED, size: SIZE.foot })
+      w.put(
+        entry.codes.length > 0
+          ? `Program outcomes (${entry.codes.length}): ${entry.codes.join(', ')}`
+          : 'Program outcomes aligned: none',
+        MARGIN + 3,
+        { color: DARK, size: SIZE.foot },
+      )
+      w.nudge(2.2)
+    }
+  }
+  w.gap()
+
+  // ---- 7. Mapping Gaps ----
+  w.sectionHeading(7, 'Mapping Gaps')
   w.sub('Learning outcomes that name no program outcome, and outcomes that no learning outcome names.')
   w.put(`Unmapped learning outcomes: ${model.gaps.unmappedClos.length}`, MARGIN, { style: 'bold', color: BAD_INK, size: SIZE.body })
   w.bulleted(model.gaps.unmappedClos.slice(0, 12).map((g) => `${g.course} - ${g.text}`))
@@ -675,8 +727,8 @@ export function renderReportsPdf(doc: PdfDoc, model: ReportsPdfModel): void {
   if (model.gaps.unreachedPos.length > 12) w.sub(`and ${model.gaps.unreachedPos.length - 12} more.`)
   w.gap()
 
-  // ---- 7. CQI Actions ----
-  w.sectionHeading(7, 'CQI Monitoring & Recommendations')
+  // ---- 8. CQI Actions ----
+  w.sectionHeading(8, 'CQI Monitoring & Recommendations')
   const cw = [18, 66, 30, 24, CONTENT_W - 138]
   const cAligns: Align[] = ['left', 'left', 'left', 'left', 'left']
   w.tableHeader(['Code', 'Recommendation', 'Responsible', 'Target Date', 'Status'], cw, cAligns, true)
@@ -689,8 +741,8 @@ export function renderReportsPdf(doc: PdfDoc, model: ReportsPdfModel): void {
   }
   w.gap()
 
-  // ---- 8. Findings and remarks ----
-  w.sectionHeading(8, 'Key Findings and Remarks')
+  // ---- 9. Findings and remarks ----
+  w.sectionHeading(9, 'Key Findings and Remarks')
   let n = 0
   for (const finding of model.findings) {
     n += 1

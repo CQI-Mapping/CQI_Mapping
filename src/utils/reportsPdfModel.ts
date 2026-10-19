@@ -67,6 +67,22 @@ export interface ReportsPdfModel {
     /** One slice per anchor family the mapped outcomes reach. */
     slices: { label: string; count: number; rgb: [number, number, number] }[]
   }
+  /**
+   * The institutional documents a program outcome can be aligned to -- PEOs,
+   * strategic goals and CHED memoranda -- with the outcomes that cite each.
+   * The donut (Alignment by Type) is the count of these; this section is
+   * theirs in detail, like the mock sheet's "Monitors & Commitment" block.
+   */
+  documents: {
+    rows: {
+      /** What the document is called on the sheet, family and code. */
+      label: string
+      /** The document's own title, when it carries one. */
+      detail: string
+      /** The program-outcome codes that align to it, in outcome order. */
+      codes: string[]
+    }[]
+  }
   gaps: {
     unmappedClos: { course: string; text: string }[]
     unreachedPos: { code: string; title: string }[]

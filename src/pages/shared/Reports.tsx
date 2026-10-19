@@ -363,6 +363,20 @@ function Reports({ profile, onNavigate }: ReportsProps) {
         sg: [59, 130, 246],
         ched: [139, 92, 246],
       }
+
+      // Section 6 names what the donut counts: every institutional document
+      // with the program outcomes that cite it. anchorTallies() is the count
+      // version of this same walk; the page outcome's own code is what the
+      // sheet prints, normalised like every other PO label.
+      const familyField = { cmo: 'cmo', peo: 'peo', sg: 'sg' } as const
+      const familyLabel = { cmo: 'CHED', peo: 'PEO', sg: 'Strategic Goal' } as const
+      const documentRows = anchors.map((anchor) => ({
+        label: `${familyLabel[anchor.family]} ${anchor.code}`,
+        detail: anchor.title ?? '',
+        codes: outcomes
+          .filter((o) => o[familyField[anchor.family]].includes(anchor.code))
+          .map((o) => poLabel(o.code)),
+      }))
       const mixSlices = (['po', 'peo', 'sg', 'ched'] as const)
         .map((family) => ({
           label: family === 'sg' ? 'Strategic Goal' : family === 'ched' ? 'CHED' : family.toUpperCase(),
@@ -439,6 +453,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
           centerLabel: 'Mapped CLOs',
           slices: mixSlices,
         },
+        documents: { rows: documentRows },
         gaps: {
           unmappedClos: mapping.gaps.map((gap) => ({
             course: courseCodeOf(gap.clo.course),
