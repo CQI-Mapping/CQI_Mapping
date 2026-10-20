@@ -380,115 +380,47 @@
   filter: drop-shadow(0 8px 14px rgba(15, 32, 68, 0.45));
 }
 
-.splash-ccs {
+/* outlined display hero (title + tagline) */
+.splash-hero {
+  position: absolute;
+  top: 41%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
+  gap: 16px;
+  z-index: 2;
+  animation: lp-rise 0.5s 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.ccs-badge {
-  display: block;
-  width: 56px;
-  height: 56px;
-  filter: drop-shadow(0 6px 12px rgba(20, 70, 32, 0.4));
-}
-
-.splash-ccs__label {
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: #eef4e2;
-  white-space: nowrap;
-}
-
-/* outlined display title */
 .splash-title {
-  position: absolute;
-  top: 40%;
-  left: 50%;
-  transform: translate(-50%, -50%);
   margin: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  z-index: 2;
   font-family: 'Oswald', 'Inter', sans-serif;
   font-weight: 700;
-  font-size: clamp(52px, 6.4vw, 92px);
+  font-size: clamp(42px, 5.2vw, 80px);
   line-height: 0.98;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   white-space: nowrap;
   color: transparent;
   -webkit-text-stroke: 2.5px #ecf2dc;
-  animation: lp-rise 0.5s 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .splash-title span {
   display: block;
 }
 
-/* theme block (sits on the pale wash, dark text like the poster) */
-.splash-theme {
-  position: absolute;
-  left: 8%;
-  bottom: 15%;
-  width: min(320px, 42%);
-  z-index: 2;
-  animation: lp-rise 0.5s 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.splash-theme__label {
-  display: block;
-  margin-bottom: 10px;
-  font-size: 15px;
-  font-weight: 800;
-  color: #26331f;
-}
-
-.splash-theme p {
+.splash-tagline {
   margin: 0;
-  font-size: 14px;
-  line-height: 1.55;
-  color: #4c5442;
-  text-align: center;
-}
-
-.splash-theme p b {
-  color: #223018;
-}
-
-/* invite block (bottom-right, condensed caps) */
-.splash-invite {
-  position: absolute;
-  right: 7%;
-  bottom: 6%;
-  z-index: 2;
-  text-align: right;
-  animation: lp-rise 0.5s 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.splash-invite strong {
-  display: block;
-  font-family: 'Oswald', 'Inter', sans-serif;
-  font-weight: 700;
-  font-size: clamp(17px, 1.6vw, 22px);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #3f4636;
-}
-
-.splash-invite p {
-  margin: 2px 0 0;
-  font-family: 'Oswald', 'Inter', sans-serif;
+  font-size: clamp(10px, 1.05vw, 13.5px);
   font-weight: 600;
-  font-size: clamp(13px, 1.25vw, 16.5px);
-  letter-spacing: 0.03em;
-  line-height: 1.3;
+  letter-spacing: 0.3em;
   text-transform: uppercase;
-  color: #6a6f5c;
+  color: rgba(238, 244, 226, 0.85);
 }
 
 /* ---------- responsive ---------- */
@@ -527,25 +459,14 @@
     margin: 30px 20px 4px;
   }
 
-  .splash-title {
+  .splash-hero {
     position: static;
     transform: none;
-    margin: 14px 0 26px;
-    font-size: clamp(46px, 11vw, 64px);
+    margin: 16px 0 24px;
   }
 
-  .splash-theme {
-    position: static;
-    width: auto;
-    max-width: 420px;
-    padding: 0 20px;
-  }
-
-  .splash-invite {
-    position: static;
-    text-align: center;
-    margin: 18px auto 10px;
-    padding: 0 20px;
+  .splash-title {
+    font-size: clamp(40px, 10vw, 60px);
   }
 }
 
@@ -562,9 +483,7 @@
   .login-btn::after,
   .login-card,
   .splash-logos,
-  .splash-title,
-  .splash-theme,
-  .splash-invite,
+  .splash-hero,
   .login-alert--error,
   .login-spinner {
     animation: none;

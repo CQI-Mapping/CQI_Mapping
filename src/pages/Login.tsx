@@ -44,37 +44,6 @@ function SealMark({ className }: { className?: string }) {
   )
 }
 
-// CCS badge approximation (green rounded square + circuit traces).
-function CcsBadge({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 56 56" aria-hidden="true">
-      <rect x="3" y="3" width="50" height="50" rx="9" fill="#3aac4f" stroke="#1f7a33" strokeWidth="2.5" />
-      <rect x="7.5" y="7.5" width="41" height="41" rx="6" fill="none" stroke="#d9f2d3" strokeWidth="1.2" strokeDasharray="3 3" />
-      <g stroke="#c4ecbf" strokeWidth="1.6" fill="none">
-        <path d="M12 18h8l4 4" />
-        <circle cx="25.5" cy="23.5" r="1.8" />
-        <path d="M44 16h-9l-5 5" />
-        <circle cx="28.5" cy="21.5" r="1.8" />
-        <path d="M12 40h10" />
-        <path d="M44 42h-11l-4-4" />
-        <circle cx="27.5" cy="36" r="1.8" />
-      </g>
-      <text
-        x="28"
-        y="33"
-        textAnchor="middle"
-        fontSize="14"
-        fontWeight="700"
-        fill="#ffffff"
-        fontFamily="Inter, sans-serif"
-        letterSpacing="1"
-      >
-        CCS
-      </text>
-    </svg>
-  )
-}
-
 // Wavy hairline texture for the hero's bottom edge.
 function HeroWaves() {
   return (
@@ -361,28 +330,14 @@ function Login() {
 
         <div className="splash-logos">
           <SealMark className="seal" />
-          <div className="splash-ccs">
-            <CcsBadge className="ccs-badge" />
-            <span className="splash-ccs__label">College of Computer Studies</span>
-          </div>
         </div>
 
-        <h2 className="splash-title">
-          <span>IT FEST</span>
-          <span>2025</span>
-        </h2>
-
-        <div className="splash-theme">
-          <strong className="splash-theme__label">Theme:</strong>
-          <p>
-            <b>CODE</b>: Creating Opportunities, Driving Excellence "Where Ideas are Compiled into
-            Reality"
-          </p>
-        </div>
-
-        <div className="splash-invite">
-          <strong>April 14–15, 2025</strong>
-          <p>You're all invited to join us in this wonderful event!</p>
+        <div className="splash-hero">
+          <h2 className="splash-title">
+            <span>CQI</span>
+            <span>MONITORING</span>
+          </h2>
+          <p className="splash-tagline">NBSC · Institute of Computer Studies</p>
         </div>
       </section>
     </div>
