@@ -26,6 +26,7 @@
 
 .login-hero {
   position: relative;
+  order: 2;
   flex: 0 0 38%;
   display: flex;
   align-items: center;
@@ -347,6 +348,7 @@
 
 .login-splash {
   position: relative;
+  order: 1;
   flex: 1;
   overflow: hidden;
   background: #3f7d4b;
