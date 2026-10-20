@@ -69,7 +69,7 @@ function HeroWaves() {
 // mint/teal watercolor cascades below, and a lime-fleck band under the title.
 function BrushSplash() {
   const STROKE =
-    'M620 -60 C 520 30 470 70 440 150 C 380 210 320 260 300 340 C 250 415 262 480 332 505 C 302 565 342 625 424 622 C 470 688 562 698 622 648 C 661 714 722 736 782 686 C 802 762 862 776 902 716 C 930 794 1002 786 1022 716 C 1082 806 1162 776 1182 696 C 1232 656 1242 516 1201 466 C 1222 379 1200 250 1151 180 C 1181 80 1121 -20 1021 -42 Z'
+    'M560 -70 C 465 15 430 70 410 150 C 350 210 270 265 245 350 C 190 428 205 495 275 520 C 245 585 285 640 365 640 C 410 705 515 720 580 670 C 618 740 692 760 755 712 C 775 788 845 802 888 745 C 918 818 998 810 1022 742 C 1080 808 1175 790 1192 702 C 1228 662 1238 520 1201 462 C 1224 370 1202 240 1155 172 C 1185 72 1125 -32 1028 -52 Z'
 
   return (
     <svg className="splash-art" viewBox="0 0 1200 1000" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
@@ -99,12 +99,12 @@ function BrushSplash() {
       {/* olive watercolor bleeding above the stroke's shoulder */}
       <g filter="url(#lp-soft)">
         <path
-          d="M340 -60 C 250 30 270 150 360 205 C 450 252 560 245 625 185 C 700 120 705 15 640 -55 Z"
+          d="M300 -70 C 200 20 225 160 335 220 C 445 275 575 265 648 195 C 720 125 715 8 645 -62 Z"
           fill="#7fae6d"
           opacity="0.42"
         />
         <path
-          d="M240 280 C 180 360 190 450 270 495 C 350 540 460 520 505 445 C 545 375 505 300 440 272 C 370 244 285 232 240 280 Z"
+          d="M225 300 C 155 385 170 495 262 545 C 358 592 480 568 528 480 C 570 398 522 312 448 282 C 370 252 272 250 225 300 Z"
           fill="#8db47b"
           opacity="0.3"
         />
@@ -113,35 +113,35 @@ function BrushSplash() {
       {/* pale mint/teal watercolor cascades below the stroke */}
       <g filter="url(#lp-soft)">
         <path
-          d="M420 600 C 330 680 370 800 540 830 C 720 862 830 790 780 690 C 735 596 520 520 420 600 Z"
+          d="M410 640 C 315 720 355 845 535 872 C 730 900 845 825 792 722 C 745 630 520 558 410 640 Z"
           fill="#cfe7d8"
           opacity="0.6"
         />
         <path
-          d="M640 700 C 560 780 600 900 760 920 C 930 942 1020 860 970 760 C 925 670 730 620 640 700 Z"
+          d="M625 745 C 545 828 585 948 755 966 C 935 985 1025 900 975 800 C 928 710 722 662 625 745 Z"
           fill="#9fd4c4"
           opacity="0.5"
         />
         <path
-          d="M860 640 C 790 700 820 800 950 830 C 1080 858 1170 800 1140 710 C 1110 628 940 580 860 640 Z"
+          d="M855 685 C 782 748 812 852 950 880 C 1085 906 1175 845 1145 755 C 1114 672 938 622 855 685 Z"
           fill="#bde0cf"
           opacity="0.5"
         />
         <path
-          d="M700 860 C 660 910 690 970 800 986 C 900 1000 960 950 940 890 C 922 842 760 810 700 860 Z"
+          d="M695 895 C 658 945 690 1000 805 1008 C 905 1014 960 968 940 908 C 922 860 758 848 695 895 Z"
           fill="#7fbfae"
           opacity="0.35"
         />
       </g>
 
-      {/* hairline waves along the bottom (the stroke paints over them) */}
-      <g fill="none" stroke="#c8c3ad" strokeWidth="1" opacity="0.65">
-        {Array.from({ length: 9 }, (_, i) => {
-          const b = i * 24
+      {/* gentle hairline waves along the bottom (poster-like texture) */}
+      <g fill="none" stroke="#cfc9b6" strokeWidth="0.9" opacity="0.5">
+        {Array.from({ length: 6 }, (_, i) => {
+          const b = i * 20
           return (
             <path
               key={i}
-              d={`M0 ${b + 790} C 200 ${b + 760} 400 ${b + 818} 600 ${b + 790} S 1000 ${b + 760} 1190 ${b + 790}`}
+              d={`M0 ${b + 862} C 260 ${b + 844} 520 ${b + 880} 780 ${b + 862} S 1040 ${b + 844} 1200 ${b + 862}`}
             />
           )
         })}
@@ -149,12 +149,12 @@ function BrushSplash() {
 
       {/* torn drips hanging off the stroke's bottom edge */}
       <g filter="url(#lp-tear)" fill="#356f44">
-        <path d="M470 560 C 460 640 480 700 505 640 C 520 600 500 570 490 555 Z" />
-        <path d="M560 600 C 552 700 572 760 600 690 C 615 650 585 615 570 592 Z" opacity="0.95" />
-        <path d="M660 630 C 652 730 676 780 702 710 C 715 670 690 650 672 626 Z" opacity="0.9" />
-        <path d="M760 660 C 754 760 780 800 806 730 C 818 695 790 675 772 656 Z" />
-        <path d="M880 640 C 880 740 906 770 930 700 C 940 668 915 655 898 636 Z" opacity="0.85" />
-        <path d="M985 590 C 990 680 1015 700 1035 640 C 1044 610 1020 600 1002 588 Z" opacity="0.9" />
+        <path d="M530 640 C 520 720 540 780 565 720 C 580 680 560 650 550 635 Z" />
+        <path d="M620 690 C 612 790 632 850 660 780 C 675 740 645 705 630 682 Z" opacity="0.95" />
+        <path d="M710 720 C 702 820 726 870 752 800 C 765 760 740 740 722 716 Z" opacity="0.9" />
+        <path d="M810 780 C 804 875 830 915 856 845 C 868 810 840 792 822 776 Z" />
+        <path d="M925 780 C 925 872 950 900 974 830 C 984 798 959 785 942 766 Z" opacity="0.85" />
+        <path d="M1030 730 C 1035 815 1060 835 1080 775 C 1089 745 1065 735 1047 723 Z" opacity="0.9" />
       </g>
 
       {/* main paint stroke (bleeds off the top and right edges) */}
@@ -180,14 +180,16 @@ function BrushSplash() {
         <ellipse cx="850" cy="560" rx="20" ry="12" opacity="0.65" />
         <circle cx="650" cy="610" r="9" opacity="0.75" />
         <circle cx="720" cy="645" r="6" opacity="0.7" />
+        <circle cx="680" cy="690" r="8" opacity="0.7" />
+        <circle cx="615" cy="665" r="6" opacity="0.6" />
       </g>
 
       {/* small dark paint hits on the cream */}
       <circle cx="392" cy="500" r="5" fill="#2c5b33" opacity="0.9" />
       <g filter="url(#lp-splat)" fill="#2e5f38">
-        <ellipse cx="1040" cy="935" rx="66" ry="24" opacity="0.9" />
-        <ellipse cx="1128" cy="958" rx="34" ry="13" opacity="0.8" />
-        <circle cx="970" cy="952" r="9" opacity="0.7" />
+        <ellipse cx="1040" cy="920" rx="70" ry="26" opacity="0.9" />
+        <ellipse cx="1128" cy="948" rx="34" ry="13" opacity="0.8" />
+        <circle cx="965" cy="942" r="9" opacity="0.7" />
       </g>
     </svg>
   )
