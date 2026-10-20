@@ -349,7 +349,7 @@
   position: relative;
   flex: 1;
   overflow: hidden;
-  background: var(--lp-cream);
+  background: #3f7d4b;
 }
 
 .splash-art {

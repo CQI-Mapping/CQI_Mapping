@@ -63,21 +63,18 @@ function HeroWaves() {
   )
 }
 
-// The green brush stroke laid out like the reference poster: a paint mass
-// anchored to the top-right corner (bleeding off the top and right edges),
-// torn drips along its bottom edge, an olive wash bleeding off the shoulder,
-// mint/teal watercolor cascades below, and a lime-fleck band under the title.
+// Full-bleed green panel — the paint covers the whole right side edge to
+// edge so the login feels like a real website hero. Painterly tonal washes
+// (light top, olive band, deep bottom), drips sliding from the top edge,
+// a lime-fleck band under the title and barely-there hairline waves.
 function BrushSplash() {
-  const STROKE =
-    'M560 -70 C 465 15 430 70 410 150 C 350 210 270 265 245 350 C 190 428 205 495 275 520 C 245 585 285 640 365 640 C 410 705 515 720 580 670 C 618 740 692 760 755 712 C 775 788 845 802 888 745 C 918 818 998 810 1022 742 C 1080 808 1175 790 1192 702 C 1228 662 1238 520 1201 462 C 1224 370 1202 240 1155 172 C 1185 72 1125 -32 1028 -52 Z'
-
   return (
     <svg className="splash-art" viewBox="0 0 1200 1000" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
       <defs>
-        {/* roughens the stroke edges so it reads as a painted brush stroke */}
-        <filter id="lp-grunge" x="-30%" y="-30%" width="160%" height="160%">
+        {/* ragged painterly edges on the tonal washes */}
+        <filter id="lp-grunge" x="-25%" y="-25%" width="150%" height="150%">
           <feTurbulence type="fractalNoise" baseFrequency="0.012 0.035" numOctaves="4" seed="7" result="noise" />
-          <feDisplacementMap in="SourceGraphic" in2="noise" scale="70" />
+          <feDisplacementMap in="SourceGraphic" in2="noise" scale="46" />
         </filter>
         {/* softer watercolor bleed for washes */}
         <filter id="lp-soft" x="-40%" y="-40%" width="180%" height="180%">
@@ -89,79 +86,66 @@ function BrushSplash() {
           <feTurbulence type="fractalNoise" baseFrequency="0.09 0.09" numOctaves="2" seed="3" result="noise3" />
           <feDisplacementMap in="SourceGraphic" in2="noise3" scale="9" />
         </filter>
-        {/* torn, ragged edges for the hanging drips */}
+        {/* torn, ragged edges for the top drips */}
         <filter id="lp-tear" x="-40%" y="-40%" width="180%" height="180%">
           <feTurbulence type="fractalNoise" baseFrequency="0.02 0.06" numOctaves="3" seed="5" result="noise4" />
-          <feDisplacementMap in="SourceGraphic" in2="noise4" scale="42" />
+          <feDisplacementMap in="SourceGraphic" in2="noise4" scale="34" />
         </filter>
       </defs>
 
-      {/* olive watercolor bleeding above the stroke's shoulder */}
+      {/* ground: fills the entire panel, every edge bleeds off-screen */}
+      <rect x="-160" y="-160" width="1520" height="1320" fill="#3f7d4b" filter="url(#lp-grunge)" />
+
+      {/* tonal layers: light top-left, olive sky band, deep bottom */}
       <g filter="url(#lp-soft)">
         <path
-          d="M300 -70 C 200 20 225 160 335 220 C 445 275 575 265 648 195 C 720 125 715 8 645 -62 Z"
-          fill="#7fae6d"
-          opacity="0.42"
+          d="M-40 520 C 90 560 240 540 330 470 C 430 390 430 240 340 140 C 260 48 90 20 -40 80 Z"
+          fill="#4c8a57"
+          opacity="0.5"
         />
         <path
-          d="M225 300 C 155 385 170 495 262 545 C 358 592 480 568 528 480 C 570 398 522 312 448 282 C 370 252 272 250 225 300 Z"
-          fill="#8db47b"
+          d="M430 300 C 560 340 640 460 600 580 C 565 690 420 720 330 650 C 240 580 240 420 310 340 C 350 300 380 280 430 300 Z"
+          fill="#57995d"
           opacity="0.3"
         />
-      </g>
-
-      {/* pale mint/teal watercolor cascades below the stroke */}
-      <g filter="url(#lp-soft)">
         <path
-          d="M410 640 C 315 720 355 845 535 872 C 730 900 845 825 792 722 C 745 630 520 558 410 640 Z"
-          fill="#cfe7d8"
-          opacity="0.6"
-        />
-        <path
-          d="M625 745 C 545 828 585 948 755 966 C 935 985 1025 900 975 800 C 928 710 722 662 625 745 Z"
-          fill="#9fd4c4"
-          opacity="0.5"
-        />
-        <path
-          d="M855 685 C 782 748 812 852 950 880 C 1085 906 1175 845 1145 755 C 1114 672 938 622 855 685 Z"
-          fill="#bde0cf"
-          opacity="0.5"
-        />
-        <path
-          d="M695 895 C 658 945 690 1000 805 1008 C 905 1014 960 968 940 908 C 922 860 758 848 695 895 Z"
-          fill="#7fbfae"
+          d="M120 -80 C 40 40 90 180 230 220 C 380 262 540 210 580 100 C 615 0 540 -110 420 -130 Z"
+          fill="#7fae6d"
           opacity="0.35"
         />
+        <path
+          d="M-80 640 C 20 700 60 810 200 855 C 370 908 540 865 580 760 C 617 668 490 590 350 585 C 210 580 -80 590 -80 640 Z"
+          fill="#2e633c"
+          opacity="0.4"
+        />
       </g>
 
-      {/* gentle hairline waves along the bottom (poster-like texture) */}
-      <g fill="none" stroke="#cfc9b6" strokeWidth="0.9" opacity="0.5">
+      {/* faint mint mist near the bottom of the field */}
+      <g filter="url(#lp-soft)" fill="#9fd4c4" opacity="0.16">
+        <ellipse cx="820" cy="800" rx="300" ry="150" />
+        <ellipse cx="1100" cy="920" rx="240" ry="120" opacity="0.8" />
+        <ellipse cx="450" cy="920" rx="240" ry="110" opacity="0.7" />
+      </g>
+
+      {/* drips sliding down from the top edge */}
+      <g filter="url(#lp-tear)" fill="#2e633c" opacity="0.5">
+        <path d="M170 -30 C 165 60 180 115 205 62 C 218 30 196 2 185 -18 Z" />
+        <path d="M300 -30 C 296 80 315 132 340 76 C 352 46 322 8 310 -16 Z" />
+        <path d="M440 -26 C 437 62 455 112 478 60 C 489 32 462 2 452 -16 Z" opacity="0.8" />
+        <path d="M560 -26 C 558 55 574 98 596 50 C 606 24 578 -4 566 -20 Z" opacity="0.7" />
+      </g>
+
+      {/* barely-there hairline waves near the bottom */}
+      <g fill="none" stroke="#2e633c" strokeWidth="1" opacity="0.16">
         {Array.from({ length: 6 }, (_, i) => {
           const b = i * 20
           return (
             <path
               key={i}
-              d={`M0 ${b + 862} C 260 ${b + 844} 520 ${b + 880} 780 ${b + 862} S 1040 ${b + 844} 1200 ${b + 862}`}
+              d={`M0 ${b + 858} C 260 ${b + 840} 520 ${b + 876} 780 ${b + 858} S 1040 ${b + 840} 1200 ${b + 858}`}
             />
           )
         })}
-      </g>
-
-      {/* torn drips hanging off the stroke's bottom edge */}
-      <g filter="url(#lp-tear)" fill="#356f44">
-        <path d="M530 640 C 520 720 540 780 565 720 C 580 680 560 650 550 635 Z" />
-        <path d="M620 690 C 612 790 632 850 660 780 C 675 740 645 705 630 682 Z" opacity="0.95" />
-        <path d="M710 720 C 702 820 726 870 752 800 C 765 760 740 740 722 716 Z" opacity="0.9" />
-        <path d="M810 780 C 804 875 830 915 856 845 C 868 810 840 792 822 776 Z" />
-        <path d="M925 780 C 925 872 950 900 974 830 C 984 798 959 785 942 766 Z" opacity="0.85" />
-        <path d="M1030 730 C 1035 815 1060 835 1080 775 C 1089 745 1065 735 1047 723 Z" opacity="0.9" />
-      </g>
-
-      {/* main paint stroke (bleeds off the top and right edges) */}
-      <g filter="url(#lp-grunge)">
-        <path d={STROKE} fill="#3f7d4b" />
-        <path d={STROKE} fill="#2e633c" opacity="0.3" transform="translate(-30 44) scale(0.93)" />
-        <path d={STROKE} fill="#57995d" opacity="0.35" transform="translate(34 -30) scale(0.95)" />
       </g>
 
       {/* lime flecks in a band under the title */}
@@ -184,12 +168,11 @@ function BrushSplash() {
         <circle cx="615" cy="665" r="6" opacity="0.6" />
       </g>
 
-      {/* small dark paint hits on the cream */}
-      <circle cx="392" cy="500" r="5" fill="#2c5b33" opacity="0.9" />
-      <g filter="url(#lp-splat)" fill="#2e5f38">
-        <ellipse cx="1040" cy="920" rx="70" ry="26" opacity="0.9" />
-        <ellipse cx="1128" cy="948" rx="34" ry="13" opacity="0.8" />
-        <circle cx="965" cy="942" r="9" opacity="0.7" />
+      {/* tiny light accents low on the field */}
+      <g filter="url(#lp-splat)" fill="#9fd4a8" opacity="0.5">
+        <circle cx="470" cy="820" r="6" />
+        <circle cx="540" cy="860" r="4" />
+        <circle cx="905" cy="862" r="6" />
       </g>
     </svg>
   )
