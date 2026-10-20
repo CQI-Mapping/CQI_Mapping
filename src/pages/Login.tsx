@@ -148,24 +148,22 @@ function BrushSplash() {
         })}
       </g>
 
-      {/* lime flecks in a band under the title */}
+      {/* lime flecks in a band under the title (centered on the field) */}
       <g filter="url(#lp-splat)" fill="#b5df4d">
-        <circle cx="580" cy="430" r="6" opacity="0.8" />
-        <circle cx="660" cy="430" r="8" opacity="0.7" />
-        <circle cx="740" cy="460" r="6" opacity="0.8" />
-        <circle cx="600" cy="470" r="12" opacity="0.85" />
-        <rect x="640" y="500" width="26" height="26" rx="8" transform="rotate(18 653 513)" opacity="0.9" />
-        <circle cx="700" cy="520" r="9" />
-        <circle cx="770" cy="540" r="13" opacity="0.9" />
-        <rect x="700" y="560" width="34" height="20" rx="10" transform="rotate(-14 717 570)" opacity="0.75" />
-        <circle cx="640" cy="580" r="7" opacity="0.8" />
-        <circle cx="820" cy="500" r="7" opacity="0.7" />
-        <circle cx="520" cy="520" r="8" opacity="0.7" />
-        <ellipse cx="850" cy="560" rx="20" ry="12" opacity="0.65" />
-        <circle cx="650" cy="610" r="9" opacity="0.75" />
-        <circle cx="720" cy="645" r="6" opacity="0.7" />
-        <circle cx="680" cy="690" r="8" opacity="0.7" />
-        <circle cx="615" cy="665" r="6" opacity="0.6" />
+        <circle cx="435" cy="695" r="8" opacity="0.7" />
+        <circle cx="735" cy="700" r="7" opacity="0.7" />
+        <circle cx="500" cy="720" r="6" opacity="0.8" />
+        <circle cx="575" cy="715" r="9" />
+        <circle cx="650" cy="745" r="6" opacity="0.8" />
+        <circle cx="530" cy="760" r="12" opacity="0.85" />
+        <rect x="570" y="775" width="26" height="26" rx="8" transform="rotate(18 583 788)" opacity="0.9" />
+        <circle cx="635" cy="800" r="9" />
+        <circle cx="700" cy="815" r="13" opacity="0.9" />
+        <rect x="640" y="835" width="34" height="20" rx="10" transform="rotate(-14 657 845)" opacity="0.75" />
+        <circle cx="580" cy="855" r="7" opacity="0.8" />
+        <ellipse cx="740" cy="855" rx="20" ry="12" opacity="0.65" />
+        <circle cx="520" cy="880" r="9" opacity="0.75" />
+        <circle cx="600" cy="905" r="6" opacity="0.7" />
       </g>
 
       {/* tiny light accents low on the field */}

@@ -385,7 +385,7 @@
 /* outlined display hero (title + tagline) */
 .splash-hero {
   position: absolute;
-  top: 36%;
+  top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   display: flex;
@@ -414,6 +414,8 @@
 
 .splash-title span {
   display: block;
+  /* cancel the trailing letter-spacing so the glyph run is truly centered */
+  margin-right: -0.05em;
 }
 
 /* ---------- responsive ---------- */
