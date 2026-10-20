@@ -337,7 +337,6 @@ function Login() {
             <span>CQI</span>
             <span>MONITORING</span>
           </h2>
-          <p className="splash-tagline">NBSC · Institute of Computer Studies</p>
         </div>
       </section>
     </div>

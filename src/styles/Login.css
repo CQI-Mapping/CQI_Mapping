@@ -401,7 +401,7 @@
   align-items: center;
   font-family: 'Oswald', 'Inter', sans-serif;
   font-weight: 700;
-  font-size: clamp(42px, 5.2vw, 80px);
+  font-size: clamp(44px, 5.6vw, 86px);
   line-height: 0.98;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -412,15 +412,6 @@
 
 .splash-title span {
   display: block;
-}
-
-.splash-tagline {
-  margin: 0;
-  font-size: clamp(10px, 1.05vw, 13.5px);
-  font-weight: 600;
-  letter-spacing: 0.3em;
-  text-transform: uppercase;
-  color: rgba(238, 244, 226, 0.85);
 }
 
 /* ---------- responsive ---------- */
