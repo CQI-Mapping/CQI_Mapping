@@ -947,11 +947,14 @@ export default function SubjectView() {
 
   // ── Build the PEO-rooted graph model ───────────────────────────────────────
   // Root = PEO. Downstream: every PO aligned to this PEO (by peo_id first, then
-  // by a PEO code token in peo_text) — each PO shows its own remaining
-  // PEO/SG/CMO leaves and upstream CLOs → subjects, so it looks like a slice of
-  // the subject graph. The root PEO's own leaf is pruned from every slice: it
-  // is the branch head already, and re-stating "PEO 1" under each aligned PO
-  // painted the same label a dozen times over.
+  // by a PEO code token in peo_text) — each PO shows its SG/CMO leaves and its
+  // upstream CLOs → subjects, so it looks like a slice of the subject graph.
+  // PEO leaves are pruned from every slice: the root already heads the branch,
+  // and re-stating "PEO 1" under each aligned PO painted the same label a dozen
+  // times over — while the remaining "PEO 2 / PEO 3" repeats read as
+  // duplication rather than as each PO's extra alignments. A PO's full PEO
+  // story stays visible from a PO root, a subject graph, and the
+  // connected-details card.
   const buildPeoGraphModel = useCallback(
     (datasetsRef: OutcomeDatasets, peoRec: ProgramEducationalObjective): GraphNodeData => {
       const peoKey = normalizeCode(peoRec.code)
@@ -998,11 +1001,12 @@ export default function SubjectView() {
         }
         attachPoLeaves(datasetsRef, poNode, po)
         attachClosUpstream(datasetsRef, poNode, po)
-        // Drop the slice's PEO leaf that names the root PEO — id first, then
-        // normalized code so duplicate-code PEO rows still collapse onto the
-        // root. The PO's other PEO alignments (PEO 2, PEO 3 …) stay visible.
-        poNode.children = poNode.children.filter((c) =>
-          !(c.kind === 'peo' && (c.peoId === peoRec.id || normalizeCode(c.code) === peoKey)))
+        // A PEO branch never repeats PEOs: the root is one already, and the
+        // slice-side PEO leaves — the root's own or a PO's extra alignments —
+        // all read as the same label painted over and over. What remains on
+        // each branch is what is unique to that PO: its goals, its CMO anchor,
+        // and the CLOs → subjects that claim it.
+        poNode.children = poNode.children.filter((c) => c.kind !== 'peo')
         root.children.push(poNode)
       }
 
