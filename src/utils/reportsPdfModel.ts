@@ -1,9 +1,9 @@
 // The Overall Report's PDF, as data.
 //
 // The page computes everything its panels show -- KPI tiles, the course
-// mapping rows, the coverage chart, the CLO-to-PO links, the alignment mixes,
-// the gaps, and the CQI actions. This interface is that result, in the shape
-// the document draws.
+// mapping rows, the coverage chart, the CLO-to-PO links, the named documents
+// and the CQI actions. This interface is that result, in the shape the
+// document draws.
 //
 // Splitting the model from the renderer is what lets utils/reportsPdf.ts stay
 // pure with respect to jsPDF, and keeps the page (which already holds every
@@ -61,17 +61,10 @@ export interface ReportsPdfModel {
     rows: { label: string; hits: number[] }[]
     unmappedCount: number
   }
-  mix: {
-    centerValue: number
-    centerLabel: string
-    /** One slice per anchor family the mapped outcomes reach. */
-    slices: { label: string; count: number; rgb: [number, number, number] }[]
-  }
   /**
    * The institutional documents a program outcome can be aligned to -- PEOs,
-   * strategic goals and CHED memoranda -- with the outcomes that cite each.
-   * The donut (Alignment by Type) is the count of these; this section is
-   * theirs in detail, like the mock sheet's "Monitors & Commitment" block.
+   * strategic goals and CHED memoranda -- each with the outcomes that cite it,
+   * like the mock sheet's "Monitors & Commitment" block.
    */
   documents: {
     rows: {
@@ -82,10 +75,6 @@ export interface ReportsPdfModel {
       /** The program-outcome codes that align to it, in outcome order. */
       codes: string[]
     }[]
-  }
-  gaps: {
-    unmappedClos: { course: string; text: string }[]
-    unreachedPos: { code: string; title: string }[]
   }
   cqi: {
     /** True when the database has no cqi_actions table at all. */

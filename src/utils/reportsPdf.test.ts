@@ -141,26 +141,12 @@ const base: ReportsPdfModel = {
     ],
     unmappedCount: 45,
   },
-  mix: {
-    centerValue: 203,
-    centerLabel: 'Mapped CLOs',
-    slices: [
-      { label: 'PO', count: 110, rgb: [21, 128, 61] },
-      { label: 'PEO', count: 49, rgb: [77, 154, 47] },
-      { label: 'Strategic Goal', count: 30, rgb: [59, 130, 246] },
-      { label: 'CHED', count: 14, rgb: [139, 92, 246] },
-    ],
-  },
   documents: {
     rows: [
       { label: 'PEO 1', detail: 'Graduates demonstrate professional and ethical competence.', codes: ['PO-1', 'PO-2'] },
       { label: 'Strategic Goal 2', detail: 'Strengthen instruction quality.', codes: [] },
       { label: 'CHED', detail: 'CMO 25 s. 2015', codes: ['PO-1'] },
     ],
-  },
-  gaps: {
-    unmappedClos: [{ course: 'IT103', text: 'Apply mathematical models in computing' }],
-    unreachedPos: [{ code: 'PO-3', title: 'Collaboration' }],
   },
   cqi: {
     missing: false,
@@ -183,9 +169,7 @@ const emptyModel: ReportsPdfModel = {
   mapping: { rows: [] },
   poCoverage: { rows: [], uncovered: 0, hidden: 0, totalClos: 0 },
   matrix: { columns: [], rows: [], unmappedCount: 0 },
-  mix: { centerValue: 0, centerLabel: 'Mapped CLOs', slices: [] },
   documents: { rows: [] },
-  gaps: { unmappedClos: [], unreachedPos: [] },
   cqi: { missing: true, rows: [] },
   findings: [],
   recommendations: [],
@@ -225,11 +209,9 @@ describe('renderReportsPdf sections', () => {
     expect(headings).toContain('2.  Curriculum Mapping Summary')
     expect(headings).toContain('3.  PO Coverage Chart')
     expect(headings).toContain('4.  CLO - PO Alignment Matrix')
-    expect(headings).toContain('5.  Outcomes Alignment by Type')
-    expect(headings).toContain('6.  Alignment to PEOs, Goals and CHED Memoranda')
-    expect(headings).toContain('7.  Mapping Gaps')
-    expect(headings).toContain('8.  CQI Monitoring & Recommendations')
-    expect(headings).toContain('9.  Key Findings and Remarks')
+    expect(headings).toContain('5.  Alignment to PEOs, Goals and CHED Memoranda')
+    expect(headings).toContain('6.  CQI Monitoring & Recommendations')
+    expect(headings).toContain('7.  Key Findings and Remarks')
   })
 
   it('draws the KPI values and their qualifiers', () => {
@@ -268,13 +250,7 @@ describe('renderReportsPdf sections', () => {
     expect(texts.some((t) => t.text.includes('names that program outcome'))).toBe(true)
   })
 
-  it('charts the donut with its hub and legend', () => {
-    expect(texts.some((t) => t.text === '203')).toBe(true)
-    expect(texts.some((t) => t.text === 'Mapped CLOs')).toBe(true)
-    expect(texts.some((t) => t.text === 'PO (110)')).toBe(true)
-  })
-
-  it('names each document behind the donut with its outcomes', () => {
+  it('names each document with the outcomes that cite it', () => {
     expect(texts.some((t) => t.text === 'PEO 1')).toBe(true)
     expect(texts.some((t) => t.text === 'Graduates demonstrate professional and ethical competence.')).toBe(true)
     expect(texts.some((t) => t.text === 'Program outcomes (2): PO-1, PO-2')).toBe(true)
@@ -288,11 +264,6 @@ describe('renderReportsPdf sections', () => {
     const r = recorder()
     renderReportsPdf(r.doc, { ...emptyModel, documents: { rows: [] } })
     expect(r.texts.some((t) => t.text.includes('No PEOs, strategic goals or memoranda recorded'))).toBe(true)
-  })
-
-  it('lists both directions of the gaps', () => {
-    expect(texts.some((t) => t.text.includes('Apply mathematical models'))).toBe(true)
-    expect(texts.some((t) => t.text.includes('Collaboration'))).toBe(true)
   })
 
   it('prints the CQI action with its status', () => {
@@ -325,7 +296,7 @@ describe('renderReportsPdf sections', () => {
     const r = recorder()
     renderReportsPdf(r.doc, emptyModel)
     const headings = r.texts.filter((t) => /^\d+\.\s/.test(t.text)).map((t) => t.text)
-    expect(headings.length).toBe(9)
+    expect(headings.length).toBe(7)
     expect(r.texts.some((t) => t.text.includes('Nothing to align yet'))).toBe(true)
   })
 

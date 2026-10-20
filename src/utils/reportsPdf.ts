@@ -3,15 +3,14 @@
 // The screen's dashboard becomes a document: a green masthead with the wordmark
 // and tagline, a title band carrying the academic year / program / stamp, then
 // numbered sections -- the eight KPI tiles, the curriculum mapping table, the
-// PO coverage bars, the CLO-to-PO matrix, the alignment donut, the gaps, the
+// PO coverage bars, the CLO-to-PO matrix, the named alignment documents, the
 // CQI action list and the findings with a signature block. The interface is
 // modeled on the college's report sheet rather than on the screen: numbered
 // section bands, badges instead of chips, and a footer band on every page.
 //
 // Vector throughout. A rasteriser would freeze the layout in an image (no
 // selectable text, page-sized files); everything here -- charts included -- is
-// drawn: the bars are rectangles, the donut is filled wedges built from short
-// line segments, the matrix is a grid of filled cells.
+// drawn: the bars are rectangles, the matrix is a grid of filled cells.
 //
 // The layout is driven by ReportsPdfModel, which Reports.tsx assembles from the
 // same derived values its panels show. The document therefore cannot drift from
@@ -535,69 +534,6 @@ class Writer {
     this.y = y0 + labelBand + 6
   }
 
-  /**
-   * The donut, as filled wedges: a polygon whose outer edge is its arc, walked
-   * in short steps so a 24-segment approximation reads as smooth on paper.
-   */
-  donut(cx: number, cy: number, rOuter: number, rInner: number): void {
-    const d = this.doc
-    const slices = this.model.mix.slices.filter((s) => s.count > 0)
-    const total = slices.reduce((n, s) => n + s.count, 0)
-
-    // Twenty-four points per quarter circle is plenty at print resolution.
-    const STEPS = 48
-    const arc = (from: number, to: number, r: number): [number, number][] => {
-      const pts: [number, number][] = []
-      const steps = Math.max(2, Math.ceil((Math.abs(to - from) / (Math.PI * 2)) * STEPS))
-      for (let i = 0; i <= steps; i += 1) {
-        const a = from + (to - from) * (i / steps)
-        pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)])
-      }
-      return pts
-    }
-
-    let angle = -Math.PI / 2
-    for (const slice of slices) {
-      const sweep = (slice.count / total) * Math.PI * 2
-      const outer = arc(angle, angle + sweep, rOuter)
-      const inner = arc(angle + sweep, angle, rInner)
-      const poly = [...outer, ...inner]
-      const deltas: number[][] = []
-      for (let i = 1; i < poly.length; i += 1) {
-        deltas.push([poly[i][0] - poly[i - 1][0], poly[i][1] - poly[i - 1][1]])
-      }
-      d.setFillColor(...slice.rgb)
-      d.lines(deltas, poly[0][0], poly[0][1], [1, 1], 'F', true)
-      angle += sweep
-    }
-
-    // The hub carries what the ring is about: the mapped count.
-    d.setFillColor(255, 255, 255)
-    d.circle(cx, cy, rInner - 0.4, 'F')
-    d.setFont(SANS, 'bold')
-    d.setFontSize(SIZE.title)
-    d.setTextColor(...DARK)
-    d.text(String(this.model.mix.centerValue), cx, cy - 0.5, { align: 'center' })
-    d.setFont(SANS, 'normal')
-    d.setFontSize(7)
-    d.setTextColor(...MUTED)
-    d.text(this.model.mix.centerLabel, cx, cy + 3.6, { align: 'center' })
-
-    // Legend on the right: dot, label and share, one row per slice.
-    const lx = cx + rOuter + 8
-    slices.forEach((slice, i) => {
-      const ly = cy - rOuter + 6 + i * 6.4
-      d.setFillColor(...slice.rgb)
-      d.circle(lx, ly - 1.2, 1.5, 'F')
-      d.setFont(SANS, 'normal')
-      d.setFontSize(SIZE.body)
-      d.setTextColor(...INK)
-      d.text(`${slice.label} (${slice.count})`, lx + 4, ly)
-      d.setFont(SANS, 'bold')
-      d.text(`${total === 0 ? 0 : Math.round((slice.count / total) * 100)}%`, lx + 34, ly)
-    })
-  }
-
   // ---- matrix ----
 
   matrixRow(label: string, hitCols: number[], totalCols: number, colW: number, rowH = 5.2): void {
@@ -664,7 +600,7 @@ export function renderReportsPdf(doc: PdfDoc, model: ReportsPdfModel): void {
   if (cols.length === 0 || model.matrix.rows.length === 0) {
     w.empty('Nothing to align yet: map learning outcomes to program outcomes first.')
   } else {
-    w.sub(`${model.matrix.rows.length} mapped learning outcome(s) across ${cols.length} program outcome(s). ${model.matrix.unmappedCount} further outcome(s) map nothing and appear under Mapping Gaps.`)
+    w.sub(`${model.matrix.rows.length} mapped learning outcome(s) across ${cols.length} program outcome(s). ${model.matrix.unmappedCount} further outcome(s) map nothing.`)
     const colW = Math.min(11, (CONTENT_W - 24) / cols.length)
     // Column headings ride their own row so the letter codes stay readable.
     w.tableHeader(['', ...cols.map((c) => c.label)], [24, ...cols.map(() => colW)], cols.map(() => 'left' as Align))
@@ -675,26 +611,11 @@ export function renderReportsPdf(doc: PdfDoc, model: ReportsPdfModel): void {
   }
   w.gap()
 
-  // ---- 5. Outcomes Alignment by Type ----
-  w.sectionHeading(5, 'Outcomes Alignment by Type')
-  if (model.mix.slices.length === 0) {
-    w.empty('No mapped learning outcomes to distribute yet.')
-  } else {
-    // Room for a 50mm ring plus its legend rows before the next band: the
-    // taller of the two is whichever the legend's row count grows past.
-    w.space(62)
-    const cy = w.cursor + 27 + (model.mix.slices.length * 6.4) / 2
-    w.donut(MARGIN + 27, cy, 25, 16)
-    const legendBottom = cy - 19 + model.mix.slices.length * 6.4
-    w.at(Math.max(cy + 27, legendBottom) + 4)
-  }
-  w.gap()
-
-  // ---- 6. Alignment to PEOs, Goals and CHED Memoranda ----
-  // The donut above is these documents counted; this is them named. Each
-  // document with the program outcomes that cite it, so the reader can walk
-  // 'Strategic Goal (2) - 33%' back to which documents and which outcomes.
-  w.sectionHeading(6, 'Alignment to PEOs, Goals and CHED Memoranda')
+  // ---- 5. Alignment to PEOs, Goals and CHED Memoranda ----
+  // The named side of the alignment: each institutional document with the
+  // program outcomes that cite it, so the reader can walk one document to the
+  // outcomes that carry it.
+  w.sectionHeading(5, 'Alignment to PEOs, Goals and CHED Memoranda')
   if (model.documents.rows.length === 0) {
     w.empty('No PEOs, strategic goals or memoranda recorded yet.')
   } else {
@@ -716,19 +637,8 @@ export function renderReportsPdf(doc: PdfDoc, model: ReportsPdfModel): void {
   }
   w.gap()
 
-  // ---- 7. Mapping Gaps ----
-  w.sectionHeading(7, 'Mapping Gaps')
-  w.sub('Learning outcomes that name no program outcome, and outcomes that no learning outcome names.')
-  w.put(`Unmapped learning outcomes: ${model.gaps.unmappedClos.length}`, MARGIN, { style: 'bold', color: BAD_INK, size: SIZE.body })
-  w.bulleted(model.gaps.unmappedClos.slice(0, 12).map((g) => `${g.course} - ${g.text}`))
-  if (model.gaps.unmappedClos.length > 12) w.sub(`and ${model.gaps.unmappedClos.length - 12} more.`)
-  w.put(`Program outcomes without coverage: ${model.gaps.unreachedPos.length}`, MARGIN, { style: 'bold', color: BAD_INK, size: SIZE.body })
-  w.bulleted(model.gaps.unreachedPos.slice(0, 12).map((p) => `${p.code} - ${p.title}`))
-  if (model.gaps.unreachedPos.length > 12) w.sub(`and ${model.gaps.unreachedPos.length - 12} more.`)
-  w.gap()
-
-  // ---- 8. CQI Actions ----
-  w.sectionHeading(8, 'CQI Monitoring & Recommendations')
+  // ---- 6. CQI Actions ----
+  w.sectionHeading(6, 'CQI Monitoring & Recommendations')
   const cw = [18, 66, 30, 24, CONTENT_W - 138]
   const cAligns: Align[] = ['left', 'left', 'left', 'left', 'left']
   w.tableHeader(['Code', 'Recommendation', 'Responsible', 'Target Date', 'Status'], cw, cAligns, true)
@@ -741,8 +651,8 @@ export function renderReportsPdf(doc: PdfDoc, model: ReportsPdfModel): void {
   }
   w.gap()
 
-  // ---- 9. Findings and remarks ----
-  w.sectionHeading(9, 'Key Findings and Remarks')
+  // ---- 7. Findings and remarks ----
+  w.sectionHeading(7, 'Key Findings and Remarks')
   let n = 0
   for (const finding of model.findings) {
     n += 1

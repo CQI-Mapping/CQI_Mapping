@@ -62,9 +62,7 @@ import {
 import { buildMappingReport, chartableOutcomes, poLabel } from '../../utils/cloPoMapping'
 import type { PoOutcome } from '../../utils/alignment'
 import { normalizeCode } from '../../utils/courseCodes'
-import MappedTargetsDonut from '../../components/MappedTargetsDonut'
 import PoCoverageBars from '../../components/PoCoverageBars'
-import OutcomeCoverageChart from '../../components/OutcomeCoverageChart'
 import Icon from '../../components/icons'
 import type { IconName } from '../../components/icons'
 
@@ -150,16 +148,6 @@ function Reports({ profile, onNavigate }: ReportsProps) {
   // than a link that cannot go anywhere.
   const courseListPage =
     profile.role === 'manager' ? 'course' : profile.role === 'admin' ? 'curriculum' : null
-
-  // Where "View All Gaps" leads, per gap direction, and only where the
-  // reader's sidebar can actually go. The CLO side opens the mapping work:
-  // faculty's own Course Learning Outcomes page, everyone else's curriculum,
-  // which is where their courses -- and the outcomes each one maps -- live.
-  // The PO side opens the program-outcomes list for admin and manager; a
-  // faculty reader has no outcomes page, so that direction's footer stays
-  // inert text rather than a link that cannot go anywhere.
-  const cloGapPage = profile.role === 'user' ? 'clo' : 'curriculum'
-  const poGapPage = profile.role === 'user' ? null : 'program-outcomes'
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -259,44 +247,9 @@ function Reports({ profile, onNavigate }: ReportsProps) {
     return byCourse
   }, [programCourseList, courseOutcomeRows, mapping])
 
-  // Which kind of document the mapped learning outcomes reach, for the
-  // donut. A learning outcome counts once per family it reaches, so the slices
-  // need not total the mapped count -- which is what the legend's counts are
-  // for.
-  const mappedTargets = useMemo(() => {
-    const byKey = new Map(outcomes.map((o) => [o.key, o]))
-    const counts = { po: 0, peo: 0, sg: 0, ched: 0 }
-    const reaches: Array<{ code: string; targets: { label: string; color: string }[] }> = []
-    for (const link of mapping.links) {
-      if (link.poKeys.length === 0) continue
-      counts.po += 1
-      const pos = link.poKeys.map((k) => byKey.get(k)).filter(Boolean)
-      const peoSet = new Set(pos.flatMap((o) => o!.peo))
-      const sgSet = new Set(pos.flatMap((o) => o!.sg))
-      const cmoSet = new Set(pos.flatMap((o) => o!.cmo))
-      if (peoSet.size > 0) counts.peo += 1
-      if (sgSet.size > 0) counts.sg += 1
-      // A CMO alignment IS a CHED memorandum reference: the memo table holds
-      // them, and cmo_id points into it.
-      if (cmoSet.size > 0) counts.ched += 1
-      // The chain the panel names: the outcomes the CLO reaches, then the
-      // PEOs and goals those outcomes anchor to -- all chips under the ring.
-      reaches.push({
-        code: link.clo.code.trim() || '—',
-        targets: [
-          ...pos.map((o) => ({ label: poLabel(o!.code), color: '#15803d' })),
-          ...[...peoSet].map((c) => ({ label: c, color: '#4d9a2f' })),
-          ...[...sgSet].map((c) => ({ label: c, color: '#3b82f6' })),
-        ],
-      })
-    }
-    return { counts, reaches }
-  }, [mapping, outcomes])
-
-  // The gaps panel reads two directions of the same missing link: learning
-  // outcomes that name nothing, and outcomes nothing names. This is the
-  // second list -- the coverage rows with no learning outcome on them.
-  const [gapView, setGapView] = useState<'clos' | 'pos'>('clos')
+  // The coverage rows no learning outcome reaches. The panels that showed
+  // both sides of the gap are gone from the brief, so this count now lives on
+  // only in the report's findings and recommendations.
   const uncoveredOutcomes = useMemo(
     () => mapping.coverage.filter((row) => row.cloCount === 0),
     [mapping],
@@ -305,7 +258,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
   // ---- the export's source ----
   //
   // The PDF is the sheet the page shows: the same memoised KPI tiles, mapping
-  // rows, coverage chart, matrix, mixes and gaps, assembled inside download()
+  // rows, coverage chart, matrix, named alignment documents and CQI actions, assembled inside download()
   // from what the panels display. There is no separate computation for the
   // document to drift into, and no record inventory built here -- buildReport's
   // five flattened lists were the CSV's shape, and the CSV is gone. The Excel
@@ -354,20 +307,10 @@ function Reports({ profile, onNavigate }: ReportsProps) {
         }))
         .filter((row) => row.hits.length > 0)
 
-      // Alignment slices: one per document family a mapped outcome reaches.
-      // Counts overlap by design -- a CLO reaching a PO that also carries a PEO
-      // counts in both families -- which is what the legend's totals are for.
-      const sliceColors: Record<'po' | 'peo' | 'sg' | 'ched', [number, number, number]> = {
-        po: [21, 128, 61],
-        peo: [77, 154, 47],
-        sg: [59, 130, 246],
-        ched: [139, 92, 246],
-      }
-
-      // Section 6 names what the donut counts: every institutional document
-      // with the program outcomes that cite it. anchorTallies() is the count
-      // version of this same walk; the page outcome's own code is what the
-      // sheet prints, normalised like every other PO label.
+      // The named alignment documents: every PEO, strategic goal and CHED
+      // memorandum with the program outcomes that cite it. The page outcome's
+      // own code is what the sheet prints, normalised like every other PO
+      // label.
       const familyField = { cmo: 'cmo', peo: 'peo', sg: 'sg' } as const
       const familyLabel = { cmo: 'CHED', peo: 'PEO', sg: 'Strategic Goal' } as const
       const documentRows = anchors.map((anchor) => ({
@@ -377,13 +320,6 @@ function Reports({ profile, onNavigate }: ReportsProps) {
           .filter((o) => o[familyField[anchor.family]].includes(anchor.code))
           .map((o) => poLabel(o.code)),
       }))
-      const mixSlices = (['po', 'peo', 'sg', 'ched'] as const)
-        .map((family) => ({
-          label: family === 'sg' ? 'Strategic Goal' : family === 'ched' ? 'CHED' : family.toUpperCase(),
-          count: mappedTargets.counts[family],
-          rgb: sliceColors[family],
-        }))
-        .filter((slice) => slice.count > 0)
 
       const model: ReportsPdfModel = {
         meta: {
@@ -448,22 +384,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
           rows: matrixRows,
           unmappedCount: mapping.gaps.length,
         },
-        mix: {
-          centerValue: mapping.mappedClos,
-          centerLabel: 'Mapped CLOs',
-          slices: mixSlices,
-        },
         documents: { rows: documentRows },
-        gaps: {
-          unmappedClos: mapping.gaps.map((gap) => ({
-            course: courseCodeOf(gap.clo.course),
-            text: gap.clo.title || gap.clo.description || '—',
-          })),
-          unreachedPos: uncoveredOutcomes.map((row) => ({
-            code: poLabel(row.outcome.code),
-            title: row.outcome.title || '—',
-          })),
-        },
         cqi: {
           missing: cqi.missing,
           rows: cqi.rows.map((action) => ({
@@ -670,10 +591,11 @@ function Reports({ profile, onNavigate }: ReportsProps) {
             />
           </div>
 
-          {/* ---- panels: two columns, three rows ----
-              The arrangement of the report brief: mapping summary, PO
-              coverage chart and the outcome coverage bars below it; the
-              alignment mix beside it, the mapping gaps full-width last. */}
+          {/* ---- panels: two columns, one row ----
+              The arrangement of the report brief: the mapping summary beside
+              the PO coverage chart. The coverage bars, the alignment donut and
+              the mapping gaps panels once filled three more cells here; the
+              brief now stops after the coverage chart. */}
           <div className="reports-panels">
             {/* 1 ---- */}
             <section className="panel reports-panel">
@@ -750,144 +672,6 @@ function Reports({ profile, onNavigate }: ReportsProps) {
               )}
             </section>
 
-            {/* 3 ---- */}
-            <section className="panel reports-panel">
-              <PanelHead icon="table" title="Outcome Coverage Bar Chart" />
-              <p className="reports-panel__sub">
-                Shows each PO alongside the percentage or number of CLOs mapped to it.
-              </p>
-              {mapping.coverage.length === 0 ? (
-                <p className="reports-empty">No program outcomes recorded yet.</p>
-              ) : (
-                <OutcomeCoverageChart rows={mapping.coverage} totalClos={mapping.totalClos} />
-              )}
-            </section>
-
-            {/* 4 ---- */}
-            <section className="panel reports-panel">
-              <PanelHead icon="target" title="Outcomes Alignment by Type" />
-              <p className="reports-panel__sub">
-                Distribution of mapped CLOs across PO, PEO and Strategic Goals.
-              </p>
-              <MappedTargetsDonut
-                slices={[
-                  { key: 'po', label: 'PO', count: mappedTargets.counts.po },
-                  { key: 'peo', label: 'PEO', count: mappedTargets.counts.peo },
-                  { key: 'sg', label: 'Strategic Goal', count: mappedTargets.counts.sg },
-                  { key: 'ched', label: 'CHED', count: mappedTargets.counts.ched },
-                ]}
-                mapped={mapping.mappedClos}
-                total={mapping.totalClos}
-                reaches={mappedTargets.reaches}
-              />
-            </section>
-
-            {/* 5 -- both directions of a gap: CLOs that name no outcome,
-                     outcomes no CLO names. The tabs carry live counts.
-                     Full width: the row's only panel since CQI left. -- */}
-            <section className="panel reports-panel reports-panel--span">
-              <PanelHead icon="warning" title="Mapping Gaps" />
-              <p className="reports-panel__sub">
-                Gaps on both sides of the mapping: learning outcomes that name
-                no program outcome, and program outcomes no outcome names.
-              </p>
-              <div className="rgap__tabs" role="tablist" aria-label="Gap direction">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={gapView === 'clos'}
-                  className={gapView === 'clos' ? 'rgap__tab rgap__tab--on' : 'rgap__tab'}
-                  onClick={() => setGapView('clos')}
-                >
-                  Unmapped CLOs
-                  <span className="rgap__count">{mapping.gaps.length}</span>
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={gapView === 'pos'}
-                  className={gapView === 'pos' ? 'rgap__tab rgap__tab--on' : 'rgap__tab'}
-                  onClick={() => setGapView('pos')}
-                >
-                  Unreached POs
-                  <span className="rgap__count">{uncoveredOutcomes.length}</span>
-                </button>
-              </div>
-              <div className="table-wrap reports-scroll">
-                <table className="table">
-                  <thead>
-                    {gapView === 'clos' ? (
-                      <tr>
-                        <th>Course Code</th>
-                        <th>CLO Description</th>
-                        <th>Status</th>
-                      </tr>
-                    ) : (
-                      <tr>
-                        <th>Outcome</th>
-                        <th>Description</th>
-                        <th>Status</th>
-                      </tr>
-                    )}
-                  </thead>
-                  <tbody>
-                    {gapView === 'clos' ? (
-                      mapping.gaps.length === 0 ? (
-                        <tr>
-                          <td colSpan={3} className="reports-empty">
-                            {mapping.totalClos === 0
-                              ? 'No learning outcomes to check yet.'
-                              : 'Every learning outcome maps to a program outcome.'}
-                          </td>
-                        </tr>
-                      ) : (
-                        mapping.gaps.map((gap) => (
-                          <tr key={gap.clo.id}>
-                            <td>{courseCodeOf(gap.clo.course)}</td>
-                            <td className="reports-gap-clo">
-                              {gap.clo.title || gap.clo.description || BLANK}
-                            </td>
-                            <td>
-                              <span className="status-badge status-badge--unmapped">Unmapped</span>
-                            </td>
-                          </tr>
-                        ))
-                      )
-                    ) : uncoveredOutcomes.length === 0 ? (
-                      <tr>
-                        <td colSpan={3} className="reports-empty">
-                          {mapping.coverage.length === 0
-                            ? 'No program outcomes recorded yet.'
-                            : 'Every program outcome is covered by a mapped learning outcome.'}
-                        </td>
-                      </tr>
-                    ) : (
-                      uncoveredOutcomes.map((row) => (
-                        <tr key={row.outcome.key}>
-                          <td>{poLabel(row.outcome.code)}</td>
-                          <td className="reports-gap-clo">{row.outcome.title}</td>
-                          <td>
-                            <span className="status-badge status-badge--unmapped">
-                              No CLO coverage
-                            </span>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              <PanelFoot
-                left=""
-                action="View All Gaps"
-                onAction={
-                  (gapView === 'clos' ? cloGapPage : poGapPage)
-                    ? () => onNavigate?.(gapView === 'clos' ? cloGapPage : poGapPage!)
-                    : undefined
-                }
-              />
-            </section>
-
           </div>
 
           {/* ---- footer: who produced this and what it is not ---- */}
@@ -912,9 +696,6 @@ function Reports({ profile, onNavigate }: ReportsProps) {
     </div>
   )
 }
-
-/** Shown where a record has nothing recorded, rather than as an empty cell. */
-const BLANK = '—'
 
 /**
  * A course's mapping status, from how many of its learning outcomes reach a
