@@ -2420,8 +2420,8 @@ export default function SubjectView() {
             >
               <option value="">--- select to Visualize ---</option>
               <option value="subject">Subject</option>
-              <option value="po">PO</option>
-              <option value="peo">PEO</option>
+              <option value="po">PO — Program Outcome</option>
+              <option value="peo">PEO — Program Educational Objective</option>
               {/* Hidden roots — never offered here. They stay in the DOM so
                   the select keeps a valid value when one of them is active,
                   which only happens by clicking a node inside an open graph
