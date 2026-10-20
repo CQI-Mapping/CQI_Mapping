@@ -947,8 +947,11 @@ export default function SubjectView() {
 
   // ── Build the PEO-rooted graph model ───────────────────────────────────────
   // Root = PEO. Downstream: every PO aligned to this PEO (by peo_id first, then
-  // by a PEO code token in peo_text) — each PO shows its own PEO/SG/CMO leaves
-  // and upstream CLOs → subjects, so it looks like a slice of the subject graph.
+  // by a PEO code token in peo_text) — each PO shows its own remaining
+  // PEO/SG/CMO leaves and upstream CLOs → subjects, so it looks like a slice of
+  // the subject graph. The root PEO's own leaf is pruned from every slice: it
+  // is the branch head already, and re-stating "PEO 1" under each aligned PO
+  // painted the same label a dozen times over.
   const buildPeoGraphModel = useCallback(
     (datasetsRef: OutcomeDatasets, peoRec: ProgramEducationalObjective): GraphNodeData => {
       const peoKey = normalizeCode(peoRec.code)
@@ -995,6 +998,11 @@ export default function SubjectView() {
         }
         attachPoLeaves(datasetsRef, poNode, po)
         attachClosUpstream(datasetsRef, poNode, po)
+        // Drop the slice's PEO leaf that names the root PEO — id first, then
+        // normalized code so duplicate-code PEO rows still collapse onto the
+        // root. The PO's other PEO alignments (PEO 2, PEO 3 …) stay visible.
+        poNode.children = poNode.children.filter((c) =>
+          !(c.kind === 'peo' && (c.peoId === peoRec.id || normalizeCode(c.code) === peoKey)))
         root.children.push(poNode)
       }
 
@@ -1007,8 +1015,12 @@ export default function SubjectView() {
   // Root-side branches render each aligned PO carrying BOTH sides of the story:
   // its PEO / SG / CMO leaves and its upstream CLOs → subjects — exactly what
   // the PO root itself shows, so a branch never understates a PO's reach.
+  // `omitId` drops one child — the root record's own leaf. A branch rooted at
+  // a PEO / SG / CMO / CLO otherwise re-states that very record under every
+  // PO slice (the same "PEO 1" painted once per aligned PO), which the root
+  // already announces; the record itself navigates nowhere new from there.
   const poSliceNode = useCallback(
-    (datasetsRef: OutcomeDatasets, poRec: ProgramOutcomeStandalone): GraphNodeData => {
+    (datasetsRef: OutcomeDatasets, poRec: ProgramOutcomeStandalone, omitId?: string): GraphNodeData => {
       const node: GraphNodeData = {
         id: `po-${poRec.id}`,
         code: poRec.code,
@@ -1020,6 +1032,7 @@ export default function SubjectView() {
       }
       attachPoLeaves(datasetsRef, node, poRec)
       attachClosUpstream(datasetsRef, node, poRec)
+      if (omitId) node.children = node.children.filter((c) => c.id !== omitId)
       return node
     },
     [attachPoLeaves, attachClosUpstream],
@@ -1058,7 +1071,9 @@ export default function SubjectView() {
         })
         return root
       }
-      for (const po of sortPos(linkedPos)) root.children.push(poSliceNode(datasetsRef, po))
+      // Each aligned PO renders as a full slice, with the root goal's own leaf
+      // pruned so "Goal 1" is not re-stated under every PO branch.
+      for (const po of sortPos(linkedPos)) root.children.push(poSliceNode(datasetsRef, po, root.id))
       return root
     },
     [poSliceNode],
@@ -1099,7 +1114,9 @@ export default function SubjectView() {
         })
         return root
       }
-      for (const po of sortPos(linkedPos)) root.children.push(poSliceNode(datasetsRef, po))
+      // Each anchored PO renders as a full slice, with the root memorandum's
+      // own leaf pruned so the CMO is not re-stated under every PO branch.
+      for (const po of sortPos(linkedPos)) root.children.push(poSliceNode(datasetsRef, po, root.id))
       return root
     },
     [poSliceNode],
@@ -1131,7 +1148,9 @@ export default function SubjectView() {
           .filter((p) => isManagerCmCategory(p))
           .find((p) => normalizeCode(p.code) === key)
         if (poRec) {
-          root.children.push(poSliceNode(datasetsRef, poRec))
+          // Full slice, minus the root outcome's own leaf — every named PO
+          // would otherwise re-list this very CLO under itself.
+          root.children.push(poSliceNode(datasetsRef, poRec, root.id))
         } else {
           root.children.push({
             id: `po-missing-${tok}`,
