@@ -1,7 +1,7 @@
 // User dashboard — faculty role: CLOs + Subject Graph only.
-// Shows subject/outcome counts and PO coverage, a per-course CLO snapshot,
-// and the newest CLO updates — feed cards and rows are buttons into their
-// pages, and each feed row opens the shared read-only CLO modal.
+// Shows subject/outcome counts and the newest CLO updates — stat cards and
+// feed rows act as buttons into their pages, and each feed row opens the
+// shared read-only CLO modal.
 import { useState, useEffect } from 'react'
 import {
   fetchCourses,
@@ -46,37 +46,15 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
     return () => { cancelled = true }
   }, [])
 
-  // Standalone CLOs carry their mapped POs in `title` (the comma list the
-  // cards chip). Coverage is the share of outcomes the mapping reached.
-  const mapped = clos.filter((c) => (c.title || '').trim().length > 0).length
-  const coverage = clos.length === 0 ? null : Math.round((mapped / clos.length) * 100)
-
   const stats: StatCard[] = [
     { label: 'Subjects', value: String(courses.length), accent: '#16a34a', icon: 'course', sub: 'Available subjects', target: 'subject-view' },
     { label: 'Course Outcomes', value: String(clos.length), accent: '#15803d', icon: 'clo', sub: 'CLOs per course', target: 'clo' },
-    {
-      label: 'PO Coverage',
-      value: coverage === null ? '—' : `${coverage}%`,
-      accent: '#22c55e',
-      icon: 'po',
-      sub: `${mapped} of ${clos.length} CLOs map POs`,
-      target: 'clo',
-    },
   ]
 
   // Recent CLOs as the faculty feed (audit log is manager/admin only).
   const recent = [...clos]
     .sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))
     .slice(0, 5)
-
-  // Per-course CLO readiness: which subjects the mapping reached, which
-  // still have no outcomes on them at all.
-  const courseRows = [...courses]
-    .sort((a, b) => (a.code || '').localeCompare(b.code || ''))
-    .map((course) => ({
-      course,
-      count: clos.filter((l) => l.course === course.code).length,
-    }))
 
   function getTimeGreeting(): string {
     const h = new Date().getHours()
@@ -126,7 +104,7 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
 
       <div className="stat-grid stat-grid--2026" aria-busy={!loaded}>
         {!loaded
-          ? ['stat-1', 'stat-2', 'stat-3'].map((label) => (
+          ? ['stat-1', 'stat-2'].map((label) => (
             <div className="stat-card stat-card--2026 stat-card--skeleton card-enter" key={label} aria-hidden="true">
               <span className="stat-card__label">Loading</span>
               <span className="stat-card__value">—</span>
@@ -208,38 +186,6 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
                   <span className="activity-feed__action">{r.code || r.title}</span>
                   <span className="activity-feed__user">{[r.course, r.title].filter(Boolean).join(' · ').slice(0, 60) || '—'}</span>
                   <time className="activity-feed__time">{new Date(r.created_at).toLocaleString()}</time>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <div className="dashboard-panel dashboard-panel--span">
-          <div className="dashboard-panel__header">
-            <h3>Course snapshot</h3>
-            <span>CLO readiness per subject</span>
-          </div>
-          {courseRows.length === 0 ? (
-            <p className="dashboard-panel__empty">No subjects on record yet.</p>
-          ) : (
-            <ul className="activity-feed" style={{ maxHeight: 300, overflowY: 'auto' }}>
-              {courseRows.map(({ course, count }) => (
-                <li
-                  key={course.id}
-                  className="activity-feed__item activity-feed__item--link"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => go('clo')}
-                  onKeyDown={(e) => activate(e, () => go('clo'))}
-                  aria-label={`Open course outcomes for ${course.code || course.title}`}
-                >
-                  {/* Green: the course has outcomes. Amber: a mapping gap worth opening. */}
-                  <span className="activity-feed__dot" style={count > 0 ? { background: '#22c55e', boxShadow: '0 0 0 4px #dcfce7' } : { background: '#f59e0b', boxShadow: '0 0 0 4px #fef3c7' }} />
-                  <span className="activity-feed__action">{course.code || '—'}</span>
-                  <span className="activity-feed__user">{(course.title || '').slice(0, 60) || '—'}</span>
-                  <span className="dashboard-feed__count" data-empty={count === 0 ? '' : undefined}>
-                    {count} CLO{count === 1 ? '' : 's'}
-                  </span>
                 </li>
               ))}
             </ul>
