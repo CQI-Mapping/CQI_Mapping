@@ -175,8 +175,8 @@ export async function downloadSyllabusDocx(
           children: [
             cell([para('VISION', { bold: true, color: NAVY, align: CENTER })], 19.5),
             cell([para('MISSION', { bold: true, color: NAVY, align: CENTER })], 16),
-            cell([para('STRATEGIC GOALS', { bold: true, color: NAVY, align: CENTER })], 21),
-            cell([para('PROGRAM EDUCATIONAL OBJECTIVES', { bold: true, color: NAVY, align: CENTER })], 43.5),
+            cell([para('STRATEGIC GOALS', { bold: true, color: '000000', align: CENTER })], 21),
+            cell([para('PROGRAM EDUCATIONAL OBJECTIVES', { bold: true, color: '000000', align: CENTER })], 43.5),
           ],
         }),
         new TableRow({

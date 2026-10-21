@@ -2381,6 +2381,14 @@ code {
   width: 25%;
 }
 
+/* Strategic Goals + PEO headers read black rather than the navy the first
+   two columns carry - the user works from the official paper crop where
+   these two columns' titles print black. */
+.sd-table--vmgp th:nth-child(3),
+.sd-table--vmgp th:nth-child(4) {
+  color: #000;
+}
+
 /* Column widths measured from the source PDF (page 1):
    Vision 19.5% | Mission 16% | Strategic Goals 21% | PEOs 43.5% */
 .sd-table--vmgp th:nth-child(1),
