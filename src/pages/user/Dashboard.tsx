@@ -74,32 +74,25 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
 
   return (
     <div className="dashboard dashboard--2026 page-enter">
-      <section className="hero-modern hero-modern--dashboard" aria-labelledby="hero-title">
-        <div className="hero-modern__bg" aria-hidden>
-          <div className="hero-modern__mesh" />
-          <div className="hero-modern__orb hero-modern__orb--1" />
-          <div className="hero-modern__orb hero-modern__orb--2" />
-          <div className="hero-modern__orb hero-modern__orb--3" />
-          <div className="hero-modern__noise" />
-        </div>
-
-        <div className="hero-modern__content">
-          <header className="hero-modern__header">
-            <span className="hero-modern__time">{getTimeGreeting()}</span>
-            <time className="hero-modern__date" dateTime={new Date().toISOString().split('T')[0]}>
-              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-            </time>
-          </header>
-
-          <div className="hero-modern__main" id="hero-title">
-            <div className="hero-modern__identity">
-              <div className="hero-modern__intro">
-                <h1 className="hero-modern__name">Welcome back, {profile?.full_name || profile?.email?.split('@')[0]}</h1>
-                <span className="hero-modern__rolebadge">Faculty</span>
-              </div>
-            </div>
+      <section className="dashbanner" aria-labelledby="dashbanner-name">
+        <div className="dashbanner__info">
+          <span className="dashbanner__greeting">{getTimeGreeting()}</span>
+          <h1 className="dashbanner__name" id="dashbanner-name">
+            {profile?.full_name || profile?.email?.split('@')[0] || 'Welcome'}
+          </h1>
+          <div className="dashbanner__meta">
+            <span className="dashbanner__badge">Faculty</span>
+            <span className="dashbanner__sep">•</span>
+            <span className="dashbanner__role">User</span>
           </div>
+          <p className="dashbanner__desc">
+            Track your course outcomes, view your CLO progress, and explore subjects aligned with your program.
+          </p>
         </div>
+        <time className="dashbanner__date" dateTime={new Date().toISOString().split('T')[0]}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+          <span>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</span>
+        </time>
       </section>
 
       <div className="stat-grid stat-grid--2026" aria-busy={!loaded}>
