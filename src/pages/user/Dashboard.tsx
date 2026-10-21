@@ -156,18 +156,6 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
           )}
         </div>
       </div>
-
-      <div className="dashboard-panel" style={{ marginTop: 2 }}>
-        <div className="dashboard-panel__header">
-          <h3>What you can do</h3>
-          <span>Faculty permissions</span>
-        </div>
-        <ul className="role-list" style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 8 }}>
-          <li><strong>Course Learning Outcomes</strong> — browse CLOs scoped to your courses.</li>
-          <li><strong>Subject Graph</strong> — explore how courses connect via prerequisites.</li>
-          <li><strong>Profile</strong> — update your own name and contact details.</li>
-        </ul>
-      </div>
     </div>
   )
 }
