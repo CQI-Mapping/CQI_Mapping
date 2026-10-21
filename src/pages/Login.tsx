@@ -11,39 +11,6 @@ import '../styles/Login.css'
 
 /* --- decorative poster art (pure inline SVG, no asset files needed) --- */
 
-// University seal approximation (navy ring, gold torch, open book).
-function SealMark({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 64 64" aria-hidden="true">
-      <defs>
-        <linearGradient id="lp-seal-bg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#27529f" />
-          <stop offset="1" stopColor="#173069" />
-        </linearGradient>
-      </defs>
-      <circle cx="32" cy="32" r="30" fill="url(#lp-seal-bg)" />
-      <circle cx="32" cy="32" r="27.5" fill="none" stroke="#e7b83c" strokeWidth="1.6" />
-      <circle cx="32" cy="32" r="24.5" fill="none" stroke="#ffffff" strokeOpacity="0.6" strokeWidth="1" />
-      {/* torch */}
-      <path
-        d="M32 12c3.2 3.4 4.6 6 3.4 9.4 1.8-.4 2.6-1.8 2.8-3.2 1.6 3.4 1 6.6-2.2 8.2-3.6 1.8-8-.2-7.4-4.6.3-2.4 1.6-3.6 3.4-9.8z"
-        fill="#f0c04a"
-      />
-      <rect x="30.4" y="26.6" width="3.2" height="14" rx="1.4" fill="#f0c04a" />
-      {/* open book */}
-      <path
-        d="M14 42c6.5-3.6 12.3-3.9 17-.4 4.7-3.5 10.5-3.2 17 .4v9c-6.5-3.6-12.3-3.9-17-.4-4.7-3.5-10.5-3.2-17 .4z"
-        fill="#f5f2e6"
-      />
-      <path d="M31 42v8.4" stroke="#b9a86e" strokeWidth="1.4" />
-      {/* stars */}
-      <circle cx="20" cy="20" r="1.4" fill="#f0c04a" />
-      <circle cx="44" cy="20" r="1.4" fill="#f0c04a" />
-      <circle cx="32" cy="15.4" r="1.4" fill="#f0c04a" />
-    </svg>
-  )
-}
-
 // Wavy hairline texture for the hero's bottom edge.
 function HeroWaves() {
   return (
@@ -242,7 +209,6 @@ function Login() {
         <div className="login-panel">
           <div className="login-card">
             <div className="login-brand">
-              <SealMark className="login-brand-mark" />
               <h1>CQI Monitoring</h1>
               <p className="login-subtitle">NBSC · Institute of Computer Studies</p>
             </div>
@@ -344,10 +310,6 @@ function Login() {
       {/* RIGHT: the green brush splash with poster branding */}
       <section className="login-splash">
         <BrushSplash />
-
-        <div className="splash-logos">
-          <SealMark className="seal" />
-        </div>
 
         <div className="splash-hero">
           <h2 className="splash-title">

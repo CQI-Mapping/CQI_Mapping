@@ -96,14 +96,6 @@
   text-align: center;
 }
 
-.login-brand-mark {
-  display: block;
-  width: 54px;
-  height: 54px;
-  margin-bottom: 12px;
-  filter: drop-shadow(0 6px 10px rgba(23, 48, 105, 0.3));
-}
-
 .login-brand h1,
 .login-card > h2 {
   margin: 0;
@@ -362,26 +354,6 @@
   pointer-events: none;
 }
 
-/* logos row (top, like the poster seal + CCS badge) */
-.splash-logos {
-  position: absolute;
-  top: 5%;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  z-index: 2;
-  animation: lp-rise 0.5s 0.12s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.seal {
-  display: block;
-  width: 64px;
-  height: 64px;
-  filter: drop-shadow(0 8px 14px rgba(15, 32, 68, 0.45));
-}
-
 /* outlined display hero (title + tagline) */
 .splash-hero {
   position: absolute;
@@ -447,13 +419,6 @@
     height: 100%;
   }
 
-  .splash-logos {
-    position: static;
-    transform: none;
-    justify-content: center;
-    margin: 30px 20px 4px;
-  }
-
   .splash-hero {
     position: static;
     transform: none;
@@ -477,7 +442,6 @@
   .ldot,
   .login-btn::after,
   .login-card,
-  .splash-logos,
   .splash-hero,
   .login-alert--error,
   .login-spinner {
