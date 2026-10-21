@@ -77,7 +77,7 @@ const ACADEMICS_META: Record<string, { desc: string }> = {
   curriculum: { desc: 'Curriculum structure & maps' },
   course: { desc: 'Course catalog & details' },
   clo: { desc: 'Course learning outcomes' },
-  'subject-view': { desc: 'Subject reports (PDF / Word)' },
+  'subject-view': { desc: 'Start Visualizing' },
   tos: { desc: 'Exam blueprint & Bloom coverage' },
 }
 
