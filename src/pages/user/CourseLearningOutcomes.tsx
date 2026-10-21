@@ -27,6 +27,7 @@ import { rankClosestPos, type PoText, type RankedPo } from '../../utils/poMatch'
 import { rankSemantic } from '../../utils/poSemantic'
 import { fuseRanked, toRelative } from '../../utils/poRank'
 import { pickedBefore, recordPick, recordRejection, draftSig } from '../../utils/poMemory'
+import CloViewModal from '../../components/CloViewModal'
 
 const EMPTY = { code: '', course: '', description: '', programOutcomes: '' }
 
@@ -603,50 +604,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
         </div>
       )}
 
-      {viewItem && (
-        <div className="modal-overlay" onClick={() => setViewItem(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={`Course learning outcome ${viewItem.code}`}>
-            <div className="modal__header">
-              <h3>{viewItem.code} — {viewItem.course || 'No course'}</h3>
-            </div>
-            <div className="modal__body">
-              <div>
-                <p style={{ margin: 0, fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#94a3b8' }}>Description</p>
-                <p style={{ margin: '4px 0 0', lineHeight: 1.55, color: '#334155' }}>
-                  {viewItem.description || 'No description.'}
-                </p>
-              </div>
-              <div>
-                <p style={{ margin: 0, fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#94a3b8' }}>Program outcomes</p>
-                <div style={{ fontSize: 12.5, background: '#f8fafc', border: '1px solid #f1f5f9', borderRadius: 8, padding: '8px 10px', color: '#475569', marginTop: 4 }}>
-                  {viewItem.title || '—'}
-                </div>
-              </div>
-              <div className="modal__grid-2">
-                <div>
-                  <p style={{ margin: 0, fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#94a3b8' }}>Status</p>
-                  <p style={{ margin: '4px 0 0' }}>
-                    <span className={`status-badge status-badge--${isActive(viewItem) ? 'active' : 'archived'}`}>
-                      {isActive(viewItem) ? 'Active' : 'Archived'}
-                    </span>
-                  </p>
-                </div>
-                <div>
-                  <p style={{ margin: 0, fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#94a3b8' }}>Last updated</p>
-                  <p style={{ margin: '4px 0 0', fontSize: 12.5, color: '#475569' }}>{new Date(viewItem.updated_at).toLocaleString()}</p>
-                </div>
-              </div>
-              <div>
-                <p style={{ margin: 0, fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#94a3b8' }}>Created</p>
-                <p style={{ margin: '4px 0 0', fontSize: 12.5, color: '#475569' }}>{new Date(viewItem.created_at).toLocaleString()}</p>
-              </div>
-            </div>
-            <div className="modal__footer">
-              <button type="button" className="btn btn--ghost btn--sm" onClick={() => setViewItem(null)}>Close</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {viewItem && <CloViewModal item={viewItem} onClose={() => setViewItem(null)} />}
     </div>
   )
 }

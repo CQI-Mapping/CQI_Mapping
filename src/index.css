@@ -1111,6 +1111,11 @@ code {
   margin-top: 4px;
 }
 
+/* A panel that owns the full panels row, under the two side panels. */
+.dashboard-panel--span {
+  grid-column: 1 / -1;
+}
+
 .dashboard-panel {
   background: #fff;
   border: 1px solid #e2e8f0;
@@ -1219,6 +1224,26 @@ code {
 
 .activity-feed__item:last-child { border-bottom: none; }
 
+/* Rows that act as buttons: hover paints the row, focus keeps its ring
+   inside the list instead of the browser's default outline. */
+.activity-feed__item--link {
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 10px 6px;
+  margin: 0 -6px;
+  transition: background 0.15s ease;
+}
+
+.activity-feed__item--link:hover,
+.activity-feed__item--link:focus-visible {
+  background: #f8fafc;
+  outline: none;
+}
+
+.activity-feed__item--link:focus-visible {
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18);
+}
+
 .activity-feed__dot {
   width: 7px;
   height: 7px;
@@ -1246,6 +1271,26 @@ code {
   grid-column: 3;
   grid-row: 1 / span 2;
   white-space: nowrap;
+}
+
+/* The course snapshot's right cell: a count chip, amber when a course
+   still has no outcomes mapped to it. */
+.dashboard-feed__count {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  justify-self: end;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.dashboard-feed__count[data-empty] {
+  background: #fef3c7;
+  color: #92400e;
 }
 
 .dashboard-panel__empty {
@@ -1467,6 +1512,17 @@ code {
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.1), 0 2px 8px rgba(15, 23, 42, 0.06);
   border-color: #cbd5e1;
+}
+
+/* Cards that act as buttons: the hover lift already exists above; this
+   just makes the pointer honest and gives keyboard users a visible ring. */
+.stat-card--link {
+  cursor: pointer;
+}
+
+.stat-card--link:focus-visible {
+  outline: none;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.1), 0 0 0 3px rgba(34, 197, 94, 0.22);
 }
 
 .stat-card__accent {
