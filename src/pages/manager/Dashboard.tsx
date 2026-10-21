@@ -163,24 +163,6 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
           )}
         </div>
       </div>
-
-      <div className="dashboard-panel" style={{ marginTop: 2 }}>
-        <div className="dashboard-panel__header">
-          <h3>What you can do</h3>
-          <span>Manager permissions</span>
-        </div>
-        <ul className="role-list" style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 8 }}>
-          <li><strong>Program</strong> — add, edit, and archive academic programs and their offerings.</li>
-          <li><strong>CHED Memorandum Orders</strong> — maintain the CHED memorandum references outcomes are aligned to.</li>
-          <li><strong>Strategic Goals</strong> — maintain institutional strategic goals for alignment reporting.</li>
-          <li><strong>Program Educational Objectives</strong> — define and maintain the PEOs used in the curriculum mapping.</li>
-          <li><strong>Curriculum</strong> — map courses to program outcomes, maintain CLO/PO alignment, and publish curriculum data.</li>
-          <li><strong>Course</strong> — create, edit, and archive courses with prerequisites and credits.</li>
-          <li><strong>Users</strong> — browse user profiles and add faculty accounts.</li>
-          <li><strong>Activity Logs</strong> — view the record of actions for your programs.</li>
-          <li><strong>Subject Graph</strong> — explore prerequisite / corequisite relationships visually.</li>
-        </ul>
-      </div>
     </div>
   )
 }
