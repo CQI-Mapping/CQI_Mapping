@@ -64,11 +64,6 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
           <h1 className="dashbanner__name" id="dashbanner-name">
             {profile?.full_name || profile?.email?.split('@')[0] || 'Welcome'}
           </h1>
-          <div className="dashbanner__meta">
-            <span className="dashbanner__badge">Program Head</span>
-            <span className="dashbanner__sep">•</span>
-            <span className="dashbanner__role">User</span>
-          </div>
           <p className="dashbanner__desc">
             Track your program's outcomes, view CLO progress, and explore alignment across subjects.
           </p>
