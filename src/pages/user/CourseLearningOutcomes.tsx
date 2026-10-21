@@ -26,7 +26,7 @@ import SuggestionInput, { type SuggestionOption } from '../../components/Suggest
 import { rankClosestPos, type PoText, type RankedPo } from '../../utils/poMatch'
 import { rankSemantic } from '../../utils/poSemantic'
 import { fuseRanked, toRelative } from '../../utils/poRank'
-import { pickedBefore, recordPick, clearMemory, recordRejection, clearRejections, draftSig } from '../../utils/poMemory'
+import { pickedBefore, recordPick, recordRejection, draftSig } from '../../utils/poMemory'
 
 const EMPTY = { code: '', course: '', description: '', programOutcomes: '' }
 
@@ -516,10 +516,6 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                 {bulkBusy ? 'Applying…' : `Apply top to ${bulkTargets.length} empty`}
               </button>
             )}
-            <button type="button" className="btn btn--ghost btn--sm" onClick={() => { clearMemory(); clearRejections(); setMemTick((t) => t + 1) }}
-              title="Clear per-browser suggestion memory (local only)">
-              Reset memory
-            </button>
             {feedback !== null && feedback.length > 0 && (
               <details style={{ fontSize: 12, color: '#64748b' }}>
                 <summary style={{ cursor: 'pointer' }}>Feedback log ({feedback.length})</summary>
