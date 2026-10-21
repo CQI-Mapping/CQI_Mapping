@@ -1,22 +1,22 @@
 // The letterhead artwork and its placement on the page, shared by the PDF and
 // Word exports so both position it identically.
 //
-// Every constant here was measured from the official signed syllabus rather
-// than estimated: the PDF places one 2500x1767 image at x=47.25 spanning
-// 842.25pt on a 936pt page, and the visible content inside that image runs from
-// 392/2500 to 2088/2500. That puts the artwork at 571.4pt wide -- 61% of the
-// page -- centred with ~2.5in insets, NOT flush to the margins.
+// The artwork is the department mark (public/ccs-logo.jpg, 219 x 125): a crest
+// block with its college and school captions baked into the image. It is
+// centred in the page's top band; the top offset and gap below still follow the
+// geometry measured from the official signed syllabus.
 
-export const LETTERHEAD_URL = '/nbsc-letterhead.png'
+export const LETTERHEAD_URL = '/ccs-logo.jpg'
 
-// public/nbsc-letterhead.png is 1712 x 192px. Both exporters need the aspect
+// public/ccs-logo.jpg is 219 x 125px. Both exporters need the aspect
 // ratio up front (pdf-lib to scale the stamp, docx to size the ImageRun), so it
 // is declared rather than probed. If that artwork is ever replaced with
 // different proportions, this constant must follow it.
-export const LETTERHEAD_ASPECT = 1712 / 192
+export const LETTERHEAD_ASPECT = 219 / 125
 
-/** Visible letterhead width as a fraction of the page width. */
-export const LETTERHEAD_WIDTH_RATIO = 0.61
+/** Visible letterhead width as a fraction of the page width — about a quarter
+ * of the page keeps the crest legible without crowding the body. */
+export const LETTERHEAD_WIDTH_RATIO = 0.25
 
 /** Gap between the top of the page and the top of the letterhead. */
 export const LETTERHEAD_TOP_IN = 0.14
