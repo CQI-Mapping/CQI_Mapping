@@ -58,6 +58,8 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   const [viewMode, setViewMode] = useViewMode('cqi.viewMode.clo')
   // Bumps to re-render fused lists after local reject/memory writes.
   const [memTick, setMemTick] = useState(0)
+  // Read-only details: the card's eye button opens this record in a modal.
+  const [viewItem, setViewItem] = useState<CourseLearningOutcomeStandalone | null>(null)
   // Auto-fill guards: draft text already auto-applied (or dismissed) per form.
   const autoCreateFor = useRef<string | null>(null)
   const autoEditFor = useRef<string | null>(null)
@@ -551,6 +553,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                         </div>
                       </div>
                       <div className="resource-card__actions">
+                        <button className="btn btn--ghost btn--sm" onClick={() => setViewItem(item)} disabled={busy || !!editingId} title="View"><Icon name="eye" size={13} /></button>
                         <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} disabled={busy || !!editingId} title="Edit"><Icon name="edit" size={13} /></button>
                         <button className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleToggleStatus(item, `clo.${isActive(item) ? 'archived' : 'restored'}`)} disabled={busy || !!editingId} title={isActive(item) ? 'Archive' : 'Restore'}>
                           <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} />
@@ -582,6 +585,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                         <strong style={{ color: '#64748b' }}>POs:</strong> {item.title || '—'}
                       </div>
                       <div className="program-card__actions">
+                        <button className="btn btn--ghost btn--sm" onClick={() => setViewItem(item)} disabled={busy || !!editingId} title="View"><Icon name="eye" size={13} /></button>
                         <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} disabled={busy || !!editingId} title="Edit"><Icon name="edit" size={13} /></button>
                         <button className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleToggleStatus(item, `clo.${isActive(item) ? 'archived' : 'restored'}`)} disabled={busy || !!editingId} title={isActive(item) ? 'Archive' : 'Restore'}>
                           <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} />
@@ -596,6 +600,51 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {viewItem && (
+        <div className="modal-overlay" onClick={() => setViewItem(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={`Course learning outcome ${viewItem.code}`}>
+            <div className="modal__header">
+              <h3>{viewItem.code} — {viewItem.course || 'No course'}</h3>
+            </div>
+            <div className="modal__body">
+              <div>
+                <p style={{ margin: 0, fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#94a3b8' }}>Description</p>
+                <p style={{ margin: '4px 0 0', lineHeight: 1.55, color: '#334155' }}>
+                  {viewItem.description || 'No description.'}
+                </p>
+              </div>
+              <div>
+                <p style={{ margin: 0, fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#94a3b8' }}>Program outcomes</p>
+                <div style={{ fontSize: 12.5, background: '#f8fafc', border: '1px solid #f1f5f9', borderRadius: 8, padding: '8px 10px', color: '#475569', marginTop: 4 }}>
+                  {viewItem.title || '—'}
+                </div>
+              </div>
+              <div className="modal__grid-2">
+                <div>
+                  <p style={{ margin: 0, fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#94a3b8' }}>Status</p>
+                  <p style={{ margin: '4px 0 0' }}>
+                    <span className={`status-badge status-badge--${isActive(viewItem) ? 'active' : 'archived'}`}>
+                      {isActive(viewItem) ? 'Active' : 'Archived'}
+                    </span>
+                  </p>
+                </div>
+                <div>
+                  <p style={{ margin: 0, fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#94a3b8' }}>Last updated</p>
+                  <p style={{ margin: '4px 0 0', fontSize: 12.5, color: '#475569' }}>{new Date(viewItem.updated_at).toLocaleString()}</p>
+                </div>
+              </div>
+              <div>
+                <p style={{ margin: 0, fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#94a3b8' }}>Created</p>
+                <p style={{ margin: '4px 0 0', fontSize: 12.5, color: '#475569' }}>{new Date(viewItem.created_at).toLocaleString()}</p>
+              </div>
+            </div>
+            <div className="modal__footer">
+              <button type="button" className="btn btn--ghost btn--sm" onClick={() => setViewItem(null)}>Close</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
