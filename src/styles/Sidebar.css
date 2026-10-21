@@ -97,6 +97,15 @@
   letter-spacing: 0.06em;
 }
 
+/* The brand mark as a real logo image (ICS shield): drop the dark box
+   behind it so the green shield sits clean on the white header. */
+.hdr__mark--img {
+  display: block;
+  object-fit: contain;
+  background: transparent;
+  border-radius: 9px;
+}
+
 .hdr__title {
   color: #111;
   font-weight: 700;
