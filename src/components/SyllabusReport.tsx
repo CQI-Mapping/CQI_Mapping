@@ -94,7 +94,7 @@ export default function SyllabusReport({
     <div className="syllabus-doc__page" ref={rootRef}>
       {/* Letterhead */}
       <header className="sd-letterhead">
-        <img className="sd-letterhead__img" style={{ width: '25%' }} src="/ccs-logo.jpg" alt="College of Computer Studies logo" />
+        <img className="sd-letterhead__img" src="/nbsc-letterhead.png" alt="Northern Bukidnon State College" />
         <div className="sd-letterhead__text">
           <div>{SCHOOL.republic}</div>
           <div className="sd-letterhead__school">{SCHOOL.school}</div>
