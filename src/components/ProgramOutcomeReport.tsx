@@ -23,7 +23,7 @@ export default function ProgramOutcomeReport({ po, cmoLabel, clos }: ProgramOutc
     <div className="syllabus-doc__page">
       {/* Letterhead */}
       <header className="sd-letterhead">
-        <img className="sd-letterhead__img" src="/nbsc-letterhead.jpg" alt="Northern Bukidnon State College" />
+        <img className="sd-letterhead__img" src="/nbsc-letterhead.png" alt="Northern Bukidnon State College" />
         <div className="sd-letterhead__text">
           <div>{SCHOOL.republic}</div>
           <div className="sd-letterhead__school">{SCHOOL.school}</div>
