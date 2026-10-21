@@ -52,7 +52,6 @@ import AdminProgram from './pages/admin/Program'
 import AdminSubjectView from './pages/admin/SubjectView'
 import AdminView from './pages/admin/View'
 import Reports from './pages/shared/Reports'
-import UserCurriculum from './pages/user/Curriculum'
 import UserTOS from './pages/user/TOS'
 import { supabase } from './utils/supabaseClient'
 import { ensureProfile, syncDemoRole, addActivityLog } from './services/database'
@@ -93,7 +92,6 @@ const NAV: Record<UserRole, NavItem[]> = {
   user: [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'clo', label: 'Course Learning Outcomes' },
-    { id: 'curriculum', label: 'Curriculum' },
     { id: 'subject-view', label: 'Generate Reports' },
     { id: 'tos', label: 'Generate TOS' },
     { id: 'reports', label: 'Reports' },
@@ -143,7 +141,6 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
   user: {
     dashboard: UserDashboard,
     clo: UserCourseLearningOutcomes,
-    curriculum: UserCurriculum,
     'subject-view': AdminSubjectView,
     reports: Reports,
     tos: UserTOS,
@@ -335,7 +332,6 @@ function App() {
     if (page === 'users') return <Page />
     if (SHARED_ACADEMIC_PAGES.has(page)) return <Page allowDelete={allowDelete} />
     if (page === 'curriculum' && role !== 'user') return <Page userEmail={profile?.email} allowDelete={role === 'admin'} />
-    if (page === 'curriculum' && role === 'user') return <Page />
     if (page === 'view') return <Page userEmail={profile?.email} />
     if (page === 'reports') return <Page profile={profile} onNavigate={navigate} />
     // The log page filters by role, and which roles it may offer depends on
