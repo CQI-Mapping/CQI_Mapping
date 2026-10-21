@@ -27,7 +27,7 @@ export const DOC_VISION =
   'A recognized institution, culturally responsive, and sustainable higher education.'
 
 export const DOC_MISSION =
-  'Northern Bukidnon State College is an accessible community-based institution that provides educational opportunities to develop students into socially responsible, competent, and productive professionals.'
+  'Northern Bukidnon State College advances excellence in teaching, innovative research, and impactful community service through strategic partnerships, and inclusive and equitable education, empowering transformative development in Bukidnon and Region X.'
 
 // Fixed CMO categories (stored as cmo_text when cmo_id is null).
 export const FIXED_CMO_CATEGORIES = [
