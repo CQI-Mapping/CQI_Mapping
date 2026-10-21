@@ -21,15 +21,37 @@ import {
   recordPoFeedback,
   fetchCourses,
 } from '../../services/database'
-import type { CourseLearningOutcomeStandalone, Course, PoFeedback } from '../../services/database'
+import type {
+  CourseLearningOutcomeStandalone,
+  Course,
+  PoFeedback,
+  ProgramOutcomeStandalone,
+  ProgramEducationalObjective,
+  StrategicGoal,
+  ChedMemoOrder,
+} from '../../services/database'
 import SuggestionInput, { type SuggestionOption } from '../../components/SuggestionInput'
 import { rankClosestPos, type PoText, type RankedPo } from '../../utils/poMatch'
 import { rankSemantic } from '../../utils/poSemantic'
 import { fuseRanked, toRelative } from '../../utils/poRank'
 import { pickedBefore, recordPick, recordRejection, draftSig } from '../../utils/poMemory'
-import CloViewModal from '../../components/CloViewModal'
+import SyllabusReport from '../../components/SyllabusReport'
+import { splitReportPos, buildGroups } from '../../utils/report'
+import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
+import { downloadSyllabusPdf } from '../../utils/syllabusPdf'
+import { reportFileName } from '../../utils/download'
 
 const EMPTY = { code: '', course: '', description: '', programOutcomes: '' }
+
+// Raw reference lists the syllabus document is built from. The CLO page
+// already loads all of them for its suggestion machinery, so the reader
+// just reuses that fetch instead of querying again.
+interface SyllabusSource {
+  pos: ProgramOutcomeStandalone[]
+  goals: StrategicGoal[]
+  peos: ProgramEducationalObjective[]
+  cmos: ChedMemoOrder[]
+}
 
 const toSuggestion = (i: { code: string; title: string }): SuggestionOption => ({
   value: i.code,
@@ -59,11 +81,20 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   const [viewMode, setViewMode] = useViewMode('cqi.viewMode.clo')
   // Bumps to re-render fused lists after local reject/memory writes.
   const [memTick, setMemTick] = useState(0)
-  // Read-only details: the card's eye button opens this record in a modal.
-  const [viewItem, setViewItem] = useState<CourseLearningOutcomeStandalone | null>(null)
+  // Course syllabus reader: the card's eye button opens the linked subject's
+  // full syllabus document — the same printable report Generate Reports
+  // renders, in a scrollable overlay with PDF / Word downloads.
+  const [viewClo, setViewClo] = useState<CourseLearningOutcomeStandalone | null>(null)
+  const [viewBusy, setViewBusy] = useState(false)
+  const [readerError, setReaderError] = useState<string | null>(null)
   // Auto-fill guards: draft text already auto-applied (or dismissed) per form.
   const autoCreateFor = useRef<string | null>(null)
   const autoEditFor = useRef<string | null>(null)
+  // Raw reference lists for the syllabus reader, captured once on mount so
+  // opening the reader never refetches.
+  const reportData = useRef<SyllabusSource | null>(null)
+  // PDF export snapshot target — the document root inside the overlay.
+  const viewReportRef = useRef<HTMLDivElement>(null)
   // Shared pick/reject log for curation (manager/admin readable; null = hidden).
   const [feedback, setFeedback] = useState<PoFeedback[] | null>(null)
   // Semantic (TensorFlow USE) re-rank, frontend-only. Null = not loaded / failed.
@@ -82,6 +113,68 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
     .filter((i) => (archived ? !isActive(i) : isActive(i)))
     .filter((i) => !q || [i.course, i.code, i.description, i.title].some((v) => (v || '').toLowerCase().includes(q)))
   const archivedCount = items.filter((i) => !isActive(i)).length
+
+  // ── Syllabus reader ──────────────────────────────────────────────────
+  // The opened CLO resolves to its subject by lenient course-code matching
+  // (the same rule View/Generate Reports use), and the document renders from
+  // the lists captured on mount — no extra queries when opening.
+  const readerSource = reportData.current
+  const readerCourse = (() => {
+    if (!viewClo) return null
+    const text = viewClo.course || ''
+    return courses.find((c) => cloMatchesSubject(text, normalizeCode(c.code))) ?? null
+  })()
+  const readerClos = readerCourse
+    ? items.filter((i) => isActive(i) && cloMatchesSubject(i.course || '', normalizeCode(readerCourse.code)))
+    : []
+  const { adminPos, managerPos } = splitReportPos(readerSource?.pos ?? [])
+  const readerAdminGroups = buildGroups(adminPos, readerSource?.cmos ?? [])
+  const readerManagerGroups = buildGroups(managerPos, readerSource?.cmos ?? [])
+
+  const openReader = (item: CourseLearningOutcomeStandalone) => {
+    setReaderError(null)
+    setViewClo(item)
+  }
+
+  // Save the open subject's syllabus. PDF rasterises the rendered document;
+  // the Word export rebuilds from data alone and loads lazily (~450kB).
+  const downloadReader = async (fmt: 'pdf' | 'docx') => {
+    if (!readerCourse) return
+    setViewBusy(true)
+    setReaderError(null)
+    try {
+      if (fmt === 'pdf') {
+        if (!viewReportRef.current) throw new Error('The document is not ready yet.')
+        await downloadSyllabusPdf(viewReportRef.current, reportFileName(readerCourse.code, 'pdf'), 'landscape')
+      } else {
+        const { downloadSyllabusDocx } = await import('../../utils/syllabusDocx')
+        await downloadSyllabusDocx(
+          {
+            course: readerCourse,
+            courses,
+            goals: readerSource?.goals ?? [],
+            peos: readerSource?.peos ?? [],
+            adminGroups: readerAdminGroups,
+            managerGroups: readerManagerGroups,
+            subjectClos: readerClos,
+          },
+          'landscape',
+        )
+      }
+    } catch (e) {
+      setReaderError(e instanceof Error ? e.message : 'Could not create the file.')
+    } finally {
+      setViewBusy(false)
+    }
+  }
+
+  // Escape closes the reader.
+  useEffect(() => {
+    if (!viewClo) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setViewClo(null) }
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('keydown', onKey) }
+  }, [viewClo])
 
   useEffect(() => { crud.load() }, [crud.load])
 
@@ -102,6 +195,15 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
           const na = n(a.code || ''); const nb = n(b.code || '')
           return na !== nb ? na - nb : String(a.code).localeCompare(String(b.code))
         })
+        // Keep the raw reference lists for the syllabus reader overlay.
+        if (!cancelled) {
+          reportData.current = {
+            pos: active,
+            goals: sgs.filter((s) => !s.status || s.status === 'active'),
+            peos: peos.filter((p) => !p.status || p.status === 'active'),
+            cmos: cmos.filter((m) => !m.status || m.status === 'active'),
+          }
+        }
         // Enrich thin POs with linked PEO/SG/CMO text so they can still match.
         const peoByCode = new Map(peos.map((p) => [p.code.trim().toLowerCase(), p.title ?? '']))
         const sgByCode = new Map(sgs.map((s) => [s.code.trim().toLowerCase(), s.description ?? '']))
@@ -554,7 +656,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                         </div>
                       </div>
                       <div className="resource-card__actions">
-                        <button className="btn btn--ghost btn--sm" onClick={() => setViewItem(item)} disabled={busy || !!editingId} title="View"><Icon name="eye" size={13} /></button>
+                        <button className="btn btn--ghost btn--sm" onClick={() => openReader(item)} disabled={busy || !!editingId} title="View"><Icon name="eye" size={13} /></button>
                         <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} disabled={busy || !!editingId} title="Edit"><Icon name="edit" size={13} /></button>
                         <button className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleToggleStatus(item, `clo.${isActive(item) ? 'archived' : 'restored'}`)} disabled={busy || !!editingId} title={isActive(item) ? 'Archive' : 'Restore'}>
                           <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} />
@@ -586,7 +688,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                         <strong style={{ color: '#64748b' }}>POs:</strong> {item.title || '—'}
                       </div>
                       <div className="program-card__actions">
-                        <button className="btn btn--ghost btn--sm" onClick={() => setViewItem(item)} disabled={busy || !!editingId} title="View"><Icon name="eye" size={13} /></button>
+                        <button className="btn btn--ghost btn--sm" onClick={() => openReader(item)} disabled={busy || !!editingId} title="View"><Icon name="eye" size={13} /></button>
                         <button className="btn btn--ghost btn--sm" onClick={() => startEdit(item)} disabled={busy || !!editingId} title="Edit"><Icon name="edit" size={13} /></button>
                         <button className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleToggleStatus(item, `clo.${isActive(item) ? 'archived' : 'restored'}`)} disabled={busy || !!editingId} title={isActive(item) ? 'Archive' : 'Restore'}>
                           <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} />
@@ -604,7 +706,61 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
         </div>
       )}
 
-      {viewItem && <CloViewModal item={viewItem} onClose={() => setViewItem(null)} />}
+      {viewClo && (
+        <div
+          className="syl-reader"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Course syllabus${readerCourse ? ` — ${readerCourse.code}` : ''}`}
+          onClick={() => setViewClo(null)}
+        >
+          <div className="syl-reader__bar" onClick={(e) => e.stopPropagation()}>
+            <div className="syl-reader__title">
+              <h3>Course Syllabus{readerCourse ? ` — ${readerCourse.code}` : ''}</h3>
+              <span>{readerCourse ? readerCourse.title || viewClo.course : 'Unlinked outcome'}</span>
+            </div>
+            <div className="syl-reader__actions">
+              {!readerCourse && (
+                <span className="syl-reader__warn">
+                  This outcome is not linked to a subject yet — its course text must match a course code (e.g. IT21).
+                </span>
+              )}
+              {readerCourse && (
+                <>
+                  <button type="button" className="btn btn--primary btn--sm" onClick={() => downloadReader('pdf')} disabled={viewBusy || !!readerError} title="Save the syllabus as PDF">
+                    <Icon name="download" size={13} /> {viewBusy ? 'Preparing…' : 'Download PDF'}
+                  </button>
+                  <button type="button" className="btn btn--ghost btn--sm" onClick={() => downloadReader('docx')} disabled={viewBusy || !!readerError} title="Save the syllabus as Word">
+                    Download Word
+                  </button>
+                </>
+              )}
+              <button type="button" className="btn btn--ghost btn--sm" onClick={() => setViewClo(null)}>Close</button>
+            </div>
+          </div>
+          <div className="syl-reader__scroll" onClick={(e) => e.stopPropagation()}>
+            {readerError && <p className="msg msg--error">{readerError}</p>}
+            {readerCourse ? (
+              <div className="syl-reader__doc">
+                <SyllabusReport
+                  rootRef={viewReportRef}
+                  course={readerCourse}
+                  courses={courses}
+                  goals={readerSource?.goals ?? []}
+                  peos={readerSource?.peos ?? []}
+                  adminGroups={readerAdminGroups}
+                  managerGroups={readerManagerGroups}
+                  subjectClos={readerClos}
+                />
+              </div>
+            ) : (
+              <div className="syl-reader__doc syl-reader__doc--empty">
+                <p>No subject matches this outcome&rsquo;s course text, so there is no syllabus to open yet.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

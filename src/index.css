@@ -4035,6 +4035,80 @@ button.reports-panel__more:hover {
   overflow: auto;
 }
 
+/* Full-page syllabus reader (opened from a CLO card's eye button): a fixed
+   overlay with a sticky toolbar and the scrollable report document under it.
+   Clicking the dimmed backdrop or pressing Escape dismisses it. */
+.syl-reader {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 20, 15, 0.52);
+  display: flex;
+  flex-direction: column;
+  z-index: 60;
+}
+
+.syl-reader__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: #fff;
+  box-shadow: var(--shadow);
+  flex-shrink: 0;
+}
+
+.syl-reader__title h3 {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #0f172a;
+}
+
+.syl-reader__title span {
+  display: block;
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.syl-reader__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.syl-reader__warn {
+  font-size: 12px;
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 4px 10px;
+}
+
+.syl-reader__scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 14px 60px;
+}
+
+.syl-reader__doc {
+  max-width: 1040px;
+  margin: 0 auto;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.35);
+}
+
+.syl-reader__doc--empty {
+  padding: 40px 24px;
+  text-align: center;
+  color: #64748b;
+  font-size: 13.5px;
+}
+
 .modal__header {
   padding: 16px 20px;
   border-bottom: 1px solid #e2e8f0;
