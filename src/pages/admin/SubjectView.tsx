@@ -60,6 +60,7 @@ import { downloadSyllabusPdf } from '../../utils/syllabusPdf'
 import Icon from '../../components/icons'
 import SyllabusReport from '../../components/SyllabusReport'
 import OutcomeDetailsCard from '../../components/OutcomeDetailsCard'
+import PageBanner from '../../components/PageBanner'
 import type { ConnectedGroup, ConnectedItem } from '../../components/OutcomeDetailsCard'
 
 type NodeKind =
@@ -2363,6 +2364,7 @@ export default function SubjectView() {
 
   return (
     <div className="subject-view">
+      <PageBanner title="Generate Reports" sub="Explore every course, outcome and objective as one connected graph." />
       {error && <p className="msg msg--error" role="alert">{error}</p>}
 
       <div className="subject-view__panels">
