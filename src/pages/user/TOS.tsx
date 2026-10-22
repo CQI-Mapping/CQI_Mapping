@@ -32,6 +32,7 @@ import {
   createTosExam,
   createTosSheet,
   addActivityLog,
+  deleteTosExam,
   fetchCourses,
   fetchPrograms,
   fetchTosExams,
@@ -529,6 +530,71 @@ export default function TOS() {
   const cancelCardEdit = useCallback(() => {
     setEditingId(null)
   }, [])
+
+  /**
+   * Delete a library blueprint outright — archive is the soft path, this is
+   * the hard one. The row's papers and its topics belong to it, so one delete
+   * clears the whole document.
+   *
+   * When the blueprint being deleted is the one open in the editor above, the
+   * debounced writers have to stand down first: a cleared row would eat the
+   * next pending write and squawk a save error for a document that no longer
+   * exists. So the timers are dropped and the editor is parked on the next
+   * exam (or an empty form when none is left) before the delete lands.
+   */
+  const deleteExam = useCallback(
+    async (row: TosExamRow) => {
+      if (
+        !window.confirm(
+          'Delete this blueprint permanently? Its papers and topics are removed with it, and this cannot be undone.',
+        )
+      )
+        return
+      try {
+        if (row.id === activeId) {
+          if (examTimer.current) {
+            window.clearTimeout(examTimer.current)
+            examTimer.current = null
+          }
+          for (const { kind } of SHEET_KINDS) {
+            if (sheetTimer.current[kind]) {
+              window.clearTimeout(sheetTimer.current[kind])
+              sheetTimer.current[kind] = null
+            }
+            if (topicsTimer.current[kind]) {
+              window.clearTimeout(topicsTimer.current[kind])
+              topicsTimer.current[kind] = null
+            }
+          }
+          // Park on the next active exam, or an empty form when none remains.
+          // Not a fresh auto-created row: deleting the last blueprint is a
+          // cleanup, not the setup for a new one.
+          const remaining = examList.filter((r) => r.id !== row.id && r.status !== 'archived')
+          if (remaining.length > 0) {
+            setActiveId(remaining[0].id)
+            await loadInto(remaining[0])
+          } else {
+            setActiveId('')
+            setSheets([blankSheet()])
+            setExam((e) => ({ ...e, code: '', title: '', term: '', preparedBy: '' }))
+            createdThisSession.current = false
+          }
+          setDirty(false)
+          setSaving(false)
+        }
+        await deleteTosExam(row.id)
+        await addActivityLog('tos_exam.deleted', {
+          entity: 'tos_exam',
+          entity_id: row.id,
+          label: [row.code, row.title].filter(Boolean).join(' — ') || 'Table of Specification',
+        })
+        await refreshList()
+      } catch (e) {
+        fail(e, 'Could not delete the blueprint.')
+      }
+    },
+    [activeId, examList, loadInto, refreshList, fail],
+  )
 
   // The panel's tab decides which half of the list it shows, the same way the
   // Curriculum page's Active/Archive tabs do.
@@ -1154,6 +1220,15 @@ export default function TOS() {
                       onClick={() => setExamStatus(row.id, row.status === 'archived' ? 'active' : 'archived')}
                     >
                       {row.status === 'archived' ? 'Restore' : 'Archive'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn--danger btn--sm"
+                      onClick={() => deleteExam(row)}
+                      aria-label={`Delete ${row.code || row.title || 'blueprint'}`}
+                      title="Delete"
+                    >
+                      <Icon name="trash" size={13} />
                     </button>
                   </div>
                 </>
