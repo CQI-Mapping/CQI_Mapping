@@ -16,8 +16,6 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false) // true while the sign-in request is in flight
-  // One-line hint under the footer links (Forgot password / Contact admin).
-  const [note, setNote] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -151,24 +149,6 @@ function Login() {
               )}
             </button>
           </form>
-
-          {/* The friend-design footer: a divider, then two advisory links
-              that surface a one-line hint instead of dead ends. */}
-          <div className="login-or" aria-hidden="true">
-            <span />
-            or
-            <span />
-          </div>
-          <div className="login-foot">
-            <button type="button" className="login-foot__link" onClick={() => setNote('Ask the program administrator to reset your password.')}>
-              Forgot Password?
-            </button>
-            <span className="login-foot__sep" aria-hidden="true" />
-            <button type="button" className="login-foot__link" onClick={() => setNote('Message the program administrator for your account.')}>
-              Contact Admin
-            </button>
-          </div>
-          {note && <p className="login-note" role="status">{note}</p>}
         </div>
 
         <p className="login-footer">© 2026 NBSC · Institute of Computer Studies</p>

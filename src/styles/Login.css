@@ -269,63 +269,6 @@
   to { transform: rotate(360deg); }
 }
 
-/* ---------- divider, footer links, note ---------- */
-
-/* The demonstration divider's hairlines flank "or" as in the design. */
-.login-or {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 18px 0 14px;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.login-or span {
-  flex: 1;
-  height: 1px;
-  background: rgba(255, 255, 255, 0.3);
-}
-
-.login-foot {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-}
-
-.login-foot__link {
-  border: none;
-  background: none;
-  padding: 2px 4px;
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  color: #8df0ae;
-  cursor: pointer;
-  border-radius: 6px;
-  transition: color 0.15s ease;
-}
-
-.login-foot__link:hover {
-  color: #bbf7d0;
-  text-decoration: underline;
-}
-
-.login-foot__sep {
-  width: 1px;
-  height: 15px;
-  background: rgba(255, 255, 255, 0.35);
-}
-
-.login-note {
-  margin: 10px 0 0;
-  text-align: center;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: rgba(255, 255, 255, 0.75);
-}
-
 /* ---------- footer ---------- */
 
 .login-footer {
