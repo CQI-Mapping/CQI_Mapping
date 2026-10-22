@@ -1,9 +1,9 @@
 /* ================================================================
-   Login — brand-plate theme
-   The NBSC "CQI MONITORING" artwork (src/assets/login-bg.jpg) covers
-   the whole page behind a soft dark veil; the cream sign-in card
-   floats centered over it. Companion to src/pages/Login.tsx (loads
-   after index.css).
+   Login — circuit-plate theme
+   The user's dark green circuit artwork (src/assets/login-bg.jpg)
+   covers the whole page behind a thin dark veil; the cream sign-in
+   card floats centered over it. Companion to src/pages/Login.tsx
+   (loads after index.css).
    ================================================================ */
 
 .login-page {
@@ -15,10 +15,11 @@
   --lp-green: #3a7a45;
   --lp-green-dark: #27552f;
 
-  /* The veil deepens the artwork so the cream card pops against it;
-     the artwork itself keeps the wordmark, washes and flecks. */
+  /* The veil is thin: the circuit artwork is already dark at the center
+     where the card sits, and the user asked for this art as the plain
+     background - keep its texture and stripes visible. */
   background:
-    linear-gradient(rgba(15, 40, 25, 0.36), rgba(15, 40, 25, 0.36)),
+    linear-gradient(rgba(15, 40, 25, 0.15), rgba(15, 40, 25, 0.15)),
     url('../assets/login-bg.jpg') center / cover no-repeat,
     var(--lp-cream);
   color: var(--lp-ink);
