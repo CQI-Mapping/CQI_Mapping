@@ -12,7 +12,7 @@ This README is a full development reference: how to set the project up, how the 
 - **Roles:**
   - `admin` — System Administrator / ICT Officer. Full control: manage accounts and roles, create users, manage and delete curriculum records, view the audit log.
   - `manager` — Program Head / CQI Lead. Manages curriculum records (create/edit/archive), browses the faculty directory (read-only), views the audit log.
-  - `user` — Faculty / Instructor. Browses curriculum records and edits their own profile.
+  - `user` — Faculty / Instructor. Edits course learning outcomes, builds Table of Specifications (Generate TOS), generates program reports, browses the subject graph, edits own profile.
 
 The UI hides pages you can't use, but the *real* enforcement is **Row Level Security (RLS)** in the database — a `user` cannot read other users or mutate curriculum records even by calling Supabase directly from the browser.
 
@@ -34,10 +34,13 @@ The system uses three application roles, each mapped to the people who actually 
 |---|---|
 | Build tool | Vite 8 |
 | Framework | React 18 (function components + hooks) |
+| Tests | Vitest 2 — 257 unit tests (`npm test`) |
 | Styling | Plain CSS with CSS custom properties in `src/index.css` |
+| Graph | d3 7 — Subject Graph (`admin/SubjectView.tsx`) |
+| Documents | ExcelJS (TOS workbooks), `docx` (Word syllabus exports), `jspdf` + `html2canvas` (report PDFs), `xlsx` (report workbooks) |
 | Backend / DB | Supabase (Postgres, Auth, RLS, triggers) |
 | Client | `@supabase/supabase-js` |
-| Scripts | `npm run dev` / `npm run build` / `npm run preview` |
+| Scripts | `npm run dev` / `npm run test` / `npm run build` / `npm run preview` |
 
 No CSS framework, no router library — deliberately simple so it's easy to extend during development.
 
@@ -77,6 +80,8 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
 | Manager | `manager@cqi.test` | `Manager@123456` |
 | User | `user@cqi.test` | `User@123456` |
 
+> These are database-side demo accounts for the demo; the login card no longer displays them on screen — the card ends at the Login button.
+
 > Roles survive schema re-runs automatically — no manual SQL needed:
 > 1. The schema's seed section recreates profiles for all existing auth users and assigns the demo roles by email.
 > 2. The app calls the `sync_demo_role` RPC on every sign-in, restoring each demo account's expected role (or promoting the first user to admin when no admin exists).
@@ -107,20 +112,31 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
     ├── index.css             # Theme variables + all component styles
     ├── vite-env.d.ts         # Vite environment variable types
     ├── components/
-    │   └── Sidebar.tsx       # Nav shell (items change per role) + logout
-    ├── data/
-    │   └── vcqiSyllabus.ts   # Static syllabus data (vision, mission, CLO/PO mappings)
+    │   ├── Sidebar.tsx               # Dark-glass top navbar, per-role nav + mega dropdown + profile menu
+    │   ├── icons.tsx                 # The `Icon` set (name → svg) used across pages
+    │   ├── PageBanner.tsx            # Screen-only banner strip for TOS / View / SubjectView
+    │   ├── TosSheetGrid.tsx          # The on-screen workbook grid (green inputs / gray formulas)
+    │   ├── TosBlueprintEditor.tsx    # Inline blueprint editor inside a library card
+    │   ├── SyllabusReport.tsx        # Document renderer shared by View / reports / Word export
+    │   ├── ProgramOutcomeReport.tsx  # PO alignment + CMO sections of the reports
+    │   ├── ProgramEducationalObjectiveReport.tsx  # PEO / Strategic Goals sections
+    │   ├── CloViewModal.tsx          # Read-only CLO viewer modal (shared)
+    │   ├── CourseDetails.tsx / OutcomeDetailsCard.tsx / PoCoverageBars.tsx
+    │   ├── SuggestionInput.tsx       # PO-suggestion combobox on the CLO page
+    │   └── ViewModeToggle.tsx        # List/grid toggle, as on Curriculum pages
     ├── pages/
     │   ├── Login.tsx         # Sign in (login only, no create-account tab)
     │   ├── Profile.tsx       # View/edit own profile (shared by all roles)
+    │   ├── shared/
+    │   │   └── Reports.tsx   # Generate Reports (all roles): mapping summary, PO coverage, exports
     │   ├── admin/
-    │   │   ├── Dashboard.tsx         # Admin overview (green hero, skeleton stats, role badge)
+    │   │   ├── Dashboard.tsx         # Admin overview + banner strip + quick actions
     │   │   ├── Users.tsx             # Manage roles + create users (role select: admin/manager/faculty)
+    │   │   ├── Program.tsx           # Programs CRUD
     │   │   ├── ChedMemoOrders.tsx    # CHED Memorandum Orders (via shared EntityCrudPage)
     │   │   ├── StrategicGoals.tsx    # Strategic Goals (via shared EntityCrudPage)
     │   │   ├── ProgramEducationalObjectives.tsx  # PEOs (via shared EntityCrudPage)
-    │   │   ├── ProgramOutcomes.tsx   # Program Outcomes (via shared EntityCrudPage)
-    │   │   ├── Course.tsx            # Courses: create/edit/archive/delete (`hideDelete` prop hides Delete)
+    │   │   ├── ProgramOutcomesAdmin.tsx  # Program Outcomes (via shared EntityCrudPage)
     │   │   ├── CourseLearningOutcomes.tsx  # CLOs (bespoke page: stats + search + tabs)
     │   │   ├── SubjectView.tsx       # d3 Subject Graph, green-monochrome theme (all roles share it)
     │   │   ├── View.tsx              # Printable curriculum map / syllabus report
@@ -130,19 +146,28 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
     │   │       ├── EntityCrudPage.tsx  # Shared CRUD UI (PO/PEO/SG/CHED) — search, tabs, skeleton, `allowDelete`
     │   │       └── useEntityCrud.ts  # Shared CRUD hook for entity forms
     │   ├── manager/
-    │   │   ├── Dashboard.tsx         # Manager overview + Course quick-action
+    │   │   ├── Dashboard.tsx         # Manager overview + banner strip + quick actions
     │   │   ├── Users.tsx             # Users directory + add/remove users (`user` role only)
     │   │   ├── Curriculum.tsx        # Create/edit/archive (no delete) + search
-    │   │   └── Course.tsx            # Wraps AdminCourse with `hideDelete` (no delete)
+    │   │   ├── ProgramOutcomes.tsx   # Manager-side PO alignment (peo_text)
+    │   │   └── Course.tsx            # Wraps AdminCourse with `hideDelete`-style gating (no delete)
     │   └── user/
     │       ├── Dashboard.tsx         # Faculty: Subjects + CLO stats, recent CLOs
-    │       └── Curriculum.tsx        # Unrouted legacy read-only browse (faculty nav is CLO + Subject Graph)
+    │       ├── CourseLearningOutcomes.tsx  # Faculty CLO editor (same bespoke page)
+    │       └── TOS.tsx               # Generate TOS: blueprint editor + saved-blueprint library
     ├── services/
     │   └── database.ts       # ALL Supabase queries used by the app
     ├── styles/
-    │   └── Sidebar.css       # Sidebar-specific styles
+    │   ├── Sidebar.css       # Top navbar styles (dark glass theme)
+    │   └── Login.css         # Login page: circuit background + green glass card
     └── utils/
-        └── supabaseClient.ts # Creates the Supabase client from env vars
+        ├── supabaseClient.ts # Creates the Supabase client from env vars
+        ├── tosMath.ts        # TOS validation/weighting math (+ tests)
+        ├── tosXlsx.ts        # ExcelJS export of a TOS paper, styled like the workbook
+        ├── tosOptions.ts     # Program/course/term pickers data
+        ├── report.ts         # Report model + letterhead constants (vision/mission wording)
+        ├── syllabusDocx.ts   # Word (.docx) export of the syllabus docs
+        └── alignment.ts / poMatch.ts / poRank.ts / poSemantic.ts / cloPoMapping.ts / download.ts 
 ```
 
 ---
@@ -246,6 +271,17 @@ tell which record changed. It is deliberately **not** where the actor lives:
 `user_email` is stamped from the caller's JWT by `log_activity`, so a client
 can never attribute an action to someone else. `label` is snapshotted at write
 time, so renaming a record later does not rewrite history.
+
+**`tos_exams` / `tos_sheets` / `tos_topics`** — the Generate TOS blueprints (faculty-owned).
+
+| Table | Key columns | Notes |
+|---|---|---|
+| `tos_exams` | `user_id`, `code`, `title`, `exam_type`, `term`, `total_hours`, `status` | one blueprint header; `UNIQUE (exam_id, kind)` lives on sheets |
+| `tos_sheets` | `exam_id` (CASCADE), `kind` (`items` \| `points`), `label`, `total`, `position` | the two papers of an exam |
+| `tos_topics` | `sheet_id` (CASCADE), `position`, `title`, `slo`, `hours`, `bloom` (JSONB) | rows of a paper; `bloom` holds the six Bloom counts |
+
+Both child tables cascade on exam delete, so removing a blueprint from the
+library removes its papers and topics in one statement.
 
 ### 6.2 Row Level Security Policies
 
@@ -358,6 +394,12 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 | `createChedMemoOrder(payload)` | Insert a CHED memo order | admins/managers |
 | `updateChedMemoOrder(id, updates)` | Edit a CHED memo order | admins/managers |
 | `deleteChedMemoOrder(id)` | Permanently delete a CHED memo order | admins |
+| `fetchTosExams(status?)` | List the signed-in user's TOS blueprints (default: active) | the owner (RLS) |
+| `createTosExam(payload, userId)` / `deleteTosExam(id)` | Create / permanently delete a blueprint header | the owner |
+| `updateTosExam(id, updates)` | Edit code/title/term/status/total_hours | the owner |
+| `createTosSheet(payload)` / `updateTosSheet(id, updates)` | Create the papers; edit `total`/`label`/`note` | the owner |
+| `fetchTosSheets(examId)` / `fetchTosSheetsByExam(ids)` | List a paper set (one exam, or one query for many) | the owner |
+| `fetchTosTopics(sheetId)` / `replaceTosTopics(sheetId, topics)` | Read a paper's rows; write the full row set back | the owner |
 | `fetchActivityLogs()` | Latest 100 audit entries | admins/managers |
 | `recordLoginEvent(email, success, reason?)` | Record a sign-in attempt via RPC | any caller (RPC) |
 | `addActivityLog(action, details?)` | Insert an audit entry via RPC | any signed-in user |
@@ -378,23 +420,25 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 
 ### `Login.tsx`
 - Sign in with email/password (`supabase.auth.signInWithPassword`).
-- Dark-green glass theme with brand header (`CQI Monitoring` + `NBSC · Institute of Computer Studies`).
-- Test accounts live in a collapsible `<details>` ("View test accounts"), plain text.
-- Error has `role="alert"`, clears on typing; submit shows spinner + `aria-busy`; shine animation stops when disabled.
+- The NBSC brand plate (`src/assets/login-bg.jpg`, circuit artwork) is the page background **and** the app-wide `body` wallpaper; a thin veil keeps its stripes visible.
+- Dark-green glass card tuned to the artwork's own center tones: "Welcome Back!" header, "Log in to your account" subtitle, sr-only labels, person/password icons, show/hide toggle, gradient **Login →** button. No divider/links row and no test-accounts strip — the card ends at the button, with the © NBSC footer below.
+- Error has `role="alert"`, clears on typing; submit shows spinner + `aria-busy`.
 - Empty-field validation: submitting with a blank email or password shows "Email and password are required." without hitting the API.
 - Failed sign-ins show a generic "Invalid email or password." (never leaks Supabase's raw error, e.g. rate limits or account state).
 - Every attempt is written to `activity_logs` via the `record_login_event` RPC (`auth.login` on success, `auth.login_failed` on failure), with the failure reason (`invalid_credentials` / `service_unreachable`) kept in `details.reason`.
 - Respects `prefers-reduced-motion`; mobile padding at 360px.
 
 ### `admin/Dashboard.tsx`
-- Green hero (matches login) + role badge (`Administrator`), skeleton stat cards with per-item error fallback (`0`, never stuck), `aria-busy` grid.
-- 6 flat-green stats: Users, Strategic Goals, PEOs, Program Outcomes, CLOs, CHED Memo Orders. No rainbow gradients.
+- Banner strip with the composed campus-entrance artwork (`banner-bg.jpg`) + greeting; skeleton stat cards with per-item error fallback (`0`, never stuck), `aria-busy` grid.
+- Stats: Users, Strategic Goals, PEOs, Program Outcomes, CLOs, CHED Memo Orders.
 - Quick actions: Add Program, Map CLO → PO, Review Outcomes, Activity Logs. Recent activity (latest 5, `toLocaleString`).
 
 ### `manager/Dashboard.tsx` and `user/Dashboard.tsx`
-- Same green hero + skeleton pattern; role badges (`Program Head` / `Faculty`).
-- Manager: 6 stats (Curriculum, Programs, Courses, POs, CLOs, Faculty) + Course quick-action.
-- Faculty: 2 stats (Subjects = Courses count, Course Outcomes) + recent CLOs (latest 5 by `created_at`); no Curriculum or PO modules.
+- Same banner + skeleton pattern. The manager page is deliberately slim — no role-badge line, no "what you can do" panel.
+- Manager: stats (Curriculum, Programs, Courses, POs, CLOs, Faculty) + Course quick-action.
+- Faculty: Subjects (= Courses count) and Course Outcomes stats + recent CLOs (latest 5 by `created_at`).
+
+> **Theme note (2026 look):** the app sits on the same dark circuit wallpaper everywhere. Dashboards keep the entrance-art banner; every content page's banner strip uses the open-book artwork (`banner-bg-page.jpg`); page banners, panels, table headers and hairlines are sage-tinted so the light content sits comfortably against the dark background. Both banners carry a deep drop shadow + faint green rim so they lift off the wallpaper.
 
 ### `admin/Users.tsx`
 - Create accounts with role select (**admin**, **manager**, or **faculty**) plus table of all users with role badges. Needs `VITE_SUPABASE_SERVICE_ROLE_KEY`. No role `<select>` on existing rows — role changes via SQL or `updateUserRole()`.
@@ -410,6 +454,16 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 
 ### `admin/CourseLearningOutcomes.tsx`
 - Bespoke page (not shared): course-scoped CLOs + PO suggestion mapping, stats + search + tabs + skeleton + unified empty states. Also mounted on the faculty route.
+
+### `user/TOS.tsx` (Generate TOS, faculty)
+- A spreadsheet-style blueprint editor backed by `tos_exams` / `tos_sheets` / `tos_topics`: you type in the green cells, the hour-weighted "Number of Items/Points" column, header percentages and column totals recompute live (`utils/tosMath.ts`).
+- Every edit autosaves on a 600 ms debounce; the **Save pending** button flushes all sheets immediately, **Discard** reloads from the database.
+- The library panel lists every saved blueprint with Edit (inline full editor), Open, Archive/Restore, and **Delete** (red trash, confirms, cascades papers + topics, writes `tos_exam.deleted` to the audit log). Deleting the blueprint that is open in the editor stands down its pending writers first and parks the editor on the next exam.
+- **Export** builds the faculty workbook with ExcelJS (`utils/tosXlsx.ts`): letterhead, green editable cells + gray formula cells, formulas written live (`=SUM(...)`), `fullCalcOnLoad` so Excel computes on open. Tabs are named as the workbook spells them (`Multiple Choice`, `ProductPerformance-Based`); both papers end at the Create column — no extra grand-total column.
+
+### `shared/Reports.tsx` (Generate Reports, all roles)
+- Curriculum mapping summary per course (term, CLO counts, mapping status), PO coverage chart, and the outcome/report panels; the same page backs the Subject Graph's sibling reports.
+- Exports: Excel workbook + PDF (`report.ts`, `download.ts`) and Word (`syllabusDocx.ts`) with the letterhead + navy heading styling; document constants (vision/mission wording) live in `utils/report.ts`, not `src/data/`.
 
 ### `admin/SubjectView.tsx` (shared by all roles as Subject Graph)
 - d3 outcome hierarchy: Subject → Curriculum → Prereq/Coreq → CLO → PO → PEO → SG → CMO. Renders after pressing View.
@@ -427,7 +481,7 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 ### `admin/View.tsx`
 - Printable curriculum map / syllabus report. Displays Vision, Mission, Strategic Goals, PEOs, Program Outcomes, Curriculum Mapping, Course Learning Outcomes, and Course Details in a formatted document layout.
 - Supports inline editing and archiving of Strategic Goals, PEOs, and Program Outcomes via an Edit toggle. Archives write `strategic_goal.archived` / `peo.archived` / `program_outcome.archived` rather than a generic `.updated`.
-- Static syllabus content (vision/mission wording, curriculum mapping, course details) comes from `src/data/vcqiSyllabus.ts`.
+- Static syllabus content (vision/mission wording, curriculum mapping, course details) comes from `src/utils/report.ts` (the old `src/data/vcqiSyllabus.ts` was folded into it).
 
 ### `user/Curriculum.tsx`
 - Unrouted legacy read-only browse (faculty nav is Dashboard + CLO + Subject Graph + Profile).
@@ -450,7 +504,7 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 - **Login guard:** A `profileLoaded` flag prevents rendering the dashboard before the user's role is known, so the correct role-specific page appears immediately without a flash.
 
 ### `Sidebar.tsx`
-- Top header bar: brand + role-specific nav + profile menu. Academic pages group under an `Academics` dropdown (all roles); `subject-view` included. Shows real `full_name`/`email` in the profile menu with role badge; logout lives inside. Active items get `aria-current="page"`; drawer starts closed on mobile (≤1024px).
+- Dark-glass top navbar (`styles/Sidebar.css`): brand + role-specific pill nav + profile menu, blur + green hairline edge matching the circuit wallpaper. Academic pages group under an `Academics` dropdown (all roles); `subject-view` included. Shows real `full_name`/`email` in the profile menu with role badge; logout lives inside. Active items get `aria-current="page"`; the active pill and avatar sit on the green gradient; the mobile drawer tray stays dark so the light menu text survives; dropdown and profile menus open as sage cards over the dark bar.
 
 ---
 
@@ -532,5 +586,6 @@ New role-restricted feature, end to end. Example: a `reports` table that admins 
 |---|---|
 | `npm install` | Install dependencies |
 | `npm run dev` | Start the Vite dev server with hot reload |
+| `npm test` | Run the 257 unit tests (Vitest) |
 | `npm run build` | Production build (output in `dist/`) |
 | `npm run preview` | Serve the production build locally |
