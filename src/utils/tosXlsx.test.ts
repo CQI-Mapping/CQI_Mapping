@@ -195,8 +195,8 @@ describe('the two papers differ only where the workbook says they do', () => {
     )
   })
 
-  it('gives the performance sheet the extra grand total the MC one lacks', () => {
-    expect(formula(buildSheetSpec(exam, pp).cells, 'J19')).toBe('SUM(D19:I19)')
+  it('reaches no further than column I on either sheet', () => {
+    expect(formula(buildSheetSpec(exam, pp).cells, 'J19')).toBeUndefined()
     expect(formula(buildSheetSpec(exam, mc).cells, 'J19')).toBeUndefined()
   })
 
@@ -317,7 +317,8 @@ describe('the workbook holds one worksheet, for the paper on screen', () => {
     expect(Object.keys(out.Sheets)).toEqual(['ProductPerformance-Based'])
 
     const ws = cellsOf(out, 'ProductPerformance-Based')
-    expect(ws.J19.f).toBe('SUM(D19:I19)')
+    expect(ws.J19?.f).toBeUndefined()
+    expect(ws.I19.f).toBe('SUM(I13:I18)')
     expect(ws.C19.v).toBe(30)
   })
 
@@ -369,12 +370,13 @@ describe('the workbook holds one worksheet, for the paper on screen', () => {
     expect(wb.worksheets[0].getCell('J19').fill).toBeUndefined()
   })
 
-  it('still gives the performance sheet its grand total in J', async () => {
+  it('leaves the performance sheet without a column past the grid either', async () => {
     const wb = await buildTosWorkbook(exam, pp)
+    const model = (wb.worksheets[0].dimensions as unknown as { model: { right: number } }).model
+    expect(model.right).toBe(9)
     const grand = wb.worksheets[0].getCell('J19')
-    expect(grand.value).toEqual({ formula: 'SUM(D19:I19)' })
-    const shade = (grand.fill as { fgColor?: { argb?: string } }).fgColor?.argb
-    expect(shade).toBe('FFAFABAB')
+    expect(grand.value).toBeNull()
+    expect(grand.fill).toBeUndefined()
   })
 
   // Font colour is asked of ExcelJS rather than SheetJS, which does not surface
