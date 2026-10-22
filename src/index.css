@@ -65,17 +65,10 @@ body,
 body {
   margin: 0;
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  /* The user's circuit artwork as the app-wide wallpaper: fixed to the
-     viewport so pages scroll over it, under a green veil that keeps the
-     white panels dominant. The deep-green fallback covers the art's
-     first paint. */
-  background-color: #0e271c;
-  background-image:
-    linear-gradient(rgba(9, 24, 17, 0.3), rgba(9, 24, 17, 0.3)),
-    url('./assets/login-bg.jpg');
-  background-size: cover, cover;
-  background-position: center, center;
-  background-attachment: fixed, fixed;
+  /* Clean light workspace: the circuit plate belongs to the login page
+     only, so the system stays airier behind its white panels and cards. */
+  background: #f6f8f6;
+  background-image: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(22,163,74,0.05), transparent 60%), radial-gradient(ellipse 40% 30% at 100% 0%, rgba(245,197,24,0.04), transparent 55%);
   color: var(--text);
   font-size: 15px;
   line-height: 1.5;
@@ -95,9 +88,7 @@ code {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* It renders directly on the circuit art, so the loading text inks
-     white instead of the light-theme navy. */
-  color: #fff;
+  color: var(--text-muted);
 }
 
 /* ---- Config error screen (shown when Supabase keys are missing) ---- */
