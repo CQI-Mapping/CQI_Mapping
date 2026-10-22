@@ -77,7 +77,7 @@ const ACADEMICS_META: Record<string, { desc: string }> = {
   curriculum: { desc: 'Curriculum structure & maps' },
   course: { desc: 'Course catalog & details' },
   clo: { desc: 'Course learning outcomes' },
-  'subject-view': { desc: 'Prerequisite visualization' },
+  'subject-view': { desc: 'Start Visualizing' },
   tos: { desc: 'Exam blueprint & Bloom coverage' },
 }
 
@@ -166,7 +166,7 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
         <div className="hdr__inner">
           {/* Brand */}
           <div className="hdr__brand">
-            <div className="hdr__mark">CQI</div>
+            <img className="hdr__mark hdr__mark--img" src="/ics-logo.png" alt="ICS logo" />
             <span className="hdr__title">CQI Monitoring</span>
           </div>
 

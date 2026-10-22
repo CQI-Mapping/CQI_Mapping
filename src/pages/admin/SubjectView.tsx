@@ -60,6 +60,7 @@ import { downloadSyllabusPdf } from '../../utils/syllabusPdf'
 import Icon from '../../components/icons'
 import SyllabusReport from '../../components/SyllabusReport'
 import OutcomeDetailsCard from '../../components/OutcomeDetailsCard'
+import PageBanner from '../../components/PageBanner'
 import type { ConnectedGroup, ConnectedItem } from '../../components/OutcomeDetailsCard'
 
 type NodeKind =
@@ -947,8 +948,14 @@ export default function SubjectView() {
 
   // ── Build the PEO-rooted graph model ───────────────────────────────────────
   // Root = PEO. Downstream: every PO aligned to this PEO (by peo_id first, then
-  // by a PEO code token in peo_text) — each PO shows its own PEO/SG/CMO leaves
-  // and upstream CLOs → subjects, so it looks like a slice of the subject graph.
+  // by a PEO code token in peo_text) — each PO shows its SG/CMO leaves and its
+  // upstream CLOs → subjects, so it looks like a slice of the subject graph.
+  // PEO leaves are pruned from every slice: the root already heads the branch,
+  // and re-stating "PEO 1" under each aligned PO painted the same label a dozen
+  // times over — while the remaining "PEO 2 / PEO 3" repeats read as
+  // duplication rather than as each PO's extra alignments. A PO's full PEO
+  // story stays visible from a PO root, a subject graph, and the
+  // connected-details card.
   const buildPeoGraphModel = useCallback(
     (datasetsRef: OutcomeDatasets, peoRec: ProgramEducationalObjective): GraphNodeData => {
       const peoKey = normalizeCode(peoRec.code)
@@ -995,6 +1002,12 @@ export default function SubjectView() {
         }
         attachPoLeaves(datasetsRef, poNode, po)
         attachClosUpstream(datasetsRef, poNode, po)
+        // A PEO branch never repeats PEOs: the root is one already, and the
+        // slice-side PEO leaves — the root's own or a PO's extra alignments —
+        // all read as the same label painted over and over. What remains on
+        // each branch is what is unique to that PO: its goals, its CMO anchor,
+        // and the CLOs → subjects that claim it.
+        poNode.children = poNode.children.filter((c) => c.kind !== 'peo')
         root.children.push(poNode)
       }
 
@@ -1007,8 +1020,12 @@ export default function SubjectView() {
   // Root-side branches render each aligned PO carrying BOTH sides of the story:
   // its PEO / SG / CMO leaves and its upstream CLOs → subjects — exactly what
   // the PO root itself shows, so a branch never understates a PO's reach.
+  // `omitId` drops one child — the root record's own leaf. A branch rooted at
+  // a PEO / SG / CMO / CLO otherwise re-states that very record under every
+  // PO slice (the same "PEO 1" painted once per aligned PO), which the root
+  // already announces; the record itself navigates nowhere new from there.
   const poSliceNode = useCallback(
-    (datasetsRef: OutcomeDatasets, poRec: ProgramOutcomeStandalone): GraphNodeData => {
+    (datasetsRef: OutcomeDatasets, poRec: ProgramOutcomeStandalone, omitId?: string): GraphNodeData => {
       const node: GraphNodeData = {
         id: `po-${poRec.id}`,
         code: poRec.code,
@@ -1020,6 +1037,7 @@ export default function SubjectView() {
       }
       attachPoLeaves(datasetsRef, node, poRec)
       attachClosUpstream(datasetsRef, node, poRec)
+      if (omitId) node.children = node.children.filter((c) => c.id !== omitId)
       return node
     },
     [attachPoLeaves, attachClosUpstream],
@@ -1058,7 +1076,9 @@ export default function SubjectView() {
         })
         return root
       }
-      for (const po of sortPos(linkedPos)) root.children.push(poSliceNode(datasetsRef, po))
+      // Each aligned PO renders as a full slice, with the root goal's own leaf
+      // pruned so "Goal 1" is not re-stated under every PO branch.
+      for (const po of sortPos(linkedPos)) root.children.push(poSliceNode(datasetsRef, po, root.id))
       return root
     },
     [poSliceNode],
@@ -1099,7 +1119,9 @@ export default function SubjectView() {
         })
         return root
       }
-      for (const po of sortPos(linkedPos)) root.children.push(poSliceNode(datasetsRef, po))
+      // Each anchored PO renders as a full slice, with the root memorandum's
+      // own leaf pruned so the CMO is not re-stated under every PO branch.
+      for (const po of sortPos(linkedPos)) root.children.push(poSliceNode(datasetsRef, po, root.id))
       return root
     },
     [poSliceNode],
@@ -1131,7 +1153,9 @@ export default function SubjectView() {
           .filter((p) => isManagerCmCategory(p))
           .find((p) => normalizeCode(p.code) === key)
         if (poRec) {
-          root.children.push(poSliceNode(datasetsRef, poRec))
+          // Full slice, minus the root outcome's own leaf — every named PO
+          // would otherwise re-list this very CLO under itself.
+          root.children.push(poSliceNode(datasetsRef, poRec, root.id))
         } else {
           root.children.push({
             id: `po-missing-${tok}`,
@@ -1492,22 +1516,12 @@ export default function SubjectView() {
     setGraphError('')
   }, [pushTrail])
 
-  // Jump back to an earlier entry in the navigation trail.
-  const handleCrumb = useCallback((i: number) => {
-    const current: NavEntry | null =
-      rootType === 'subject' && selectedCourseId ? { type: 'subject', id: selectedCourseId }
-      : rootType === 'clo' && selectedCloId ? { type: 'clo', id: selectedCloId }
-      : rootType === 'po' && selectedPoId ? { type: 'po', id: selectedPoId }
-      : rootType === 'peo' && selectedPeoId ? { type: 'peo', id: selectedPeoId }
-      : rootType === 'sg' && selectedSgId ? { type: 'sg', id: selectedSgId }
-      : rootType === 'cmo' && selectedCmoId ? { type: 'cmo', id: selectedCmoId }
-      : rootType === 'curriculum' && selectedCurriculumId ? { type: 'curriculum', id: selectedCurriculumId }
-      : rootType === 'program' && selectedProgramId ? { type: 'program', id: selectedProgramId }
-      : null
-    if (!current) return
-    const trail = [...navStack, current]
-    if (i >= trail.length - 1) return
-    const target = trail[i]
+  // Step back one root in the travel trail — undoing the last click-to-re-root.
+  // The previous root replaces the current one, which is simply dropped, so
+  // repeated Back presses walk the trail one step at a time.
+  const goBack = useCallback(() => {
+    const target = navStack[navStack.length - 1]
+    if (!target) return
     setRootType(target.type)
     if (target.type === 'subject') setSelectedCourseId(target.id)
     else if (target.type === 'clo') setSelectedCloId(target.id)
@@ -1517,10 +1531,10 @@ export default function SubjectView() {
     else if (target.type === 'curriculum') setSelectedCurriculumId(target.id)
     else if (target.type === 'program') setSelectedProgramId(target.id)
     else setSelectedPoId(target.id)
-    setNavStack(navStack.slice(0, i))
+    setNavStack(navStack.slice(0, -1))
     setShowGraph(true)
     setGraphError('')
-  }, [rootType, selectedCourseId, selectedCloId, selectedPoId, selectedPeoId, selectedSgId, selectedCmoId, selectedCurriculumId, selectedProgramId, navStack])
+  }, [navStack])
 
   // ── D3 force simulation — Observable-style (width 928 / height 680) ───────
   // Dual-root: subject mode (subject → curriculum / prereq / coreq / CLO → PO
@@ -2087,33 +2101,8 @@ export default function SubjectView() {
     if (root) await addActivityLog(root.action, root)
   }
 
-  const crumbLabel = (entry: NavEntry): string => {
-    if (entry.type === 'subject') {
-      return courses.find((c) => c.id === entry.id)?.code ?? allPos.find((p) => p.id === entry.id)?.code ?? '…'
-    }
-    if (entry.type === 'clo') {
-      return allClos.find((c) => c.id === entry.id)?.code ?? '…'
-    }
-    if (entry.type === 'peo') {
-      return allPeos.find((p) => p.id === entry.id)?.code ?? '…'
-    }
-    if (entry.type === 'sg') {
-      return allSgs.find((s) => s.id === entry.id)?.code ?? '…'
-    }
-    if (entry.type === 'cmo') {
-      return allCmos.find((c) => c.id === entry.id)?.code ?? '…'
-    }
-    if (entry.type === 'curriculum') {
-      const r = allCurricula.find((x) => x.id === entry.id)
-      return r ? (r.code || r.title) : '…'
-    }
-    if (entry.type === 'program') {
-      return programs.find((p) => p.id === entry.id)?.code ?? '…'
-    }
-    return allPos.find((p) => p.id === entry.id)?.code ?? courses.find((c) => c.id === entry.id)?.code ?? '…'
-  }
-
-  const crumbTitle = (entry: NavEntry): string => {
+  // Full "CODE — name" for the Back button's tooltip: where one step back leads.
+  const navEntryTitle = (entry: NavEntry): string => {
     if (entry.type === 'subject') {
       const c = courses.find((x) => x.id === entry.id)
       return c ? `${c.code} — ${c.title}` : 'Unknown subject'
@@ -2146,17 +2135,6 @@ export default function SubjectView() {
     return p ? `${p.code} — ${p.title || p.description}` : 'Unknown outcome'
   }
 
-  const currentEntry: NavEntry | null =
-    rootType === 'subject' && selectedCourseId ? { type: 'subject', id: selectedCourseId }
-    : rootType === 'clo' && selectedCloId ? { type: 'clo', id: selectedCloId }
-    : rootType === 'po' && selectedPoId ? { type: 'po', id: selectedPoId }
-    : rootType === 'peo' && selectedPeoId ? { type: 'peo', id: selectedPeoId }
-    : rootType === 'sg' && selectedSgId ? { type: 'sg', id: selectedSgId }
-    : rootType === 'cmo' && selectedCmoId ? { type: 'cmo', id: selectedCmoId }
-    : rootType === 'curriculum' && selectedCurriculumId ? { type: 'curriculum', id: selectedCurriculumId }
-    : rootType === 'program' && selectedProgramId ? { type: 'program', id: selectedProgramId }
-    : null
-
   const graphTitle = selectedCourse ? `${selectedCourse.code} — ${selectedCourse.title}`
     : selectedClo ? `${selectedClo.code} — ${selectedClo.description || selectedClo.code}`
     : selectedPo ? `${selectedPo.code} — ${selectedPo.title || selectedPo.description}`
@@ -2167,10 +2145,10 @@ export default function SubjectView() {
     : selectedProgram ? `${selectedProgram.code} — ${selectedProgram.name || selectedProgram.code}`
     : ''
   const graphHint = rootType === 'subject'
-    ? 'Click any branch node to see what is connected to it in the panel below. Click a PO, CLO, PEO, goal or memorandum to view the graph from there. Click a pre-req or co-req to jump to that subject. Click a curriculum to open its sibling subjects. Drag nodes to reposition. Scroll to zoom.'
+    ? 'Click any branch node to see what is connected to it in the panel below. Click a PO, CLO, PEO, goal or memorandum to view the graph from there. Click a pre-req or co-req to jump to that subject. Click a curriculum to open its sibling subjects. Drag nodes to reposition. Scroll to zoom. Use Back to undo a re-root.'
     : rootType === 'po'
-      ? 'Click any branch node to see what is connected to it in the panel below. Click a subject to view the graph from that subject. Click a PO to switch PO root. Drag nodes to reposition. Scroll to zoom.'
-      : 'Click any branch node to see what is connected to it in the panel below. Click a PO to view the graph from that PO. Click a CLO, PEO, strategic goal or CHED memorandum to re-root the graph there. Drag nodes to reposition. Scroll to zoom.'
+      ? 'Click any branch node to see what is connected to it in the panel below. Click a subject to view the graph from that subject. Click a PO to switch PO root. Drag nodes to reposition. Scroll to zoom. Use Back to undo a re-root.'
+      : 'Click any branch node to see what is connected to it in the panel below. Click a PO to view the graph from that PO. Click a CLO, PEO, strategic goal or CHED memorandum to re-root the graph there. Drag nodes to reposition. Scroll to zoom. Use Back to undo a re-root.'
 
   // The About area leads with the compact connected-details card for every
   // root, then follows it with the full report document where one exists — the
@@ -2386,6 +2364,7 @@ export default function SubjectView() {
 
   return (
     <div className="subject-view">
+      <PageBanner title="Generate Reports" sub="Explore every course, outcome and objective as one connected graph." />
       {error && <p className="msg msg--error" role="alert">{error}</p>}
 
       <div className="subject-view__panels">
@@ -2401,8 +2380,8 @@ export default function SubjectView() {
             >
               <option value="">--- select to Visualize ---</option>
               <option value="subject">Subject</option>
-              <option value="po">PO</option>
-              <option value="peo">PEO</option>
+              <option value="po">PO — Program Outcome</option>
+              <option value="peo">PEO — Program Educational Objective</option>
               {/* Hidden roots — never offered here. They stay in the DOM so
                   the select keeps a valid value when one of them is active,
                   which only happens by clicking a node inside an open graph
@@ -2667,29 +2646,19 @@ export default function SubjectView() {
             </div>
           ) : (
             <div className="subject-view__graph-area">
-              {navStack.length > 0 && currentEntry && (
-                <nav className="subject-view__crumbs" aria-label="Outcome trail">
-                  {[...navStack, currentEntry].map((entry, i) => {
-                    const isLast = i === navStack.length
-                    return (
-                      <span className="subject-view__crumb-node" key={`${entry.type}-${entry.id}-${i}`}>
-                        {i > 0 && <span className="subject-view__crumb-sep" aria-hidden>→</span>}
-                        <button
-                          type="button"
-                          className={`subject-view__crumb${isLast ? ' subject-view__crumb--current' : ''}`}
-                          disabled={isLast}
-                          title={crumbTitle(entry)}
-                          onClick={() => handleCrumb(i)}>
-                          {crumbLabel(entry)}
-                        </button>
-                      </span>
-                    )
-                  })}
-                </nav>
-              )}
               <div className="subject-view__graph-toolbar">
                 <h3 className="subject-view__graph-title">{graphTitle}</h3>
                 <div className="subject-view__graph-actions">
+                  {navStack.length > 0 && (
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--sm"
+                      onClick={goBack}
+                      title={`Back to ${navEntryTitle(navStack[navStack.length - 1])}`}
+                    >
+                      ← Back
+                    </button>
+                  )}
                   <button type="button" className="btn btn--ghost btn--sm" onClick={collapseAll} title="Collapse all branches except the root">
                     Collapse
                   </button>

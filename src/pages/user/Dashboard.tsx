@@ -1,46 +1,60 @@
 // User dashboard — faculty role: CLOs + Subject Graph only.
-// Shows subject/outcome counts + recent CLO updates.
+// Shows subject/outcome counts and the newest CLO updates — stat cards and
+// feed rows act as buttons into their pages, and each feed row opens the
+// shared read-only CLO modal.
 import { useState, useEffect } from 'react'
 import {
   fetchCourses,
   fetchCourseLearningOutcomesStandalone,
 } from '../../services/database'
-import type { Profile, CourseLearningOutcomeStandalone } from '../../services/database'
+import type { Profile, Course, CourseLearningOutcomeStandalone } from '../../services/database'
+import CloViewModal from '../../components/CloViewModal'
 
 interface DashboardProps {
   profile: Profile | null
   onNavigate?: (page: string) => void
 }
 
+interface StatCard {
+  label: string
+  value: string
+  accent: string
+  icon: string
+  sub: string
+  target: string
+}
+
 function Dashboard({ profile, onNavigate }: DashboardProps) {
-  const [stats, setStats] = useState<Array<{ label: string; value: number | null; accent: string; icon: string; sub: string }>>([])
-  const [recent, setRecent] = useState<CourseLearningOutcomeStandalone[]>([])
-  const loading = stats.length === 0
+  const [courses, setCourses] = useState<Course[]>([])
+  const [clos, setClos] = useState<CourseLearningOutcomeStandalone[]>([])
+  const [loaded, setLoaded] = useState(false)
+  const [viewItem, setViewItem] = useState<CourseLearningOutcomeStandalone | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    const counters = [
-      { label: 'Subjects', icon: 'course', sub: 'Available subjects', accent: '#16a34a', load: () => fetchCourses() },
-      { label: 'Course Outcomes', icon: 'clo', sub: 'CLOs per course', accent: '#15803d', load: () => fetchCourseLearningOutcomesStandalone() },
-    ]
-    Promise.all(
-      counters.map(async (c) => {
-        try {
-          return { label: c.label, value: (await c.load()).length, accent: c.accent, icon: c.icon, sub: c.sub }
-        } catch {
-          return { label: c.label, value: 0, accent: c.accent, icon: c.icon, sub: c.sub }
+    Promise.all([fetchCourses(), fetchCourseLearningOutcomesStandalone()])
+      .then(([c, l]) => {
+        if (!cancelled) {
+          setCourses(c)
+          setClos(l)
         }
       })
-    )
-      .then((rows) => { if (!cancelled) setStats(rows) })
       .catch(() => {})
-
-    // Recent CLOs as the faculty feed (audit log is manager/admin only)
-    fetchCourseLearningOutcomesStandalone()
-      .then((clos) => { if (!cancelled) setRecent([...clos].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)).slice(0, 5)) })
-      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoaded(true)
+      })
     return () => { cancelled = true }
   }, [])
+
+  const stats: StatCard[] = [
+    { label: 'Subjects', value: String(courses.length), accent: '#16a34a', icon: 'course', sub: 'Available subjects', target: 'subject-view' },
+    { label: 'Course Outcomes', value: String(clos.length), accent: '#15803d', icon: 'clo', sub: 'CLOs per course', target: 'clo' },
+  ]
+
+  // Recent CLOs as the faculty feed (audit log is manager/admin only).
+  const recent = [...clos]
+    .sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))
+    .slice(0, 5)
 
   function getTimeGreeting(): string {
     const h = new Date().getHours()
@@ -51,39 +65,38 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
 
   const go = (id: string) => onNavigate?.(id)
 
+  const activate = (e: React.KeyboardEvent, fn: () => void) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      fn()
+    }
+  }
+
   return (
     <div className="dashboard dashboard--2026 page-enter">
-      <section className="hero-modern hero-modern--dashboard" aria-labelledby="hero-title">
-        <div className="hero-modern__bg" aria-hidden>
-          <div className="hero-modern__mesh" />
-          <div className="hero-modern__orb hero-modern__orb--1" />
-          <div className="hero-modern__orb hero-modern__orb--2" />
-          <div className="hero-modern__orb hero-modern__orb--3" />
-          <div className="hero-modern__noise" />
-        </div>
-
-        <div className="hero-modern__content">
-          <header className="hero-modern__header">
-            <span className="hero-modern__time">{getTimeGreeting()}</span>
-            <time className="hero-modern__date" dateTime={new Date().toISOString().split('T')[0]}>
-              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-            </time>
-          </header>
-
-          <div className="hero-modern__main" id="hero-title">
-            <div className="hero-modern__identity">
-              <div className="hero-modern__intro">
-                <h1 className="hero-modern__name">Welcome back, {profile?.full_name || profile?.email?.split('@')[0]}</h1>
-                <span className="hero-modern__rolebadge">Faculty</span>
-              </div>
-            </div>
+      <section className="dashbanner" aria-labelledby="dashbanner-name">
+        <div className="dashbanner__info">
+          <span className="dashbanner__greeting">{getTimeGreeting()}</span>
+          <h1 className="dashbanner__name" id="dashbanner-name">
+            {profile?.full_name || profile?.email?.split('@')[0] || 'Welcome'}
+          </h1>
+          <div className="dashbanner__meta">
+            <span className="dashbanner__badge">Faculty</span>
+            <span className="dashbanner__sep">•</span>
+            <span className="dashbanner__role">User</span>
           </div>
+          <p className="dashbanner__desc">
+            Track your course outcomes, view your CLO progress, and explore subjects aligned with your program.
+          </p>
         </div>
+        <time className="dashbanner__date" dateTime={new Date().toISOString().split('T')[0]}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+          <span>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</span>
+        </time>
       </section>
 
-      <div className="stat-grid stat-grid--2026" aria-busy={loading}>
-
-        {loading
+      <div className="stat-grid stat-grid--2026" aria-busy={!loaded}>
+        {!loaded
           ? ['stat-1', 'stat-2'].map((label) => (
             <div className="stat-card stat-card--2026 stat-card--skeleton card-enter" key={label} aria-hidden="true">
               <span className="stat-card__label">Loading</span>
@@ -92,16 +105,24 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
             </div>
           ))
           : stats.map((s) => (
-          <div className="stat-card stat-card--2026 card-enter" key={s.label}>
-            <div className="stat-card__accent" style={{ background: s.accent }} />
-            <div className="stat-card__icon" style={{ background: s.accent, color: '#fff' }}>
-              <StatIcon type={s.icon} />
+            <div
+              className="stat-card stat-card--2026 stat-card--link card-enter"
+              key={s.label}
+              role="button"
+              tabIndex={0}
+              onClick={() => go(s.target)}
+              onKeyDown={(e) => activate(e, () => go(s.target))}
+              aria-label={`Open ${s.label}`}
+            >
+              <div className="stat-card__accent" style={{ background: s.accent }} />
+              <div className="stat-card__icon" style={{ background: s.accent, color: '#fff' }}>
+                <StatIcon type={s.icon} />
+              </div>
+              <span className="stat-card__label">{s.label}</span>
+              <span className="stat-card__value">{s.value}</span>
+              <span className="stat-card__sub">{s.sub}</span>
             </div>
-            <span className="stat-card__label">{s.label}</span>
-            <span className="stat-card__value">{s.value ?? '—'}</span>
-            <span className="stat-card__sub">{s.sub}</span>
-          </div>
-        ))}
+          ))}
       </div>
 
       <div className="dashboard-panels">
@@ -138,14 +159,22 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
         <div className="dashboard-panel">
           <div className="dashboard-panel__header">
             <h3>Recent outcomes</h3>
-            <span>Latest 5 CLOs</span>
+            <span>Latest 5 CLOs · click to view</span>
           </div>
           {recent.length === 0 ? (
             <p className="dashboard-panel__empty">No course outcomes yet.</p>
           ) : (
             <ul className="activity-feed">
               {recent.map((r) => (
-                <li key={r.id} className="activity-feed__item">
+                <li
+                  key={r.id}
+                  className="activity-feed__item activity-feed__item--link"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setViewItem(r)}
+                  onKeyDown={(e) => activate(e, () => setViewItem(r))}
+                  aria-label={`View ${r.code || 'course outcome'}`}
+                >
                   <span className="activity-feed__dot" style={{ background: r.status === 'archived' ? '#94a3b8' : '#22c55e', boxShadow: r.status === 'archived' ? '0 0 0 4px #f1f5f9' : '0 0 0 4px #dcfce7' }} />
                   <span className="activity-feed__action">{r.code || r.title}</span>
                   <span className="activity-feed__user">{[r.course, r.title].filter(Boolean).join(' · ').slice(0, 60) || '—'}</span>
@@ -157,17 +186,7 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
         </div>
       </div>
 
-      <div className="dashboard-panel" style={{ marginTop: 2 }}>
-        <div className="dashboard-panel__header">
-          <h3>What you can do</h3>
-          <span>Faculty permissions</span>
-        </div>
-        <ul className="role-list" style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 8 }}>
-          <li><strong>Course Learning Outcomes</strong> — browse CLOs scoped to your courses.</li>
-          <li><strong>Subject Graph</strong> — explore how courses connect via prerequisites.</li>
-          <li><strong>Profile</strong> — update your own name and contact details.</li>
-        </ul>
-      </div>
+      {viewItem && <CloViewModal item={viewItem} onClose={() => setViewItem(null)} />}
     </div>
   )
 }
@@ -175,8 +194,6 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
 function StatIcon({ type }: { type: string }) {
   const common = { width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
   switch (type) {
-    case 'curriculum':
-      return <svg {...common}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>
     case 'course':
       return <svg {...common}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /><circle cx="12" cy="9" r="1.5" /></svg>
     case 'po':

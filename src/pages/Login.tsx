@@ -1,10 +1,14 @@
 // Login page: the only entry point to the system.
 // Validates fields client-side, shows a generic error (never leaks Supabase details),
 // and records every sign-in attempt to the audit log via the record_login_event RPC.
+// UI: the NBSC brand plate (src/assets/login-bg.jpg) as the full-page background,
+// with the sign-in card floating centered over it.
+// Styles live in src/styles/Login.css.
 
 import { useState } from 'react'
 import { supabase } from '../utils/supabaseClient'
 import { recordLoginEvent } from '../services/database'
+import '../styles/Login.css'
 
 function Login() {
   const [email, setEmail] = useState('')
@@ -62,36 +66,27 @@ function Login() {
 
   return (
     <div className="login-page">
-      {/* Animated aurora blobs */}
-      <div className="login-blobs" aria-hidden="true">
-        <span className="login-blob login-blob--1" />
-        <span className="login-blob login-blob--2" />
-        <span className="login-blob login-blob--3" />
-      </div>
-
-      {/* Sign-in form panel */}
       <div className="login-panel">
         <div className="login-card">
           <div className="login-brand">
-            <div className="login-brand-mark">CQI</div>
-            <h1>CQI Monitoring</h1>
-            <p className="login-subtitle">NBSC · Institute of Computer Studies</p>
+            <h1>Welcome Back!</h1>
+            <p className="login-subtitle">Log in to your BSIT ICS account</p>
           </div>
 
           {error && <div className="login-alert login-alert--error" role="alert">{error}</div>}
 
           <form onSubmit={handleSubmit} noValidate>
             <div className="form-group">
-              <label htmlFor="email">Email</label>
+              <label htmlFor="email" className="sr-only">Email</label>
               <div className="input-wrap">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" aria-hidden="true">
-                  <rect x="2" y="4" width="20" height="16" rx="2" />
-                  <path d="M22 7l-10 6L2 7" />
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="17" height="17" aria-hidden="true">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
                 </svg>
                 <input
                   type="email"
                   id="email"
-                  placeholder="you@example.com"
+                  placeholder="Username or Email"
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); if (error) setError('') }}
                   autoComplete="email"
@@ -102,7 +97,7 @@ function Login() {
             </div>
 
             <div className="form-group">
-              <label htmlFor="password">Password</label>
+              <label htmlFor="password" className="sr-only">Password</label>
               <div className="input-wrap">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" aria-hidden="true">
                   <rect x="3" y="11" width="18" height="11" rx="2" />
@@ -111,7 +106,7 @@ function Login() {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   id="password"
-                  placeholder="Enter your password"
+                  placeholder="Password"
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); if (error) setError('') }}
                   autoComplete="current-password"
@@ -150,22 +145,10 @@ function Login() {
                   Signing in…
                 </span>
               ) : (
-                <>Sign In →</>
+                <>Login &rarr;</>
               )}
             </button>
           </form>
-
-          {/* Demo convenience: seeded test accounts in a collapsible */}
-          <details className="login-demo">
-            <summary>View test accounts</summary>
-            <p className="login-hint">
-              <strong>Admin</strong> — admin@cqi.test / Admin@123456
-              <br />
-              <strong>Manager</strong> — manager@cqi.test / Manager@123456
-              <br />
-              <strong>User</strong> — user@cqi.test / User@123456
-            </p>
-          </details>
         </div>
 
         <p className="login-footer">© 2026 NBSC · Institute of Computer Studies</p>

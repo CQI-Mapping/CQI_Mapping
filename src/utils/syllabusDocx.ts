@@ -243,8 +243,8 @@ export async function downloadSyllabusDocx(
           tableHeader: true,
           children: [
             cell([para(group.heading, { bold: true })]),
-            cell([para('Program Educational Objectives', { bold: true, align: CENTER })]),
-            cell([para('Strategic Goals', { bold: true, align: CENTER })]),
+            cell([para('Program Educational Objectives', { bold: true, color: NAVY, align: CENTER })]),
+            cell([para('Strategic Goals', { bold: true, color: NAVY, align: CENTER })]),
           ],
         }),
       )

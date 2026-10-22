@@ -56,6 +56,7 @@ import {
 } from '../../utils/tosOptions'
 import Icon from '../../components/icons'
 import TosBlueprintEditor from '../../components/TosBlueprintEditor'
+import PageBanner from '../../components/PageBanner'
 
 const SAVE_DEBOUNCE_MS = 600
 
@@ -857,6 +858,9 @@ export default function TOS() {
 
   return (
     <div className="syllabus-doc">
+      {/* Screen-only page banner; the document's own letterhead follows. */}
+      <PageBanner title="Generate TOS" sub="Build the table of specifications for every exam you write." />
+
       {/* ---- exam header ---- */}
       <div className="panel tos-panel no-print">
         <div className="tos-field-grid">

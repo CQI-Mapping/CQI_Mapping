@@ -33,6 +33,7 @@ import SyllabusReport from '../../components/SyllabusReport'
 import Icon from '../../components/icons'
 import { downloadSyllabusPdf } from '../../utils/syllabusPdf'
 import { reportFileName } from '../../utils/download'
+import PageBanner from '../../components/PageBanner'
 
 interface ViewProps {
   userEmail: string
@@ -177,6 +178,8 @@ function View({ userEmail }: ViewProps) {
 
   return (
     <div className="syllabus-doc">
+      {/* Screen-only page banner; the document's own letterhead follows. */}
+      <PageBanner title="Curriculum Report" sub="The official course syllabus for one subject, ready to print." />
       <div className="syllabus-doc__toolbar no-print">
         <span className="syllabus-doc__meta">
           Generated: {new Date().toLocaleDateString()} &middot; {userEmail}
