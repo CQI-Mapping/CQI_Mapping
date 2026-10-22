@@ -703,8 +703,7 @@ code {
 }
 
 .password-toggle:focus-visible,
-.login-btn:focus-visible,
-.login-demo summary:focus-visible {
+.login-btn:focus-visible {
   outline: 2px solid var(--primary-light);
   outline-offset: 2px;
 }

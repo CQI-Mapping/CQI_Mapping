@@ -171,19 +171,6 @@ function Login() {
           {note && <p className="login-note" role="status">{note}</p>}
         </div>
 
-        {/* Demo convenience: seeded test accounts, below the card so the
-            green glass panel keeps the reference's clean shape. */}
-        <details className="login-demo">
-          <summary>View test accounts</summary>
-          <p className="login-hint">
-            <strong>Admin</strong> — admin@cqi.test / Admin@123456
-            <br />
-            <strong>Manager</strong> — manager@cqi.test / Manager@123456
-            <br />
-            <strong>User</strong> — user@cqi.test / User@123456
-          </p>
-        </details>
-
         <p className="login-footer">© 2026 NBSC · Institute of Computer Studies</p>
       </div>
     </div>
