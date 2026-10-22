@@ -1,9 +1,10 @@
 /* 2026 Presentable theme */
 :root {
-  --bg-app: #f8fafc;
-  --bg-panel: #ffffff;
-  --border: #e2e8f0;
-  --border-strong: #cbd5e1;
+  --bg-app: #eef5ef;
+  --bg-panel: #f8fbf8;
+  --bg-soft: #eef4ee;
+  --border: #dfe8de;
+  --border-strong: #c7d4c9;
   --text: #0f172a;
   --text-muted: #64748b;
   --primary: #16a34a;
@@ -13,8 +14,8 @@
   --danger: #dc2626;
   --radius: 14px;
   --radius-sm: 10px;
-  --shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 4px 16px rgba(15, 23, 42, 0.04);
-  --shadow-hover: 0 8px 24px rgba(15, 23, 42, 0.08), 0 2px 8px rgba(15, 23, 42, 0.06);
+  --shadow: 0 1px 3px rgba(15, 23, 42, 0.07), 0 6px 18px rgba(6, 20, 12, 0.07);
+  --shadow-hover: 0 10px 26px rgba(15, 23, 42, 0.1), 0 2px 8px rgba(6, 20, 12, 0.07);
 }
 
 * {
@@ -65,10 +66,17 @@ body,
 body {
   margin: 0;
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  /* Clean light workspace: the circuit plate belongs to the login page
-     only, so the system stays airier behind its white panels and cards. */
-  background: #f6f8f6;
-  background-image: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(22,163,74,0.05), transparent 60%), radial-gradient(ellipse 40% 30% at 100% 0%, rgba(245,197,24,0.04), transparent 55%);
+  /* The user's circuit artwork as the app-wide wallpaper: fixed to the
+     viewport so pages scroll over it, under a green veil that keeps the
+     white panels dominant. The deep-green fallback covers the art's
+     first paint. */
+  background-color: #0e271c;
+  background-image:
+    linear-gradient(rgba(9, 24, 17, 0.3), rgba(9, 24, 17, 0.3)),
+    url('./assets/login-bg.jpg');
+  background-size: cover, cover;
+  background-position: center, center;
+  background-attachment: fixed, fixed;
   color: var(--text);
   font-size: 15px;
   line-height: 1.5;
@@ -77,7 +85,7 @@ body {
 }
 
 code {
-  background: #eef2ff;
+  background: #f0f7f0;
   padding: 1px 6px;
   border-radius: 5px;
   font-size: 13px;
@@ -88,7 +96,9 @@ code {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-muted);
+  /* It renders directly on the circuit art, so the loading text inks
+     white instead of the light-theme navy. */
+  color: #fff;
 }
 
 /* ---- Config error screen (shown when Supabase keys are missing) ---- */
@@ -147,8 +157,8 @@ code {
 
 .page-heading {
   margin-bottom: 16px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 16px 18px;
   box-shadow: var(--shadow);
@@ -182,7 +192,7 @@ code {
 
 .panel {
   background: var(--bg-panel);
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 18px;
   box-shadow: var(--shadow);
@@ -197,7 +207,7 @@ code {
 
 .app-footer {
   margin-top: 24px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -266,15 +276,15 @@ code {
 }
 
 .btn--ghost {
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
   color: #334155;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .btn--ghost:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
+  background: var(--bg-soft);
+  border-color: var(--border-strong);
   transform: translateY(-1px);
 }
 
@@ -292,24 +302,24 @@ code {
 }
 
 .input {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 9px 12px;
   font-size: 14px;
   font-family: inherit;
-  background: #fff;
+  background: var(--bg-panel);
   color: var(--text);
   width: 100%;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
-.input:hover { border-color: #cbd5e1; }
+.input:hover { border-color: var(--border-strong); }
 
 .input:focus {
   outline: none;
   border-color: var(--primary-light);
   box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.12);
-  background: #fff;
+  background: var(--bg-panel);
 }
 
 .input::placeholder { color: #94a3b8; }
@@ -334,7 +344,7 @@ code {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  background: #f8fafc;
+  background: var(--bg-soft);
 }
 
 .subject-picker__text {
@@ -379,7 +389,7 @@ code {
   justify-content: center;
   border: 2px solid #9ca3af;
   border-radius: 4px;
-  background: #fff;
+  background: var(--bg-panel);
 }
 
 .na-check input:checked + .cb-box {
@@ -451,7 +461,7 @@ code {
   z-index: 20;
   max-height: 180px;
   overflow-y: auto;
-  background: #fff;
+  background: var(--bg-panel);
   border: 1px solid #d1d5db;
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
@@ -497,7 +507,7 @@ code {
   z-index: 20;
   max-height: 180px;
   overflow-y: auto;
-  background: #fff;
+  background: var(--bg-panel);
   border: 1px solid #d1d5db;
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
@@ -545,8 +555,8 @@ code {
   font-weight: 500;
   line-height: 1.5;
   margin: 12px 0;
-  border: 1px solid #e2e8f0;
-  background: #fff;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.06);
   position: relative;
   overflow: hidden;
@@ -599,8 +609,8 @@ code {
 }
 
 .msg--info {
-  background: #f8fafc;
-  border-color: #e2e8f0;
+  background: var(--bg-soft);
+  border-color: var(--border);
   border-left: 4px solid #3b82f6;
   color: #1e293b;
 }
@@ -1220,8 +1230,8 @@ code {
 }
 
 .dashboard-panel {
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 16px;
   box-shadow: var(--shadow);
@@ -1260,8 +1270,8 @@ code {
   gap: 10px;
   padding: 12px;
   border-radius: 12px;
-  border: 1px solid #e2e8f0;
-  background: #fff;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
   text-align: left;
   cursor: pointer;
   transition: all 0.18s var(--ease-spring);
@@ -1269,10 +1279,10 @@ code {
 }
 
 .quick-action:hover {
-  border-color: #cbd5e1;
+  border-color: var(--border-strong);
   transform: translateY(-1px);
   box-shadow: var(--shadow-hover);
-  background: #f8fafc;
+  background: var(--bg-soft);
 }
 
 .quick-action__icon {
@@ -1339,7 +1349,7 @@ code {
 
 .activity-feed__item--link:hover,
 .activity-feed__item--link:focus-visible {
-  background: #f8fafc;
+  background: var(--bg-soft);
   outline: none;
 }
 
@@ -1459,7 +1469,7 @@ code {
 .stat-card--2026 {
   position: relative;
   overflow: hidden;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 18px 18px 16px;
   gap: 0;
@@ -1471,7 +1481,7 @@ code {
 .stat-card--2026:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.1), 0 2px 8px rgba(15, 23, 42, 0.06);
-  border-color: #cbd5e1;
+  border-color: var(--border-strong);
 }
 
 .stat-card__accent {
@@ -1582,7 +1592,7 @@ code {
 .stat-card--2026 {
   position: relative;
   overflow: hidden;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 18px 18px 16px;
   gap: 0;
@@ -1594,7 +1604,7 @@ code {
 .stat-card--2026:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.1), 0 2px 8px rgba(15, 23, 42, 0.06);
-  border-color: #cbd5e1;
+  border-color: var(--border-strong);
 }
 
 /* Cards that act as buttons: the hover lift already exists above; this
@@ -1723,14 +1733,14 @@ code {
 }
 
 .table th {
-  background: #f8fafc;
+  background: var(--bg-soft);
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: #64748b;
   white-space: nowrap;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
   z-index: 1;
@@ -1745,7 +1755,7 @@ code {
 }
 
 .table tbody tr:hover {
-  background: #f8fafc;
+  background: var(--bg-soft);
 }
 
 .table td strong {
@@ -2148,7 +2158,7 @@ code {
 /* An actor with no resolvable profile — deleted account, or a row written
    before their profile existed. Not an error, so not styled as one. */
 .role-badge--unknown {
-  background: #f8fafc;
+  background: var(--bg-soft);
   color: #94a3b8;
   font-style: italic;
   text-transform: none;
@@ -2209,10 +2219,10 @@ code {
 }
 
 .syllabus-doc__page {
-  background: #fff;
+  background: var(--bg-panel);
   color: #111;
   padding: 28px 32px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-strong);
   font-family: 'Times New Roman', Times, serif;
   font-size: 14px;
   line-height: 1.45;
@@ -2286,8 +2296,8 @@ code {
   z-index: 40;
   min-width: 186px;
   padding: 10px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
 }
@@ -2320,16 +2330,16 @@ code {
   font-size: 13px;
   font-weight: 600;
   color: #334155;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .sd-download__opt:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
+  background: var(--bg-soft);
+  border-color: var(--border-strong);
 }
 
 .sd-download__opt.is-active {
@@ -2566,13 +2576,13 @@ code {
   font-weight: 700;
   font-size: 14px;
   padding: 8px 10px;
-  background: #fff;
+  background: var(--bg-panel);
   color: #000;
   letter-spacing: 0.5px;
 }
 
 .sd-po-single-section {
-  background: #fff;
+  background: var(--bg-panel);
   padding: 6px 10px;
 }
 
@@ -2912,7 +2922,7 @@ textarea.input {
   border-collapse: collapse;
   table-layout: fixed;
   font-size: 12px;
-  background: #fff;
+  background: var(--bg-panel);
 }
 
 .tos-table th,
@@ -3057,7 +3067,7 @@ textarea.input {
 .tos-cell__input:focus {
   outline: 2px solid #16a34a;
   outline-offset: -1px;
-  background: #fff;
+  background: var(--bg-panel);
 }
 
 .tos-cell__input--multi {
@@ -3231,7 +3241,7 @@ textarea.input {
     border: none;
     box-shadow: none;
     padding: 0;
-    background: #fff;
+    background: var(--bg-panel);
   }
 
   .tos-table {
@@ -3307,20 +3317,20 @@ textarea.input {
 
 .tos-tab:hover:not(:disabled) {
   color: #334155;
-  background: #f8fafc;
+  background: var(--bg-soft);
 }
 
 .tos-tab--on {
   color: var(--primary-dark);
-  background: #fff;
-  border-color: #e2e8f0;
+  background: var(--bg-panel);
+  border-color: var(--border);
   border-bottom-color: var(--primary);
   box-shadow: 0 -1px 3px rgba(15, 23, 42, 0.04);
 }
 
 .tos-tab--on:hover:not(:disabled) {
   color: var(--primary-dark);
-  background: #fff;
+  background: var(--bg-panel);
 }
 
 .tos-tab:disabled {
@@ -3373,8 +3383,8 @@ textarea.input {
   gap: 24px;
   flex-wrap: wrap;
   padding: 16px 18px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
   border-radius: 14px;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
   margin-bottom: 14px;
@@ -3490,7 +3500,7 @@ textarea.input {
 /* Flat-white export action with a green edge: the one export action the
    report banner carries, reading as an action, not a decoration. */
 .reports-banner__pdf {
-  background: #fff;
+  background: var(--bg-panel);
   border: 1px solid #86efac;
   color: #15803d;
 }
@@ -3693,7 +3703,7 @@ button.reports-panel__more:hover {
   letter-spacing: 0.03em;
   text-transform: uppercase;
   padding: 7px 8px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
 
@@ -3847,9 +3857,9 @@ button.reports-panel__more:hover {
   gap: 20px;
   flex-wrap: wrap;
   padding: 11px 14px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: var(--reports-radius);
-  background: #fff;
+  background: var(--bg-panel);
 }
 
 .reports-footer__who {
@@ -3951,7 +3961,7 @@ button.reports-panel__more:hover {
   }
 
   body {
-    background: #fff;
+    background: var(--bg-panel);
   }
 
   .syllabus-doc__page {
@@ -3961,7 +3971,7 @@ button.reports-panel__more:hover {
 
   .panel {
     box-shadow: none;
-    border: 1px solid #cbd5e1;
+    border: 1px solid var(--border-strong);
     break-inside: avoid;
   }
 
@@ -3977,7 +3987,7 @@ button.reports-panel__more:hover {
   gap: 0;
   align-items: center;
   margin-bottom: 12px;
-  border-bottom: 2px solid #e2e8f0;
+  border-bottom: 2px solid var(--border);
   justify-content: flex-start;
 }
 
@@ -4043,7 +4053,7 @@ button.reports-panel__more:hover {
 }
 
 .modal {
-  background: #fff;
+  background: var(--bg-panel);
   border-radius: 12px;
   width: 100%;
   max-width: 560px;
@@ -4070,7 +4080,7 @@ button.reports-panel__more:hover {
   justify-content: space-between;
   gap: 12px;
   padding: 10px 16px;
-  background: #fff;
+  background: var(--bg-panel);
   box-shadow: var(--shadow);
   flex-shrink: 0;
 }
@@ -4114,7 +4124,7 @@ button.reports-panel__more:hover {
 .syl-reader__doc {
   max-width: 1040px;
   margin: 0 auto;
-  background: #fff;
+  background: var(--bg-panel);
   border-radius: 10px;
   box-shadow: 0 24px 60px rgba(15, 23, 42, 0.35);
 }
@@ -4128,7 +4138,7 @@ button.reports-panel__more:hover {
 
 .modal__header {
   padding: 16px 20px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border);
 }
 
 .modal__header h3 {
@@ -4156,8 +4166,8 @@ button.reports-panel__more:hover {
   justify-content: flex-end;
   gap: 8px;
   padding: 12px 20px;
-  border-top: 1px solid #e2e8f0;
-  background: #f8fafc;
+  border-top: 1px solid var(--border);
+  background: var(--bg-soft);
   border-radius: 0 0 12px 12px;
 }
 
@@ -4181,8 +4191,8 @@ button.reports-panel__more:hover {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 18px 20px;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 4px 16px rgba(15, 23, 42, 0.04);
@@ -4316,7 +4326,7 @@ button.reports-panel__more:hover {
 }
 
 /* The primary action on the strip: white on green keeps it the loudest
-   element in the card. */
+   element in the card (the token flip must not sage this one). */
 .program-hero__action .btn--primary {
   background: #fff;
   color: #14532d;
@@ -4358,8 +4368,8 @@ button.reports-panel__more:hover {
 }
 
 .program-stat {
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
   border-radius: 14px;
   padding: 14px 16px;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
@@ -4389,8 +4399,8 @@ button.reports-panel__more:hover {
 }
 
 .program-panel {
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 16px;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
@@ -4436,8 +4446,8 @@ button.reports-panel__more:hover {
 .program-card--2026 {
   position: relative;
   overflow: hidden;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 16px;
   display: flex;
@@ -4463,7 +4473,7 @@ button.reports-panel__more:hover {
 .program-card--2026:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
-  border-color: #cbd5e1;
+  border-color: var(--border-strong);
 }
 
 .program-card__top {
@@ -4479,7 +4489,7 @@ button.reports-panel__more:hover {
   letter-spacing: 0.06em;
   color: #0f172a;
   background: #f1f5f9;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   padding: 4px 8px;
   border-radius: 999px;
 }
@@ -4549,7 +4559,7 @@ button.reports-panel__more:hover {
   text-align: center;
   padding: 36px 16px;
   color: #64748b;
-  background: #f8fafc;
+  background: var(--bg-soft);
   border: 1px dashed #cbd5e1;
   border-radius: 12px;
 }
@@ -4883,7 +4893,7 @@ button.reports-panel__more:hover {
 }
 
 .subject-view__summary-item {
-  background: #f8fafc;
+  background: var(--bg-soft);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 8px 10px;
@@ -4941,7 +4951,7 @@ button.reports-panel__more:hover {
    empty gutter down the right side beside the report's own edge. Both are now
    plain blocks in the same .subject-view__about column, so their edges align. */
 .outcome-details {
-  background: #fff;
+  background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 16px 18px;
@@ -4979,7 +4989,7 @@ button.reports-panel__more:hover {
   padding: 3px 9px;
   border-radius: 999px;
   border: 1px solid #7dd3fc;
-  background: #fff;
+  background: var(--bg-panel);
   color: #0369a1;
 }
 
@@ -5079,7 +5089,7 @@ button.reports-panel__more:hover {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  background: #f8fafc;
+  background: var(--bg-soft);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 9px 12px;
@@ -5235,7 +5245,7 @@ button.reports-panel__more:hover {
   display: flex;
   border: 1px solid #ddd;
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--bg-panel);
   overflow: hidden;
 }
 
@@ -5305,7 +5315,7 @@ button.reports-panel__more:hover {
   .subject-view__right--fullscreen {
     position: static;
     inset: auto;
-    background: #fff;
+    background: var(--bg-panel);
   }
 
   .subject-view__right--fullscreen .subject-view__graph-wrap,
@@ -5338,7 +5348,7 @@ button.reports-panel__more:hover {
 .subject-view__spinner {
   width: 20px;
   height: 20px;
-  border: 3px solid #e2e8f0;
+  border: 3px solid var(--border);
   border-top-color: var(--primary);
   border-radius: 50%;
   animation: subject-view-spin 0.7s linear infinite;
@@ -5362,9 +5372,9 @@ button.reports-panel__more:hover {
   max-width: 400px;
   text-align: center;
   padding: 28px 24px;
-  border: 1px dashed var(--border);
+  border: 1px dashed var(--border-strong);
   border-radius: var(--radius);
-  background: #fafbfc;
+  background: var(--bg-soft);
 }
 
 .subject-view__placeholder-card h4 {
