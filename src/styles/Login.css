@@ -36,18 +36,19 @@
 }
 
 .login-card {
-  /* Deep-green glass over the circuit wallpaper, the friend design's card:
-     translucent, green-edged, faint glow. */
-  background: linear-gradient(160deg, rgba(20, 56, 40, 0.78), rgba(11, 35, 25, 0.86));
+  /* Deep-green glass over the circuit wallpaper, tuned to the art's own
+     center tones (rgb ~10,26,16) so the card reads as part of the
+     background: barely lighter, same hue, green-edged, faint glow. */
+  background: linear-gradient(160deg, rgba(13, 37, 24, 0.82), rgba(5, 16, 10, 0.9));
   -webkit-backdrop-filter: blur(12px) saturate(1.1);
   backdrop-filter: blur(12px) saturate(1.1);
-  border: 1px solid rgba(102, 220, 130, 0.25);
+  border: 1px solid rgba(102, 220, 130, 0.2);
   border-radius: 20px;
   padding: 30px 30px 26px;
   color: #f3fbf4;
   box-shadow:
     0 30px 60px -22px rgba(0, 0, 0, 0.65),
-    0 0 44px -8px rgba(34, 197, 94, 0.18);
+    0 0 44px -8px rgba(34, 197, 94, 0.12);
   animation: lp-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
