@@ -70,7 +70,7 @@ function Login() {
         <div className="login-card">
           <div className="login-brand">
             <h1>Welcome Back!</h1>
-            <p className="login-subtitle">Log in to your BSIT ICS account</p>
+            <p className="login-subtitle">Log in to your account</p>
           </div>
 
           {error && <div className="login-alert login-alert--error" role="alert">{error}</div>}
