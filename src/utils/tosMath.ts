@@ -207,19 +207,9 @@ export function validateSheet(
       code: 'NO_TOTAL',
       message: `Set how many ${unit} this exam is worth before the columns can be checked.`,
     })
-  } else {
-    const placed = placedTotal(topics)
-    if (Math.abs(placed - total) > 0.001) {
-      const gap = Math.abs(placed - total)
-      issues.push({
-        level: 'error',
-        code: 'SUM_MISMATCH',
-        message:
-          `Columns total ${fmt(placed)} ${unit} but the sheet declares ${fmt(total)} — ` +
-          `${fmt(gap)} ${placed > total ? 'over' : 'unassigned'}.`,
-      })
-    }
   }
+  // No sum check: a sheet whose columns do not yet add up to the declared
+  // total is normal while editing, so the grid stays quiet about it.
 
   const hours = totalHours(topics)
   if (declaredHours != null && Math.abs(hours - num(declaredHours)) > 0.001) {

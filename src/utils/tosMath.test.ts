@@ -143,19 +143,6 @@ describe('validateSheet', () => {
     expect(validateSheet(balanced, 8)).toEqual([])
   })
 
-  it('flags columns that do not add up to the declared total', () => {
-    const broken: TosSheet = {
-      ...balanced,
-      topics: [topic(1, 8, oneEach), topic(2, 8, { remember: 1 })],
-    }
-    const issues = validateSheet(broken, 16)
-    expect(codes(issues)).toContain('SUM_MISMATCH')
-    const sum = issues.find((i) => i.code === 'SUM_MISMATCH')!
-    expect(sum.level).toBe('error')
-    expect(sum.message).toMatch(/6 items/)
-    expect(sum.message).toMatch(/declares 10/)
-  })
-
   it('flags topics whose hour total disagrees with the exam header', () => {
     const issues = validateSheet(balanced, 10)
     expect(codes(issues)).toContain('HOURS_MISMATCH')
