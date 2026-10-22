@@ -2493,6 +2493,7 @@ code {
   font-weight: 700;
   font-size: 12px;
   vertical-align: middle;
+  color: #1f3864;
 }
 
 .sd-table--mapping th:nth-child(2),
