@@ -36,14 +36,18 @@
 }
 
 .login-card {
-  background: rgba(252, 249, 238, 0.88);
-  -webkit-backdrop-filter: blur(9px) saturate(1.05);
-  backdrop-filter: blur(9px) saturate(1.05);
-  border: 1px solid rgba(221, 213, 191, 0.9);
-  border-radius: 18px;
-  padding: 30px 30px 24px;
-  color: var(--lp-ink);
-  box-shadow: 0 28px 56px -24px rgba(11, 30, 18, 0.55), 0 2px 10px rgba(11, 30, 18, 0.16);
+  /* Deep-green glass over the circuit wallpaper, the friend design's card:
+     translucent, green-edged, faint glow. */
+  background: linear-gradient(160deg, rgba(20, 56, 40, 0.78), rgba(11, 35, 25, 0.86));
+  -webkit-backdrop-filter: blur(12px) saturate(1.1);
+  backdrop-filter: blur(12px) saturate(1.1);
+  border: 1px solid rgba(102, 220, 130, 0.25);
+  border-radius: 20px;
+  padding: 30px 30px 26px;
+  color: #f3fbf4;
+  box-shadow:
+    0 30px 60px -22px rgba(0, 0, 0, 0.65),
+    0 0 44px -8px rgba(34, 197, 94, 0.18);
   animation: lp-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -63,17 +67,31 @@
 .login-brand h1,
 .login-card > h2 {
   margin: 0;
-  font-size: 21px;
+  font-size: 26px;
   font-weight: 800;
   letter-spacing: -0.02em;
-  color: var(--lp-ink);
+  color: #fff;
   text-align: center;
 }
 
+/* Visually hidden labels: the design drops the floating captions, but
+   screen readers and label-click focus still need them. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .login-subtitle {
-  margin: 5px 0 0;
-  color: var(--lp-muted);
-  font-size: 12.5px;
+  margin: 6px 0 0;
+  color: rgba(210, 245, 222, 0.82);
+  font-size: 13.5px;
   letter-spacing: 0.02em;
   text-align: center;
 }
@@ -88,9 +106,9 @@
 }
 
 .login-alert--error {
-  background: #fbe9e4;
-  border: 1px solid #eec7bc;
-  color: #93321f;
+  background: rgba(127, 29, 29, 0.35);
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  color: #fecaca;
   animation: login-shake 0.3s ease;
 }
 
@@ -117,6 +135,16 @@
 
 .login-card .input-wrap {
   position: relative;
+  background: rgba(255, 255, 255, 0.09);
+  border: 1px solid rgba(255, 255, 255, 0.17);
+  border-radius: 12px;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.login-card .input-wrap:focus-within {
+  border-color: rgba(96, 220, 140, 0.6);
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.22);
 }
 
 .login-card .input-wrap > svg {
@@ -124,37 +152,36 @@
   left: 14px;
   top: 50%;
   transform: translateY(-50%);
-  color: #a29d87;
+  color: rgba(255, 255, 255, 0.88);
   pointer-events: none;
 }
 
 .login-card .form-group input {
   width: 100%;
-  border: 1px solid var(--lp-line);
+  border: none;
   border-radius: 12px;
   padding: 12px 13px 12px 40px;
   font-size: 14px;
   font-family: inherit;
-  background: #fff;
-  color: var(--lp-ink);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.login-card .form-group input::placeholder {
-  color: #a9a68f;
+  background: transparent;
+  color: #fff;
+  caret-color: #7de2a8;
+  transition: none;
 }
 
 .login-card .form-group input:focus {
   outline: none;
-  border-color: var(--lp-green);
-  box-shadow: 0 0 0 3px rgba(58, 122, 69, 0.16);
+}
+
+.login-card .form-group input::placeholder {
+  color: rgba(255, 255, 255, 0.55);
 }
 
 .login-card .form-group input:-webkit-autofill,
 .login-card .form-group input:-webkit-autofill:hover,
 .login-card .form-group input:-webkit-autofill:focus {
-  -webkit-text-fill-color: var(--lp-ink);
-  -webkit-box-shadow: 0 0 0 1000px #fff inset;
+  -webkit-text-fill-color: #fff;
+  -webkit-box-shadow: 0 0 0 1000px #17402c inset;
   transition: background-color 5000s ease-in-out 0s;
 }
 
@@ -163,11 +190,11 @@
 }
 
 .login-card .password-toggle {
-  color: #a29d87;
+  color: rgba(255, 255, 255, 0.75);
 }
 
 .login-card .password-toggle:hover {
-  color: var(--lp-green);
+  color: #fff;
 }
 
 /* ---------- button ---------- */
@@ -176,18 +203,18 @@
   position: relative;
   overflow: hidden;
   width: 100%;
-  margin-top: 6px;
+  margin-top: 12px;
   border: none;
   border-radius: 12px;
   padding: 13px 16px;
-  background: linear-gradient(135deg, #3a7a45 0%, #2c6234 100%);
-  color: #f3f7ea;
+  background: linear-gradient(135deg, #16a34a 0%, #22c55e 100%);
+  color: #fff;
   font-size: 15px;
   font-family: inherit;
   font-weight: 700;
   letter-spacing: 0.3px;
   cursor: pointer;
-  box-shadow: 0 16px 28px -14px rgba(44, 98, 52, 0.75);
+  box-shadow: 0 16px 28px -14px rgba(22, 138, 62, 0.8);
   transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
 }
 
@@ -242,13 +269,70 @@
   to { transform: rotate(360deg); }
 }
 
+/* ---------- divider, footer links, note ---------- */
+
+/* The demonstration divider's hairlines flank "or" as in the design. */
+.login-or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 14px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.login-or span {
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.login-foot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+
+.login-foot__link {
+  border: none;
+  background: none;
+  padding: 2px 4px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #8df0ae;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color 0.15s ease;
+}
+
+.login-foot__link:hover {
+  color: #bbf7d0;
+  text-decoration: underline;
+}
+
+.login-foot__sep {
+  width: 1px;
+  height: 15px;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.login-note {
+  margin: 10px 0 0;
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.75);
+}
+
 /* ---------- demo accounts + footer ---------- */
 
 .login-demo {
-  margin: 20px 0 0;
-  border: 1px dashed var(--lp-line);
+  margin: 14px 0 0;
+  border: 1px dashed rgba(255, 255, 255, 0.26);
   border-radius: 12px;
-  background: #f6f2e3;
+  background: rgba(11, 35, 25, 0.55);
   overflow: hidden;
 }
 
@@ -256,7 +340,7 @@
   padding: 10px 14px;
   font-size: 12.5px;
   font-weight: 600;
-  color: #55614b;
+  color: rgba(255, 255, 255, 0.82);
   cursor: pointer;
   list-style: none;
   display: flex;
@@ -271,7 +355,7 @@
 .login-demo summary::after {
   content: '›';
   transform: rotate(90deg);
-  color: #a29d87;
+  color: rgba(255, 255, 255, 0.55);
   font-size: 14px;
 }
 
@@ -283,13 +367,13 @@
   margin: 0;
   padding: 0 14px 14px;
   font-size: 12px;
-  color: var(--lp-muted);
+  color: rgba(255, 255, 255, 0.75);
   text-align: left;
   line-height: 1.8;
 }
 
 .login-hint strong {
-  color: var(--lp-green-dark);
+  color: #8df0ae;
 }
 
 .login-footer {

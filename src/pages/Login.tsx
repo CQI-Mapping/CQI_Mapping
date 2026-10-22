@@ -16,6 +16,8 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false) // true while the sign-in request is in flight
+  // One-line hint under the footer links (Forgot password / Contact admin).
+  const [note, setNote] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -69,24 +71,24 @@ function Login() {
       <div className="login-panel">
         <div className="login-card">
           <div className="login-brand">
-            <h1>CQI Monitoring</h1>
-            <p className="login-subtitle">NBSC · Institute of Computer Studies</p>
+            <h1>Welcome Back!</h1>
+            <p className="login-subtitle">Log in to your BSIT ICS account</p>
           </div>
 
           {error && <div className="login-alert login-alert--error" role="alert">{error}</div>}
 
           <form onSubmit={handleSubmit} noValidate>
             <div className="form-group">
-              <label htmlFor="email">Email</label>
+              <label htmlFor="email" className="sr-only">Email</label>
               <div className="input-wrap">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" aria-hidden="true">
-                  <rect x="2" y="4" width="20" height="16" rx="2" />
-                  <path d="M22 7l-10 6L2 7" />
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="17" height="17" aria-hidden="true">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
                 </svg>
                 <input
                   type="email"
                   id="email"
-                  placeholder="you@example.com"
+                  placeholder="Username or Email"
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); if (error) setError('') }}
                   autoComplete="email"
@@ -97,7 +99,7 @@ function Login() {
             </div>
 
             <div className="form-group">
-              <label htmlFor="password">Password</label>
+              <label htmlFor="password" className="sr-only">Password</label>
               <div className="input-wrap">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" aria-hidden="true">
                   <rect x="3" y="11" width="18" height="11" rx="2" />
@@ -106,7 +108,7 @@ function Login() {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   id="password"
-                  placeholder="Enter your password"
+                  placeholder="Password"
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); if (error) setError('') }}
                   autoComplete="current-password"
@@ -145,23 +147,42 @@ function Login() {
                   Signing in…
                 </span>
               ) : (
-                <>Sign In →</>
+                <>Login &rarr;</>
               )}
             </button>
           </form>
 
-          {/* Demo convenience: seeded test accounts in a collapsible */}
-          <details className="login-demo">
-            <summary>View test accounts</summary>
-            <p className="login-hint">
-              <strong>Admin</strong> — admin@cqi.test / Admin@123456
-              <br />
-              <strong>Manager</strong> — manager@cqi.test / Manager@123456
-              <br />
-              <strong>User</strong> — user@cqi.test / User@123456
-            </p>
-          </details>
+          {/* The friend-design footer: a divider, then two advisory links
+              that surface a one-line hint instead of dead ends. */}
+          <div className="login-or" aria-hidden="true">
+            <span />
+            or
+            <span />
+          </div>
+          <div className="login-foot">
+            <button type="button" className="login-foot__link" onClick={() => setNote('Ask the program administrator to reset your password.')}>
+              Forgot Password?
+            </button>
+            <span className="login-foot__sep" aria-hidden="true" />
+            <button type="button" className="login-foot__link" onClick={() => setNote('Message the program administrator for your account.')}>
+              Contact Admin
+            </button>
+          </div>
+          {note && <p className="login-note" role="status">{note}</p>}
         </div>
+
+        {/* Demo convenience: seeded test accounts, below the card so the
+            green glass panel keeps the reference's clean shape. */}
+        <details className="login-demo">
+          <summary>View test accounts</summary>
+          <p className="login-hint">
+            <strong>Admin</strong> — admin@cqi.test / Admin@123456
+            <br />
+            <strong>Manager</strong> — manager@cqi.test / Manager@123456
+            <br />
+            <strong>User</strong> — user@cqi.test / User@123456
+          </p>
+        </details>
 
         <p className="login-footer">© 2026 NBSC · Institute of Computer Studies</p>
       </div>
