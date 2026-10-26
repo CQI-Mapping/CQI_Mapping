@@ -62,7 +62,9 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
         <div className="dashbanner__info">
           <span className="dashbanner__greeting">{getTimeGreeting()}</span>
           <h1 className="dashbanner__name" id="dashbanner-name">
-            {profile?.full_name || profile?.email?.split('@')[0] || 'Welcome'}
+            {/* Greet by the nickname when one exists (what friends call the
+                user), else the full name, else the email's local part. */}
+            {profile?.nickname || profile?.full_name || profile?.email?.split('@')[0] || 'Welcome'}
           </h1>
           <p className="dashbanner__desc">
             Track your program's outcomes, view CLO progress, and explore alignment across subjects.
