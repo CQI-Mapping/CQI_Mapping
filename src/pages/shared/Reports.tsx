@@ -67,7 +67,14 @@ import Icon from '../../components/icons'
 import type { IconName } from '../../components/icons'
 
 interface ReportsProps {
-  profile: { email?: string | null; role?: UserRole; full_name?: string | null }
+  profile: {
+    email?: string | null
+    role?: UserRole
+    full_name?: string | null
+    /** The account's program assignment (profiles.program_id), when its role
+        carries one — the report opens there before anything else. */
+    program_id?: string | null
+  }
   onNavigate?: (page: string) => void
 }
 
@@ -105,6 +112,11 @@ function currentSemester(today = new Date()): string {
 function ayLabel(v: number | null | undefined): string | null {
   return v == null ? null : `${v} - ${v + 1}`
 }
+
+/** Stands in for program assignments the account may not carry yet, the way
+ *  the sidebar's PROGRAM_LOGO does: until every account is bound to its
+ *  program in the UI, BSIT is the program the system currently serves. */
+const FALLBACK_PROGRAM_CODE = 'BSIT'
 
 function Reports({ profile, onNavigate }: ReportsProps) {
   const [loading, setLoading] = useState(true)
@@ -149,6 +161,10 @@ function Reports({ profile, onNavigate }: ReportsProps) {
   const courseListPage =
     profile.role === 'manager' ? 'course' : profile.role === 'admin' ? 'curriculum' : null
 
+  // The signed-in account's program, read once per render as a scalar so the
+  // load callback's identity only moves when the assignment itself does.
+  const viewerProgramId = profile.program_id ?? null
+
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -172,14 +188,23 @@ function Reports({ profile, onNavigate }: ReportsProps) {
       setGoals(sg)
       setCmos(cmo)
       setCqi(cqiResult)
-      // Default to the first program; the selector below lets any role change it.
-      setProgramId((current) => current ?? p[0]?.id ?? null)
+      // The report opens on the viewer's own program, not on whatever row
+      // happens to sort first: an account with an assignment lands there,
+      // and otherwise on the program the system currently serves (BSIT).
+      // Admins are not program-bound — the selector stays free for them to
+      // audit any program; this only picks where it opens.
+      setProgramId((current) => {
+        if (current) return current
+        if (viewerProgramId && p.some((row) => row.id === viewerProgramId)) return viewerProgramId
+        const served = p.find((row) => (row.code ?? '').toUpperCase() === FALLBACK_PROGRAM_CODE)
+        return served?.id ?? p[0]?.id ?? null
+      })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load the report.')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [viewerProgramId])
 
   useEffect(() => { load() }, [load])
 
