@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Icon from '../../components/icons'
 import { useDraft } from '../../hooks/useDraft'
-import { adminCreateUser, adminDeleteUser, addActivityLog, fetchAllProfilesWithProgram, fetchPrograms, profileProgramOf, updateUserRole } from '../../services/database'
+import { adminCreateUser, adminDeleteUser, addActivityLog, fetchAllProfilesWithProgram, fetchPrograms, profileProgramOf, updateUserProgram, updateUserRole } from '../../services/database'
 import { supabase } from '../../utils/supabaseClient'
 import type { ProfileWithProgram, Program, UserRole } from '../../services/database'
 
@@ -36,6 +36,8 @@ export default function Users() {
   const [loading, setLoading] = useState(true)
   const [currentEmail, setCurrentEmail] = useState('')
   const [roleBusyId, setRoleBusyId] = useState('')
+  // The row's program select shares the busy pattern with the one above.
+  const [programBusyId, setProgramBusyId] = useState('')
   const [deleteBusyId, setDeleteBusyId] = useState('')
 
   const loadUsers = async () => {
@@ -106,17 +108,59 @@ export default function Users() {
     setRoleBusyId(profileId)
     try {
       const updated = await updateUserRole(profileId, nextRole)
-      setUsers((prev) => prev.map((u) => (u.id === profileId ? updated : u)))
+      // Administrators are not program-bound: promoting an account into the
+      // role clears its assignment so the scope keeps matching. Every other
+      // role keeps whatever assignment the row already shows.
+      if (nextRole === 'admin') await updateUserProgram(profileId, null)
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === profileId
+            ? { ...u, ...updated, program_id: nextRole === 'admin' ? null : u.program_id }
+            : u,
+        ),
+      )
       await addActivityLog('role.updated', {
         entity: 'user',
         entity_id: profileId,
         label: `${email} → ${nextRole}`,
       })
-      setSuccess(`Role for ${email} changed to ${nextRole}.`)
+      setSuccess(
+        nextRole === 'admin'
+          ? `Role for ${email} changed to ${nextRole}. Its program assignment was cleared — administrators span every program.`
+          : `Role for ${email} changed to ${nextRole}.`,
+      )
     } catch (e) {
       setError('Failed to update role: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
       setRoleBusyId('')
+    }
+  }
+
+  // The row's Program select: how pre-existing accounts — registered before
+  // the program column existed — get their assignment corrected. Patched
+  // state can never carry the joined row, so this reloads the list whole.
+  const handleProgramChange = async (profileId: string, programId: string, email: string) => {
+    setError('')
+    setSuccess('')
+    setProgramBusyId(profileId)
+    try {
+      const assigned = programId ? programs.find((p) => p.id === programId) ?? null : null
+      await updateUserProgram(profileId, programId || null)
+      await addActivityLog('user.program_assigned', {
+        entity: 'user',
+        entity_id: profileId,
+        label: `${email} → ${assigned?.code ?? 'none'}`,
+      })
+      await loadUsers()
+      setSuccess(
+        assigned
+          ? `Program for ${email} set to ${assigned.code}.`
+          : `Program for ${email} cleared — the account has no assignment.`,
+      )
+    } catch (e) {
+      setError('Failed to assign program: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setProgramBusyId('')
     }
   }
 
@@ -351,12 +395,22 @@ export default function Users() {
                       </select>
                     </td>
                     <td>
-                      {assigned ? (
-                        <span className="users-program-chip" title={assigned.name}>{assigned.code}</span>
+                      {u.role === 'admin' ? (
+                        <span className="users-program-chip users-program-chip--none">All programs</span>
                       ) : (
-                        <span className="users-program-chip users-program-chip--none">
-                          {u.role === 'admin' ? 'All programs' : 'None'}
-                        </span>
+                        <select
+                          className="input input--sm"
+                          style={{ maxWidth: 130 }}
+                          aria-label={`Assign program for ${u.email}`}
+                          value={assigned?.id ?? ''}
+                          disabled={programBusyId === u.id || programs.length === 0}
+                          onChange={(e) => handleProgramChange(u.id, e.target.value, u.email)}
+                        >
+                          <option value="">None</option>
+                          {programs.map((p) => (
+                            <option key={p.id} value={p.id}>{p.code}</option>
+                          ))}
+                        </select>
                       )}
                     </td>
                     <td>{new Date(u.created_at).toLocaleDateString()}</td>

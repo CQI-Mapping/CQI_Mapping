@@ -280,6 +280,21 @@ export async function updateUserRole(profileId: string, role: UserRole): Promise
   return data
 }
 
+/** Assign an account to a program (profiles.program_id), or null to unassign.
+    Same direct pattern as updateUserRole — admins own these columns under
+    RLS, which lets the Users & Accounts table assign programs from its rows
+    for accounts that were registered before the column existed. */
+export async function updateUserProgram(profileId: string, programId: string | null): Promise<Profile> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ program_id: programId })
+    .eq('id', profileId)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
 // Privileged account operations run through the admin-users Edge Function.
 // The service-role key stays on the server; the function verifies the
 // caller's role from their JWT (admins manage all accounts, managers may
