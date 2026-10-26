@@ -34,8 +34,14 @@ const FOOTER_BAND = 10
 /** The body stops short of the footer band, which every page carries. */
 const BODY_BOTTOM = PAGE.h - FOOTER_BAND - 6
 
-const DARK: [number, number, number] = [13, 94, 66] // masthead + section bands
-const PALE: [number, number, number] = [232, 245, 238] // title band fill
+// The print greens are the banners' own, not the web theme's mid-green:
+// #16342a is the dashboard banner strip's field, so the masthead, the section
+// bands and the footers read as the app's banner family. PALE is --bg-soft,
+// the sage the on-screen panels carry, and NAVY is 002060 -- the ink the
+// mapping and alignment table headers use in the syllabus documents.
+const DARK: [number, number, number] = [22, 52, 42] // masthead + section bands + footer
+const PALE: [number, number, number] = [238, 244, 238] // title band + table header fill
+const NAVY: [number, number, number] = [0, 32, 96] // alignment-table header ink
 const TITLE_INK: [number, number, number] = [20, 83, 45]
 const INK: [number, number, number] = [24, 39, 32]
 const MUTED: [number, number, number] = [90, 104, 98]
@@ -160,7 +166,7 @@ function statusChip(doc: PdfDoc, x: number, right: number, y: number, label: str
 class Writer {
   private y = MARGIN
   /** The table being drawn, so its headings repeat after a page break. */
-  private table: { cells: string[]; widths: number[]; aligns: Align[]; statusCol?: boolean } | undefined
+  private table: { cells: string[]; widths: number[]; aligns: Align[]; statusCol?: boolean; ink?: [number, number, number] } | undefined
 
   constructor(
     private doc: PdfDoc,
@@ -356,10 +362,10 @@ class Writer {
 
   // ---- tables ----
 
-  tableHeader(cells: string[], widths: number[], aligns: Align[], statusCol?: boolean): void {
+  tableHeader(cells: string[], widths: number[], aligns: Align[], statusCol?: boolean, ink?: [number, number, number]): void {
     this.table = undefined
     this.space(LEADING + PAD * 2 + 1)
-    this.table = { cells, widths, aligns, statusCol }
+    this.table = { cells, widths, aligns, statusCol, ink }
     this.drawHeaderRow()
   }
 
@@ -374,7 +380,7 @@ class Writer {
     cells.forEach((cell, i) => {
       d.setFont(SANS, 'bold')
       d.setFontSize(SIZE.head)
-      d.setTextColor(...INK)
+      d.setTextColor(...(this.table?.ink ?? INK))
       const lines = cellLines(d, cell, widths[i] - 4)
       const top = this.y + PAD + SIZE.head * MM_PER_PT
       lines.forEach((line, li) => {
@@ -602,8 +608,15 @@ export function renderReportsPdf(doc: PdfDoc, model: ReportsPdfModel): void {
   } else {
     w.sub(`${model.matrix.rows.length} mapped learning outcome(s) across ${cols.length} program outcome(s). ${model.matrix.unmappedCount} further outcome(s) map nothing.`)
     const colW = Math.min(11, (CONTENT_W - 24) / cols.length)
-    // Column headings ride their own row so the letter codes stay readable.
-    w.tableHeader(['', ...cols.map((c) => c.label)], [24, ...cols.map(() => colW)], cols.map(() => 'left' as Align))
+    // Column headings ride their own row so the letter codes stay readable,
+    // and ink navy -- the alignment headers are navy in the documents too.
+    w.tableHeader(
+      ['', ...cols.map((c) => c.label)],
+      [24, ...cols.map(() => colW)],
+      cols.map(() => 'left' as Align),
+      false,
+      NAVY,
+    )
     for (const row of model.matrix.rows) {
       w.matrixRow(row.label, row.hits, cols.length, colW)
     }
