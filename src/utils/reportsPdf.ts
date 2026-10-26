@@ -262,7 +262,11 @@ class Writer {
 
   titleBand(): void {
     const d = this.doc
-    const h = 34
+    // A field value can wrap to a second line (the program's full name does),
+    // so the band carries a touch more height than before and each row's
+    // pitch grows with its line count -- the second line breathes instead of
+    // crowding the next row.
+    const h = 38
     this.space(h)
     band(d, MARGIN, this.y, CONTENT_W, h, PALE, RULE)
     const titleY = this.y + 10
@@ -284,8 +288,12 @@ class Writer {
       ['Data Source', this.model.meta.source],
     ]
     const rx = MARGIN + CONTENT_W - 66
-    fields.forEach(([label, value], i) => {
-      const fy = this.y + 6 + i * 6.2
+    // The value column is the space from its start to the band's right edge:
+    // a wrapped line ends flush with everything else, never through the rim.
+    const valueW = (MARGIN + CONTENT_W) - (rx + 26)
+    let fy = this.y + 6
+    fields.forEach(([label, value]) => {
+      const lines = cellLines(d, value, valueW).slice(0, 2)
       d.setFont(SANS, 'bold')
       d.setFontSize(7.6)
       d.setTextColor(...INK)
@@ -293,9 +301,10 @@ class Writer {
       d.text(':', rx + 23, fy)
       d.setFont(SANS, 'normal')
       d.setTextColor(...MUTED)
-      // Two lines, because a program's full name does not fit one column of a
-      // field list -- truncated, it stops being identifying.
-      cellLines(d, value, 44).slice(0, 2).forEach((v, li) => d.text(v, rx + 26, fy + li * 3.4))
+      // Full program names wrap to two lines rather than truncate -- cut
+      // short, they stop being identifying.
+      lines.forEach((v, li) => d.text(v, rx + 26, fy + li * 3.9))
+      fy += lines.length > 1 ? 9.4 : 6.2
     })
 
     this.y += h + 6
