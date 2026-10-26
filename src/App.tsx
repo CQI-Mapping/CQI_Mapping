@@ -148,6 +148,35 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
   },
 }
 
+// ---- Refresh survival ----
+// sessionStorage keeps a value across reloads of the same tab only (a new tab
+// or window starts empty), which is exactly the scope wanted here: an
+// accidental refresh or interrupted visit does not throw the user back to the
+// dashboard, while a brand-new tab always opens there. Cleared on sign-out so
+// the next session starts fresh.
+const LAST_PAGE_KEY = 'cqi.lastPage'
+
+/** The page this tab was last on, when it belongs to the given role. */
+function readLastPage(role: UserRole): string | null {
+  try {
+    const raw = sessionStorage.getItem(LAST_PAGE_KEY)
+    if (!raw) return null
+    const saved = JSON.parse(raw) as { role: string; page: string }
+    return saved.role === role ? saved.page : null
+  } catch {
+    return null
+  }
+}
+
+/** Remember the current page; a storage failure just loses the convenience. */
+function writeLastPage(role: UserRole, page: string): void {
+  try {
+    sessionStorage.setItem(LAST_PAGE_KEY, JSON.stringify({ role, page }))
+  } catch {
+    // Storage unavailable — refresh will simply land on the dashboard.
+  }
+}
+
 function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<ProfileType | null>(null)
@@ -161,8 +190,16 @@ function App() {
    * writes a new row on every read, so the page would never hold still.
    */
   const lastLoggedPage = useRef<string | null>(null)
+  // Mirrored on each render so the stable `navigate` callback can stamp the
+  // current role onto the persisted page without re-creating the callback.
+  const roleRef = useRef<UserRole>('user')
+  // Set when this tab arrived through a password-recovery email link — the
+  // destination is then decided by the recovery flow (Profile's Password
+  // panel), not by the persisted last page.
+  const arrivedViaRecovery = useRef(false)
   const navigate = useCallback((next: string) => {
     setActivePage(next)
+    if (roleRef.current) writeLastPage(roleRef.current, next)
     if (next === 'activity-logs' || next === lastLoggedPage.current) return
     lastLoggedPage.current = next
     addActivityLog('page.viewed', { entity: 'page', label: next }).catch(() => {})
@@ -193,11 +230,24 @@ function App() {
         setProfileLoaded(false)
         setProfileError('')
         profileUserIdRef.current = null
+        try {
+          sessionStorage.removeItem(LAST_PAGE_KEY)
+        } catch {
+          // Storage unavailable — nothing to clean up.
+        }
         setActivePage('dashboard')
         // Reset so the next sign-in records its own landing on the dashboard
-        // rather than inheriting this session's last page.
+        // rather than inheriting this session's last page or page memory.
         lastLoggedPage.current = null
+        arrivedViaRecovery.current = false
         setLoading(false)
+      } else if (event === 'PASSWORD_RECOVERY') {
+        // The user opened a reset link from their email: supabase-js has just
+        // exchanged it for a session. Route them straight to the Password
+        // panel so the flow ends with a new password being set, and skip
+        // restoring an old page when the profile lands.
+        arrivedViaRecovery.current = true
+        navigate('profile')
       }
     })
 
@@ -237,6 +287,13 @@ function App() {
         if (p) {
           setProfile(p)
           setProfileError('')
+          // Reload survival: reopen the page this role was last on in this
+          // tab. Skipped when a recovery link just routed the user to the
+          // Profile page — that flow must finish with the password panel.
+          if (!arrivedViaRecovery.current) {
+            const stored = readLastPage(p.role)
+            if (stored) setActivePage(stored)
+          }
         } else {
           // ensureProfile resolved empty (shouldn't happen) — treat as failure
           // so we never render another account's stale profile.
@@ -313,6 +370,7 @@ function App() {
 
   // Role from the profile; unknown/missing roles fall back to 'user' (least privilege).
   const role: UserRole = (profile?.role ?? 'user') as UserRole
+  roleRef.current = role
   const navItems = NAV[role] ?? NAV.user
 
   // Gating: coerce the requested page to one this role can access
