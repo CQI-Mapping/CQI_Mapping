@@ -1,9 +1,9 @@
 /* 2026 Presentable theme */
 :root {
-  --bg-app: #ffffff;
+  --bg-app: #e2ece3;
   --bg-panel: #f8fbf8;
-  --bg-soft: #eef4ee;
-  --border: #dfe8de;
+  --bg-soft: #e9f2ea;
+  --border: #d9e4da;
   --border-strong: #c7d4c9;
   --text: #0f172a;
   --text-muted: #64748b;
@@ -66,10 +66,10 @@ body,
 body {
   margin: 0;
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  /* The app field matches the sign-in page: white carrying the same soft
-     green/gold glows, kept still and faint — the login's animated blur
-     blobs would fight the content, and the dark-green card face covers
-     much of it there. */
+  /* Backdrop a little darker than the login's white field, in the same
+     color family: soft sage carrying the same green/gold glow accents
+     (kept still and faint — the login's animated blur blobs would fight
+     the content). Panels stay near-white so cards pop against it. */
   background-color: var(--bg-app);
   background-image:
     radial-gradient(ellipse 80% 50% at 50% -10%, rgba(22, 163, 74, 0.08), transparent 60%),
