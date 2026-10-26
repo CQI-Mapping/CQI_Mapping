@@ -262,6 +262,23 @@ function Reports({ profile, onNavigate }: ReportsProps) {
     return byCourse
   }, [programCourseList, courseOutcomeRows, mapping])
 
+  // The coverage the tile headlines, defined the way a coordinator reads it:
+  // subjects, not learning outcomes. A subject counts when every learning
+  // outcome it holds names a program outcome — the "Mapped" badge in the
+  // summary table — so the headline number and the table's status column
+  // verify each other. Subjects without any learning outcome are not
+  // coverage; they stay in the denominator as the work still owed.
+  const subjectCoverage = useMemo(() => {
+    let fully = 0
+    for (const course of programCourseList) {
+      const roll = mappedByCourse.get(course.id)
+      if (roll && roll.total > 0 && roll.mapped === roll.total) fully += 1
+    }
+    const percent =
+      programCourseList.length === 0 ? 0 : Math.round((fully / programCourseList.length) * 100)
+    return { fully, total: programCourseList.length, percent }
+  }, [programCourseList, mappedByCourse])
+
   // The coverage rows no learning outcome reaches. The panels that showed
   // both sides of the gap are gone from the brief, so this count now lives on
   // only in the report's findings and recommendations.
@@ -379,8 +396,8 @@ function Reports({ profile, onNavigate }: ReportsProps) {
           { label: 'Total PEOs', value: String(peos.length), sub: 'Educational Objectives' },
           {
             label: 'Mapping Coverage',
-            value: mapping.totalClos === 0 ? '—' : `${mapping.coveragePercent}%`,
-            sub: `(${mapping.mappedClos} / ${mapping.totalClos} CLOs)`,
+            value: subjectCoverage.total === 0 ? '—' : `${subjectCoverage.percent}%`,
+            sub: `(${subjectCoverage.fully} / ${subjectCoverage.total} subjects)`,
             tone: 'good',
           },
           {
@@ -430,7 +447,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
           })),
         },
         findings: [
-          `Mapping coverage is ${mapping.coveragePercent}% — ${mapping.mappedClos} of ${mapping.totalClos} learning outcomes name a program outcome.`,
+          `Mapping coverage is ${subjectCoverage.percent}% — ${subjectCoverage.fully} of ${subjectCoverage.total} subject(s) have every learning outcome mapped to a program outcome.`,
           weakest.length > 0
             ? `Lowest coverage: ${weakest.map((r) => `${poLabel(r.outcome.code)} at ${r.percent}%`).join(' and ')}.`
             : '',
@@ -604,8 +621,8 @@ function Reports({ profile, onNavigate }: ReportsProps) {
             />
             <KpiCard
               label="Mapping Coverage"
-              value={mapping.totalClos === 0 ? '—' : `${mapping.coveragePercent}%`}
-              sub={`(${mapping.mappedClos}) / ${mapping.totalClos} CLOs`}
+              value={subjectCoverage.total === 0 ? '—' : `${subjectCoverage.percent}%`}
+              sub={`(${subjectCoverage.fully} / ${subjectCoverage.total} subjects)`}
               icon="checkCircle"
               tone="good"
             />
