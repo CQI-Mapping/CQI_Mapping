@@ -337,7 +337,12 @@ function Reports({ profile, onNavigate }: ReportsProps) {
           department: `${program!.code} Department`,
           tagline: ['Quality Education.', 'Continuous Improvement.', 'Better Future.'],
           academicYear,
-          program: `${program!.name} (${program!.code})`,
+          // The record's own name can already end in its code ("...Technology
+          // (BSIT)"), so only add the parenthesised code when it is not there
+          // -- otherwise the field printed '(BSIT) (BSIT)'.
+          program: program!.name.endsWith(`(${program!.code})`)
+            ? program!.name
+            : `${program!.name} (${program!.code})`,
           semester: reportSemester,
           generated,
           reportId: `CQI-OVR-${stamp}`,
