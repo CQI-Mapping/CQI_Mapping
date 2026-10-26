@@ -313,8 +313,18 @@ function Reports({ profile, onNavigate }: ReportsProps) {
       // label.
       const familyField = { cmo: 'cmo', peo: 'peo', sg: 'sg' } as const
       const familyLabel = { cmo: 'CHED', peo: 'PEO', sg: 'Strategic Goal' } as const
+      // The records carry their own kind word ('PEO 1', 'Goal 1'), so the
+      // family name collapses onto it without repeating it: 'PEO 1',
+      // 'Strategic Goal 1' and 'CHED CMO 25 s. 2015' — never the doubled
+      // 'PEO PEO 1' / 'Strategic Goal Goal 1' the sheet used to print.
+      const anchorLabel = (family: 'cmo' | 'peo' | 'sg', code: string): string => {
+        const word = familyLabel[family]
+        const kind = word.split(' ').slice(-1)[0]
+        const tail = code.startsWith(kind) ? code.slice(kind.length).trimStart() : code
+        return tail ? `${word} ${tail}` : word
+      }
       const documentRows = anchors.map((anchor) => ({
-        label: `${familyLabel[anchor.family]} ${anchor.code}`,
+        label: anchorLabel(anchor.family, anchor.code),
         detail: anchor.title ?? '',
         codes: outcomes
           .filter((o) => o[familyField[anchor.family]].includes(anchor.code))
