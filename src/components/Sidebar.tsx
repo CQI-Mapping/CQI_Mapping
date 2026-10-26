@@ -18,6 +18,12 @@ interface SidebarProps {
   profileAvatar?: string | null
 }
 
+/** The acronym the brand chip carries: the program the system currently
+ *  serves. BSIT for now — when account creation assigns programs
+ *  (profiles.program_id) this becomes the signed-in user's program code
+ *  instead of a constant. */
+const PROGRAM_MARK = 'BSIT'
+
 // ---- Icons ----
 
 function Icon({ d, ...props }: { d: string } & React.SVGProps<SVGSVGElement>) {
@@ -165,11 +171,13 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
     <>
       <header className={`hdr ${isOpen ? 'hdr--open' : ''}`}>
         <div className="hdr__inner">
-          {/* Brand — the chip is a temporary stand-in until the real logo
+          {/* Brand — mark only: the program acronym the system currently
+              serves (BSIT for now); once accounts carry their program in
+              the UI this comes from profiles.program_id, not a constant.
+              The chip stays the temporary stand-in until the real logo
               lands; swapping it later is one <img> line in place of the span. */}
-          <div className="hdr__brand">
-            <span className="hdr__mark hdr__mark--temp" aria-hidden="true">C</span>
-            <span className="hdr__title">CQI Monitoring</span>
+          <div className="hdr__brand" aria-label="CQI Monitoring — BSIT">
+            <span className="hdr__mark hdr__mark--temp" aria-hidden="true">{PROGRAM_MARK}</span>
           </div>
 
           {/* Hamburger */}

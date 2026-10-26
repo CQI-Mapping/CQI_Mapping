@@ -82,29 +82,24 @@
   flex-shrink: 0;
 }
 
-/* A temporary mono-gram placeholder rides where the shield used to be: a
-   quiet field-green chip with the monogram C, reading as part of the banner
-   family. Swap the span for an <img> when the final logo arrives. */
+/* A temporary stand-in mark rides where the shield used to be: a quiet
+   field-green chip carrying the program acronym (BSIT for now) at the
+   brand's left edge. Swap the span for an <img> when the final logo
+   arrives — the width then comes from the image file itself. */
 .hdr__mark--temp {
-  width: 34px;
+  min-width: 34px;
   height: 34px;
+  padding: 0 10px;
   flex-shrink: 0;
-  border-radius: 9px;
+  border-radius: 10px;
   background: #16342a;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 800;
-}
-
-.hdr__title {
-  color: #111;
-  font-weight: 700;
-  font-size: 14.5px;
-  letter-spacing: -0.02em;
-  line-height: 1;
+  letter-spacing: 0.03em;
 }
 
 /* ---- Nav — Awwwards pill group (centered, snug) ---- */
