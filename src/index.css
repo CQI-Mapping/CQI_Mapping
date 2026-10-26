@@ -3973,6 +3973,15 @@ textarea.input {
   border-radius: 8px;
 }
 
+/* Locked by assignment: the administrator decided this account's program,
+   so the select reads as settled context rather than as a broken control. */
+.reports-filter__select:disabled {
+  cursor: not-allowed;
+  color: #0f172a;
+  background: var(--bg-soft);
+  opacity: 0.85;
+}
+
 .reports-filter__when {
   font-size: 12px;
   font-weight: 600;

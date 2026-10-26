@@ -210,6 +210,13 @@ function Reports({ profile, onNavigate }: ReportsProps) {
 
   const program = programs.find((p) => p.id === programId) ?? null
 
+  // Program-bound: the account's assignment is what got selected. When it
+  // truly did, the selector locks — the administrator already decided this
+  // account's scope, and switching it would report on data the account does
+  // not belong to. Unbound viewers (admins, accounts no one assigned yet)
+  // keep the selector free.
+  const programBound = Boolean(program && viewerProgramId && program.id === viewerProgramId)
+
   // ---- the dashboard, derived from the selected program ----
   const anchors = useMemo(() => buildAnchors({ cmos, peos, goals }), [cmos, peos, goals])
   // The outcome rows are institutional — one shared list of codes that every
@@ -565,8 +572,13 @@ function Reports({ profile, onNavigate }: ReportsProps) {
               <select
                 className="input reports-filter__select"
                 value={programId ?? ''}
-                disabled={loading || programs.length === 0}
+                disabled={loading || programs.length === 0 || programBound}
                 onChange={(e) => setProgramId(e.target.value)}
+                title={
+                  programBound
+                    ? "Assigned to you by the administrator — the report's program scope cannot be switched"
+                    : undefined
+                }
               >
                 {programs.map((p) => (
                   <option key={p.id} value={p.id}>
