@@ -700,8 +700,6 @@ function stampFooters(doc: PdfDoc, model: ReportsPdfModel): void {
     doc.text('CQI Monitoring System', MARGIN, y + 6)
     doc.setFont(SANS, 'normal')
     doc.text(`${model.meta.department}  ·  ${model.meta.institute}`, MARGIN + 38, y + 6)
-    // A sheet with sections numbered from 1 needs a page of its own to be found.
-    doc.text(`Page ${page} of ${total}`, PAGE.w / 2, y + 6, { align: 'center' })
     doc.setFont(SERIF, 'italic')
     doc.text('Data-Driven Decisions for Quality Education', MARGIN + CONTENT_W, y + 6, { align: 'right' })
   }

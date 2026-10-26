@@ -349,8 +349,14 @@ describe('renderReportsPdf pagination', () => {
 
   it('carries a footer band on every page', () => {
     const total = doc.getNumberOfPages()
+    // The strap per page: brand on the left, strap-line italic on the right.
+    // The centered `Page N of total` stamp is gone -- it collided with the
+    // long department · institute line to its left.
     for (let page = 1; page <= total; page += 1) {
-      expect(texts.some((t) => t.text === `Page ${page} of ${total}` && t.page === page)).toBe(true)
+      expect(texts.some((t) => t.text === 'CQI Monitoring System' && t.page === page)).toBe(true)
+      expect(
+        texts.some((t) => t.text === 'Data-Driven Decisions for Quality Education' && t.page === page),
+      ).toBe(true)
     }
   })
 
