@@ -5522,7 +5522,7 @@ button.reports-panel__more:hover {
   justify-content: center;
   padding: 24px;
   overflow: hidden;
-  background: #ffffff;
+  background: linear-gradient(160deg, #0a2a16 0%, #123b20 45%, #0d331b 100%);
 }
 
 .login-blobs {
