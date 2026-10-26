@@ -5949,7 +5949,7 @@ button.reports-panel__more:hover {
   text-align: center;
   font-size: 12px;
   letter-spacing: 0.4px;
-  color: rgba(255, 255, 255, 0.5);
+  color: #000000;
 }
 
 @media (max-width: 480px) {
