@@ -6276,7 +6276,9 @@ button.reports-panel__more:hover {
 .login-card .form-group label {
   font-size: 13px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.78);
+  /* Full white like the card's body text, answering the Email/Password
+     headers crisply on the dark-green card. */
+  color: #fff;
 }
 
 .login-card .input-wrap {
