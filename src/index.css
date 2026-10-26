@@ -6443,11 +6443,33 @@ button.reports-panel__more:hover {
   text-align: center;
 }
 
+/* The mark is the effect stage: it pops in as the card settles, then
+   settles into a slow idle float — and carries the glow halo below it. */
 .login-brand-mark {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 14px;
+  animation:
+    login-brand-pop 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both,
+    login-brand-float 7s ease-in-out 1.05s infinite;
+}
+
+/* The halo: a soft emerald ring breathing behind the seal, echoing the
+   page's aurora blobs. Purely decorative — pointer-events stay off. */
+.login-brand-mark::before {
+  content: '';
+  position: absolute;
+  inset: -30px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(74, 222, 128, 0.38), rgba(34, 197, 94, 0.14) 55%, transparent 78%);
+  filter: blur(10px);
+  pointer-events: none;
+  z-index: -1;
+  animation:
+    login-brand-glow-in 1.2s ease-out 0.3s both,
+    login-brand-glow 5.5s ease-in-out 1.5s infinite;
 }
 
 .login-brand-mark img,
@@ -6467,6 +6489,56 @@ button.reports-panel__more:hover {
 .login-brand-logo:hover {
   transform: translateY(-2px) scale(1.03);
   filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.55));
+}
+
+/* The logo's three acts: an entrance pop as the card lands, a weightless
+   idle float, and the halo's slow breathing. The float starts exactly
+   where the pop ends (translateY 0), so the hand-off is invisible. */
+@keyframes login-brand-pop {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes login-brand-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+/* The halo fades in tucked behind the logo, then breathes between a rest
+   and a swell — its period is offset from the float so the two motions
+   read as independent, not as one ticking machine. */
+@keyframes login-brand-glow-in {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 0.7;
+    transform: none;
+  }
+}
+
+@keyframes login-brand-glow {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.14);
+  }
 }
 
 .login-brand h1,
@@ -6804,6 +6876,8 @@ button.reports-panel__more:hover {
 
 @media (prefers-reduced-motion: reduce) {
   .login-blob,
+  .login-brand-mark,
+  .login-brand-mark::before,
   .login-brand-mark img,
   .login-brand-logo,
   .login-btn::after,
