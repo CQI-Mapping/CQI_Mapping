@@ -341,7 +341,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
           semester: reportSemester,
           generated,
           reportId: `CQI-OVR-${stamp}`,
-          source: 'CQI Monitoring System (Supabase)',
+          source: 'CQI Monitoring System',
         },
         kpis: [
           { label: 'Total Programs', value: String(programs.length), sub: program!.code },

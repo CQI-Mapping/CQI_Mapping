@@ -106,7 +106,7 @@ const base: ReportsPdfModel = {
     semester: '1',
     generated: 'October 17, 2026, 02:24 PM',
     reportId: 'CQI-OVR-20261017',
-    source: 'CQI Monitoring System (Supabase)',
+    source: 'CQI Monitoring System',
   },
   kpis: [
     { label: 'Total Programs', value: '1', sub: 'BSIT' },
