@@ -69,8 +69,8 @@ function Login() {
   }
 
   // Send a password-reset email. The link lands back on this app (same origin),
-  // where supabase-js exchanges the token, signs the user in, and the app routes
-  // them to Profile > Password to pick a new one.
+  // where supabase-js exchanges the token, signs the user in, and the app swaps
+  // in its Set-a-new-password screen for them to pick a new one.
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault()
     setResetError('')
@@ -211,7 +211,7 @@ function Login() {
               {resetSent && (
                 <div className="login-alert login-alert--info" role="status">
                   If that address has an account, a reset link is on its way. Please check
-                  your inbox (and spam folder), then use Profile → Password to set a new one.
+                  your inbox (and spam folder), then open the link to pick a new password.
                 </div>
               )}
 

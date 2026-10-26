@@ -32,6 +32,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Sidebar from './components/Sidebar'
 import Login from './pages/Login'
+import ResetPassword from './pages/ResetPassword'
 import Profile from './pages/Profile'
 import AdminDashboard from './pages/admin/Dashboard'
 import AdminActivityLogs from './pages/admin/ActivityLogs'
@@ -194,10 +195,14 @@ function App() {
   // Mirrored on each render so the stable `navigate` callback can stamp the
   // current role onto the persisted page without re-creating the callback.
   const roleRef = useRef<UserRole>('user')
-  // Set when this tab arrived through a password-recovery email link — the
-  // destination is then decided by the recovery flow (Profile's Password
-  // panel), not by the persisted last page.
+  // Set when this tab arrived through a password-recovery email link — the tab
+  // then renders the standalone Set-a-new-password screen (see `recovering`)
+  // instead of the normal app shell, and the persisted last page is skipped.
   const arrivedViaRecovery = useRef(false)
+  // A session arriving through a recovery link is mid-flow: the password is
+  // still the placeholder the email implied, so the app renders ResetPassword
+  // alone until a new password is set (or the user signs out from there).
+  const [recovering, setRecovering] = useState(false)
   const navigate = useCallback((next: string) => {
     setActivePage(next)
     if (roleRef.current) writeLastPage(roleRef.current, next)
@@ -260,14 +265,15 @@ function App() {
         // rather than inheriting this session's last page or page memory.
         lastLoggedPage.current = null
         arrivedViaRecovery.current = false
+        setRecovering(false)
         setLoading(false)
       } else if (event === 'PASSWORD_RECOVERY') {
         // The user opened a reset link from their email: supabase-js has just
-        // exchanged it for a session. Route them straight to the Password
-        // panel so the flow ends with a new password being set, and skip
-        // restoring an old page when the profile lands.
+        // exchanged it for a session. Swap the whole app shell for the
+        // Set-a-new-password screen so the flow ends with a new password being
+        // set, and skip restoring an old page when the profile lands.
         arrivedViaRecovery.current = true
-        navigate('profile')
+        setRecovering(true)
       }
     })
 
@@ -308,8 +314,8 @@ function App() {
           setProfile(p)
           setProfileError('')
           // Reload survival: reopen the page this role was last on in this
-          // tab. Skipped when a recovery link just routed the user to the
-          // Profile page — that flow must finish with the password panel.
+          // tab. Skipped when a recovery link just landed — the
+          // Set-a-new-password screen must finish before pages show.
           if (!arrivedViaRecovery.current) {
             const stored = readLastPage(p.role)
             if (stored) setActivePage(stored)
@@ -351,6 +357,21 @@ function App() {
   // No session → show the login page.
   if (!session) {
     return <Login />
+  }
+
+  // Mid-recovery → the Set-a-new-password screen alone, with no app shell and
+  // no sidebar: the recovery session is only good for choosing a new password.
+  // Rendered before the profile gates so it appears immediately even when the
+  // profile is still loading (it loads in the background meanwhile).
+  if (recovering) {
+    return (
+      <ResetPassword
+        onDone={() => {
+          arrivedViaRecovery.current = false
+          setRecovering(false)
+        }}
+      />
+    )
   }
 
   // Profile still loading → show spinner (prevents flashing the wrong role dashboard).
