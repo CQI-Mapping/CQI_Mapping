@@ -34,8 +34,14 @@ const FOOTER_BAND = 10
 /** The body stops short of the footer band, which every page carries. */
 const BODY_BOTTOM = PAGE.h - FOOTER_BAND - 6
 
-const DARK: [number, number, number] = [13, 94, 66] // masthead + section bands
-const PALE: [number, number, number] = [232, 245, 238] // title band fill
+// The print greens are the banners' own, not the web theme's mid-green:
+// #16342a is the dashboard banner strip's field, so the masthead, the section
+// bands and the footers read as the app's banner family. PALE is --bg-soft,
+// the sage the on-screen panels carry, and NAVY is 002060 -- the ink the
+// mapping and alignment table headers use in the syllabus documents.
+const DARK: [number, number, number] = [22, 52, 42] // masthead + section bands + footer
+const PALE: [number, number, number] = [238, 244, 238] // title band + table header fill
+const NAVY: [number, number, number] = [0, 32, 96] // alignment-table header ink
 const TITLE_INK: [number, number, number] = [20, 83, 45]
 const INK: [number, number, number] = [24, 39, 32]
 const MUTED: [number, number, number] = [90, 104, 98]
@@ -160,7 +166,7 @@ function statusChip(doc: PdfDoc, x: number, right: number, y: number, label: str
 class Writer {
   private y = MARGIN
   /** The table being drawn, so its headings repeat after a page break. */
-  private table: { cells: string[]; widths: number[]; aligns: Align[]; statusCol?: boolean } | undefined
+  private table: { cells: string[]; widths: number[]; aligns: Align[]; statusCol?: boolean; ink?: [number, number, number] } | undefined
 
   constructor(
     private doc: PdfDoc,
@@ -256,7 +262,11 @@ class Writer {
 
   titleBand(): void {
     const d = this.doc
-    const h = 34
+    // A field value can wrap to a second line (the program's full name does),
+    // so the band carries a touch more height than before and each row's
+    // pitch grows with its line count -- the second line breathes instead of
+    // crowding the next row.
+    const h = 38
     this.space(h)
     band(d, MARGIN, this.y, CONTENT_W, h, PALE, RULE)
     const titleY = this.y + 10
@@ -278,8 +288,12 @@ class Writer {
       ['Data Source', this.model.meta.source],
     ]
     const rx = MARGIN + CONTENT_W - 66
-    fields.forEach(([label, value], i) => {
-      const fy = this.y + 6 + i * 6.2
+    // The value column is the space from its start to the band's right edge:
+    // a wrapped line ends flush with everything else, never through the rim.
+    const valueW = (MARGIN + CONTENT_W) - (rx + 26)
+    let fy = this.y + 6
+    fields.forEach(([label, value]) => {
+      const lines = cellLines(d, value, valueW).slice(0, 2)
       d.setFont(SANS, 'bold')
       d.setFontSize(7.6)
       d.setTextColor(...INK)
@@ -287,9 +301,10 @@ class Writer {
       d.text(':', rx + 23, fy)
       d.setFont(SANS, 'normal')
       d.setTextColor(...MUTED)
-      // Two lines, because a program's full name does not fit one column of a
-      // field list -- truncated, it stops being identifying.
-      cellLines(d, value, 44).slice(0, 2).forEach((v, li) => d.text(v, rx + 26, fy + li * 3.4))
+      // Full program names wrap to two lines rather than truncate -- cut
+      // short, they stop being identifying.
+      lines.forEach((v, li) => d.text(v, rx + 26, fy + li * 3.9))
+      fy += lines.length > 1 ? 9.4 : 6.2
     })
 
     this.y += h + 6
@@ -356,10 +371,10 @@ class Writer {
 
   // ---- tables ----
 
-  tableHeader(cells: string[], widths: number[], aligns: Align[], statusCol?: boolean): void {
+  tableHeader(cells: string[], widths: number[], aligns: Align[], statusCol?: boolean, ink?: [number, number, number]): void {
     this.table = undefined
     this.space(LEADING + PAD * 2 + 1)
-    this.table = { cells, widths, aligns, statusCol }
+    this.table = { cells, widths, aligns, statusCol, ink }
     this.drawHeaderRow()
   }
 
@@ -374,7 +389,7 @@ class Writer {
     cells.forEach((cell, i) => {
       d.setFont(SANS, 'bold')
       d.setFontSize(SIZE.head)
-      d.setTextColor(...INK)
+      d.setTextColor(...(this.table?.ink ?? INK))
       const lines = cellLines(d, cell, widths[i] - 4)
       const top = this.y + PAD + SIZE.head * MM_PER_PT
       lines.forEach((line, li) => {
@@ -592,78 +607,11 @@ export function renderReportsPdf(doc: PdfDoc, model: ReportsPdfModel): void {
   else w.bars()
   w.gap()
 
-  // ---- 4. CLO-to-PO matrix ----
-  // The band prints even with nothing to align -- a numbered sheet that skips
-  // its own numbers reads as pages falling out of a bound one.
-  const cols = model.matrix.columns
-  w.sectionHeading(4, 'CLO - PO Alignment Matrix')
-  if (cols.length === 0 || model.matrix.rows.length === 0) {
-    w.empty('Nothing to align yet: map learning outcomes to program outcomes first.')
-  } else {
-    w.sub(`${model.matrix.rows.length} mapped learning outcome(s) across ${cols.length} program outcome(s). ${model.matrix.unmappedCount} further outcome(s) map nothing.`)
-    const colW = Math.min(11, (CONTENT_W - 24) / cols.length)
-    // Column headings ride their own row so the letter codes stay readable.
-    w.tableHeader(['', ...cols.map((c) => c.label)], [24, ...cols.map(() => colW)], cols.map(() => 'left' as Align))
-    for (const row of model.matrix.rows) {
-      w.matrixRow(row.label, row.hits, cols.length, colW)
-    }
-    w.sub('A filled cell means the learning outcome names that program outcome. The matrix reads from the outcomes themselves; noting depth per cell has yet to be captured.')
-  }
-  w.gap()
-
-  // ---- 5. Alignment to PEOs, Goals and CHED Memoranda ----
-  // The named side of the alignment: each institutional document with the
-  // program outcomes that cite it, so the reader can walk one document to the
-  // outcomes that carry it.
-  w.sectionHeading(5, 'Alignment to PEOs, Goals and CHED Memoranda')
-  if (model.documents.rows.length === 0) {
-    w.empty('No PEOs, strategic goals or memoranda recorded yet.')
-  } else {
-    for (const entry of model.documents.rows) {
-      // Keep a document and its outcome list together: an entry split across
-      // a page break reads as two documents.
-      w.space(3 * LEADING + 4)
-      w.put(entry.label, MARGIN, { style: 'bold', size: SIZE.body })
-      if (entry.detail) w.put(entry.detail, MARGIN, { color: MUTED, size: SIZE.foot })
-      w.put(
-        entry.codes.length > 0
-          ? `Program outcomes (${entry.codes.length}): ${entry.codes.join(', ')}`
-          : 'Program outcomes aligned: none',
-        MARGIN + 3,
-        { color: DARK, size: SIZE.foot },
-      )
-      w.nudge(2.2)
-    }
-  }
-  w.gap()
-
-  // ---- 6. CQI Actions ----
-  w.sectionHeading(6, 'CQI Monitoring & Recommendations')
-  const cw = [18, 66, 30, 24, CONTENT_W - 138]
-  const cAligns: Align[] = ['left', 'left', 'left', 'left', 'left']
-  w.tableHeader(['Code', 'Recommendation', 'Responsible', 'Target Date', 'Status'], cw, cAligns, true)
-  if (model.cqi.missing) w.empty('The CQI actions table is not set up on this database yet.')
-  else if (model.cqi.rows.length === 0) w.empty('No CQI actions recorded.')
-  else {
-    for (const row of model.cqi.rows) {
-      w.row([row.code, row.recommendation, row.responsible, row.target ?? '—', row.status], cw, cAligns)
-    }
-  }
-  w.gap()
-
-  // ---- 7. Findings and remarks ----
-  w.sectionHeading(7, 'Key Findings and Remarks')
-  let n = 0
-  for (const finding of model.findings) {
-    n += 1
-    w.put(`${n}. ${finding}`, MARGIN + 2, { size: SIZE.body })
-  }
-  w.gap()
-  w.put('Recommendations', MARGIN, { style: 'bold', color: DARK })
-  w.bulleted(model.recommendations, true)
-  w.gap()
-
-  w.signatureRow(model.signatures.date)
+  // ---- 4-7. Per request the printed sheet ends at the coverage chart: the
+  //      CLO-PO alignment matrix, the PEO / Goal / CHED alignment documents,
+  //      the CQI actions table, the findings-and-recommendations section and
+  //      the signature row draw no longer. The model keeps its fields for when
+  //      these sections print again.
 
   // ---- repeat section bands for tables that broke mid-section handled in
   //      drawHeaderRow; footers are stamped last, when the count is known ----
@@ -687,8 +635,6 @@ function stampFooters(doc: PdfDoc, model: ReportsPdfModel): void {
     doc.text('CQI Monitoring System', MARGIN, y + 6)
     doc.setFont(SANS, 'normal')
     doc.text(`${model.meta.department}  ·  ${model.meta.institute}`, MARGIN + 38, y + 6)
-    // A sheet with sections numbered from 1 needs a page of its own to be found.
-    doc.text(`Page ${page} of ${total}`, PAGE.w / 2, y + 6, { align: 'center' })
     doc.setFont(SERIF, 'italic')
     doc.text('Data-Driven Decisions for Quality Education', MARGIN + CONTENT_W, y + 6, { align: 'right' })
   }

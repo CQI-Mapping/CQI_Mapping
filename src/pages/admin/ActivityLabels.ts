@@ -83,6 +83,7 @@ export const ACTION_LABELS: Record<string, string> = {
   'tos_exam.archived': 'Archived exam blueprint',
   'tos_exam.restored': 'Restored exam blueprint',
   'tos_exam.exported': 'Exported exam blueprint to Excel',
+  'tos_exam.deleted': 'Deleted exam blueprint',
 
   // Pages that only read
   'report.viewed': 'Viewed the name inventory',

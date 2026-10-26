@@ -198,15 +198,8 @@ put(8, 1, `Table of Specification${examPart}${kindSuffix}`)
     putF(rows.totals, BLOOM_COL + j, `SUM(${L}${rows.firstTopic}:${L}${rows.lastTopic})`)
   })
 
-  // The performance sheet carries an extra grand-total cell the multiple choice
-  // sheet does not. It is the quickest way to see the columns missing the total.
-  if (sheet.kind === 'points') {
-    putF(
-      rows.totals,
-      LAST_BLOOM_COL + 1,
-      `SUM(${letterAt(BLOOM_COL)}${rows.totals}:${letterAt(LAST_BLOOM_COL)}${rows.totals})`,
-    )
-  }
+  // Both papers end at the Create column: the extra grand-total box the
+  // faculty file pads past column I was read as a stray column and dropped.
 
   put(rows.hours, 1, 'Total Number of Hours')
   putF(rows.hours, 2, `SUM(B${rows.firstTopic}:B${rows.lastTopic})`)
@@ -406,17 +399,8 @@ export async function buildTosWorkbook(exam: TosExam, sheet: TosSheet) {
     cell.alignment = { horizontal: label ? 'left' : 'center' }
     cell.font = { bold: true, size: 11 }
   }
-  // The performance sheet's extra grand-total cell sits outside the band.
-  // Styling it unconditionally would create an empty but formatted cell in
-  // column J on a multiple choice sheet, which extends the sheet's dimension
-  // and leaves a stray grey box past the last real column.
-  if (sheet.kind === 'points') {
-    const grand = at(rows.totals, LAST_BLOOM_COL + 1)
-    grand.fill = fill(CELL.formula)
-    grand.border = border
-    grand.alignment = { horizontal: 'center' }
-    grand.font = { bold: true, size: 11 }
-  }
+  // Styling past column I must stay conditional on real cells: a formatted but
+  // empty J would extend the dimension and leave a stray grey box.
 
   for (const r of [rows.hours, rows.pct]) {
     const label = at(r, 1)

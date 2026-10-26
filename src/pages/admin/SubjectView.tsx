@@ -2364,7 +2364,7 @@ export default function SubjectView() {
 
   return (
     <div className="subject-view">
-      <PageBanner title="Generate Reports" sub="Explore every course, outcome and objective as one connected graph." />
+      <PageBanner title="Generate Reports" sub="Explore every course, outcome." />
       {error && <p className="msg msg--error" role="alert">{error}</p>}
 
       <div className="subject-view__panels">

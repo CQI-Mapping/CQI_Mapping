@@ -313,8 +313,18 @@ function Reports({ profile, onNavigate }: ReportsProps) {
       // label.
       const familyField = { cmo: 'cmo', peo: 'peo', sg: 'sg' } as const
       const familyLabel = { cmo: 'CHED', peo: 'PEO', sg: 'Strategic Goal' } as const
+      // The records carry their own kind word ('PEO 1', 'Goal 1'), so the
+      // family name collapses onto it without repeating it: 'PEO 1',
+      // 'Strategic Goal 1' and 'CHED CMO 25 s. 2015' — never the doubled
+      // 'PEO PEO 1' / 'Strategic Goal Goal 1' the sheet used to print.
+      const anchorLabel = (family: 'cmo' | 'peo' | 'sg', code: string): string => {
+        const word = familyLabel[family]
+        const kind = word.split(' ').slice(-1)[0]
+        const tail = code.startsWith(kind) ? code.slice(kind.length).trimStart() : code
+        return tail ? `${word} ${tail}` : word
+      }
       const documentRows = anchors.map((anchor) => ({
-        label: `${familyLabel[anchor.family]} ${anchor.code}`,
+        label: anchorLabel(anchor.family, anchor.code),
         detail: anchor.title ?? '',
         codes: outcomes
           .filter((o) => o[familyField[anchor.family]].includes(anchor.code))
@@ -327,11 +337,16 @@ function Reports({ profile, onNavigate }: ReportsProps) {
           department: `${program!.code} Department`,
           tagline: ['Quality Education.', 'Continuous Improvement.', 'Better Future.'],
           academicYear,
-          program: `${program!.name} (${program!.code})`,
+          // The record's own name can already end in its code ("...Technology
+          // (BSIT)"), so only add the parenthesised code when it is not there
+          // -- otherwise the field printed '(BSIT) (BSIT)'.
+          program: program!.name.endsWith(`(${program!.code})`)
+            ? program!.name
+            : `${program!.name} (${program!.code})`,
           semester: reportSemester,
           generated,
           reportId: `CQI-OVR-${stamp}`,
-          source: 'CQI Monitoring System (Supabase)',
+          source: 'CQI Monitoring System',
         },
         kpis: [
           { label: 'Total Programs', value: String(programs.length), sub: program!.code },
@@ -599,7 +614,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
           <div className="reports-panels">
             {/* 1 ---- */}
             <section className="panel reports-panel">
-              <PanelHead icon="book" title="Curriculum Mapping Summary" />
+              <PanelHead title="Curriculum Mapping Summary" />
               <p className="reports-panel__sub">
                 Term placement and mapping coverage of every course in the program.
               </p>
@@ -652,7 +667,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
 
             {/* 2 ---- */}
             <section className="panel reports-panel">
-              <PanelHead icon="chart" title="PO Coverage Chart" />
+              <PanelHead title="PO Coverage Chart" />
               <p className="reports-panel__sub">
                 Percentage of CLOs mapped to each Program Outcome.
               </p>
@@ -746,19 +761,16 @@ function PanelFoot({
 }
 
 /**
- * A panel's icon-and-title line.
+ * A panel's title line. The icon chip that used to sit here is gone: the
+ * headings now read as bare titles.
  *
- * Every panel gets one, so the six headers on the page read as six of the same
- * thing. The title is the h3 rather than the rule below it: the panel is a
- * section of the report, and the heading is what a screen reader and the print
- * outline both navigate by.
+ * The title is the h3 rather than the rule below it: the panel is a section of
+ * the report, and the heading is what a screen reader and the print outline
+ * both navigate by.
  */
-function PanelHead({ icon, title }: { icon: IconName; title: string }) {
+function PanelHead({ title }: { title: string }) {
   return (
     <div className="reports-panel__head">
-      <span className="reports-panel__icon">
-        <Icon name={icon} size={15} />
-      </span>
       <h3>{title}</h3>
     </div>
   )
