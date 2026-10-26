@@ -82,10 +82,24 @@
   flex-shrink: 0;
 }
 
-/* A temporary stand-in mark rides where the shield used to be: a quiet
-   field-green chip carrying the program acronym (BSIT for now) at the
-   brand's left edge. Swap the span for an <img> when the final logo
-   arrives — the width then comes from the image file itself. */
+/* The program logo occupies the brand mark slot for program-scoped
+   roles (manager, faculty): the real logo file at chip height, clipped
+   to the same rounded square so it sits in the banner family. */
+.hdr__mark-img {
+  display: block;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  object-fit: cover;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(6, 20, 12, 0.25);
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* Admin's neutral fallback mark while they are not bounded to a
+   program: a quiet field-green chip with the monogram C. */
 .hdr__mark--temp {
   min-width: 34px;
   height: 34px;
