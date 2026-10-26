@@ -3,9 +3,12 @@
 // pill (toISOString() is UTC and names the wrong day for Philippine
 // evenings near local midnight, where the calendar has already rolled).
 
-/** Morning before noon, afternoon until 6 PM, evening afterwards. */
+/** The day's clock, not the calendar, sets the mood: the evening runs from
+ *  6 PM and carries through the small hours (12–4:59 AM), morning starts
+ *  at 5, afternoon at noon. */
 export function timeGreeting(now: Date): string {
   const h = now.getHours()
+  if (h < 5) return 'Good evening'
   if (h < 12) return 'Good morning'
   if (h < 18) return 'Good afternoon'
   return 'Good evening'
