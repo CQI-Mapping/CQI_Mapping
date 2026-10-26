@@ -3612,13 +3612,12 @@ textarea.input {
   flex-direction: column;
 }
 
-/* Icon-and-title line, so all six headers read as six of the same thing rather
-   than six bare headings. The title is the h3: the panel is a section of the
-   report, and that is what a screen reader and the print outline navigate by. */
+/* Title line, so all six headers read as six of the same thing rather than six
+   bare headings. The title is the h3: the panel is a section of the report, and
+   that is what a screen reader and the print outline navigate by. */
 .reports-panel__head {
   display: flex;
   align-items: center;
-  gap: 8px;
   margin-bottom: 3px;
 }
 
@@ -3628,18 +3627,6 @@ textarea.input {
   font-weight: 700;
   letter-spacing: -0.01em;
   color: var(--text);
-}
-
-.reports-panel__icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  flex: 0 0 24px;
-  border-radius: 7px;
-  background: #dcfce7;
-  color: #15803d;
 }
 
 .reports-panel__sub {

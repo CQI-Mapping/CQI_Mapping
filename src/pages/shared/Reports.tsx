@@ -599,7 +599,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
           <div className="reports-panels">
             {/* 1 ---- */}
             <section className="panel reports-panel">
-              <PanelHead icon="book" title="Curriculum Mapping Summary" />
+              <PanelHead title="Curriculum Mapping Summary" />
               <p className="reports-panel__sub">
                 Term placement and mapping coverage of every course in the program.
               </p>
@@ -652,7 +652,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
 
             {/* 2 ---- */}
             <section className="panel reports-panel">
-              <PanelHead icon="chart" title="PO Coverage Chart" />
+              <PanelHead title="PO Coverage Chart" />
               <p className="reports-panel__sub">
                 Percentage of CLOs mapped to each Program Outcome.
               </p>
@@ -746,19 +746,16 @@ function PanelFoot({
 }
 
 /**
- * A panel's icon-and-title line.
+ * A panel's title line. The icon chip that used to sit here is gone: the
+ * headings now read as bare titles.
  *
- * Every panel gets one, so the six headers on the page read as six of the same
- * thing. The title is the h3 rather than the rule below it: the panel is a
- * section of the report, and the heading is what a screen reader and the print
- * outline both navigate by.
+ * The title is the h3 rather than the rule below it: the panel is a section of
+ * the report, and the heading is what a screen reader and the print outline
+ * both navigate by.
  */
-function PanelHead({ icon, title }: { icon: IconName; title: string }) {
+function PanelHead({ title }: { title: string }) {
   return (
     <div className="reports-panel__head">
-      <span className="reports-panel__icon">
-        <Icon name={icon} size={15} />
-      </span>
       <h3>{title}</h3>
     </div>
   )
