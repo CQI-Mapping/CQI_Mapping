@@ -57,6 +57,7 @@ import { supabase } from './utils/supabaseClient'
 import { ensureProfile, syncDemoRole, addActivityLog } from './services/database'
 import type { Profile as ProfileType, UserRole, NavItem } from './services/database'
 import type { Session } from '@supabase/supabase-js'
+import { gravatarUrl, initialsOf } from './utils/avatar'
 
 const NAV: Record<UserRole, NavItem[]> = {
   admin: [
@@ -212,6 +213,24 @@ function App() {
   const [profileError, setProfileError] = useState('')
   const [retryTick, setRetryTick] = useState(0)
   const profileUserIdRef = useRef<string | null>(null)
+
+  // The email-derived Gravatar drives the sidebar avatar whenever no picture
+  // was uploaded. Hashing is async, so it lands a beat after sign-in; the
+  // sidebar renders initials until then.
+  const [emailAvatar, setEmailAvatar] = useState<string | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    gravatarUrl(profile?.email, 256, initialsOf(profile?.full_name || profile?.email || ''))
+      .then((url) => {
+        if (!cancelled) setEmailAvatar(url)
+      })
+      .catch(() => {
+        if (!cancelled) setEmailAvatar(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [profile?.email, profile?.full_name])
 
   // On first render: subscribe to auth changes. Supabase emits INITIAL_SESSION
   // on subscribe (session or null), which is the single source of truth — no
@@ -411,7 +430,7 @@ function App() {
         onToggle={() => setSidebarOpen((v) => !v)}
         profileName={profile?.full_name}
         profileEmail={profile?.email}
-        profileAvatar={profile?.avatar_url ?? null}
+        profileAvatar={profile?.avatar_url ?? emailAvatar}
       />
 
       <div className="main-content">

@@ -8,6 +8,7 @@ import { useDraft } from '../hooks/useDraft'
 import Icon from '../components/icons'
 import { updateProfile, addActivityLog, fetchActivityLogs, uploadAvatar } from '../services/database'
 import { supabase } from '../utils/supabaseClient'
+import { gravatarUrl, initialsOf } from '../utils/avatar'
 import { ACTION_LABELS } from './admin/ActivityLabels'
 import type { Profile as ProfileType, ActivityLogEntry, UserRole } from '../services/database'
 
@@ -45,18 +46,6 @@ const CAPABILITIES: Record<UserRole, { title: string; sub: string }> = {
 /** Consistent error text for either form. */
 function describe(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
-}
-
-/** Up to two leading letters for the avatar; single-word names (incl. emails) keep theirs. */
-function initialsOf(name: string): string {
-  return (
-    name
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase() ?? '')
-      .join('') || '··'
-  )
 }
 
 /** 'Today · 9:14 AM', 'Yesterday · …', or a calendar date — matches the mockup. */
@@ -177,6 +166,26 @@ function Profile({ profile, onSaved }: ProfileProps) {
       cancelled = true
     }
   }, [profile?.email])
+
+  // Picture precedence: an uploaded file wins; otherwise the email's
+  // Gravatar (d=initials with the name's letters) is automatically every
+  // account's picture, no upload required. While the hash is being computed
+  // the initials tile shows, so there is never an empty corner.
+  const [emailAvatar, setEmailAvatar] = useState<string | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    gravatarUrl(profile?.email, 256, initialsOf(displayName))
+      .then((url) => {
+        if (!cancelled) setEmailAvatar(url)
+      })
+      .catch(() => {
+        if (!cancelled) setEmailAvatar(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [profile?.email, displayName])
+  const avatarSrc = profile?.avatar_url ?? emailAvatar
 
   // Save the edited name, log it, and push the updated profile up to App.tsx.
   const handleSubmit = async (e: React.FormEvent) => {
@@ -300,9 +309,9 @@ function Profile({ profile, onSaved }: ProfileProps) {
     <div className="programs-page profile">
       <header className="profile-hero" data-role={role}>
         <div className="profile-hero__left">
-          {profile?.avatar_url ? (
+          {avatarSrc ? (
             <div className="profile-avatar">
-              <img className="profile-avatar__img" src={profile.avatar_url} alt="" />
+              <img className="profile-avatar__img" src={avatarSrc} alt="" />
             </div>
           ) : (
             <div className="profile-avatar" aria-hidden="true">{initialsOf(displayName)}</div>
@@ -347,11 +356,11 @@ function Profile({ profile, onSaved }: ProfileProps) {
                 onClick={handleAvatarPick}
                 disabled={!profile || avatarBusy}
                 aria-label="Change profile picture"
-                title="Change profile picture"
+                title={profile?.avatar_url ? 'Change your uploaded picture' : 'Derived from your email via Gravatar — click to upload your own'}
               >
                 <div className="profile-identity__avatar" aria-hidden="true">
-                  {profile?.avatar_url ? (
-                    <img className="profile-avatar__img" src={profile.avatar_url} alt="" />
+                  {avatarSrc ? (
+                    <img className="profile-avatar__img" src={avatarSrc} alt="" />
                   ) : (
                     initialsOf(displayName)
                   )}
