@@ -5634,44 +5634,29 @@ button.reports-panel__more:hover {
 }
 
 .login-brand-mark {
-  position: relative;
-  overflow: hidden;
-  width: 76px;
-  height: 76px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #22c55e 0%, var(--login-green) 55%, #0d3b1e 100%);
-  color: #fff;
-  font-weight: 800;
-  font-size: 22px;
-  letter-spacing: 1px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow:
-    0 10px 26px -8px rgba(22, 163, 74, 0.8),
-    inset 0 0 0 3px rgba(255, 255, 255, 0.2);
   margin-bottom: 14px;
 }
 
-.login-brand-mark::after {
-  content: '';
-  position: absolute;
-  top: -60%;
-  left: -70%;
-  width: 45%;
-  height: 220%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
-  transform: rotate(22deg);
-  animation: sheen 4.2s ease-in-out infinite;
+.login-brand-mark img,
+.login-brand-logo {
+  display: block;
+  width: auto;
+  height: 86px;
+  max-width: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45));
+  user-select: none;
+  -webkit-user-drag: none;
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.25s ease;
 }
 
-@keyframes sheen {
-  0%, 55% {
-    left: -70%;
-  }
-  100% {
-    left: 140%;
-  }
+.login-brand-mark img:hover,
+.login-brand-logo:hover {
+  transform: translateY(-2px) scale(1.03);
+  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.55));
 }
 
 .login-brand h1,
@@ -5959,16 +5944,22 @@ button.reports-panel__more:hover {
   .login-card {
     padding: 24px 20px 20px;
   }
+  .login-brand-mark img,
+  .login-brand-logo {
+    height: 74px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .login-blob,
-  .login-brand-mark::after,
+  .login-brand-mark img,
+  .login-brand-logo,
   .login-btn::after,
   .login-card,
   .login-alert--error,
   .login-spinner {
     animation: none;
+    transition: none;
   }
 }
 

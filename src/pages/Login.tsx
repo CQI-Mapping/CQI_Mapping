@@ -73,7 +73,7 @@ function Login() {
       <div className="login-panel">
         <div className="login-card">
           <div className="login-brand">
-            <div className="login-brand-mark"><img src="/LOGO.png" alt="CQI" /></div>
+            <div className="login-brand-mark"><img src="/LOGO.png" alt="Institute of Computer Studies" className="login-brand-logo" /></div>
             <h1>CQI Monitoring</h1>
             <p className="login-subtitle">NBSC · Institute of Computer Studies</p>
           </div>
