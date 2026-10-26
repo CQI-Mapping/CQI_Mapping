@@ -94,6 +94,7 @@ export const ACTION_LABELS: Record<string, string> = {
   'user.deleted': 'Deleted user account',
   'role.updated': 'Changed user role',
   'profile.updated': 'Updated profile',
+  'profile.password_changed': 'Changed password',
 }
 
 /**

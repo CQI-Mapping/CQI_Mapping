@@ -1921,6 +1921,14 @@ code {
   color: var(--text-muted);
 }
 
+/* Discard + Save in one row; Discard only renders while there are edits. */
+.profile-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+
 /* ---- Responsive ---- */
 
 @media (max-width: 1024px) {
