@@ -32,6 +32,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Sidebar from './components/Sidebar'
 import Login from './pages/Login'
+import ResetPassword from './pages/ResetPassword'
 import Profile from './pages/Profile'
 import AdminDashboard from './pages/admin/Dashboard'
 import AdminActivityLogs from './pages/admin/ActivityLogs'
@@ -57,6 +58,7 @@ import { supabase } from './utils/supabaseClient'
 import { ensureProfile, syncDemoRole, addActivityLog } from './services/database'
 import type { Profile as ProfileType, UserRole, NavItem } from './services/database'
 import type { Session } from '@supabase/supabase-js'
+import { loadEmailAvatar } from './utils/avatar'
 
 const NAV: Record<UserRole, NavItem[]> = {
   admin: [
@@ -67,7 +69,7 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'peos', label: 'Program Educational Objectives' },
     { id: 'program-outcomes', label: 'Program Outcomes' },
     { id: 'curriculum', label: 'Curriculum' },
-    { id: 'subject-view', label: 'Generate Reports' },
+    { id: 'subject-view', label: 'Generate Map' },
     { id: 'view', label: 'Curriculum Report' },
     { id: 'reports', label: 'Reports' },
     { id: 'users', label: 'Users & Accounts' },
@@ -83,7 +85,7 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'program-outcomes', label: 'Program Outcomes' },
     { id: 'curriculum', label: 'Curriculum' },
     { id: 'course', label: 'Course' },
-    { id: 'subject-view', label: 'Generate Reports' },
+    { id: 'subject-view', label: 'Generate Map' },
     { id: 'reports', label: 'Reports' },
     { id: 'users', label: 'Users' },
     { id: 'activity-logs', label: 'Activity Logs' },
@@ -92,7 +94,7 @@ const NAV: Record<UserRole, NavItem[]> = {
   user: [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'clo', label: 'Course Learning Outcomes' },
-    { id: 'subject-view', label: 'Generate Reports' },
+    { id: 'subject-view', label: 'Generate Map' },
     { id: 'tos', label: 'Generate TOS' },
     { id: 'reports', label: 'Reports' },
     { id: 'profile', label: 'Profile' },
@@ -148,6 +150,35 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
   },
 }
 
+// ---- Refresh survival ----
+// sessionStorage keeps a value across reloads of the same tab only (a new tab
+// or window starts empty), which is exactly the scope wanted here: an
+// accidental refresh or interrupted visit does not throw the user back to the
+// dashboard, while a brand-new tab always opens there. Cleared on sign-out so
+// the next session starts fresh.
+const LAST_PAGE_KEY = 'cqi.lastPage'
+
+/** The page this tab was last on, when it belongs to the given role. */
+function readLastPage(role: UserRole): string | null {
+  try {
+    const raw = sessionStorage.getItem(LAST_PAGE_KEY)
+    if (!raw) return null
+    const saved = JSON.parse(raw) as { role: string; page: string }
+    return saved.role === role ? saved.page : null
+  } catch {
+    return null
+  }
+}
+
+/** Remember the current page; a storage failure just loses the convenience. */
+function writeLastPage(role: UserRole, page: string): void {
+  try {
+    sessionStorage.setItem(LAST_PAGE_KEY, JSON.stringify({ role, page }))
+  } catch {
+    // Storage unavailable — refresh will simply land on the dashboard.
+  }
+}
+
 function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<ProfileType | null>(null)
@@ -161,8 +192,20 @@ function App() {
    * writes a new row on every read, so the page would never hold still.
    */
   const lastLoggedPage = useRef<string | null>(null)
+  // Mirrored on each render so the stable `navigate` callback can stamp the
+  // current role onto the persisted page without re-creating the callback.
+  const roleRef = useRef<UserRole>('user')
+  // Set when this tab arrived through a password-recovery email link — the tab
+  // then renders the standalone Set-a-new-password screen (see `recovering`)
+  // instead of the normal app shell, and the persisted last page is skipped.
+  const arrivedViaRecovery = useRef(false)
+  // A session arriving through a recovery link is mid-flow: the password is
+  // still the placeholder the email implied, so the app renders ResetPassword
+  // alone until a new password is set (or the user signs out from there).
+  const [recovering, setRecovering] = useState(false)
   const navigate = useCallback((next: string) => {
     setActivePage(next)
+    if (roleRef.current) writeLastPage(roleRef.current, next)
     if (next === 'activity-logs' || next === lastLoggedPage.current) return
     lastLoggedPage.current = next
     addActivityLog('page.viewed', { entity: 'page', label: next }).catch(() => {})
@@ -175,6 +218,25 @@ function App() {
   const [profileError, setProfileError] = useState('')
   const [retryTick, setRetryTick] = useState(0)
   const profileUserIdRef = useRef<string | null>(null)
+
+  // The email's real Gravatar photo drives the sidebar avatar whenever no
+  // picture was uploaded. The availability probe is async, so it lands a
+  // beat after sign-in; the sidebar renders initials until then, and
+  // addresses without a Gravatar account simply stay on initials.
+  const [emailAvatar, setEmailAvatar] = useState<string | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    loadEmailAvatar(profile?.email)
+      .then((url) => {
+        if (!cancelled) setEmailAvatar(url)
+      })
+      .catch(() => {
+        if (!cancelled) setEmailAvatar(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [profile?.email])
 
   // On first render: subscribe to auth changes. Supabase emits INITIAL_SESSION
   // on subscribe (session or null), which is the single source of truth — no
@@ -193,11 +255,25 @@ function App() {
         setProfileLoaded(false)
         setProfileError('')
         profileUserIdRef.current = null
+        try {
+          sessionStorage.removeItem(LAST_PAGE_KEY)
+        } catch {
+          // Storage unavailable — nothing to clean up.
+        }
         setActivePage('dashboard')
         // Reset so the next sign-in records its own landing on the dashboard
-        // rather than inheriting this session's last page.
+        // rather than inheriting this session's last page or page memory.
         lastLoggedPage.current = null
+        arrivedViaRecovery.current = false
+        setRecovering(false)
         setLoading(false)
+      } else if (event === 'PASSWORD_RECOVERY') {
+        // The user opened a reset link from their email: supabase-js has just
+        // exchanged it for a session. Swap the whole app shell for the
+        // Set-a-new-password screen so the flow ends with a new password being
+        // set, and skip restoring an old page when the profile lands.
+        arrivedViaRecovery.current = true
+        setRecovering(true)
       }
     })
 
@@ -237,6 +313,13 @@ function App() {
         if (p) {
           setProfile(p)
           setProfileError('')
+          // Reload survival: reopen the page this role was last on in this
+          // tab. Skipped when a recovery link just landed — the
+          // Set-a-new-password screen must finish before pages show.
+          if (!arrivedViaRecovery.current) {
+            const stored = readLastPage(p.role)
+            if (stored) setActivePage(stored)
+          }
         } else {
           // ensureProfile resolved empty (shouldn't happen) — treat as failure
           // so we never render another account's stale profile.
@@ -276,6 +359,21 @@ function App() {
     return <Login />
   }
 
+  // Mid-recovery → the Set-a-new-password screen alone, with no app shell and
+  // no sidebar: the recovery session is only good for choosing a new password.
+  // Rendered before the profile gates so it appears immediately even when the
+  // profile is still loading (it loads in the background meanwhile).
+  if (recovering) {
+    return (
+      <ResetPassword
+        onDone={() => {
+          arrivedViaRecovery.current = false
+          setRecovering(false)
+        }}
+      />
+    )
+  }
+
   // Profile still loading → show spinner (prevents flashing the wrong role dashboard).
   if (!profileLoaded) {
     return <div className="center-screen">Loading...</div>
@@ -313,6 +411,7 @@ function App() {
 
   // Role from the profile; unknown/missing roles fall back to 'user' (least privilege).
   const role: UserRole = (profile?.role ?? 'user') as UserRole
+  roleRef.current = role
   const navItems = NAV[role] ?? NAV.user
 
   // Gating: coerce the requested page to one this role can access
@@ -353,6 +452,7 @@ function App() {
         onToggle={() => setSidebarOpen((v) => !v)}
         profileName={profile?.full_name}
         profileEmail={profile?.email}
+        profileAvatar={profile?.avatar_url ?? emailAvatar}
       />
 
       <div className="main-content">

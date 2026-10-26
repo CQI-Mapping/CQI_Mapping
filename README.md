@@ -128,7 +128,7 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
     │   ├── Login.tsx         # Sign in (login only, no create-account tab)
     │   ├── Profile.tsx       # View/edit own profile (shared by all roles)
     │   ├── shared/
-    │   │   └── Reports.tsx   # Generate Reports (all roles): mapping summary, PO coverage, exports
+    │   │   └── Reports.tsx   # Generate Map (all roles): mapping summary, PO coverage, exports
     │   ├── admin/
     │   │   ├── Dashboard.tsx         # Admin overview + banner strip + quick actions
     │   │   ├── Users.tsx             # Manage roles + create users (role select: admin/manager/faculty)
@@ -461,7 +461,7 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 - The library panel lists every saved blueprint with Edit (inline full editor), Open, Archive/Restore, and **Delete** (red trash, confirms, cascades papers + topics, writes `tos_exam.deleted` to the audit log). Deleting the blueprint that is open in the editor stands down its pending writers first and parks the editor on the next exam.
 - **Export** builds the faculty workbook with ExcelJS (`utils/tosXlsx.ts`): letterhead, green editable cells + gray formula cells, formulas written live (`=SUM(...)`), `fullCalcOnLoad` so Excel computes on open. Tabs are named as the workbook spells them (`Multiple Choice`, `ProductPerformance-Based`); both papers end at the Create column — no extra grand-total column.
 
-### `shared/Reports.tsx` (Generate Reports, all roles)
+### `shared/Reports.tsx` (Generate Map, all roles)
 - Curriculum mapping summary per course (term, CLO counts, mapping status), PO coverage chart, and the outcome/report panels; the same page backs the Subject Graph's sibling reports.
 - Exports: Excel workbook + PDF (`report.ts`, `download.ts`) and Word (`syllabusDocx.ts`) with the letterhead + navy heading styling; document constants (vision/mission wording) live in `utils/report.ts`, not `src/data/`.
 

@@ -82,7 +82,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   // Bumps to re-render fused lists after local reject/memory writes.
   const [memTick, setMemTick] = useState(0)
   // Course syllabus reader: the card's eye button opens the linked subject's
-  // full syllabus document — the same printable report Generate Reports
+  // full syllabus document — the same printable report Generate Map
   // renders, in a scrollable overlay with PDF / Word downloads.
   const [viewClo, setViewClo] = useState<CourseLearningOutcomeStandalone | null>(null)
   const [viewBusy, setViewBusy] = useState(false)
@@ -116,7 +116,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
 
   // ── Syllabus reader ──────────────────────────────────────────────────
   // The opened CLO resolves to its subject by lenient course-code matching
-  // (the same rule View/Generate Reports use), and the document renders from
+  // (the same rule View/Generate Map use), and the document renders from
   // the lists captured on mount — no extra queries when opening.
   const readerSource = reportData.current
   const readerCourse = (() => {

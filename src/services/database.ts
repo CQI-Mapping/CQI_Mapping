@@ -31,7 +31,10 @@ export interface Profile {
   id: string
   email: string
   full_name: string | null
+  nickname: string | null
+  avatar_url: string | null
   role: UserRole
+  program_id: string | null
   created_at: string
   updated_at: string
 }
@@ -166,7 +169,10 @@ export async function ensureProfile(user: User): Promise<Profile> {
   return data
 }
 
-export async function updateProfile(profileId: string, updates: Partial<Pick<Profile, 'full_name'>>): Promise<Profile> {
+export async function updateProfile(
+  profileId: string,
+  updates: Partial<Pick<Profile, 'full_name' | 'nickname' | 'avatar_url'>>,
+): Promise<Profile> {
   const { data, error } = await supabase
     .from('profiles')
     .update(updates)
@@ -175,6 +181,46 @@ export async function updateProfile(profileId: string, updates: Partial<Pick<Pro
     .single()
   if (error) throw error
   return data
+}
+
+// ---------- Profile pictures (public 'avatars' bucket) ----------
+
+/** Max 2 MB — profile pictures are small squares; bigger files waste bandwidth. */
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024
+
+/** Browser-sniffed types accepted by the uploader. */
+const AVATAR_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
+
+/**
+ * Uploads the picture to the caller's own folder in the public 'avatars'
+ * bucket (never a service key, so storage RLS decides what they may write)
+ * and returns its public URL. The file name is fixed to 'avatar' so the
+ * folder holds exactly one current image, and the URL carries a version
+ * stamp so every browser refetches it after a replacement.
+ *
+ * Throws a human-readable Error for validation problems, so the page can
+ * show its message directly.
+ */
+export async function uploadAvatar(profileId: string, file: File): Promise<string> {
+  if (!AVATAR_TYPES.has(file.type)) {
+    throw new Error('Only PNG, JPG, or WebP images are allowed.')
+  }
+  if (file.size > AVATAR_MAX_BYTES) {
+    throw new Error('Profile pictures must be under 2 MB.')
+  }
+  const path = `${profileId}/avatar`
+  const { error } = await supabase!.storage
+    .from('avatars')
+    .upload(path, file, { upsert: true, contentType: file.type })
+  if (error) {
+    if (error.message.toLowerCase().includes('security')) {
+      throw new Error('Could not save the picture — the avatars storage bucket is missing its upload policy. Run migrations/005-profile-picture-and-nickname.sql.')
+    }
+    throw error
+  }
+  const { data } = supabase!.storage.from('avatars').getPublicUrl(path)
+  const separator = data.publicUrl.includes('?') ? '&' : '?'
+  return `${data.publicUrl}${separator}v=${Date.now()}`
 }
 
 export async function syncDemoRole(): Promise<UserRole | null> {
@@ -192,10 +238,56 @@ export async function fetchAllProfiles(): Promise<Profile[]> {
   return data
 }
 
+/**
+ * The same profile with the account's program join resolved.
+ *
+ * fetchAllProfilesWithProgram selects `program_id ( id, code, name )`, so an
+ * assigned account's program_id is an OBJECT, not the uuid — the same dual
+ * shape fetchCourses' join gives course.program_id. Admins, and accounts no
+ * one has assigned yet, hold program_id: null.
+ */
+export interface ProfileWithProgram extends Omit<Profile, 'program_id'> {
+  program_id: string | { id: string; code: string; name: string } | null
+}
+
+/** The assigned program of a fetched profile, when the join resolved a real
+    programs row — null for admins and the unassigned. */
+export function profileProgramOf(
+  profile: ProfileWithProgram,
+): { id: string; code: string; name: string } | null {
+  return typeof profile.program_id === 'object' && profile.program_id ? profile.program_id : null
+}
+
+/** Admin's Users & Accounts list: every profile with its program code,
+    name and id joined for display. Other callers keep plain fetchAllProfiles. */
+export async function fetchAllProfilesWithProgram(): Promise<ProfileWithProgram[]> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*, program_id ( id, code, name )')
+    .order('full_name', { ascending: true })
+  if (error) throw error
+  return data
+}
+
 export async function updateUserRole(profileId: string, role: UserRole): Promise<Profile> {
   const { data, error } = await supabase
     .from('profiles')
     .update({ role })
+    .eq('id', profileId)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+/** Assign an account to a program (profiles.program_id), or null to unassign.
+    Same direct pattern as updateUserRole — admins own these columns under
+    RLS, which lets the Users & Accounts table assign programs from its rows
+    for accounts that were registered before the column existed. */
+export async function updateUserProgram(profileId: string, programId: string | null): Promise<Profile> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ program_id: programId })
     .eq('id', profileId)
     .select()
     .single()
@@ -240,11 +332,18 @@ async function invokeAdminUsers(body: Record<string, unknown>): Promise<unknown>
   return data
 }
 
+/**
+ * Creates an account through the admin-users Edge Function.
+ * `programId` is admin-only and pairs with the manager/faculty roles —
+ * the Edge Function verifies the id against the programs table and
+ * clears it for admins, so the form can send what it picked as-is.
+ */
 export async function adminCreateUser(
   email: string,
   password: string,
   fullName: string,
-  role: UserRole
+  role: UserRole,
+  programId?: string | null,
 ): Promise<AdminCreateUserResult> {
   const data = (await invokeAdminUsers({
     action: 'create',
@@ -252,6 +351,7 @@ export async function adminCreateUser(
     password,
     fullName,
     role,
+    ...(programId ? { programId } : {}),
   })) as AdminCreateUserResult
   return data
 }

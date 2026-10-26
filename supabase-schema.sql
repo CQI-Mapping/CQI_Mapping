@@ -51,10 +51,26 @@ CREATE TABLE public.profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     email TEXT UNIQUE NOT NULL,
     full_name TEXT,
+    -- Casual name shown quoted (e.g. Maria "Bebot" dela Cruz). Optional;
+    -- reports and audit labels keep using full_name.
+    nickname TEXT,
+    -- Public URL of the profile picture: the email-derived Gravatar or an
+    -- upload in the 'avatars' storage bucket (avatars/<uid>/avatar).
+    -- See migrations/005-profile-picture-and-nickname.sql for the bucket RLS.
+    avatar_url TEXT,
     role user_role NOT NULL DEFAULT 'user',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Program assignment for manager/faculty accounts lives here rather than
+-- inline in profiles above: programs is created further down, and Postgres
+-- does not allow forward references. See migrations/006-profile-program.sql
+-- for existing databases.
+ALTER TABLE public.profiles
+    ADD COLUMN IF NOT EXISTS program_id UUID REFERENCES public.programs(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS profiles_program_id_idx ON public.profiles (program_id);
 
 CREATE TABLE public.resources (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

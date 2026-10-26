@@ -15,7 +15,15 @@ interface SidebarProps {
   onToggle: () => void
   profileName?: string | null
   profileEmail?: string | null
+  profileAvatar?: string | null
 }
+
+/** The brand mark for program-scoped roles rides the real logo file
+ *  (BSIT is the program for now — accounts carry
+ *  profiles.program_id, but the UI doesn't read per-account programs
+ *  yet, so the same logo stands in for every program). Admins are not
+ *  bounded to a program, so their brand stays the neutral monogram. */
+const PROGRAM_LOGO = '/LOGO.png'
 
 // ---- Icons ----
 
@@ -81,7 +89,7 @@ const ACADEMICS_META: Record<string, { desc: string }> = {
   tos: { desc: 'Exam blueprint & Bloom coverage' },
 }
 
-function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onToggle, profileName, profileEmail }: SidebarProps) {
+function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onToggle, profileName, profileEmail, profileAvatar }: SidebarProps) {
   const [ddOpen, setDdOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const ddRef = useRef<HTMLDivElement>(null)
@@ -164,11 +172,16 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
     <>
       <header className={`hdr ${isOpen ? 'hdr--open' : ''}`}>
         <div className="hdr__inner">
-          {/* Brand — the chip is a temporary stand-in until the real logo
-              lands; swapping it later is one <img> line in place of the span. */}
-          <div className="hdr__brand">
-            <span className="hdr__mark hdr__mark--temp" aria-hidden="true">C</span>
-            <span className="hdr__title">CQI Monitoring</span>
+          {/* Brand — program roles (manager, faculty) carry the program's
+              logo image; admins are not bounded to a program and keep the
+              neutral C monogram. One color/size rule in Sidebar.css keeps
+              both aligned to the same slot. */}
+          <div className="hdr__brand" aria-label={role === 'admin' ? 'CQI Monitoring' : 'CQI Monitoring — BSIT'}>
+            {role === 'admin' ? (
+              <span className="hdr__mark hdr__mark--temp" aria-hidden="true">C</span>
+            ) : (
+              <img className="hdr__mark-img" src={PROGRAM_LOGO} alt="" />
+            )}
           </div>
 
           {/* Hamburger */}
@@ -297,7 +310,9 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
                 aria-haspopup="menu"
                 aria-label="Profile menu"
               >
-                <div className="hdr__avatar">{avatarInitials}</div>
+                <div className="hdr__avatar">
+                  {profileAvatar ? <img src={profileAvatar} alt="" className="hdr__avatar-img" /> : avatarInitials}
+                </div>
                 <span className="hdr__role">{role}</span>
                 <svg className={`hdr__chevron hdr__chevron--sm ${profileOpen ? 'hdr__chevron--open' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M6 9l6 6 6-6" />
@@ -308,7 +323,9 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
                   <button type="button" className="hdr__profile-overlay" onClick={() => setProfileOpen(false)} aria-label="Close profile menu" tabIndex={-1} />
                   <div className="hdr__profile-menu" role="menu">
                     <div className="hdr__profile-head">
-                      <div className="hdr__profile-avatarLg">{avatarInitials}</div>
+                      <div className="hdr__profile-avatarLg">
+                        {profileAvatar ? <img src={profileAvatar} alt="" className="hdr__avatar-img" /> : avatarInitials}
+                      </div>
                       <div className="hdr__profile-info">
                         <span className="hdr__profile-name">{displayName}</span>
                         <span className="hdr__profile-sub">{displayEmail}</span>

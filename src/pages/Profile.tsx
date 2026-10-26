@@ -1,94 +1,466 @@
-// Profile page: lets a user view their own email/role and edit their full name.
-// Saving writes an activity log entry (action only, no details) and reports
-// the updated profile back to App.tsx.
+// Profile page: identity summary, display-name editor, and a
+// peek at the user's own audit trail. Layout mirrors the interactive concept in
+// design/profile-redesign.html: a role-tinted hero avatar, an identity card with
+// fact tiles, a two-column body, and a personal activity timeline.
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useDraft } from '../hooks/useDraft'
-import { updateProfile, addActivityLog } from '../services/database'
-import type { Profile as ProfileType } from '../services/database'
+import Icon from '../components/icons'
+import { updateProfile, addActivityLog, fetchActivityLogs, uploadAvatar } from '../services/database'
+import { supabase } from '../utils/supabaseClient'
+import { loadEmailAvatar, initialsOf } from '../utils/avatar'
+import { ACTION_LABELS } from './admin/ActivityLabels'
+import type { Profile as ProfileType, ActivityLogEntry, UserRole } from '../services/database'
 
 interface ProfileProps {
   profile: ProfileType | null
   onSaved: (profile: ProfileType) => void
 }
 
+/** Same cap the concept mockup stamped on the name field. */
+const NAME_MAX_LENGTH = 80
+
+/** Nicknames stay casual — a short, quotable word. */
+const NICKNAME_MAX_LENGTH = 40
+
+/** How recent a log entry must be for the "active" dot to keep pulsing green. */
+const ACTIVE_WINDOW_MS = 24 * 60 * 60 * 1000
+
+const ROLE_LABELS: Record<UserRole, string> = {
+  admin: 'Admin',
+  manager: 'Manager',
+  user: 'Faculty',
+}
+
+/** Plain-language summary of what the signed-in role may touch. */
+const CAPABILITIES: Record<UserRole, { title: string; sub: string }> = {
+  admin: { title: 'Full system access', sub: 'users · curriculum · logs' },
+  manager: { title: 'Reviewer access', sub: 'curriculum · reports · logs' },
+  user: { title: 'Faculty access', sub: 'own courses · CLOs · TOS' },
+}
+
+/** Consistent error text for either form. */
+function describe(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
+}
+
+/** 'Today · 9:14 AM', 'Yesterday · …', or a calendar date — matches the mockup. */
+function formatDayTime(iso: string): string {
+  const d = new Date(iso)
+  const now = new Date()
+  const localDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
+  const diffDays = Math.round((localDay(now) - localDay(d)) / 86400000)
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  if (diffDays <= 0) return `Today · ${time}`
+  if (diffDays === 1) return `Yesterday · ${time}`
+  return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} · ${time}`
+}
+
+/** The action's entity family — the string before the first dot. */
+function categoryOf(action: string): string {
+  return action.split('.')[0] ?? ''
+}
+
+/** Human text for the timeline pill. */
+function categoryLabel(category: string): string {
+  if (!category) return 'Other'
+  if (category === 'auth') return 'Auth'
+  if (category === 'page') return 'Browse'
+  if (category === 'role') return 'Roles'
+  if (category === 'user') return 'Users'
+  return category[0].toUpperCase() + category.slice(1)
+}
+
+/** Pill colour family. Unknown categories share the neutral tone. */
+function categoryTone(category: string): string {
+  if (category === 'auth' || category === 'profile' || category === 'page') return category
+  return 'misc'
+}
+
 function Profile({ profile, onSaved }: ProfileProps) {
-  // Draft survives page navigation; cleared on successful save.
-  const [draft, setDraft] = useDraft('cqi.draft.Profile', { fullName: profile?.full_name || '' })
-  const { fullName } = draft
+  // Draft survives page navigation; cleared on successful save and on Discard.
+  const [draft, setDraft] = useDraft('cqi.draft.Profile', {
+    fullName: profile?.full_name || '',
+    nickname: profile?.nickname ?? '',
+  })
+  const { fullName, nickname } = draft
   const setFullName = (v: string) => setDraft((d) => ({ ...d, fullName: v }))
+  const setNickname = (v: string) => setDraft((d) => ({ ...d, nickname: v }))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
+  const role: UserRole = profile?.role ?? 'user'
+  const savedName = profile?.full_name ?? ''
+  const displayName = savedName || profile?.email || ''
+  const savedNickname = profile?.nickname ?? ''
+
+  // Nickname is casual and optional: trimmed, never empty-string in the DB.
+  const nicknameNormalized = nickname.trim()
+  const nameDirty = fullName.trim() !== savedName
+  const nicknameDirty = nicknameNormalized !== savedNickname
+  const dirty = nameDirty || nicknameDirty
+  const canSave = Boolean(profile) && dirty && fullName.trim().length > 0
+
+  // The user's own recent audit entries drive two views: the hero's "Active"
+  // chip and the timeline card. Twelve entries keep the trail's column as
+  // tall as its neighbour; a fetch failure is not worth a page error.
+  const [logs, setLogs] = useState<ActivityLogEntry[]>([])
+  const [activityRefresh, setActivityRefresh] = useState(0)
+  const latestEntry = logs[0] ?? null
+  const activeRecently = Boolean(
+    latestEntry && Date.now() - new Date(latestEntry.created_at).getTime() < ACTIVE_WINDOW_MS,
+  )
+
+  useEffect(() => {
+    if (!profile?.email) return
+    let cancelled = false
+    fetchActivityLogs({ userEmail: profile.email, limit: 12 })
+      .then((entries) => {
+        if (!cancelled) setLogs(entries)
+      })
+      .catch(() => {
+        // The log is nice-to-have here; an empty trail reads fine.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [profile?.email, activityRefresh])
+
+  // Ownership of the email is a fact of the auth user, not the profile row;
+  // confirm quietly so "Verified" only renders when it is actually true.
+  const [emailVerified, setEmailVerified] = useState(false)
+  useEffect(() => {
+    if (!profile?.email) return
+    let cancelled = false
+    supabase!.auth
+      .getUser()
+      .then(({ data }) => {
+        if (!cancelled) setEmailVerified(Boolean(data.user?.email_confirmed_at))
+      })
+      .catch(() => {
+        // Chip simply stays hidden.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [profile?.email])
+
+  // Picture precedence: an uploaded file wins; otherwise the email's real
+  // Gravatar photo if the account has one (probed off-DOM), else the
+  // theme's initials tile. Gravatar's generated initials are never shown —
+  // their hash-driven colours can clash badly with the palette.
+  const [emailAvatar, setEmailAvatar] = useState<string | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    loadEmailAvatar(profile?.email)
+      .then((url) => {
+        if (!cancelled) setEmailAvatar(url)
+      })
+      .catch(() => {
+        if (!cancelled) setEmailAvatar(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [profile?.email])
+  const avatarSrc = profile?.avatar_url ?? emailAvatar
+
   // Save the edited name, log it, and push the updated profile up to App.tsx.
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!profile) return
+    if (!fullName.trim()) {
+      setError('Full name is required.')
+      return
+    }
     setError('')
     setMessage('')
     setSaving(true)
     try {
-      const updated = await updateProfile(profile!.id, { full_name: fullName.trim() })
+      const updated = await updateProfile(profile.id, {
+        full_name: fullName.trim(),
+        nickname: nicknameNormalized || null,
+      })
       await addActivityLog('profile.updated', {
         entity: 'profile',
         entity_id: updated.id,
         label: updated.full_name || updated.email,
       })
       onSaved(updated)
-      setDraft({ fullName: updated.full_name || '' })
+      setDraft({
+        fullName: updated.full_name || '',
+        nickname: updated.nickname ?? '',
+      })
       setMessage('Profile saved.')
+      setActivityRefresh((n) => n + 1)
     } catch (err) {
-      setError('Failed to save profile: ' + (err instanceof Error ? err.message : String(err)))
+      setError('Failed to save profile: ' + describe(err))
     } finally {
       setSaving(false)
     }
   }
 
+  // Set name and nickname back to the saved values, wiping half-typed edits.
+  const handleDiscard = () => {
+    setError('')
+    setMessage('')
+    setDraft({ fullName: savedName, nickname: savedNickname })
+  }
+
+  // ----- Profile picture -----
+
+  const [avatarBusy, setAvatarBusy] = useState(false)
+  const [avatarError, setAvatarError] = useState('')
+  const avatarInputRef = useRef<HTMLInputElement>(null)
+
+  const handleAvatarPick = () => avatarInputRef.current?.click()
+
+  // Upload to the caller's own folder in the public bucket, then stamp the
+  // URL onto the profile row in one flow. The hidden input is re-armed after
+  // every change so picking the same file again still fires an event.
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !profile) return
+    setAvatarError('')
+    setAvatarBusy(true)
+    try {
+      const url = await uploadAvatar(profile.id, file)
+      const updated = await updateProfile(profile.id, { avatar_url: url })
+      await addActivityLog('profile.avatar_changed', {
+        entity: 'profile',
+        entity_id: updated.id,
+        label: updated.full_name || updated.email,
+      })
+      onSaved(updated)
+      setActivityRefresh((n) => n + 1)
+    } catch (err) {
+      setAvatarError(describe(err))
+    } finally {
+      setAvatarBusy(false)
+    }
+  }
+
   return (
     <div className="programs-page profile">
-      <div className="program-hero">
-        <div className="program-hero__left">
-          <div className="program-hero__icon">◐</div>
-          <div className="program-hero__titles">
+      <header className="profile-hero" data-role={role}>
+        <div className="profile-hero__left">
+          {avatarSrc ? (
+            <div className="profile-avatar">
+              <img className="profile-avatar__img" src={avatarSrc} alt="" />
+            </div>
+          ) : (
+            <div className="profile-avatar" aria-hidden="true">{initialsOf(displayName)}</div>
+          )}
+          <div className="profile-hero__titles">
             <h2>Profile</h2>
-            <p>Your account — manage display name and review role.</p>
+            <p>
+              {profile
+                ? `${displayName || 'Your account'}${profile.nickname ? ` "${profile.nickname}"` : ''}`
+                : 'Loading your account…'}
+            </p>
           </div>
         </div>
+
+        <div className="profile-facts">
+          <span className="profile-chip" title="Role">
+            <Icon name="user" size={13} />
+            {ROLE_LABELS[role]}
+          </span>
+          <span className="profile-chip" title="Member since">
+            <Icon name="calendar" size={13} />
+            {profile?.created_at ? `Member since ${new Date(profile.created_at).toLocaleDateString()}` : 'Member since —'}
+          </span>
+          <span className="profile-chip" title="Last activity">
+            <span
+              className={`profile-chip__dot${activeRecently ? '' : ' profile-chip__dot--idle'}`}
+              aria-hidden="true"
+            />
+            {latestEntry ? formatDayTime(latestEntry.created_at) : 'No activity yet'}
+          </span>
+        </div>
+      </header>
+
+      <div className="profile-grid">
+        {/* LEFT: identity + display name editor */}
+        <div className="profile-col">
+          <section className="panel profile-card card-enter profile-identity" aria-label="Account identity">
+            <div className="profile-identity__main">
+              <button
+                type="button"
+                className="profile-identity__avatar-btn"
+                onClick={handleAvatarPick}
+                disabled={!profile || avatarBusy}
+                aria-label="Change profile picture"
+                title={profile?.avatar_url ? 'Change your uploaded picture' : 'Your Gravatar photo, or initials when none — click to upload your own'}
+              >
+                <div className="profile-identity__avatar" aria-hidden="true">
+                  {avatarSrc ? (
+                    <img className="profile-avatar__img" src={avatarSrc} alt="" />
+                  ) : (
+                    initialsOf(displayName)
+                  )}
+                  <span className="profile-identity__avatar-overlay">
+                    {avatarBusy ? 'Uploading…' : 'Change'}
+                  </span>
+                </div>
+              </button>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                hidden
+                onChange={handleAvatarChange}
+              />
+              <div className="profile-identity__who">
+                <div className="profile-identity__name">{profile ? displayName : '—'}</div>
+                <div className="profile-identity__meta">
+                  <Icon name="mail" size={13} />
+                  <span>{profile?.email ?? '—'}</span>
+                  {profile?.nickname && (
+                    <span className="profile-identity__handle" title="Known casually as">
+                      "{profile.nickname}"
+                    </span>
+                  )}
+                  {emailVerified && (
+                    <span className="profile-verified" title="Email ownership was confirmed at sign-up">
+                      <Icon name="check" size={9} strokeWidth={3.4} />
+                      Verified
+                    </span>
+                  )}
+                </div>
+              </div>
+              <span className={`role-badge role-badge--${profile?.role}`}>{ROLE_LABELS[role]}</span>
+            </div>
+            {avatarError && <p className="msg msg--error" role="alert">{avatarError}</p>}
+
+            <div className="profile-facts-grid">
+              <div className="profile-tile">
+                <span className="profile-tile__k">
+                  <Icon name="shield" size={11} />
+                  Role capabilities
+                </span>
+                <span className="profile-tile__v">
+                  {CAPABILITIES[role].title}
+                  <small>{CAPABILITIES[role].sub}</small>
+                </span>
+              </div>
+              <div className="profile-tile">
+                <span className="profile-tile__k">
+                  <Icon name="clock" size={11} />
+                  Last activity
+                </span>
+                <span className="profile-tile__v">
+                  {latestEntry ? ACTION_LABELS[latestEntry.action] ?? latestEntry.action : 'No activity yet'}
+                  <small>{latestEntry ? formatDayTime(latestEntry.created_at) : '—'}</small>
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <form className="panel profile-card card-enter" aria-label="Display name" onSubmit={handleSubmit}>
+            <div className="profile-card__head">
+              <h3><Icon name="user" size={15} />Display name</h3>
+              <span className="profile-card__hint">shown across reports &amp; audit logs</span>
+            </div>
+
+            <label className="field">
+              <span>Full name</span>
+              <input
+                className="input"
+                type="text"
+                value={fullName}
+                maxLength={NAME_MAX_LENGTH}
+                onChange={(e) => setFullName(e.target.value)}
+                disabled={!profile}
+              />
+              <span className="profile-name-count" aria-hidden="true">
+                {fullName.length} / {NAME_MAX_LENGTH}
+              </span>
+            </label>
+
+            <label className="field">
+              <span>Nickname</span>
+              <input
+                className="input"
+                type="text"
+                value={nickname}
+                maxLength={NICKNAME_MAX_LENGTH}
+                placeholder='what friends call you — e.g. "Bebot"'
+                autoComplete="off"
+                onChange={(e) => setNickname(e.target.value)}
+                disabled={!profile}
+              />
+              <span className="profile-name-count" aria-hidden="true">
+                {nickname.length} / {NICKNAME_MAX_LENGTH} · shown in quotes
+              </span>
+            </label>
+
+            {profile && dirty && !fullName.trim() && (
+              <p className="profile-note profile-note--warn" role="status">
+                <Icon name="warning" size={14} />
+                Full name is required to save.
+              </p>
+            )}
+            {profile && dirty && fullName.trim() && (
+              <p className="profile-note" role="status">
+                <Icon name="warning" size={14} />
+                Unsaved changes — reports keep showing{' '}
+                <b>{savedName || 'the current name'}</b> until you save.
+              </p>
+            )}
+            {message && <p className="msg msg--success" role="status">{message}</p>}
+            {error && <p className="msg msg--error" role="alert">{error}</p>}
+
+            <div className="profile-card__actions">
+              {dirty && (
+                <button className="btn btn--ghost" type="button" onClick={handleDiscard} disabled={saving}>
+                  Discard
+                </button>
+              )}
+              <button className="btn btn--primary" type="submit" disabled={!canSave || saving}>
+                {!profile ? 'Loading…' : dirty ? (saving ? 'Saving...' : 'Save changes') : 'Saved ✓'}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* RIGHT: recent activity */}
+        <div className="profile-col">
+          <section className="panel profile-card card-enter profile-card--fill" aria-label="Recent activity">
+            <div className="profile-card__head">
+              <h3><Icon name="clock" size={15} />Recent activity</h3>
+              <span className="profile-card__hint">your audit trail</span>
+            </div>
+
+            {logs.length > 0 ? (
+              <ul className="profile-timeline">
+                {logs.map((entry) => {
+                  const category = categoryOf(entry.action)
+                  return (
+                    <li key={entry.id}>
+                      <div className="pt-action">
+                        {ACTION_LABELS[entry.action] ?? entry.action}
+                        <span className={`pt-pill pt-pill--${categoryTone(category)}`}>
+                          {categoryLabel(category)}
+                        </span>
+                      </div>
+                      <div className="pt-time">{formatDayTime(entry.created_at)}</div>
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : (
+              <div className="profile-empty">
+                <Icon name="clock" size={20} />
+                <p>No activity recorded yet</p>
+                <span>Actions you take across the system will appear here as they happen.</span>
+              </div>
+            )}
+          </section>
+        </div>
       </div>
-
-      <form className="panel profile-card program-panel" onSubmit={handleSubmit} style={{ borderTop: '3px solid #16a34a' }}>
-        {/* Read-only details pulled from the profile row */}
-        <div className="profile-card__row">
-          <span className="profile-card__label">Email</span>
-          <span>{profile?.email}</span>
-        </div>
-        <div className="profile-card__row">
-          <span className="profile-card__label">Role</span>
-          <span className={`role-badge role-badge--${profile?.role}`}>{profile?.role}</span>
-        </div>
-        <div className="profile-card__row">
-          <span className="profile-card__label">Member since</span>
-          <span>{profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : '—'}</span>
-        </div>
-
-        {/* The only editable field: full name */}
-        <label className="field">
-          <span>Full name</span>
-          <input
-            className="input"
-            type="text"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-          />
-        </label>
-
-        {error && <p className="msg msg--error" role="alert">{error}</p>}
-        {message && <p className="msg msg--success" role="status">{message}</p>}
-
-        <button className="btn btn--primary" type="submit" disabled={saving}>
-          {saving ? 'Saving...' : 'Save changes'}
-        </button>
-      </form>
     </div>
   )
 }

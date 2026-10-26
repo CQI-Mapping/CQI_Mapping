@@ -27,8 +27,12 @@
 //   npx supabase functions deploy admin-users
 //
 // Request bodies:
-//   { action: 'create', email, password, fullName?, role } -> { id, email, welcomeEmailSent }
-//   { action: 'delete', userId }                           -> { ok: true }
+//   { action: 'create', email, password, fullName?, role, programId? } -> { id, email, welcomeEmailSent }
+//   { action: 'delete', userId }                                       -> { ok: true }
+//
+// programId is accepted from admins only, and only for manager/user
+// roles — it must exist in the programs table (verified here), and is
+// always cleared for admins, who are not bounded to one program.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -167,6 +171,21 @@ Deno.serve(async (req: Request) => {
         return fail('Email and password are required', 400)
       }
 
+      // Program assignment: admins only, and never for admin accounts.
+      // The id is verified so a crafted request cannot point at a
+      // nonexistent program; managers' requests are ignored entirely.
+      let programId: string | null = null
+      if (isAdmin && role !== 'admin' && typeof body.programId === 'string' && body.programId) {
+        const { data: program, error: programError } = await admin
+          .from('programs')
+          .select('id')
+          .eq('id', body.programId)
+          .maybeSingle()
+        if (programError) throw programError
+        if (!program) return fail('Unknown program selected', 400)
+        programId = body.programId
+      }
+
       const { data: created, error: createError } =
         await admin.auth.admin.createUser({
           email,
@@ -179,7 +198,7 @@ Deno.serve(async (req: Request) => {
       // The handle_new_user trigger already created a profile row; set role/name.
       const { error: updateError } = await admin
         .from('profiles')
-        .update({ role, full_name: fullName || null })
+        .update({ role, full_name: fullName || null, program_id: programId })
         .eq('id', created.user.id)
       if (updateError) throw updateError
 

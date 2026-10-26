@@ -82,29 +82,38 @@
   flex-shrink: 0;
 }
 
-/* A temporary mono-gram placeholder rides where the shield used to be: a
-   quiet field-green chip with the monogram C, reading as part of the banner
-   family. Swap the span for an <img> when the final logo arrives. */
-.hdr__mark--temp {
-  width: 34px;
+/* The program logo occupies the brand mark slot for program-scoped
+   roles (manager, faculty). The shield artwork is taller than a
+   square and drawn on transparency, so it stands alone at its natural
+   shape — height fixed, never cropped, no backing box: same treatment
+   the login card gives it (contain), just miniaturized. */
+.hdr__mark-img {
+  display: block;
+  width: auto;
   height: 34px;
   flex-shrink: 0;
-  border-radius: 9px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 3px rgba(6, 20, 12, 0.18));
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* Admin's neutral fallback mark while they are not bounded to a
+   program: a quiet field-green chip with the monogram C. */
+.hdr__mark--temp {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 10px;
+  flex-shrink: 0;
+  border-radius: 10px;
   background: #16342a;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 800;
-}
-
-.hdr__title {
-  color: #111;
-  font-weight: 700;
-  font-size: 14.5px;
-  letter-spacing: -0.02em;
-  line-height: 1;
+  letter-spacing: 0.03em;
 }
 
 /* ---- Nav — Awwwards pill group (centered, snug) ---- */
@@ -535,6 +544,15 @@
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.04em;
+  overflow: hidden;
+}
+
+/* A profile picture (set on the Profile page) fills the avatar circle. */
+.hdr__avatar-img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
 }
 
 .hdr__role {
@@ -603,8 +621,7 @@
   align-items: center;
   justify-content: center;
   color: #fff;
-  font-size: 13px;
-  font-weight: 800;
+  font-size: 13px;  font-weight: 800;
   letter-spacing: 0.04em;
 }
 

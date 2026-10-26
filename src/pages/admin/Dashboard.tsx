@@ -9,6 +9,8 @@ import {
   fetchActivityLogs,
 } from '../../services/database'
 import type { Profile, ActivityLogEntry } from '../../services/database'
+import { useClock } from '../../hooks/useClock'
+import { localISODate, timeGreeting } from '../../utils/clock'
 
 interface DashboardProps {
   profile: Profile | null
@@ -45,20 +47,19 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
 
   const go = (id: string) => onNavigate?.(id)
 
-  function getTimeGreeting(): string {
-    const h = new Date().getHours()
-    if (h < 12) return 'Good morning'
-    if (h < 18) return 'Good afternoon'
-    return 'Good evening'
-  }
+  // Ticking clock: the greeting and date pill re-render every minute, so a
+  // dashboard left open turns over correctly at noon, 6 PM and midnight.
+  const clock = useClock()
 
   return (
     <div className="dashboard dashboard--2026 page-enter">
       <section className="dashbanner" aria-labelledby="dashbanner-name">
         <div className="dashbanner__info">
-          <span className="dashbanner__greeting">{getTimeGreeting()}</span>
+          <span className="dashbanner__greeting">{timeGreeting(clock)}</span>
           <h1 className="dashbanner__name" id="dashbanner-name">
-            {profile?.full_name || profile?.email?.split('@')[0] || 'Welcome'}
+            {/* Greet by the nickname when one exists (what friends call the
+                user), else the full name, else the email's local part. */}
+            {profile?.nickname || profile?.full_name || profile?.email?.split('@')[0] || 'Welcome'}
           </h1>
           <div className="dashbanner__meta">
             <span className="dashbanner__badge">Administrator</span>
@@ -69,9 +70,9 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
             See the college at a glance — programs, outcomes, subject graphs, and CQI actions.
           </p>
         </div>
-        <time className="dashbanner__date" dateTime={new Date().toISOString().split('T')[0]}>
+        <time className="dashbanner__date" dateTime={localISODate(clock)}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-          <span>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</span>
+          <span>{clock.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</span>
         </time>
       </section>
 

@@ -1,9 +1,9 @@
 /* 2026 Presentable theme */
 :root {
-  --bg-app: #eef5ef;
+  --bg-app: #d8e4d9;
   --bg-panel: #f8fbf8;
-  --bg-soft: #eef4ee;
-  --border: #dfe8de;
+  --bg-soft: #e9f2ea;
+  --border: #d9e4da;
   --border-strong: #c7d4c9;
   --text: #0f172a;
   --text-muted: #64748b;
@@ -66,12 +66,14 @@ body,
 body {
   margin: 0;
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  /* The light app background again: soft sage with the two faint radial
-     tints the starter shipped. The circuit art stays on the login only. */
+  /* Backdrop a little darker than the login's white field, in the same
+     color family: soft sage carrying the same green/gold glow accents
+     (kept still and faint — the login's animated blur blobs would fight
+     the content). Panels stay near-white so cards pop against it. */
   background-color: var(--bg-app);
   background-image:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(22, 163, 74, 0.05), transparent 60%),
-    radial-gradient(ellipse 40% 30% at 100% 0%, rgba(245, 197, 24, 0.04), transparent 55%);
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(22, 163, 74, 0.08), transparent 60%),
+    radial-gradient(ellipse 40% 30% at 100% 0%, rgba(245, 197, 24, 0.05), transparent 55%);
   color: var(--text);
   font-size: 15px;
   line-height: 1.5;
@@ -1783,6 +1785,318 @@ code {
   align-items: center;
 }
 
+/* The Program select joins the Email/Password/Name/Role row when the
+   chosen role is manager or faculty. */
+.create-user__row--with-program {
+  grid-template-columns: 2fr 2fr 2fr 1fr 2fr auto;
+}
+
+/* ---- Admin "Add User" — persona card ----
+   Direction A from design/add-user-redesign.html, implemented: the form's
+   fields grouped by intent — a section for who the person is, then one for
+   how they sign in — with the role as three explainer cards instead of a
+   blind dropdown, and the program field revealing only for the roles it
+   genuinely scopes. The legacy .create-user row stays because the
+   manager's Add User form still uses it. */
+
+.au {
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.au__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px 22px 16px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(90deg, rgba(34, 197, 94, 0.07), transparent 55%);
+}
+
+.au__head h3 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  font-size: 16px;
+}
+
+.au__badge {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--primary-light), var(--primary-dark));
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+  box-shadow: 0 4px 10px rgba(22, 163, 74, 0.35);
+}
+
+.au__head p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.au__body {
+  padding: 18px 22px 20px;
+  display: grid;
+  gap: 20px;
+}
+
+.au__section-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.au__section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.au__step {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--primary-dark);
+  color: #fff;
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.au__who {
+  display: grid;
+  grid-template-columns: 2fr 6fr;
+  gap: 18px;
+  margin-top: 12px;
+}
+
+/* The role as three selectable cards — choosing a role is a decision you
+   can see, each with a one-line "what they can do" and a tick when picked. */
+.role-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.role-card {
+  position: relative;
+  text-align: left;
+  font: inherit;
+  width: 100%;
+  cursor: pointer;
+  padding: 12px 13px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1.5px solid var(--border);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s var(--ease-spring), background 0.15s ease;
+}
+
+.role-card:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+
+.role-card .rc-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.role-card .rc-head svg {
+  color: var(--text-muted);
+  transition: color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.role-card .rc-desc {
+  margin: 5px 0 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.role-card[aria-pressed='true'] {
+  border-color: var(--primary);
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(34, 197, 94, 0.03));
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.14);
+}
+
+.role-card[aria-pressed='true'] .rc-head svg {
+  color: var(--primary);
+}
+
+.role-card .rc-tick {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity 0.18s var(--ease-spring), transform 0.18s var(--ease-spring);
+}
+
+.role-card[aria-pressed='true'] .rc-tick {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* The program field reveals only when the picked role needs one. */
+.au__program {
+  margin-top: 14px;
+  animation: cardIn 0.3s var(--ease-spring) both;
+}
+
+.au__select {
+  position: relative;
+}
+
+.au__select svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.au__select select {
+  width: 100%;
+  padding-left: 36px;
+}
+
+/* The admin's dashed chip: states why no program applies. */
+.au__hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 10px 13px;
+  border-radius: 12px;
+  background: var(--bg-soft);
+  border: 1px dashed var(--border-strong);
+  font-size: 12.5px;
+  color: var(--text-muted);
+  animation: cardIn 0.3s var(--ease-spring) both;
+}
+
+.au__hint svg {
+  flex-shrink: 0;
+  color: var(--primary);
+}
+
+/* Credentials: email with its icon, password with its toggle. */
+.au__creds {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.au-mail {
+  position: relative;
+}
+
+.au-mail svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.au-mail .input {
+  padding-left: 36px;
+}
+
+.au__cred-note {
+  grid-column: 1 / -1;
+  margin: -4px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Footer: helper text on the left, breathing gradient CTA on the right. */
+.au__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 22px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-soft);
+}
+
+.au__foot p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+@media (max-width: 860px) {
+  .au__who {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .au__creds {
+    grid-template-columns: 1fr;
+  }
+  .role-cards {
+    grid-template-columns: 1fr;
+  }
+  .au__foot {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    text-align: center;
+  }
+}
+
+/* A fetched account's program chip in the All Users table. */
+.users-program-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.users-program-chip--none {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
 /* ---- Resources ---- */
 
 .create-resource {
@@ -1898,28 +2212,513 @@ code {
   gap: 10px;
 }
 
-/* ---- Profile ---- */
+/* ---- Profile ----
+   Two-column layout mirroring the design concept in
+   design/profile-redesign.html: a role-tinted hero avatar, an identity card
+   with fact tiles, the display-name editor, and a personal audit trail.
+   (The password panel was removed — password recovery lives in the
+   standalone Set-a-new-password screen reached from the sign-in page.) */
 
-.profile-card {
-  max-width: 520px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.profile-card__row {
+.profile-hero {
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--border);
-  font-size: 14px;
+  gap: 18px;
+  padding: 26px 28px;
+  border-radius: 18px;
+  background-color: #16342a;
+  background-image:
+    radial-gradient(420px 190px at 88% -20%, rgba(34, 197, 94, 0.28), transparent 70%),
+    radial-gradient(300px 150px at 70% 120%, rgba(255, 255, 255, 0.06), transparent 70%),
+    linear-gradient(90deg, rgba(9, 24, 17, 0.35), rgba(9, 24, 17, 0.06) 55%, transparent);
+  color: #fff;
+  box-shadow: 0 10px 30px rgba(6, 20, 12, 0.25);
 }
 
-.profile-card__label {
-  font-weight: 600;
+.profile-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, var(--primary-light), var(--primary));
+}
+
+.profile-hero__left {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+}
+
+/* Big initials tile; the ::after dot is the role's status tint. */
+.profile-avatar {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 22px;
+  background: linear-gradient(135deg, var(--primary-light), var(--primary));
+  color: #fff;
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: 0.02em;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.profile-avatar::after {
+  content: '';
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: var(--primary-light);
+  border: 3px solid #16342a;
+}
+
+.profile-hero[data-role='manager'] .profile-avatar::after { background: #a3e635; }
+.profile-hero[data-role='user'] .profile-avatar::after { background: #94a3b8; }
+
+/* The status dot sits above a profile picture too. */
+.profile-hero .profile-avatar::after { z-index: 1; }
+
+/* Profile pictures fill their tile and keep the rounded shape. */
+.profile-avatar__img {
+  inset: 0;
+  animation: cardIn 0.36s var(--ease-spring) both;
+}
+.profile-avatar__img,
+.profile-identity__avatar .profile-avatar__img {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+.profile-hero__titles h2 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.profile-hero__titles p {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+/* Fact chips on the hero's right: role, member since, activity. */
+.profile-facts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.profile-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.profile-chip svg { opacity: 0.75; flex-shrink: 0; }
+
+@keyframes profilePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.45); }
+  50% { box-shadow: 0 0 0 5px rgba(34, 197, 94, 0); }
+}
+
+.profile-chip__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary-light);
+  animation: profilePulse 2.2s infinite;
+}
+
+/* Grey steady dot when the newest entry is older than a day (or absent). */
+.profile-chip__dot--idle {
+  background: #94a3b8;
+  animation: none;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.profile-col {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  align-items: stretch;
+}
+
+.profile-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.profile-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.profile-card__head h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.profile-card__head h3 svg { color: var(--primary); }
+
+.profile-card__hint {
+  font-size: 12px;
   color: var(--text-muted);
 }
+
+/* Since the password panel left, the activity card is its column's only
+   resident: it stretches to the left column's height so both columns end
+   on the same line instead of leaving a hole beneath the timeline. */
+.profile-card--fill {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Card with the identity avatar, e-mail, role badge and fact tiles. */
+.profile-identity__main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.profile-identity__who { min-width: 0; }
+
+.profile-identity__handle {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* The identity avatar is a button that opens the file picker; the hover
+   strip says so. The avatar keeps its initials look underneath. */
+.profile-identity__avatar-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  flex-shrink: 0;
+}
+
+.profile-identity__avatar {
+  position: relative;
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 800;
+  font-size: 18px;
+  background: linear-gradient(135deg, var(--primary-light), var(--primary));
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+  overflow: hidden;
+}
+
+.profile-identity__avatar-btn:disabled { cursor: default; opacity: 0.85; }
+
+.profile-identity__avatar-btn:not(:disabled) .profile-identity__avatar:hover {
+  box-shadow: 0 6px 16px rgba(22, 163, 74, 0.42);
+}
+
+.profile-identity__avatar-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: inherit;
+  background: rgba(6, 20, 12, 0.5);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 700;
+  opacity: 0;
+  transition: opacity 0.15s var(--ease-smooth);
+  pointer-events: none;
+}
+
+.profile-identity__avatar-btn:hover .profile-identity__avatar-overlay,
+.profile-identity__avatar-btn:focus-visible .profile-identity__avatar-overlay {
+  opacity: 1;
+}
+
+.profile-identity__name {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.profile-identity__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 5px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.profile-identity__main > .role-badge { margin-left: auto; flex-shrink: 0; }
+
+.profile-verified {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: var(--primary-dark);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.profile-facts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.profile-tile {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-soft);
+}
+
+.profile-tile__k {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.profile-tile__v {
+  display: block;
+  margin-top: 5px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.profile-tile__v small {
+  display: block;
+  margin-top: 2px;
+  font-weight: 500;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+/* Live char counter under the name field. */
+.profile-name-count {
+  align-self: flex-end;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+/* Editing state strip: green while changes await a save, amber when empty. */
+.profile-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 0;
+  padding: 8px 12px;
+  border: 1px solid #bbe7c9;
+  border-radius: 10px;
+  background: #dcfce7;
+  color: var(--primary-dark);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.profile-note svg { flex-shrink: 0; }
+
+.profile-note--warn {
+  border-color: #fde68a;
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.profile-note-plain {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+/* Fresh account, empty trail: a dashed placeholder instead of a bare
+   sentence, so the stretched activity card never reads as broken. */
+.profile-empty {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 26px 16px;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-soft);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.profile-empty svg {
+  color: var(--primary);
+  opacity: 0.55;
+}
+
+.profile-empty p {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.profile-empty span {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* Discard + Save in one row; Discard only renders while there are edits. */
+.profile-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+/* Personal audit trail: vertical timeline with category pills. */
+.profile-timeline {
+  position: relative;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Inside the stretched activity card, the trail scrolls within the card
+   when there are more entries than fit — the card never overflows the page. */
+.profile-card--fill .profile-timeline {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.profile-timeline::before {
+  content: '';
+  position: absolute;
+  left: 10px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 999px;
+  background: var(--border);
+}
+
+.profile-timeline li {
+  position: relative;
+  padding: 0 0 16px 30px;
+}
+
+.profile-timeline li:last-child { padding-bottom: 0; }
+
+.profile-timeline li::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--bg-panel);
+  border: 2px solid var(--primary-light);
+}
+
+.profile-timeline li:last-child::before { border-color: var(--border-strong); }
+
+.pt-action {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.pt-time {
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.pt-pill {
+  padding: 2px 8px;
+  margin-left: 8px;
+  border-radius: 999px;
+  vertical-align: 1px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pt-pill--auth { background: #fef9c3; color: #854d0e; }
+.pt-pill--profile { background: #dcfce7; color: var(--primary-dark); }
+.pt-pill--page, .pt-pill--misc { background: var(--bg-soft); color: var(--text-muted); }
+
+@media (max-width: 880px) {
+  .profile-grid { grid-template-columns: 1fr; }
+  .profile-hero { flex-direction: column; align-items: flex-start; }
+  .profile-facts { justify-content: flex-start; }
+}
+
+@media (max-width: 520px) {
+  .profile-facts-grid { grid-template-columns: 1fr; }
+  .profile-hero { padding: 20px; border-radius: 14px; }
+}
+
 
 /* ---- Responsive ---- */
 
@@ -3478,6 +4277,15 @@ textarea.input {
   padding: 0 10px;
   font-size: 12.5px;
   border-radius: 8px;
+}
+
+/* Locked by assignment: the administrator decided this account's program,
+   so the select reads as settled context rather than as a broken control. */
+.reports-filter__select:disabled {
+  cursor: not-allowed;
+  color: #0f172a;
+  background: var(--bg-soft);
+  opacity: 0.85;
 }
 
 .reports-filter__when {
@@ -5522,7 +6330,9 @@ button.reports-panel__more:hover {
   justify-content: center;
   padding: 24px;
   overflow: hidden;
-  background: linear-gradient(160deg, #0a2a16 0%, #123b20 45%, #0d331b 100%);
+  /* Same sage field as the signed-in app (var(--bg-app)) — one backdrop
+     story across the system; the glow blobs sit on it as before. */
+  background: var(--bg-app);
 }
 
 .login-blobs {
@@ -5587,13 +6397,13 @@ button.reports-panel__more:hover {
 .login-card {
   position: relative;
   width: 100%;
-  background: rgba(255, 255, 255, 0.07);
-  backdrop-filter: blur(22px) saturate(140%);
-  -webkit-backdrop-filter: blur(22px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 22px;
+  background: linear-gradient(160deg, #064E2B 0%, #087A3D 100%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
   padding: 34px 34px 26px;
-  color: #ecfdf5;
+  color: #fff;
   box-shadow:
     0 30px 70px -24px rgba(0, 0, 0, 0.7),
     0 4px 16px rgba(0, 0, 0, 0.35),
@@ -5634,44 +6444,29 @@ button.reports-panel__more:hover {
 }
 
 .login-brand-mark {
-  position: relative;
-  overflow: hidden;
-  width: 76px;
-  height: 76px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #22c55e 0%, var(--login-green) 55%, #0d3b1e 100%);
-  color: #fff;
-  font-weight: 800;
-  font-size: 22px;
-  letter-spacing: 1px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow:
-    0 10px 26px -8px rgba(22, 163, 74, 0.8),
-    inset 0 0 0 3px rgba(255, 255, 255, 0.2);
   margin-bottom: 14px;
 }
 
-.login-brand-mark::after {
-  content: '';
-  position: absolute;
-  top: -60%;
-  left: -70%;
-  width: 45%;
-  height: 220%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
-  transform: rotate(22deg);
-  animation: sheen 4.2s ease-in-out infinite;
+.login-brand-mark img,
+.login-brand-logo {
+  display: block;
+  width: auto;
+  height: 86px;
+  max-width: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45));
+  user-select: none;
+  -webkit-user-drag: none;
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.25s ease;
 }
 
-@keyframes sheen {
-  0%, 55% {
-    left: -70%;
-  }
-  100% {
-    left: 140%;
-  }
+.login-brand-mark img:hover,
+.login-brand-logo:hover {
+  transform: translateY(-2px) scale(1.03);
+  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.55));
 }
 
 .login-brand h1,
@@ -5706,6 +6501,46 @@ button.reports-panel__more:hover {
   animation: login-shake 0.3s ease;
 }
 
+/* Non-fatal notices — e.g. the password-reset "check your inbox" reply. */
+.login-alert--info {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* Greyed helper text on the forgot-password view. */
+.login-reset-description {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Self-recovery entry points: under the password field and on the reset view. */
+.login-card .login-reset-link {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  color: #fff; /* white on the dark-green card, like the body text */
+  cursor: pointer;
+  text-align: left;
+}
+
+.login-card .login-reset-link:hover {
+  text-decoration: underline;
+}
+
+.login-card .login-reset-link--block {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+}
+
 @keyframes login-shake {
   0%, 100% { transform: translateX(0); }
   25% { transform: translateX(-4px); }
@@ -5722,7 +6557,9 @@ button.reports-panel__more:hover {
 .login-card .form-group label {
   font-size: 13px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.78);
+  /* Full white like the card's body text, answering the Email/Password
+     headers crisply on the dark-green card. */
+  color: #fff;
 }
 
 .login-card .input-wrap {
@@ -5949,7 +6786,7 @@ button.reports-panel__more:hover {
   text-align: center;
   font-size: 12px;
   letter-spacing: 0.4px;
-  color: rgba(255, 255, 255, 0.5);
+  color: #000000;
 }
 
 @media (max-width: 480px) {
@@ -5959,16 +6796,22 @@ button.reports-panel__more:hover {
   .login-card {
     padding: 24px 20px 20px;
   }
+  .login-brand-mark img,
+  .login-brand-logo {
+    height: 74px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .login-blob,
-  .login-brand-mark::after,
+  .login-brand-mark img,
+  .login-brand-logo,
   .login-btn::after,
   .login-card,
   .login-alert--error,
   .login-spinner {
     animation: none;
+    transition: none;
   }
 }
 

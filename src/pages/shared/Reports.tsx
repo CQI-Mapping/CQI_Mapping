@@ -67,7 +67,14 @@ import Icon from '../../components/icons'
 import type { IconName } from '../../components/icons'
 
 interface ReportsProps {
-  profile: { email?: string | null; role?: UserRole; full_name?: string | null }
+  profile: {
+    email?: string | null
+    role?: UserRole
+    full_name?: string | null
+    /** The account's program assignment (profiles.program_id), when its role
+        carries one — the report opens there before anything else. */
+    program_id?: string | null
+  }
   onNavigate?: (page: string) => void
 }
 
@@ -105,6 +112,11 @@ function currentSemester(today = new Date()): string {
 function ayLabel(v: number | null | undefined): string | null {
   return v == null ? null : `${v} - ${v + 1}`
 }
+
+/** Stands in for program assignments the account may not carry yet, the way
+ *  the sidebar's PROGRAM_LOGO does: until every account is bound to its
+ *  program in the UI, BSIT is the program the system currently serves. */
+const FALLBACK_PROGRAM_CODE = 'BSIT'
 
 function Reports({ profile, onNavigate }: ReportsProps) {
   const [loading, setLoading] = useState(true)
@@ -149,6 +161,10 @@ function Reports({ profile, onNavigate }: ReportsProps) {
   const courseListPage =
     profile.role === 'manager' ? 'course' : profile.role === 'admin' ? 'curriculum' : null
 
+  // The signed-in account's program, read once per render as a scalar so the
+  // load callback's identity only moves when the assignment itself does.
+  const viewerProgramId = profile.program_id ?? null
+
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -172,25 +188,46 @@ function Reports({ profile, onNavigate }: ReportsProps) {
       setGoals(sg)
       setCmos(cmo)
       setCqi(cqiResult)
-      // Default to the first program; the selector below lets any role change it.
-      setProgramId((current) => current ?? p[0]?.id ?? null)
+      // The report opens on the viewer's own program, not on whatever row
+      // happens to sort first: an account with an assignment lands there,
+      // and otherwise on the program the system currently serves (BSIT).
+      // Admins are not program-bound — the selector stays free for them to
+      // audit any program; this only picks where it opens.
+      setProgramId((current) => {
+        if (current) return current
+        if (viewerProgramId && p.some((row) => row.id === viewerProgramId)) return viewerProgramId
+        const served = p.find((row) => (row.code ?? '').toUpperCase() === FALLBACK_PROGRAM_CODE)
+        return served?.id ?? p[0]?.id ?? null
+      })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load the report.')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [viewerProgramId])
 
   useEffect(() => { load() }, [load])
 
   const program = programs.find((p) => p.id === programId) ?? null
 
+  // Program-bound: the account's assignment is what got selected. When it
+  // truly did, the selector locks — the administrator already decided this
+  // account's scope, and switching it would report on data the account does
+  // not belong to. Unbound viewers (admins, accounts no one assigned yet)
+  // keep the selector free.
+  const programBound = Boolean(program && viewerProgramId && program.id === viewerProgramId)
+
   // ---- the dashboard, derived from the selected program ----
-  const singleProgram = programs.length === 1
   const anchors = useMemo(() => buildAnchors({ cmos, peos, goals }), [cmos, peos, goals])
+  // The outcome rows are institutional — one shared list of codes that every
+  // program's report reads. The engine therefore runs whenever rows exist,
+  // not only when the database holds exactly one program: the old
+  // singleProgram gate zeroed the chart the moment a second program row was
+  // recorded, leaving the PO Coverage panel stuck on "No program outcomes
+  // recorded yet" against a table full of rows.
   const outcomes: PoOutcome[] = useMemo(
-    () => (singleProgram ? poOutcomes(pos, anchors) : []),
-    [pos, anchors, singleProgram],
+    () => (pos.length > 0 ? poOutcomes(pos, anchors) : []),
+    [pos, anchors],
   )
   const summary = alignmentSummary(outcomes)
 
@@ -198,6 +235,16 @@ function Reports({ profile, onNavigate }: ReportsProps) {
     () => (program ? coursesInProgram(courses, program.id) : []),
     [courses, program],
   )
+
+  // Learning outcomes, scoped to the selected program. The standalone CLO
+  // table is global; without this filter a second program's outcomes would
+  // still count toward this report — including shared-course codes that
+  // match by text alone.
+  const programClos = useMemo(() => {
+    if (!program) return []
+    const codes = new Set(programCourseList.map((c) => normalizeCode(c.code)))
+    return clos.filter((cl) => codes.has(normalizeCode(cl.course)))
+  }, [program, programCourseList, clos])
 
   // Academic years this curriculum actually spans, once the term columns
   // carry data. Zero until then -- the tile keeps its fallback rather than
@@ -211,7 +258,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
   // outcome names. clo_po_matrix holds no rows and nothing writes to it, so this
   // reads the codes out of the learning outcomes themselves -- see
   // utils/cloPoMapping.ts for why that is narrow enough to trust.
-  const mapping = useMemo(() => buildMappingReport(clos, outcomes), [clos, outcomes])
+  const mapping = useMemo(() => buildMappingReport(programClos, outcomes), [programClos, outcomes])
   const charted = useMemo(() => chartableOutcomes(mapping), [mapping])
   // The course a learning outcome belongs to, as a code: the gaps panel and
   // the network's node labels resolve the learning outcomes' course text
@@ -229,8 +276,8 @@ function Reports({ profile, onNavigate }: ReportsProps) {
 
   // Per course: its outcomes, and how many of them reach a program outcome.
   const courseOutcomeRows = useMemo(
-    () => courseOutcomes(programCourseList, clos),
-    [programCourseList, clos],
+    () => courseOutcomes(programCourseList, programClos),
+    [programCourseList, programClos],
   )
   const coursesWithoutOutcomes = courseOutcomeRows.filter((r) => r.outcomeCount === 0)
   const coursesWithoutInstructor = programCourseList.filter((c) => !c.instructor_id)
@@ -246,6 +293,23 @@ function Reports({ profile, onNavigate }: ReportsProps) {
     }
     return byCourse
   }, [programCourseList, courseOutcomeRows, mapping])
+
+  // The coverage the tile headlines, defined the way a coordinator reads it:
+  // subjects, not learning outcomes. A subject counts when every learning
+  // outcome it holds names a program outcome — the "Mapped" badge in the
+  // summary table — so the headline number and the table's status column
+  // verify each other. Subjects without any learning outcome are not
+  // coverage; they stay in the denominator as the work still owed.
+  const subjectCoverage = useMemo(() => {
+    let fully = 0
+    for (const course of programCourseList) {
+      const roll = mappedByCourse.get(course.id)
+      if (roll && roll.total > 0 && roll.mapped === roll.total) fully += 1
+    }
+    const percent =
+      programCourseList.length === 0 ? 0 : Math.round((fully / programCourseList.length) * 100)
+    return { fully, total: programCourseList.length, percent }
+  }, [programCourseList, mappedByCourse])
 
   // The coverage rows no learning outcome reaches. The panels that showed
   // both sides of the gap are gone from the brief, so this count now lives on
@@ -355,13 +419,17 @@ function Reports({ profile, onNavigate }: ReportsProps) {
             value: String(programCourseList.length),
             sub: yearsOffered ? `Across ${yearsOffered} year${yearsOffered === 1 ? '' : 's'}` : 'Across all academic years',
           },
-          { label: 'Total CLOs', value: String(clos.length), sub: 'From all courses' },
+          {
+            label: 'Total CLOs',
+            value: String(programClos.length),
+            sub: program ? `${program.code} courses` : 'From all courses',
+          },
           { label: 'Total POs', value: String(summary.outcomes), sub: 'Program Outcomes' },
           { label: 'Total PEOs', value: String(peos.length), sub: 'Educational Objectives' },
           {
             label: 'Mapping Coverage',
-            value: mapping.totalClos === 0 ? '—' : `${mapping.coveragePercent}%`,
-            sub: `(${mapping.mappedClos} / ${mapping.totalClos} CLOs)`,
+            value: subjectCoverage.total === 0 ? '—' : `${subjectCoverage.percent}%`,
+            sub: `(${subjectCoverage.fully} / ${subjectCoverage.total} subjects)`,
             tone: 'good',
           },
           {
@@ -411,7 +479,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
           })),
         },
         findings: [
-          `Mapping coverage is ${mapping.coveragePercent}% — ${mapping.mappedClos} of ${mapping.totalClos} learning outcomes name a program outcome.`,
+          `Mapping coverage is ${subjectCoverage.percent}% — ${subjectCoverage.fully} of ${subjectCoverage.total} subject(s) have every learning outcome mapped to a program outcome.`,
           weakest.length > 0
             ? `Lowest coverage: ${weakest.map((r) => `${poLabel(r.outcome.code)} at ${r.percent}%`).join(' and ')}.`
             : '',
@@ -504,8 +572,13 @@ function Reports({ profile, onNavigate }: ReportsProps) {
               <select
                 className="input reports-filter__select"
                 value={programId ?? ''}
-                disabled={loading || programs.length === 0}
+                disabled={loading || programs.length === 0 || programBound}
                 onChange={(e) => setProgramId(e.target.value)}
+                title={
+                  programBound
+                    ? "Assigned to you by the administrator — the report's program scope cannot be switched"
+                    : undefined
+                }
               >
                 {programs.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -567,8 +640,8 @@ function Reports({ profile, onNavigate }: ReportsProps) {
             />
             <KpiCard
               label="Total CLOs"
-              value={clos.length}
-              sub="From all courses"
+              value={programClos.length}
+              sub={program ? `${program.code} courses` : 'From all courses'}
               icon="doc"
             />
             <KpiCard
@@ -585,8 +658,8 @@ function Reports({ profile, onNavigate }: ReportsProps) {
             />
             <KpiCard
               label="Mapping Coverage"
-              value={mapping.totalClos === 0 ? '—' : `${mapping.coveragePercent}%`}
-              sub={`(${mapping.mappedClos}) / ${mapping.totalClos} CLOs`}
+              value={subjectCoverage.total === 0 ? '—' : `${subjectCoverage.percent}%`}
+              sub={`(${subjectCoverage.fully} / ${subjectCoverage.total} subjects)`}
               icon="checkCircle"
               tone="good"
             />
