@@ -22,8 +22,11 @@ export default function Users() {
   const setFullName = (v: string) => setDraft((d) => ({ ...d, fullName: v }))
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [role, setRole] = useState<UserRole>('manager')
-  // Program assignment for manager/faculty accounts (hidden for admins).
+  // Role starts unselected: the placeholder option forces a conscious
+  // pick (Manager/Admin/Faculty) instead of a silent default.
+  const [role, setRole] = useState<UserRole | ''>('')
+  // Program assignment for manager/faculty accounts (hidden for admins,
+  // and until a role that needs one is actually chosen).
   const [programId, setProgramId] = useState('')
   const [programs, setPrograms] = useState<Program[]>([])
   const [busy, setBusy] = useState(false)
@@ -52,12 +55,15 @@ export default function Users() {
     }).catch(() => { /* keep empty; self-guard falls back to allowing row actions */ })
   }, [])
 
-  const roleNeedsProgram = role !== 'admin'
+  // The Program field only meaningfully pairs with a scoped role — it
+  // stays hidden until Manager or Faculty is actually picked.
+  const roleNeedsProgram = role === 'manager' || role === 'user'
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setSuccess('')
+    if (!role) { setError('Please select a role for this account.'); return }
     if (!email.trim() || !password.trim()) { setError('Email and password are required.'); return }
     // Managers and faculty are program-scoped accounts — the program is
     // required so the dropdown choice can't silently be forgotten.
@@ -191,7 +197,13 @@ export default function Users() {
             </label>
             <label className="field">
               <span>Role</span>
-              <select className="input" value={role} onChange={(e) => setRole(e.target.value as UserRole)} required>
+              <select
+                className="input"
+                value={role}
+                onChange={(e) => setRole(e.target.value as UserRole)}
+                required
+              >
+                <option value="" disabled>Please select role</option>
                 <option value="manager">Manager</option>
                 <option value="admin">Admin</option>
                 <option value="user">Faculty</option>
