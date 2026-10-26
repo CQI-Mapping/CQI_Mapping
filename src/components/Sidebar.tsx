@@ -166,7 +166,6 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
         <div className="hdr__inner">
           {/* Brand */}
           <div className="hdr__brand">
-            <img className="hdr__mark hdr__mark--img" src="/ics-logo.png" alt="ICS logo" />
             <span className="hdr__title">CQI Monitoring</span>
           </div>
 

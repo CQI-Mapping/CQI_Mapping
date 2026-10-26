@@ -82,29 +82,8 @@
   flex-shrink: 0;
 }
 
-.hdr__mark {
-  width: 36px;
-  height: 36px;
-  flex-shrink: 0;
-  border-radius: 10px;
-  background: #111;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-}
-
-/* The brand mark as a real logo image (ICS shield): drop the dark box
-   behind it so the green shield sits clean on the white header. */
-.hdr__mark--img {
-  display: block;
-  object-fit: contain;
-  background: transparent;
-  border-radius: 9px;
-}
+/* The ICS shield that used to sit beside the title was taken off: the
+   navbar's brand is the wordmark alone. */
 
 .hdr__title {
   color: #111;
