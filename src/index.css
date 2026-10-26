@@ -5526,11 +5526,7 @@ button.reports-panel__more:hover {
 }
 
 .login-blobs {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
+  display: none;
 
 .login-blob {
   position: absolute;
