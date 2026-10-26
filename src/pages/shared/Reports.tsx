@@ -186,11 +186,16 @@ function Reports({ profile, onNavigate }: ReportsProps) {
   const program = programs.find((p) => p.id === programId) ?? null
 
   // ---- the dashboard, derived from the selected program ----
-  const singleProgram = programs.length === 1
   const anchors = useMemo(() => buildAnchors({ cmos, peos, goals }), [cmos, peos, goals])
+  // The outcome rows are institutional — one shared list of codes that every
+  // program's report reads. The engine therefore runs whenever rows exist,
+  // not only when the database holds exactly one program: the old
+  // singleProgram gate zeroed the chart the moment a second program row was
+  // recorded, leaving the PO Coverage panel stuck on "No program outcomes
+  // recorded yet" against a table full of rows.
   const outcomes: PoOutcome[] = useMemo(
-    () => (singleProgram ? poOutcomes(pos, anchors) : []),
-    [pos, anchors, singleProgram],
+    () => (pos.length > 0 ? poOutcomes(pos, anchors) : []),
+    [pos, anchors],
   )
   const summary = alignmentSummary(outcomes)
 
@@ -198,6 +203,16 @@ function Reports({ profile, onNavigate }: ReportsProps) {
     () => (program ? coursesInProgram(courses, program.id) : []),
     [courses, program],
   )
+
+  // Learning outcomes, scoped to the selected program. The standalone CLO
+  // table is global; without this filter a second program's outcomes would
+  // still count toward this report — including shared-course codes that
+  // match by text alone.
+  const programClos = useMemo(() => {
+    if (!program) return []
+    const codes = new Set(programCourseList.map((c) => normalizeCode(c.code)))
+    return clos.filter((cl) => codes.has(normalizeCode(cl.course)))
+  }, [program, programCourseList, clos])
 
   // Academic years this curriculum actually spans, once the term columns
   // carry data. Zero until then -- the tile keeps its fallback rather than
@@ -211,7 +226,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
   // outcome names. clo_po_matrix holds no rows and nothing writes to it, so this
   // reads the codes out of the learning outcomes themselves -- see
   // utils/cloPoMapping.ts for why that is narrow enough to trust.
-  const mapping = useMemo(() => buildMappingReport(clos, outcomes), [clos, outcomes])
+  const mapping = useMemo(() => buildMappingReport(programClos, outcomes), [programClos, outcomes])
   const charted = useMemo(() => chartableOutcomes(mapping), [mapping])
   // The course a learning outcome belongs to, as a code: the gaps panel and
   // the network's node labels resolve the learning outcomes' course text
@@ -229,8 +244,8 @@ function Reports({ profile, onNavigate }: ReportsProps) {
 
   // Per course: its outcomes, and how many of them reach a program outcome.
   const courseOutcomeRows = useMemo(
-    () => courseOutcomes(programCourseList, clos),
-    [programCourseList, clos],
+    () => courseOutcomes(programCourseList, programClos),
+    [programCourseList, programClos],
   )
   const coursesWithoutOutcomes = courseOutcomeRows.filter((r) => r.outcomeCount === 0)
   const coursesWithoutInstructor = programCourseList.filter((c) => !c.instructor_id)
@@ -355,7 +370,11 @@ function Reports({ profile, onNavigate }: ReportsProps) {
             value: String(programCourseList.length),
             sub: yearsOffered ? `Across ${yearsOffered} year${yearsOffered === 1 ? '' : 's'}` : 'Across all academic years',
           },
-          { label: 'Total CLOs', value: String(clos.length), sub: 'From all courses' },
+          {
+            label: 'Total CLOs',
+            value: String(programClos.length),
+            sub: program ? `${program.code} courses` : 'From all courses',
+          },
           { label: 'Total POs', value: String(summary.outcomes), sub: 'Program Outcomes' },
           { label: 'Total PEOs', value: String(peos.length), sub: 'Educational Objectives' },
           {
@@ -567,8 +586,8 @@ function Reports({ profile, onNavigate }: ReportsProps) {
             />
             <KpiCard
               label="Total CLOs"
-              value={clos.length}
-              sub="From all courses"
+              value={programClos.length}
+              sub={program ? `${program.code} courses` : 'From all courses'}
               icon="doc"
             />
             <KpiCard
