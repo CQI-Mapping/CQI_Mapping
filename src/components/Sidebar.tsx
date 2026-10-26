@@ -164,8 +164,10 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
     <>
       <header className={`hdr ${isOpen ? 'hdr--open' : ''}`}>
         <div className="hdr__inner">
-          {/* Brand */}
+          {/* Brand — the chip is a temporary stand-in until the real logo
+              lands; swapping it later is one <img> line in place of the span. */}
           <div className="hdr__brand">
+            <span className="hdr__mark hdr__mark--temp" aria-hidden="true">C</span>
             <span className="hdr__title">CQI Monitoring</span>
           </div>
 

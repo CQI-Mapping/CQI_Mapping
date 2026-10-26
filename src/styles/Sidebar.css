@@ -82,8 +82,22 @@
   flex-shrink: 0;
 }
 
-/* The ICS shield that used to sit beside the title was taken off: the
-   navbar's brand is the wordmark alone. */
+/* A temporary mono-gram placeholder rides where the shield used to be: a
+   quiet field-green chip with the monogram C, reading as part of the banner
+   family. Swap the span for an <img> when the final logo arrives. */
+.hdr__mark--temp {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  background: #16342a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+}
 
 .hdr__title {
   color: #111;
