@@ -1969,6 +1969,23 @@ code {
 .profile-hero[data-role='manager'] .profile-avatar::after { background: #a3e635; }
 .profile-hero[data-role='user'] .profile-avatar::after { background: #94a3b8; }
 
+/* The status dot sits above a profile picture too. */
+.profile-hero .profile-avatar::after { z-index: 1; }
+
+/* Profile pictures fill their tile and keep the rounded shape. */
+.profile-avatar__img {
+  inset: 0;
+  animation: cardIn 0.36s var(--ease-spring) both;
+}
+.profile-avatar__img,
+.profile-identity__avatar .profile-avatar__img {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
 .profile-hero__titles h2 {
   margin: 0;
   font-size: 21px;
@@ -2076,11 +2093,30 @@ code {
   gap: 14px;
 }
 
+.profile-identity__who { min-width: 0; }
+
+.profile-identity__handle {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* The identity avatar is a button that opens the file picker; the hover
+   strip says so. The avatar keeps its initials look underneath. */
+.profile-identity__avatar-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  flex-shrink: 0;
+}
+
 .profile-identity__avatar {
+  position: relative;
   width: 58px;
   height: 58px;
   border-radius: 18px;
-  flex-shrink: 0;
   display: grid;
   place-items: center;
   color: #fff;
@@ -2088,9 +2124,34 @@ code {
   font-size: 18px;
   background: linear-gradient(135deg, var(--primary-light), var(--primary));
   box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+  overflow: hidden;
 }
 
-.profile-identity__who { min-width: 0; }
+.profile-identity__avatar-btn:disabled { cursor: default; opacity: 0.85; }
+
+.profile-identity__avatar-btn:not(:disabled) .profile-identity__avatar:hover {
+  box-shadow: 0 6px 16px rgba(22, 163, 74, 0.42);
+}
+
+.profile-identity__avatar-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: inherit;
+  background: rgba(6, 20, 12, 0.5);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 700;
+  opacity: 0;
+  transition: opacity 0.15s var(--ease-smooth);
+  pointer-events: none;
+}
+
+.profile-identity__avatar-btn:hover .profile-identity__avatar-overlay,
+.profile-identity__avatar-btn:focus-visible .profile-identity__avatar-overlay {
+  opacity: 1;
+}
 
 .profile-identity__name {
   font-size: 17px;
@@ -2166,12 +2227,30 @@ code {
   color: var(--text-muted);
 }
 
+/* Handles save via an @-prefixed field. */
+.input-prefix-wrap { position: relative; }
+
+.input-prefix-wrap .input-prefix {
+  position: absolute;
+  left: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.input-prefix-wrap .input { padding-left: 30px; }
+
 /* Live char counter under the name field. */
 .profile-name-count {
   align-self: flex-end;
   font-size: 11.5px;
   color: var(--text-muted);
 }
+
+.profile-name-count--error { color: var(--danger); font-weight: 600; }
 
 /* Editing state strip: green while changes await a save, amber when empty. */
 .profile-note {

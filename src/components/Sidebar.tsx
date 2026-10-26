@@ -15,6 +15,7 @@ interface SidebarProps {
   onToggle: () => void
   profileName?: string | null
   profileEmail?: string | null
+  profileAvatar?: string | null
 }
 
 // ---- Icons ----
@@ -81,7 +82,7 @@ const ACADEMICS_META: Record<string, { desc: string }> = {
   tos: { desc: 'Exam blueprint & Bloom coverage' },
 }
 
-function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onToggle, profileName, profileEmail }: SidebarProps) {
+function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onToggle, profileName, profileEmail, profileAvatar }: SidebarProps) {
   const [ddOpen, setDdOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const ddRef = useRef<HTMLDivElement>(null)
@@ -297,7 +298,9 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
                 aria-haspopup="menu"
                 aria-label="Profile menu"
               >
-                <div className="hdr__avatar">{avatarInitials}</div>
+                <div className="hdr__avatar">
+                  {profileAvatar ? <img src={profileAvatar} alt="" className="hdr__avatar-img" /> : avatarInitials}
+                </div>
                 <span className="hdr__role">{role}</span>
                 <svg className={`hdr__chevron hdr__chevron--sm ${profileOpen ? 'hdr__chevron--open' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M6 9l6 6 6-6" />
@@ -308,7 +311,9 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
                   <button type="button" className="hdr__profile-overlay" onClick={() => setProfileOpen(false)} aria-label="Close profile menu" tabIndex={-1} />
                   <div className="hdr__profile-menu" role="menu">
                     <div className="hdr__profile-head">
-                      <div className="hdr__profile-avatarLg">{avatarInitials}</div>
+                      <div className="hdr__profile-avatarLg">
+                        {profileAvatar ? <img src={profileAvatar} alt="" className="hdr__avatar-img" /> : avatarInitials}
+                      </div>
                       <div className="hdr__profile-info">
                         <span className="hdr__profile-name">{displayName}</span>
                         <span className="hdr__profile-sub">{displayEmail}</span>

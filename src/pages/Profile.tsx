@@ -3,10 +3,10 @@
 // design/profile-redesign.html: a role-tinted hero avatar, an identity card with
 // fact tiles, a two-column body, and a personal activity timeline.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useDraft } from '../hooks/useDraft'
 import Icon from '../components/icons'
-import { updateProfile, addActivityLog, fetchActivityLogs } from '../services/database'
+import { updateProfile, addActivityLog, fetchActivityLogs, uploadAvatar } from '../services/database'
 import { supabase } from '../utils/supabaseClient'
 import { ACTION_LABELS } from './admin/ActivityLabels'
 import type { Profile as ProfileType, ActivityLogEntry, UserRole } from '../services/database'
@@ -21,6 +21,10 @@ const MIN_PASSWORD_LENGTH = 6
 
 /** Same cap the concept mockup stamped on the name field. */
 const NAME_MAX_LENGTH = 80
+
+/** Handles: 3–30 of a-z, 0-9, dot, dash, underscore — starts alphanumerically.
+ *  The DB unique index is the last guard; users without handles read null. */
+const USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{1,29}$/
 
 /** How recent a log entry must be for the "active" dot to keep pulsing green. */
 const ACTIVE_WINDOW_MS = 24 * 60 * 60 * 1000
@@ -90,9 +94,13 @@ function categoryTone(category: string): string {
 
 function Profile({ profile, onSaved }: ProfileProps) {
   // Draft survives page navigation; cleared on successful save and on Discard.
-  const [draft, setDraft] = useDraft('cqi.draft.Profile', { fullName: profile?.full_name || '' })
-  const { fullName } = draft
+  const [draft, setDraft] = useDraft('cqi.draft.Profile', {
+    fullName: profile?.full_name || '',
+    username: profile?.username ?? '',
+  })
+  const { fullName, username } = draft
   const setFullName = (v: string) => setDraft((d) => ({ ...d, fullName: v }))
+  const setUsername = (v: string) => setDraft((d) => ({ ...d, username: v.replace(/\s/g, '') }))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -100,8 +108,15 @@ function Profile({ profile, onSaved }: ProfileProps) {
   const role: UserRole = profile?.role ?? 'user'
   const savedName = profile?.full_name ?? ''
   const displayName = savedName || profile?.email || ''
-  const dirty = fullName.trim() !== savedName
-  const canSave = Boolean(profile) && dirty && fullName.trim().length > 0
+  const savedUsername = profile?.username ?? ''
+
+  // Handles save normalized: trimmed + downcased, empty clears the handle.
+  const usernameNormalized = username.trim().toLowerCase()
+  const usernameValid = usernameNormalized === '' || USERNAME_PATTERN.test(usernameNormalized)
+  const nameDirty = fullName.trim() !== savedName
+  const usernameDirty = usernameNormalized !== savedUsername
+  const dirty = nameDirty || usernameDirty
+  const canSave = Boolean(profile) && dirty && fullName.trim().length > 0 && usernameValid
 
   // Passwords stay in state only — useDraft persists to sessionStorage, which the
   // hook's own docs say never to use for secrets.
@@ -171,32 +186,79 @@ function Profile({ profile, onSaved }: ProfileProps) {
       setError('Full name is required.')
       return
     }
+    if (!usernameValid) {
+      setError('Username must be 3–30 characters: letters, numbers, dots, dashes or underscores.')
+      return
+    }
     setError('')
     setMessage('')
     setSaving(true)
     try {
-      const updated = await updateProfile(profile.id, { full_name: fullName.trim() })
+      const updated = await updateProfile(profile.id, {
+        full_name: fullName.trim(),
+        username: usernameNormalized || null,
+      })
       await addActivityLog('profile.updated', {
         entity: 'profile',
         entity_id: updated.id,
         label: updated.full_name || updated.email,
       })
       onSaved(updated)
-      setDraft({ fullName: updated.full_name || '' })
+      setDraft({ fullName: updated.full_name || '', username: updated.username ?? '' })
       setMessage('Profile saved.')
       setActivityRefresh((n) => n + 1)
     } catch (err) {
-      setError('Failed to save profile: ' + describe(err))
+      // The DB's UNIQUE constraint is the last guard on handles.
+      const text = describe(err).toLowerCase()
+      if (text.includes('unique') || text.includes('duplicate key')) {
+        setError('That username is already taken.')
+      } else {
+        setError('Failed to save profile: ' + describe(err))
+      }
     } finally {
       setSaving(false)
     }
   }
 
-  // Set the name back to the saved value, wiping any half-typed edits.
+  // Set the name and handle back to the saved values, wiping half-typed edits.
   const handleDiscard = () => {
     setError('')
     setMessage('')
-    setDraft({ fullName: savedName })
+    setDraft({ fullName: savedName, username: savedUsername })
+  }
+
+  // ----- Profile picture -----
+
+  const [avatarBusy, setAvatarBusy] = useState(false)
+  const [avatarError, setAvatarError] = useState('')
+  const avatarInputRef = useRef<HTMLInputElement>(null)
+
+  const handleAvatarPick = () => avatarInputRef.current?.click()
+
+  // Upload to the caller's own folder in the public bucket, then stamp the
+  // URL onto the profile row in one flow. The hidden input is re-armed after
+  // every change so picking the same file again still fires an event.
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !profile) return
+    setAvatarError('')
+    setAvatarBusy(true)
+    try {
+      const url = await uploadAvatar(profile.id, file)
+      const updated = await updateProfile(profile.id, { avatar_url: url })
+      await addActivityLog('profile.avatar_changed', {
+        entity: 'profile',
+        entity_id: updated.id,
+        label: updated.full_name || updated.email,
+      })
+      onSaved(updated)
+      setActivityRefresh((n) => n + 1)
+    } catch (err) {
+      setAvatarError(describe(err))
+    } finally {
+      setAvatarBusy(false)
+    }
   }
 
   // Update the Supabase auth password for the signed-in user. Requires the
@@ -238,11 +300,19 @@ function Profile({ profile, onSaved }: ProfileProps) {
     <div className="programs-page profile">
       <header className="profile-hero" data-role={role}>
         <div className="profile-hero__left">
-          <div className="profile-avatar" aria-hidden="true">{initialsOf(displayName)}</div>
+          {profile?.avatar_url ? (
+            <div className="profile-avatar">
+              <img className="profile-avatar__img" src={profile.avatar_url} alt="" />
+            </div>
+          ) : (
+            <div className="profile-avatar" aria-hidden="true">{initialsOf(displayName)}</div>
+          )}
           <div className="profile-hero__titles">
             <h2>Profile</h2>
             <p>
-              {profile ? `${displayName || 'Your account'} · ${ROLE_LABELS[role].toLowerCase()} account` : 'Loading your account…'}
+              {profile
+                ? `${displayName || 'Your account'}${profile.username ? ` · @${profile.username}` : ''}`
+                : 'Loading your account…'}
             </p>
           </div>
         </div>
@@ -271,12 +341,42 @@ function Profile({ profile, onSaved }: ProfileProps) {
         <div className="profile-col">
           <section className="panel profile-card card-enter profile-identity" aria-label="Account identity">
             <div className="profile-identity__main">
-              <div className="profile-identity__avatar" aria-hidden="true">{initialsOf(displayName)}</div>
+              <button
+                type="button"
+                className="profile-identity__avatar-btn"
+                onClick={handleAvatarPick}
+                disabled={!profile || avatarBusy}
+                aria-label="Change profile picture"
+                title="Change profile picture"
+              >
+                <div className="profile-identity__avatar" aria-hidden="true">
+                  {profile?.avatar_url ? (
+                    <img className="profile-avatar__img" src={profile.avatar_url} alt="" />
+                  ) : (
+                    initialsOf(displayName)
+                  )}
+                  <span className="profile-identity__avatar-overlay">
+                    {avatarBusy ? 'Uploading…' : 'Change'}
+                  </span>
+                </div>
+              </button>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                hidden
+                onChange={handleAvatarChange}
+              />
               <div className="profile-identity__who">
                 <div className="profile-identity__name">{profile ? displayName : '—'}</div>
                 <div className="profile-identity__meta">
                   <Icon name="mail" size={13} />
                   <span>{profile?.email ?? '—'}</span>
+                  {profile?.username && (
+                    <span className="profile-identity__handle" title="Your public handle">
+                      @{profile.username}
+                    </span>
+                  )}
                   {emailVerified && (
                     <span className="profile-verified" title="Email ownership was confirmed at sign-up">
                       <Icon name="check" size={9} strokeWidth={3.4} />
@@ -287,6 +387,7 @@ function Profile({ profile, onSaved }: ProfileProps) {
               </div>
               <span className={`role-badge role-badge--${profile?.role}`}>{ROLE_LABELS[role]}</span>
             </div>
+            {avatarError && <p className="msg msg--error" role="alert">{avatarError}</p>}
 
             <div className="profile-facts-grid">
               <div className="profile-tile">
@@ -333,6 +434,35 @@ function Profile({ profile, onSaved }: ProfileProps) {
               </span>
             </label>
 
+            <label className="field">
+              <span>Username</span>
+              <div className="input-prefix-wrap">
+                <span className="input-prefix" aria-hidden="true">@</span>
+                <input
+                  className="input"
+                  type="text"
+                  value={username}
+                  maxLength={30}
+                  placeholder="juan.delacruz"
+                  autoComplete="off"
+                  onChange={(e) => setUsername(e.target.value)}
+                  disabled={!profile}
+                />
+              </div>
+              <span
+                className={`profile-name-count${username && !usernameValid ? ' profile-name-count--error' : ''}`}
+                aria-hidden="true"
+              >
+                {usernameValid || !username ? 'letters · numbers · _ . -' : 'not a valid handle yet'}
+              </span>
+            </label>
+
+            {profile && dirty && fullName.trim() === savedName && !usernameValid && (
+              <p className="profile-note profile-note--warn" role="status">
+                <Icon name="warning" size={14} />
+                Fix the highlighted fields to save.
+              </p>
+            )}
             {profile && dirty && !fullName.trim() && (
               <p className="profile-note profile-note--warn" role="status">
                 <Icon name="warning" size={14} />

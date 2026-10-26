@@ -31,6 +31,8 @@ export interface Profile {
   id: string
   email: string
   full_name: string | null
+  username: string | null
+  avatar_url: string | null
   role: UserRole
   created_at: string
   updated_at: string
@@ -141,6 +143,15 @@ export interface NavItem {
 
 // ---------- Profiles ----------
 
+/** The username seeded for a fresh profile: the email's local part, normalized.
+ *  Too short or exotic local parts (e.g. 'a@…', 'café@…') yield null — the user
+ *  picks a handle themselves on the Profile page. */
+function usernameFromEmail(email: string | null | undefined): string | null {
+  if (!email) return null
+  const local = email.split('@')[0]?.toLowerCase().replace(/[^a-z0-9._-]/g, '')
+  return local && local.length >= 3 ? local : null
+}
+
 export async function ensureProfile(user: User): Promise<Profile> {
   const { data: existing, error: getError } = await supabase
     .from('profiles')
@@ -163,10 +174,26 @@ export async function ensureProfile(user: User): Promise<Profile> {
     .select()
     .single()
   if (error) throw error
+  // Seed the handle from the email. Emails are unique, but sanitized local
+  // parts can collide ('juan.1@…' vs 'juan.1+x@…'), so a taken handle is
+  // simply left unset for the user to pick.
+  const username = usernameFromEmail(user.email)
+  if (username) {
+    const { data: withUsername, error: usernameError } = await supabase
+      .from('profiles')
+      .update({ username })
+      .eq('id', user.id)
+      .select()
+      .single()
+    if (!usernameError && withUsername) return withUsername
+  }
   return data
 }
 
-export async function updateProfile(profileId: string, updates: Partial<Pick<Profile, 'full_name'>>): Promise<Profile> {
+export async function updateProfile(
+  profileId: string,
+  updates: Partial<Pick<Profile, 'full_name' | 'username' | 'avatar_url'>>,
+): Promise<Profile> {
   const { data, error } = await supabase
     .from('profiles')
     .update(updates)
@@ -175,6 +202,46 @@ export async function updateProfile(profileId: string, updates: Partial<Pick<Pro
     .single()
   if (error) throw error
   return data
+}
+
+// ---------- Profile pictures (public 'avatars' bucket) ----------
+
+/** Max 2 MB — profile pictures are small squares; bigger files waste bandwidth. */
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024
+
+/** Browser-sniffed types accepted by the uploader. */
+const AVATAR_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
+
+/**
+ * Uploads the picture to the caller's own folder in the public 'avatars'
+ * bucket (never a service key, so storage RLS decides what they may write)
+ * and returns its public URL. The file name is fixed to 'avatar' so the
+ * folder holds exactly one current image, and the URL carries a version
+ * stamp so every browser refetches it after a replacement.
+ *
+ * Throws a human-readable Error for validation problems, so the page can
+ * show its message directly.
+ */
+export async function uploadAvatar(profileId: string, file: File): Promise<string> {
+  if (!AVATAR_TYPES.has(file.type)) {
+    throw new Error('Only PNG, JPG, or WebP images are allowed.')
+  }
+  if (file.size > AVATAR_MAX_BYTES) {
+    throw new Error('Profile pictures must be under 2 MB.')
+  }
+  const path = `${profileId}/avatar`
+  const { error } = await supabase!.storage
+    .from('avatars')
+    .upload(path, file, { upsert: true, contentType: file.type })
+  if (error) {
+    if (error.message.toLowerCase().includes('security')) {
+      throw new Error('Could not save the picture — the avatars storage bucket is missing its upload policy. Run migrations/005-profile-username-avatar.sql.')
+    }
+    throw error
+  }
+  const { data } = supabase!.storage.from('avatars').getPublicUrl(path)
+  const separator = data.publicUrl.includes('?') ? '&' : '?'
+  return `${data.publicUrl}${separator}v=${Date.now()}`
 }
 
 export async function syncDemoRole(): Promise<UserRole | null> {

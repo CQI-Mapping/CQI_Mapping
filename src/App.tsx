@@ -411,6 +411,7 @@ function App() {
         onToggle={() => setSidebarOpen((v) => !v)}
         profileName={profile?.full_name}
         profileEmail={profile?.email}
+        profileAvatar={profile?.avatar_url ?? null}
       />
 
       <div className="main-content">
