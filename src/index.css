@@ -1898,26 +1898,307 @@ code {
   gap: 10px;
 }
 
-/* ---- Profile ---- */
+/* ---- Profile ----
+   Two-column layout mirroring the design concept in
+   design/profile-redesign.html: a role-tinted hero avatar, an identity card
+   with fact tiles, the display-name editor, the password panel with a live
+   checklist, and a personal audit trail. */
 
-.profile-card {
-  max-width: 520px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.profile-card__row {
+.profile-hero {
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--border);
-  font-size: 14px;
+  gap: 18px;
+  padding: 26px 28px;
+  border-radius: 18px;
+  background-color: #16342a;
+  background-image:
+    radial-gradient(420px 190px at 88% -20%, rgba(34, 197, 94, 0.28), transparent 70%),
+    radial-gradient(300px 150px at 70% 120%, rgba(255, 255, 255, 0.06), transparent 70%),
+    linear-gradient(90deg, rgba(9, 24, 17, 0.35), rgba(9, 24, 17, 0.06) 55%, transparent);
+  color: #fff;
+  box-shadow: 0 10px 30px rgba(6, 20, 12, 0.25);
 }
 
-.profile-card__label {
+.profile-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, var(--primary-light), var(--primary));
+}
+
+.profile-hero__left {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+}
+
+/* Big initials tile; the ::after dot is the role's status tint. */
+.profile-avatar {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 22px;
+  background: linear-gradient(135deg, var(--primary-light), var(--primary));
+  color: #fff;
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: 0.02em;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.profile-avatar::after {
+  content: '';
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: var(--primary-light);
+  border: 3px solid #16342a;
+}
+
+.profile-hero[data-role='manager'] .profile-avatar::after { background: #a3e635; }
+.profile-hero[data-role='user'] .profile-avatar::after { background: #94a3b8; }
+
+.profile-hero__titles h2 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.profile-hero__titles p {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+/* Fact chips on the hero's right: role, member since, activity. */
+.profile-facts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.profile-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.profile-chip svg { opacity: 0.75; flex-shrink: 0; }
+
+@keyframes profilePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.45); }
+  50% { box-shadow: 0 0 0 5px rgba(34, 197, 94, 0); }
+}
+
+.profile-chip__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary-light);
+  animation: profilePulse 2.2s infinite;
+}
+
+/* Grey steady dot when the newest entry is older than a day (or absent). */
+.profile-chip__dot--idle {
+  background: #94a3b8;
+  animation: none;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.profile-col {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  align-items: stretch;
+}
+
+.profile-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.profile-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.profile-card__head h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.profile-card__head h3 svg { color: var(--primary); }
+
+.profile-card__hint {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Card with the identity avatar, e-mail, role badge and fact tiles. */
+.profile-identity__main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.profile-identity__avatar {
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 800;
+  font-size: 18px;
+  background: linear-gradient(135deg, var(--primary-light), var(--primary));
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+}
+
+.profile-identity__who { min-width: 0; }
+
+.profile-identity__name {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.profile-identity__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 5px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.profile-identity__main > .role-badge { margin-left: auto; flex-shrink: 0; }
+
+.profile-verified {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: var(--primary-dark);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.profile-facts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.profile-tile {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-soft);
+}
+
+.profile-tile__k {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.profile-tile__v {
+  display: block;
+  margin-top: 5px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.profile-tile__v small {
+  display: block;
+  margin-top: 2px;
+  font-weight: 500;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+/* Live char counter under the name field. */
+.profile-name-count {
+  align-self: flex-end;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+/* Editing state strip: green while changes await a save, amber when empty. */
+.profile-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 0;
+  padding: 8px 12px;
+  border: 1px solid #bbe7c9;
+  border-radius: 10px;
+  background: #dcfce7;
+  color: var(--primary-dark);
+  font-size: 12.5px;
   font-weight: 600;
+}
+
+.profile-note svg { flex-shrink: 0; }
+
+.profile-note--warn {
+  border-color: #fde68a;
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.profile-note-plain {
+  margin: 2px 0 0;
+  font-size: 12.5px;
   color: var(--text-muted);
 }
 
@@ -1926,6 +2207,181 @@ code {
   display: flex;
   align-items: center;
   gap: 10px;
+  margin-top: 8px;
+}
+
+/* Password checklist: ticks fill as the rules are satisfied. */
+.profile-reqs {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 4px;
+}
+
+.profile-req {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  transition: color 0.18s var(--ease-smooth);
+}
+
+.profile-req__tick {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 50%;
+  transition: background 0.18s var(--ease-spring), border-color 0.18s;
+}
+
+.profile-req__tick svg { opacity: 0; transition: opacity 0.18s; color: #fff; }
+
+.profile-req--ok {
+  color: var(--primary-dark);
+  font-weight: 600;
+}
+
+.profile-req--ok .profile-req__tick {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.profile-req--ok .profile-req__tick svg { opacity: 1; }
+
+/* Simple strength meter: fill length tracks the typed password .*/
+.profile-strength {
+  margin-top: 12px;
+}
+
+.profile-strength__bar {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg-soft);
+  overflow: hidden;
+}
+
+.profile-strength__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--primary-light), var(--primary));
+  transition: width 0.3s var(--ease-spring);
+}
+
+.profile-strength__labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.profile-security-btn {
+  width: 100%;
+  margin-top: 6px;
+}
+
+/* Dashed divider + honest copy about what changing the password does. */
+.profile-security-foot {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 14px 0 0;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border);
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.profile-security-foot svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--primary);
+}
+
+/* Personal audit trail: vertical timeline with category pills. */
+.profile-timeline {
+  position: relative;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.profile-timeline::before {
+  content: '';
+  position: absolute;
+  left: 10px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 999px;
+  background: var(--border);
+}
+
+.profile-timeline li {
+  position: relative;
+  padding: 0 0 16px 30px;
+}
+
+.profile-timeline li:last-child { padding-bottom: 0; }
+
+.profile-timeline li::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--bg-panel);
+  border: 2px solid var(--primary-light);
+}
+
+.profile-timeline li:last-child::before { border-color: var(--border-strong); }
+
+.pt-action {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.pt-time {
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.pt-pill {
+  padding: 2px 8px;
+  margin-left: 8px;
+  border-radius: 999px;
+  vertical-align: 1px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pt-pill--auth { background: #fef9c3; color: #854d0e; }
+.pt-pill--profile { background: #dcfce7; color: var(--primary-dark); }
+.pt-pill--page, .pt-pill--misc { background: var(--bg-soft); color: var(--text-muted); }
+
+@media (max-width: 880px) {
+  .profile-grid { grid-template-columns: 1fr; }
+  .profile-hero { flex-direction: column; align-items: flex-start; }
+  .profile-facts { justify-content: flex-start; }
+}
+
+@media (max-width: 520px) {
+  .profile-facts-grid { grid-template-columns: 1fr; }
+  .profile-hero { padding: 20px; border-radius: 14px; }
 }
 
 

@@ -1,16 +1,41 @@
-// Profile page: lets a user view their own email/role and edit their full name.
-// Saving writes an activity log entry (action only, no details) and reports
-// the updated profile back to App.tsx.
+// Profile page: identity summary, display-name editor, password change, and a
+// peek at the user's own audit trail. Layout mirrors the interactive concept in
+// design/profile-redesign.html: a role-tinted hero avatar, an identity card with
+// fact tiles, a two-column body, and a personal activity timeline.
 
 import { useEffect, useState } from 'react'
 import { useDraft } from '../hooks/useDraft'
+import Icon from '../components/icons'
 import { updateProfile, addActivityLog, fetchActivityLogs } from '../services/database'
 import { supabase } from '../utils/supabaseClient'
-import type { Profile as ProfileType } from '../services/database'
+import { ACTION_LABELS } from './admin/ActivityLabels'
+import type { Profile as ProfileType, ActivityLogEntry, UserRole } from '../services/database'
 
 interface ProfileProps {
   profile: ProfileType | null
   onSaved: (profile: ProfileType) => void
+}
+
+/** Supabase's minimum password length — keep in sync with the project's auth config. */
+const MIN_PASSWORD_LENGTH = 6
+
+/** Same cap the concept mockup stamped on the name field. */
+const NAME_MAX_LENGTH = 80
+
+/** How recent a log entry must be for the "active" dot to keep pulsing green. */
+const ACTIVE_WINDOW_MS = 24 * 60 * 60 * 1000
+
+const ROLE_LABELS: Record<UserRole, string> = {
+  admin: 'Admin',
+  manager: 'Manager',
+  user: 'Faculty',
+}
+
+/** Plain-language summary of what the signed-in role may touch. */
+const CAPABILITIES: Record<UserRole, { title: string; sub: string }> = {
+  admin: { title: 'Full system access', sub: 'users · curriculum · logs' },
+  manager: { title: 'Reviewer access', sub: 'curriculum · reports · logs' },
+  user: { title: 'Faculty access', sub: 'own courses · CLOs · TOS' },
 }
 
 /** Consistent error text for either form. */
@@ -18,8 +43,50 @@ function describe(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
 
-/** Supabase's minimum password length — keep in sync with the project's auth config. */
-const MIN_PASSWORD_LENGTH = 6
+/** Up to two leading letters for the avatar; single-word names (incl. emails) keep theirs. */
+function initialsOf(name: string): string {
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() ?? '')
+      .join('') || '··'
+  )
+}
+
+/** 'Today · 9:14 AM', 'Yesterday · …', or a calendar date — matches the mockup. */
+function formatDayTime(iso: string): string {
+  const d = new Date(iso)
+  const now = new Date()
+  const localDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
+  const diffDays = Math.round((localDay(now) - localDay(d)) / 86400000)
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  if (diffDays <= 0) return `Today · ${time}`
+  if (diffDays === 1) return `Yesterday · ${time}`
+  return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} · ${time}`
+}
+
+/** The action's entity family — the string before the first dot. */
+function categoryOf(action: string): string {
+  return action.split('.')[0] ?? ''
+}
+
+/** Human text for the timeline pill. */
+function categoryLabel(category: string): string {
+  if (!category) return 'Other'
+  if (category === 'auth') return 'Auth'
+  if (category === 'page') return 'Browse'
+  if (category === 'role') return 'Roles'
+  if (category === 'user') return 'Users'
+  return category[0].toUpperCase() + category.slice(1)
+}
+
+/** Pill colour family. Unknown categories share the neutral tone. */
+function categoryTone(category: string): string {
+  if (category === 'auth' || category === 'profile' || category === 'page') return category
+  return 'misc'
+}
 
 function Profile({ profile, onSaved }: ProfileProps) {
   // Draft survives page navigation; cleared on successful save and on Discard.
@@ -30,9 +97,10 @@ function Profile({ profile, onSaved }: ProfileProps) {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
-  const currentName = profile?.full_name ?? ''
-  // Trim on both sides so whitespace-only edits do not count as a change.
-  const dirty = fullName.trim() !== currentName
+  const role: UserRole = profile?.role ?? 'user'
+  const savedName = profile?.full_name ?? ''
+  const displayName = savedName || profile?.email || ''
+  const dirty = fullName.trim() !== savedName
   const canSave = Boolean(profile) && dirty && fullName.trim().length > 0
 
   // Passwords stay in state only — useDraft persists to sessionStorage, which the
@@ -43,26 +111,57 @@ function Profile({ profile, onSaved }: ProfileProps) {
   const [passwordError, setPasswordError] = useState('')
   const [passwordMessage, setPasswordMessage] = useState('')
 
-  // The user's most recent activity-log entry, shown for context. A fresh
-  // account has no entries and a fetch failure is not worth a page error —
-  // the row just reads '—'.
-  const [lastActivity, setLastActivity] = useState<string | null>(null)
+  // Live checklist beneath the password fields — feedback before submit, not after.
+  const passwordLongEnough = password.length >= MIN_PASSWORD_LENGTH
+  const passwordsMatch = password.length > 0 && password === confirmPassword
+  const passwordStrength = !password
+    ? 0
+    : passwordLongEnough
+      ? 0.45 + 0.55 * Math.min(password.length / 16, 1)
+      : 0.15
+
+  // The user's own recent audit entries drive two views: the hero's "Active"
+  // chip and the timeline card. A fetch failure is not worth a page error.
+  const [logs, setLogs] = useState<ActivityLogEntry[]>([])
   const [activityRefresh, setActivityRefresh] = useState(0)
+  const latestEntry = logs[0] ?? null
+  const activeRecently = Boolean(
+    latestEntry && Date.now() - new Date(latestEntry.created_at).getTime() < ACTIVE_WINDOW_MS,
+  )
 
   useEffect(() => {
     if (!profile?.email) return
     let cancelled = false
-    fetchActivityLogs({ userEmail: profile.email, limit: 1 })
+    fetchActivityLogs({ userEmail: profile.email, limit: 4 })
       .then((entries) => {
-        if (!cancelled) setLastActivity(entries[0]?.created_at ?? null)
+        if (!cancelled) setLogs(entries)
       })
       .catch(() => {
-        // The log lookup is nice-to-have; ignore failures silently.
+        // The log is nice-to-have here; an empty trail reads fine.
       })
     return () => {
       cancelled = true
     }
   }, [profile?.email, activityRefresh])
+
+  // Ownership of the email is a fact of the auth user, not the profile row;
+  // confirm quietly so "Verified" only renders when it is actually true.
+  const [emailVerified, setEmailVerified] = useState(false)
+  useEffect(() => {
+    if (!profile?.email) return
+    let cancelled = false
+    supabase!.auth
+      .getUser()
+      .then(({ data }) => {
+        if (!cancelled) setEmailVerified(Boolean(data.user?.email_confirmed_at))
+      })
+      .catch(() => {
+        // Chip simply stays hidden.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [profile?.email])
 
   // Save the edited name, log it, and push the updated profile up to App.tsx.
   const handleSubmit = async (e: React.FormEvent) => {
@@ -97,7 +196,7 @@ function Profile({ profile, onSaved }: ProfileProps) {
   const handleDiscard = () => {
     setError('')
     setMessage('')
-    setDraft({ fullName: currentName })
+    setDraft({ fullName: savedName })
   }
 
   // Update the Supabase auth password for the signed-in user. Requires the
@@ -107,11 +206,11 @@ function Profile({ profile, onSaved }: ProfileProps) {
     if (!profile) return
     setPasswordError('')
     setPasswordMessage('')
-    if (password.length < MIN_PASSWORD_LENGTH) {
+    if (!passwordLongEnough) {
       setPasswordError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`)
       return
     }
-    if (password !== confirmPassword) {
+    if (!passwordsMatch) {
       setPasswordError('Passwords do not match.')
       return
     }
@@ -127,6 +226,7 @@ function Profile({ profile, onSaved }: ProfileProps) {
       setPassword('')
       setConfirmPassword('')
       setPasswordMessage('Password updated.')
+      setActivityRefresh((n) => n + 1)
     } catch (err) {
       setPasswordError('Failed to change password: ' + describe(err))
     } finally {
@@ -134,132 +234,230 @@ function Profile({ profile, onSaved }: ProfileProps) {
     }
   }
 
-  // Initials for the hero avatar — up to two leading letters of the name.
-  const initials = (profile?.full_name || profile?.email || '')
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('')
-
   return (
     <div className="programs-page profile">
-      <div className="program-hero">
-        <div className="program-hero__left">
-          <div className="program-hero__icon">{initials || '◐'}</div>
-          <div className="program-hero__titles">
+      <header className="profile-hero" data-role={role}>
+        <div className="profile-hero__left">
+          <div className="profile-avatar" aria-hidden="true">{initialsOf(displayName)}</div>
+          <div className="profile-hero__titles">
             <h2>Profile</h2>
-            <p>Your account — manage display name and review role.</p>
+            <p>
+              {profile ? `${displayName || 'Your account'} · ${ROLE_LABELS[role].toLowerCase()} account` : 'Loading your account…'}
+            </p>
           </div>
         </div>
+
+        <div className="profile-facts">
+          <span className="profile-chip" title="Role">
+            <Icon name="user" size={13} />
+            {ROLE_LABELS[role]}
+          </span>
+          <span className="profile-chip" title="Member since">
+            <Icon name="calendar" size={13} />
+            {profile?.created_at ? `Member since ${new Date(profile.created_at).toLocaleDateString()}` : 'Member since —'}
+          </span>
+          <span className="profile-chip" title="Last activity">
+            <span
+              className={`profile-chip__dot${activeRecently ? '' : ' profile-chip__dot--idle'}`}
+              aria-hidden="true"
+            />
+            {latestEntry ? formatDayTime(latestEntry.created_at) : 'No activity yet'}
+          </span>
+        </div>
+      </header>
+
+      <div className="profile-grid">
+        {/* LEFT: identity + display name editor */}
+        <div className="profile-col">
+          <section className="panel profile-card card-enter profile-identity" aria-label="Account identity">
+            <div className="profile-identity__main">
+              <div className="profile-identity__avatar" aria-hidden="true">{initialsOf(displayName)}</div>
+              <div className="profile-identity__who">
+                <div className="profile-identity__name">{profile ? displayName : '—'}</div>
+                <div className="profile-identity__meta">
+                  <Icon name="mail" size={13} />
+                  <span>{profile?.email ?? '—'}</span>
+                  {emailVerified && (
+                    <span className="profile-verified" title="Email ownership was confirmed at sign-up">
+                      <Icon name="check" size={9} strokeWidth={3.4} />
+                      Verified
+                    </span>
+                  )}
+                </div>
+              </div>
+              <span className={`role-badge role-badge--${profile?.role}`}>{ROLE_LABELS[role]}</span>
+            </div>
+
+            <div className="profile-facts-grid">
+              <div className="profile-tile">
+                <span className="profile-tile__k">
+                  <Icon name="shield" size={11} />
+                  Role capabilities
+                </span>
+                <span className="profile-tile__v">
+                  {CAPABILITIES[role].title}
+                  <small>{CAPABILITIES[role].sub}</small>
+                </span>
+              </div>
+              <div className="profile-tile">
+                <span className="profile-tile__k">
+                  <Icon name="clock" size={11} />
+                  Last activity
+                </span>
+                <span className="profile-tile__v">
+                  {latestEntry ? ACTION_LABELS[latestEntry.action] ?? latestEntry.action : 'No activity yet'}
+                  <small>{latestEntry ? formatDayTime(latestEntry.created_at) : '—'}</small>
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <form className="panel profile-card card-enter" aria-label="Display name" onSubmit={handleSubmit}>
+            <div className="profile-card__head">
+              <h3><Icon name="user" size={15} />Display name</h3>
+              <span className="profile-card__hint">shown across reports &amp; audit logs</span>
+            </div>
+
+            <label className="field">
+              <span>Full name</span>
+              <input
+                className="input"
+                type="text"
+                value={fullName}
+                maxLength={NAME_MAX_LENGTH}
+                onChange={(e) => setFullName(e.target.value)}
+                disabled={!profile}
+              />
+              <span className="profile-name-count" aria-hidden="true">
+                {fullName.length} / {NAME_MAX_LENGTH}
+              </span>
+            </label>
+
+            {profile && dirty && !fullName.trim() && (
+              <p className="profile-note profile-note--warn" role="status">
+                <Icon name="warning" size={14} />
+                Full name is required to save.
+              </p>
+            )}
+            {profile && dirty && fullName.trim() && (
+              <p className="profile-note" role="status">
+                <Icon name="warning" size={14} />
+                Unsaved changes — reports keep showing{' '}
+                <b>{savedName || 'the current name'}</b> until you save.
+              </p>
+            )}
+            {message && <p className="msg msg--success" role="status">{message}</p>}
+            {error && <p className="msg msg--error" role="alert">{error}</p>}
+
+            <div className="profile-card__actions">
+              {dirty && (
+                <button className="btn btn--ghost" type="button" onClick={handleDiscard} disabled={saving}>
+                  Discard
+                </button>
+              )}
+              <button className="btn btn--primary" type="submit" disabled={!canSave || saving}>
+                {!profile ? 'Loading…' : dirty ? (saving ? 'Saving...' : 'Save changes') : 'Saved ✓'}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* RIGHT: security + recent activity */}
+        <div className="profile-col">
+          <section className="panel profile-card card-enter" aria-label="Password">
+            <div className="profile-card__head">
+              <h3><Icon name="lock" size={15} />Password</h3>
+              <span className="profile-card__hint">changed only by you</span>
+            </div>
+
+            <form onSubmit={handlePasswordChange} noValidate>
+              <label className="field">
+                <span>New password</span>
+                <input
+                  className="input"
+                  type="password"
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={!profile}
+                />
+              </label>
+              <label className="field">
+                <span>Confirm new password</span>
+                <input
+                  className="input"
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  disabled={!profile}
+                />
+              </label>
+
+              <div className="profile-reqs">
+                <span className={`profile-req${passwordLongEnough ? ' profile-req--ok' : ''}`}>
+                  <span className="profile-req__tick"><Icon name="check" size={9} strokeWidth={3.6} /></span>
+                  At least {MIN_PASSWORD_LENGTH} characters
+                </span>
+                <span className={`profile-req${passwordsMatch ? ' profile-req--ok' : ''}`}>
+                  <span className="profile-req__tick"><Icon name="check" size={9} strokeWidth={3.6} /></span>
+                  Both fields match
+                </span>
+              </div>
+
+              <div className="profile-strength">
+                <div className="profile-strength__bar" aria-hidden="true">
+                  <div className="profile-strength__fill" style={{ width: `${passwordStrength * 100}%` }} />
+                </div>
+                <div className="profile-strength__labels">
+                  <span>Weak</span>
+                  <span>Strong</span>
+                </div>
+              </div>
+
+              {passwordError && <p className="msg msg--error" role="alert">{passwordError}</p>}
+              {passwordMessage && <p className="msg msg--success" role="status">{passwordMessage}</p>}
+
+              <button className="btn btn--primary profile-security-btn" type="submit" disabled={!profile || changingPassword || !password || !confirmPassword}>
+                {changingPassword ? 'Updating...' : 'Update password'}
+              </button>
+            </form>
+
+            <p className="profile-security-foot">
+              <Icon name="shield" size={15} />
+              Your current session stays signed in, and the change is written to the audit log.
+            </p>
+          </section>
+
+          <section className="panel profile-card card-enter" aria-label="Recent activity">
+            <div className="profile-card__head">
+              <h3><Icon name="clock" size={15} />Recent activity</h3>
+              <span className="profile-card__hint">your audit trail</span>
+            </div>
+
+            {logs.length > 0 ? (
+              <ul className="profile-timeline">
+                {logs.map((entry) => {
+                  const category = categoryOf(entry.action)
+                  return (
+                    <li key={entry.id}>
+                      <div className="pt-action">
+                        {ACTION_LABELS[entry.action] ?? entry.action}
+                        <span className={`pt-pill pt-pill--${categoryTone(category)}`}>
+                          {categoryLabel(category)}
+                        </span>
+                      </div>
+                      <div className="pt-time">{formatDayTime(entry.created_at)}</div>
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : (
+              <p className="profile-note-plain">No activity recorded yet — actions you take will appear here.</p>
+            )}
+          </section>
+        </div>
       </div>
-
-      <form
-        className="panel profile-card program-panel"
-        onSubmit={handleSubmit}
-        style={{ borderTop: '3px solid #16a34a' }}
-      >
-        {/* Read-only details pulled from the profile row */}
-        <div className="profile-card__row">
-          <span className="profile-card__label">Email</span>
-          <span>{profile?.email}</span>
-        </div>
-        <div className="profile-card__row">
-          <span className="profile-card__label">Role</span>
-          <span className={`role-badge role-badge--${profile?.role}`}>{profile?.role}</span>
-        </div>
-        <div className="profile-card__row">
-          <span className="profile-card__label">Member since</span>
-          <span>{profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : '—'}</span>
-        </div>
-        <div className="profile-card__row">
-          <span className="profile-card__label">Last activity</span>
-          <span>{lastActivity ? new Date(lastActivity).toLocaleString() : '—'}</span>
-        </div>
-
-        {!profile && <p className="msg msg--info" role="status">Your profile is still loading — parts of the page are disabled until it arrives.</p>}
-
-
-        {/* The only editable field: full name */}
-        <label className="field">
-          <span>Full name</span>
-          <input
-            className="input"
-            type="text"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            disabled={!profile}
-          />
-        </label>
-
-        {/* Steer the user when the button is disabled without a clear reason */}
-        {dirty && !fullName.trim() && profile && (
-          <p className="msg msg--info">Full name is required to save.</p>
-        )}
-        {dirty && fullName.trim() && profile && (
-          <p className="msg msg--info" role="status">You have unsaved changes.</p>
-        )}
-
-        {error && <p className="msg msg--error" role="alert">{error}</p>}
-        {message && <p className="msg msg--success" role="status">{message}</p>}
-
-        <div className="profile-card__actions">
-          {dirty && (
-            <button className="btn btn--ghost" type="button" onClick={handleDiscard} disabled={saving}>
-              Discard changes
-            </button>
-          )}
-          <button className="btn btn--primary" type="submit" disabled={!canSave || saving}>
-            {saving ? 'Saving...' : 'Save changes'}
-          </button>
-        </div>
-      </form>
-
-      {/* Password: stored only in state, never in the session draft. */}
-      <form
-        className="panel profile-card program-panel"
-        style={{ borderTop: '3px solid #16a34a' }}
-        onSubmit={handlePasswordChange}
-      >
-        <h3>Password</h3>
-        <p className="program-panel__sub">
-          Choose a new password of at least {MIN_PASSWORD_LENGTH} characters.
-        </p>
-
-        <label className="field">
-          <span>New password</span>
-          <input
-            className="input"
-            type="password"
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={!profile}
-          />
-        </label>
-        <label className="field">
-          <span>Confirm new password</span>
-          <input
-            className="input"
-            type="password"
-            autoComplete="new-password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            disabled={!profile}
-          />
-        </label>
-
-        {passwordError && <p className="msg msg--error" role="alert">{passwordError}</p>}
-        {passwordMessage && <p className="msg msg--success" role="status">{passwordMessage}</p>}
-
-        <button
-          className="btn btn--primary"
-          type="submit"
-          disabled={!profile || changingPassword || !password || !confirmPassword}
-        >
-          {changingPassword ? 'Updating...' : 'Update password'}
-        </button>
-      </form>
     </div>
   )
 }
