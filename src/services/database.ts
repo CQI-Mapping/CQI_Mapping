@@ -32,7 +32,6 @@ export interface Profile {
   email: string
   full_name: string | null
   nickname: string | null
-  username: string | null
   avatar_url: string | null
   role: UserRole
   created_at: string
@@ -144,15 +143,6 @@ export interface NavItem {
 
 // ---------- Profiles ----------
 
-/** The username seeded for a fresh profile: the email's local part, normalized.
- *  Too short or exotic local parts (e.g. 'a@…', 'café@…') yield null — the user
- *  picks a handle themselves on the Profile page. */
-function usernameFromEmail(email: string | null | undefined): string | null {
-  if (!email) return null
-  const local = email.split('@')[0]?.toLowerCase().replace(/[^a-z0-9._-]/g, '')
-  return local && local.length >= 3 ? local : null
-}
-
 export async function ensureProfile(user: User): Promise<Profile> {
   const { data: existing, error: getError } = await supabase
     .from('profiles')
@@ -175,25 +165,12 @@ export async function ensureProfile(user: User): Promise<Profile> {
     .select()
     .single()
   if (error) throw error
-  // Seed the handle from the email. Emails are unique, but sanitized local
-  // parts can collide ('juan.1@…' vs 'juan.1+x@…'), so a taken handle is
-  // simply left unset for the user to pick.
-  const username = usernameFromEmail(user.email)
-  if (username) {
-    const { data: withUsername, error: usernameError } = await supabase
-      .from('profiles')
-      .update({ username })
-      .eq('id', user.id)
-      .select()
-      .single()
-    if (!usernameError && withUsername) return withUsername
-  }
   return data
 }
 
 export async function updateProfile(
   profileId: string,
-  updates: Partial<Pick<Profile, 'full_name' | 'nickname' | 'username' | 'avatar_url'>>,
+  updates: Partial<Pick<Profile, 'full_name' | 'nickname' | 'avatar_url'>>,
 ): Promise<Profile> {
   const { data, error } = await supabase
     .from('profiles')

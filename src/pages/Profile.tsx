@@ -26,10 +26,6 @@ const NAME_MAX_LENGTH = 80
 /** Nicknames stay casual — a short, quotable word. */
 const NICKNAME_MAX_LENGTH = 40
 
-/** Handles: 3–30 of a-z, 0-9, dot, dash, underscore — starts alphanumerically.
- *  The DB unique index is the last guard; users without handles read null. */
-const USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{1,29}$/
-
 /** How recent a log entry must be for the "active" dot to keep pulsing green. */
 const ACTIVE_WINDOW_MS = 24 * 60 * 60 * 1000
 
@@ -89,12 +85,10 @@ function Profile({ profile, onSaved }: ProfileProps) {
   const [draft, setDraft] = useDraft('cqi.draft.Profile', {
     fullName: profile?.full_name || '',
     nickname: profile?.nickname ?? '',
-    username: profile?.username ?? '',
   })
-  const { fullName, nickname, username } = draft
+  const { fullName, nickname } = draft
   const setFullName = (v: string) => setDraft((d) => ({ ...d, fullName: v }))
   const setNickname = (v: string) => setDraft((d) => ({ ...d, nickname: v }))
-  const setUsername = (v: string) => setDraft((d) => ({ ...d, username: v.replace(/\s/g, '') }))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -103,18 +97,13 @@ function Profile({ profile, onSaved }: ProfileProps) {
   const savedName = profile?.full_name ?? ''
   const displayName = savedName || profile?.email || ''
   const savedNickname = profile?.nickname ?? ''
-  const savedUsername = profile?.username ?? ''
 
-  // Handles save normalized: trimmed + downcased, empty clears the handle.
-  const usernameNormalized = username.trim().toLowerCase()
-  const usernameValid = usernameNormalized === '' || USERNAME_PATTERN.test(usernameNormalized)
   // Nickname is casual and optional: trimmed, never empty-string in the DB.
   const nicknameNormalized = nickname.trim()
   const nameDirty = fullName.trim() !== savedName
   const nicknameDirty = nicknameNormalized !== savedNickname
-  const usernameDirty = usernameNormalized !== savedUsername
-  const dirty = nameDirty || nicknameDirty || usernameDirty
-  const canSave = Boolean(profile) && dirty && fullName.trim().length > 0 && usernameValid
+  const dirty = nameDirty || nicknameDirty
+  const canSave = Boolean(profile) && dirty && fullName.trim().length > 0
 
   // Passwords stay in state only — useDraft persists to sessionStorage, which the
   // hook's own docs say never to use for secrets.
@@ -204,10 +193,6 @@ function Profile({ profile, onSaved }: ProfileProps) {
       setError('Full name is required.')
       return
     }
-    if (!usernameValid) {
-      setError('Username must be 3–30 characters: letters, numbers, dots, dashes or underscores.')
-      return
-    }
     setError('')
     setMessage('')
     setSaving(true)
@@ -215,7 +200,6 @@ function Profile({ profile, onSaved }: ProfileProps) {
       const updated = await updateProfile(profile.id, {
         full_name: fullName.trim(),
         nickname: nicknameNormalized || null,
-        username: usernameNormalized || null,
       })
       await addActivityLog('profile.updated', {
         entity: 'profile',
@@ -226,28 +210,21 @@ function Profile({ profile, onSaved }: ProfileProps) {
       setDraft({
         fullName: updated.full_name || '',
         nickname: updated.nickname ?? '',
-        username: updated.username ?? '',
       })
       setMessage('Profile saved.')
       setActivityRefresh((n) => n + 1)
     } catch (err) {
-      // The DB's UNIQUE constraint is the last guard on handles.
-      const text = describe(err).toLowerCase()
-      if (text.includes('unique') || text.includes('duplicate key')) {
-        setError('That username is already taken.')
-      } else {
-        setError('Failed to save profile: ' + describe(err))
-      }
+      setError('Failed to save profile: ' + describe(err))
     } finally {
       setSaving(false)
     }
   }
 
-  // Set name, nickname and handle back to the saved values, wiping edits.
+  // Set name and nickname back to the saved values, wiping half-typed edits.
   const handleDiscard = () => {
     setError('')
     setMessage('')
-    setDraft({ fullName: savedName, nickname: savedNickname, username: savedUsername })
+    setDraft({ fullName: savedName, nickname: savedNickname })
   }
 
   // ----- Profile picture -----
@@ -334,7 +311,7 @@ function Profile({ profile, onSaved }: ProfileProps) {
             <h2>Profile</h2>
             <p>
               {profile
-                ? `${displayName || 'Your account'}${profile.nickname ? ` "${profile.nickname}"` : ''}${profile.username ? ` · @${profile.username}` : ''}`
+                ? `${displayName || 'Your account'}${profile.nickname ? ` "${profile.nickname}"` : ''}`
                 : 'Loading your account…'}
             </p>
           </div>
@@ -400,11 +377,6 @@ function Profile({ profile, onSaved }: ProfileProps) {
                       "{profile.nickname}"
                     </span>
                   )}
-                  {profile?.username && (
-                    <span className="profile-identity__handle" title="Your public handle">
-                      @{profile.username}
-                    </span>
-                  )}
                   {emailVerified && (
                     <span className="profile-verified" title="Email ownership was confirmed at sign-up">
                       <Icon name="check" size={9} strokeWidth={3.4} />
@@ -441,9 +413,9 @@ function Profile({ profile, onSaved }: ProfileProps) {
             </div>
           </section>
 
-          <form className="panel profile-card card-enter" aria-label="Name, nickname and handle" onSubmit={handleSubmit}>
+          <form className="panel profile-card card-enter" aria-label="Display name" onSubmit={handleSubmit}>
             <div className="profile-card__head">
-              <h3><Icon name="user" size={15} />Name &amp; handle</h3>
+              <h3><Icon name="user" size={15} />Display name</h3>
               <span className="profile-card__hint">shown across reports &amp; audit logs</span>
             </div>
 
@@ -479,35 +451,6 @@ function Profile({ profile, onSaved }: ProfileProps) {
               </span>
             </label>
 
-            <label className="field">
-              <span>Username</span>
-              <div className="input-prefix-wrap">
-                <span className="input-prefix" aria-hidden="true">@</span>
-                <input
-                  className="input"
-                  type="text"
-                  value={username}
-                  maxLength={30}
-                  placeholder="juan.delacruz"
-                  autoComplete="off"
-                  onChange={(e) => setUsername(e.target.value)}
-                  disabled={!profile}
-                />
-              </div>
-              <span
-                className={`profile-name-count${username && !usernameValid ? ' profile-name-count--error' : ''}`}
-                aria-hidden="true"
-              >
-                {usernameValid || !username ? 'letters · numbers · _ . -' : 'not a valid handle yet'}
-              </span>
-            </label>
-
-            {profile && dirty && fullName.trim() === savedName && !usernameValid && (
-              <p className="profile-note profile-note--warn" role="status">
-                <Icon name="warning" size={14} />
-                Fix the highlighted fields to save.
-              </p>
-            )}
             {profile && dirty && !fullName.trim() && (
               <p className="profile-note profile-note--warn" role="status">
                 <Icon name="warning" size={14} />

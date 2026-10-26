@@ -2227,30 +2227,12 @@ code {
   color: var(--text-muted);
 }
 
-/* Handles save via an @-prefixed field. */
-.input-prefix-wrap { position: relative; }
-
-.input-prefix-wrap .input-prefix {
-  position: absolute;
-  left: 13px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-muted);
-  font-size: 14px;
-  font-weight: 600;
-  pointer-events: none;
-}
-
-.input-prefix-wrap .input { padding-left: 30px; }
-
 /* Live char counter under the name field. */
 .profile-name-count {
   align-self: flex-end;
   font-size: 11.5px;
   color: var(--text-muted);
 }
-
-.profile-name-count--error { color: var(--danger); font-weight: 600; }
 
 /* Editing state strip: green while changes await a save, amber when empty. */
 .profile-note {

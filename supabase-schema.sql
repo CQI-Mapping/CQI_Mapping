@@ -54,12 +54,8 @@ CREATE TABLE public.profiles (
     -- Casual name shown quoted (e.g. Maria "Bebot" dela Cruz). Optional;
     -- reports and audit labels keep using full_name.
     nickname TEXT,
-    -- Public handle picked by the user. Optional and unique when set;
-    -- the app only writes normalized (lowercase) values and enforces
-    -- the format there, the UNIQUE constraint is the last guard.
-    username TEXT UNIQUE,
-    -- Public URL of the profile picture in the 'avatars' storage bucket
-    -- (avatars/<uid>/avatar). NULL renders as initials everywhere.
+    -- Public URL of the profile picture: the email-derived Gravatar or an
+    -- upload in the 'avatars' storage bucket (avatars/<uid>/avatar).
     -- See migrations/005-profile-username-avatar.sql for the bucket RLS.
     avatar_url TEXT,
     role user_role NOT NULL DEFAULT 'user',
