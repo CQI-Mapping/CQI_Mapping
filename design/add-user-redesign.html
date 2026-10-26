@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Add User — UI Redesign Concept · CQI Monitoring</title>
+<style>
+  /* ============================================================
+     "Add User" panel UI concept for CQI Monitoring (NBSC ICS).
+     Standalone interactive mockup — tokens mirror src/index.css
+     (incl. the current sage backdrop #d8e4d9) so implementing the
+     chosen direction in React/CSS is a direct translation.
+
+     Three directions, switch in the demo bar:
+       CURRENT  — today's five-field row (for honest comparison)
+       A (★)    — Persona card: fields grouped by intent, role as
+                  selectable cards, program reveals per role
+       B        — Polished single line: same shape as today, but
+                  in-field icons, role pills, tinted program field
+     ============================================================ */
+  :root {
+    --bg-app: #d8e4d9;
+    --bg-panel: #f8fbf8;
+    --bg-soft: #eef4ee;
+    --border: #dfe8de;
+    --border-strong: #c7d4c9;
+    --text: #0f172a;
+    --text-muted: #64748b;
+    --primary: #16a34a;
+    --primary-dark: #15803d;
+    --primary-light: #22c55e;
+    --danger: #dc2626;
+    --radius: 14px;
+    --shadow: 0 1px 3px rgba(15, 23, 42, 0.07), 0 6px 18px rgba(6, 20, 12, 0.07);
+    --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  ::selection { background: rgba(34, 197, 94, 0.18); }
+  body { margin: 0; background: var(--bg-app); color: var(--text); font-size: 15px; line-height: 1.5; }
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(22, 163, 74, 0.08), transparent 60%),
+      radial-gradient(ellipse 40% 30% at 100% 0%, rgba(245, 197, 24, 0.05), transparent 55%);
+  }
+
+  @keyframes cardIn { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+  @keyframes revealDown { from { opacity: 0; transform: translateY(-6px) scale(0.98); } to { opacity: 1; transform: none; } }
+  .card-enter { animation: cardIn .36s var(--ease-spring) both; }
+  .reveal { animation: revealDown .3s var(--ease-spring) both; }
+
+  .frame { position: relative; max-width: 1080px; margin: 0 auto; padding: 26px 22px 80px; }
+
+  /* ---------- Demo control strip (not part of the real UI) ---------- */
+  .demo-bar {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    margin: 0 auto 20px; max-width: 1080px;
+    background: #0f172a; color: #e2e8f0;
+    border-radius: 12px; padding: 10px 14px;
+    font-size: 12.5px; box-shadow: 0 8px 24px rgba(6, 20, 12, .35);
+  }
+  .demo-bar b { color: #86efac; font-weight: 700; margin-right: 2px; }
+  .demo-bar button {
+    border: 1px solid rgba(255, 255, 255, .22); background: rgba(255, 255, 255, .08);
+    color: inherit; border-radius: 999px; padding: 4px 12px; cursor: pointer;
+    font: inherit; font-size: 12px;
+  }
+  .demo-bar button:hover { background: rgba(255, 255, 255, .16); }
+  .demo-bar button[aria-pressed="true"] { background: var(--primary-light); border-color: transparent; color: #052e16; font-weight: 700; }
+  .demo-bar .note { opacity: .75; }
+
+  .mock { display: none; }
+  .mock.is-active { display: block; }
+  .mock-note { margin: 0 2px 12px; font-size: 12.5px; color: var(--text-muted); }
+  .mock-note strong { color: var(--text); }
+
+  /* ================= SHARED: the panel ================= */
+  .panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+
+  .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .field > span { font-size: 12.5px; font-weight: 600; color: var(--text-muted); }
+  .input {
+    width: 100%; padding: 10px 12px; font: inherit; font-size: 14px;
+    color: var(--text); background: #fff;
+    border: 1px solid var(--border); border-radius: var(--radius);
+    outline: none;
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  .input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(34, 197, 94, .18); }
+  .input::placeholder { color: #94a3b8; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 7px; justify-content: center;
+    border: none; border-radius: 999px; cursor: pointer; font: inherit;
+    font-size: 13.5px; font-weight: 700; color: #fff;
+    background: linear-gradient(135deg, var(--primary-light), var(--primary-dark));
+    padding: 11px 20px;
+    box-shadow: 0 4px 12px rgba(22, 163, 74, .3);
+    transition: transform .15s var(--ease-spring), box-shadow .15s ease, filter .15s ease;
+  }
+  .btn:hover { filter: brightness(1.05); transform: translateY(-1px); box-shadow: 0 6px 16px rgba(22, 163, 74, .35); }
+  .btn:active { transform: translateY(0); }
+
+  /* ================= CURRENT (for comparison) ================= */
+  .create-user { padding: 18px 20px 20px; border-top: 3px solid var(--primary); }
+  .create-user h3 { margin: 0 0 14px; font-size: 16px; }
+  .create-user .row { display: grid; grid-template-columns: 2fr 2fr 2fr 1fr 2fr auto; gap: 10px; align-items: end; }
+  .create-user .row.nowrap5 { grid-template-columns: 2fr 2fr 2fr 1fr auto; }
+  .pw-wrap { position: relative; }
+  .pw-toggle {
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    border: none; background: none; font: inherit; font-size: 12px; font-weight: 700;
+    color: var(--text-muted); cursor: pointer; padding: 2px 4px;
+  }
+
+  /* ================= DIRECTION A — persona card ================= */
+  .au { overflow: hidden; }
+  .au__head {
+    display: flex; align-items: center; justify-content: space-between; gap: 14px;
+    padding: 18px 22px 16px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(90deg, rgba(34, 197, 94, .07), transparent 55%);
+  }
+  .au__head h3 { margin: 0; font-size: 16px; display: flex; align-items: center; gap: 9px; }
+  .au__head h3 .badge-mark {
+    width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center;
+    background: linear-gradient(135deg, var(--primary-light), var(--primary-dark));
+    color: #fff; font-weight: 800; font-size: 14px;
+    box-shadow: 0 4px 10px rgba(22, 163, 74, .35);
+  }
+  .au__head p { margin: 0; font-size: 12.5px; color: var(--text-muted); }
+
+  .au__body { padding: 18px 22px 20px; display: grid; gap: 20px; }
+
+  .au__section-title {
+    display: flex; align-items: center; gap: 9px;
+    font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .au__section-title .step {
+    width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--primary-dark); color: #fff; font-size: 11px; letter-spacing: 0; text-transform: none;
+  }
+  .au__section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  .au__who { display: grid; grid-template-columns: 2fr 6fr; gap: 18px; }
+  @media (max-width: 860px) { .au__who { grid-template-columns: 1fr; } }
+
+  /* Role as three selectable cards — the heart of the concept. */
+  .role-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .role-card {
+    position: relative; text-align: left; font: inherit; cursor: pointer;
+    padding: 12px 13px; border-radius: 12px;
+    background: #fff; border: 1.5px solid var(--border);
+    transition: border-color .15s ease, box-shadow .15s ease, transform .15s var(--ease-spring), background .15s ease;
+  }
+  .role-card:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+  .role-card .rc-head { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 700; }
+  .role-card .rc-head svg { color: var(--text-muted); transition: color .15s ease; }
+  .role-card p { margin: 5px 0 0; font-size: 11.5px; line-height: 1.45; color: var(--text-muted); }
+  .role-card[aria-pressed="true"] {
+    border-color: var(--primary);
+    background: linear-gradient(135deg, rgba(34, 197, 94, .1), rgba(34, 197, 94, .03));
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, .14);
+  }
+  .role-card[aria-pressed="true"] .rc-head svg { color: var(--primary); }
+  .role-card .rc-tick {
+    position: absolute; top: 9px; right: 9px; width: 16px; height: 16px; border-radius: 50%;
+    background: var(--primary); color: #fff; display: grid; place-items: center;
+    font-size: 10px; opacity: 0; transform: scale(.5); transition: all .18s var(--ease-spring);
+  }
+  .role-card[aria-pressed="true"] .rc-tick { opacity: 1; transform: scale(1); }
+
+  /* Program reveal */
+  .program-row .hint-no-program {
+    display: none; align-items: center; gap: 8px;
+    padding: 10px 13px; border-radius: 12px;
+    background: var(--bg-soft); border: 1px dashed var(--border-strong);
+    font-size: 12.5px; color: var(--text-muted);
+  }
+  .program-row.is-admin .hint-no-program { display: flex; }
+  .program-row .select-wrap { display: flex; }
+  .program-row.is-admin .select-wrap { display: none; }
+  .select-wrap { position: relative; }
+  .select-wrap svg {
+    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    color: var(--text-muted); pointer-events: none;
+  }
+  .select-wrap select { padding-left: 36px; appearance: none; }
+  .select-wrap::after {
+    content: ''; position: absolute; right: 14px; top: 50%; width: 7px; height: 7px;
+    border-right: 2px solid var(--text-muted); border-bottom: 2px solid var(--text-muted);
+    transform: translateY(-70%) rotate(45deg); pointer-events: none;
+  }
+
+  /* Credentials section */
+  .au__creds { display: grid; grid-template-columns: 3fr 2fr; gap: 14px; }
+  @media (max-width: 720px) { .au__creds { grid-template-columns: 1fr; } }
+  .cred-note { grid-column: 1 / -1; font-size: 12px; color: var(--text-muted); margin-top: -4px; }
+
+  .au__foot {
+    display: flex; align-items: center; justify-content: space-between; gap: 14px;
+    padding: 14px 22px; border-top: 1px solid var(--border); background: var(--bg-soft);
+  }
+  .au__foot p { margin: 0; font-size: 12px; color: var(--text-muted); }
+  @media (max-width: 720px) { .au__foot { flex-direction: column-reverse; align-items: stretch; text-align: center; } }
+
+  /* ================= DIRECTION B — polished single line ================= */
+  .pb { padding: 18px 20px 20px; border-top: 3px solid var(--primary); }
+  .pb h3 { margin: 0 0 14px; font-size: 16px; }
+  .pb .row { display: grid; grid-template-columns: 2fr 2fr 2fr 1fr 2fr auto; gap: 10px; align-items: end; }
+  .pb .row.role-unpicked { grid-template-columns: 2fr 2fr 2fr 2fr auto; }
+  @media (max-width: 1024px) { .pb .row, .pb .row.role-unpicked { grid-template-columns: 1fr; } }
+  .icon-input { position: relative; }
+  .icon-input svg {
+    position: absolute; left: 12px; bottom: 11px; color: var(--text-muted); pointer-events: none;
+  }
+  .icon-input .input { padding-left: 36px; }
+
+  /* Role as inline pills sitting inside one field */
+  .role-pills { display: flex; gap: 4px; background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 3px; }
+  .role-pills button {
+    flex: 1; border: none; background: none; font: inherit; font-size: 12.5px; font-weight: 600;
+    color: var(--text-muted); padding: 6px 4px; border-radius: 10px; cursor: pointer;
+    transition: all .15s ease;
+  }
+  .role-pills button:hover { color: var(--text); background: var(--bg-soft); }
+  .role-pills button[aria-pressed="true"] {
+    background: linear-gradient(135deg, var(--primary-light), var(--primary-dark));
+    color: #fff; box-shadow: 0 2px 6px rgba(22, 163, 74, .35);
+  }
+</style>
+</head>
+<body>
+  <div class="demo-bar">
+    <b>ADD USER — UI CONCEPT</b>
+    <button data-view="current" aria-pressed="false">0 · Current</button>
+    <button data-view="a" aria-pressed="true">A · Persona card (★ recommended)</button>
+    <button data-view="b" aria-pressed="false">B · Polished single row</button>
+    <span class="sep"></span>
+    <span class="note">Everything is live — click the role cards, toggle the password, choose a program.</span>
+  </div>
+
+  <div class="frame">
+
+    <!-- ================= 0 · CURRENT ================= -->
+    <section class="mock" id="mock-current">
+      <p class="mock-note"><strong>Today.</strong> Five wide fields + button on one line. With the Program select added it reads like a search bar: no grouping, roles explained nowhere, the button lost at the far end.</p>
+      <div class="panel create-user card-enter">
+        <h3>Add User</h3>
+        <div class="row nowrap5">
+          <label class="field"><span>Email</span><input class="input" type="email" placeholder="user@example.com" /></label>
+          <label class="field"><span>Password</span>
+            <div class="pw-wrap"><input class="input" type="password" placeholder="••••••••" value="password" /><button type="button" class="pw-toggle" onclick="this.previousElementSibling.type = this.previousElementSibling.type === 'password' ? 'text' : 'password'; this.textContent = this.textContent === 'Show' ? 'Hide' : 'Show'">Hide</button></div>
+          </label>
+          <label class="field"><span>Full name</span><input class="input" type="text" placeholder="Juan Dela Cruz" /></label>
+          <label class="field"><span>Role</span><select class="input"><option>Manager</option><option>Admin</option><option>Faculty</option></select></label>
+          <button class="btn">＋ Create User</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= A · PERSONA CARD (recommended) ================= -->
+    <section class="mock is-active" id="mock-a">
+      <p class="mock-note"><strong>Direction A (★ recommended).</strong> Fields grouped by intent — <em>who they are</em>, then <em>how they sign in</em>. Role becomes three explainer cards, so choosing a role is a decision you can see, not a hidden dropdown. The Program select only exists when the role needs one; for Admin it explains itself with a dashed chip.</p>
+
+      <div class="panel au card-enter">
+        <div class="au__head">
+          <h3><span class="badge-mark">＋</span> Add User</h3>
+          <p>Creates the account immediately — everything here can be changed later in Profile.</p>
+        </div>
+
+        <div class="au__body">
+          <!-- 1 · WHO -->
+          <div>
+            <div class="au__section-title"><span class="step">1</span> Who is this person</div>
+            <div style="height:12px"></div>
+            <div class="au__who">
+              <label class="field"><span>Full name</span><input class="input" type="text" placeholder="Juan Dela Cruz" /></label>
+              <div class="field">
+                <span>Role</span>
+                <div class="role-cards" id="roleCards" role="group" aria-label="Role">
+                  <button type="button" class="role-card" data-role="admin" aria-pressed="false" onclick="pickRole(this)">
+                    <span class="rc-tick">✓</span>
+                    <span class="rc-head">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/></svg>
+                      Administrator
+                    </span>
+                    <p>Runs the whole system — programs, accounts, reports. Not bounded to one program.</p>
+                  </button>
+                  <button type="button" class="role-card" data-role="manager" aria-pressed="false" onclick="pickRole(this)">
+                    <span class="rc-tick">✓</span>
+                    <span class="rc-head">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                      Program Head
+                    </span>
+                    <p>Leads CQI for one program — outcomes, alignment and that program's courses.</p>
+                  </button>
+                  <button type="button" class="role-card" data-role="user" aria-pressed="false" onclick="pickRole(this)">
+                    <span class="rc-tick">✓</span>
+                    <span class="rc-head">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M7 10h10M7 14h6"/></svg>
+                      Faculty
+                    </span>
+                    <p>Teaches assigned subjects and tracks CLO progress for their own classes.</p>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div style="height:12px"></div>
+            <div class="program-row" id="programRow">
+              <label class="field select-wrap" id="programSelectWrap">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4"/></svg>
+                <select class="input">
+                  <option value="">Select program…</option>
+                  <option>BSIT — Bachelor of Science in Information Technology</option>
+                  <option>BSBA — Bachelor of Science in Business Administration</option>
+                  <option>BEED — Bachelor of Elementary Education</option>
+                  <option>BSN — Bachelor of Science in Nursing</option>
+                </select>
+              </label>
+              <div class="hint-no-program" id="noProgramHint">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.5"/></svg>
+                Administrators see every program — no assignment needed.
+              </div>
+            </div>
+          </div>
+
+          <!-- 2 · CREDENTIALS -->
+          <div>
+            <div class="au__section-title"><span class="step">2</span> How they sign in</div>
+            <div style="height:12px"></div>
+            <div class="au__creds">
+              <label class="field">
+                <span>Email</span>
+                <div class="icon-input">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 6L2 7"/></svg>
+                  <input class="input" type="email" placeholder="user@example.com" style="padding-left:36px" />
+                </div>
+              </label>
+              <label class="field">
+                <span>Password</span>
+                <div class="pw-wrap"><input class="input" type="password" placeholder="••••••••" id="pwField" /><button type="button" class="pw-toggle" onclick="var f=document.getElementById('pwField'); f.type = f.type === 'password' ? 'text' : 'password'; this.textContent = this.textContent === 'Show' ? 'Hide' : 'Show'">Show</button></div>
+              </label>
+              <p class="cred-note">At least 6 characters — the new user can change it after signing in, or reset it from the sign-in page themselves.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="au__foot">
+          <p>A welcome email is sent when the mail service is configured — otherwise share the password directly.</p>
+          <button class="btn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            Create User
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= B · POLISHED SINGLE ROW ================= -->
+    <section class="mock" id="mock-b">
+      <p class="mock-note"><strong>Direction B.</strong> Keeps today's economical one-row shape but fixes its weaknesses: labels with icons, Role as inline pills you can read at a glance, the Program field tinted green so the <em>conditional</em> choice is visible, and a right-breathing button. Cheapest to implement; least room to explain roles.</p>
+
+      <div class="panel pb card-enter">
+        <h3>Add User</h3>
+        <div class="row role-unpicked" id="pbRow">
+          <label class="field">
+            <span>Email</span>
+            <div class="icon-input">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 6L2 7"/></svg>
+              <input class="input" type="email" placeholder="user@example.com" style="padding-left:36px" />
+            </div>
+          </label>
+          <label class="field"><span>Password</span>
+            <div class="pw-wrap"><input class="input" type="password" placeholder="••••••••" id="pbPw" /><button type="button" class="pw-toggle" onclick="var f=document.getElementById('pbPw'); f.type = f.type === 'password' ? 'text' : 'password'; this.textContent = this.textContent === 'Show' ? 'Hide' : 'Show'">Show</button></div>
+          </label>
+          <label class="field"><span>Full name</span><input class="input" type="text" placeholder="Juan Dela Cruz" /></label>
+          <div class="field">
+            <span>Role</span>
+            <div class="role-pills" role="group" aria-label="Role">
+              <button type="button" data-role="manager" aria-pressed="false" onclick="pickPb(this)">Manager</button>
+              <button type="button" data-role="admin" aria-pressed="false" onclick="pickPb(this)">Admin</button>
+              <button type="button" data-role="user" aria-pressed="false" onclick="pickPb(this)">Faculty</button>
+            </div>
+          </div>
+          <div class="field" id="pbProgramField" style="display:none">
+            <span>Program</span>
+            <div class="select-wrap" style="display:flex">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4"/></svg>
+              <select class="input">
+                <option value="">Select program…</option>
+                <option>BSIT — Information Technology</option>
+                <option>BSBA — Business Administration</option>
+                <option>BEED — Elementary Education</option>
+                <option>BSN — Nursing</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn">＋ Create User</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+<script>
+  // ----- demo-bar direction switch -----
+  document.querySelectorAll('.demo-bar button[data-view]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.demo-bar button[data-view]').forEach((b) => b.setAttribute('aria-pressed', String(b === btn)))
+      document.querySelectorAll('.mock').forEach((m) => m.classList.toggle('is-active', m.id === 'mock-' + btn.dataset.view))
+    })
+  })
+
+  // ----- Direction A: role cards drive the program reveal -----
+  function pickRole(card) {
+    document.querySelectorAll('#roleCards .role-card').forEach((c) => c.setAttribute('aria-pressed', String(c === card)))
+    const row = document.getElementById('programRow')
+    const isAdmin = card.dataset.role === 'admin'
+    row.querySelector('.hint-no-program').classList.remove('reveal')
+    row.querySelector('.select-wrap').classList.remove('reveal')
+    row.classList.toggle('is-admin', isAdmin)
+    if (!isAdmin) row.querySelector('.select-wrap').classList.add('reveal')
+    else row.querySelector('.hint-no-program').classList.add('reveal')
+  }
+
+  // ----- Direction B: pills drive the same reveal -----
+  function pickPb(btn) {
+    const pills = btn.parentElement.querySelectorAll('button')
+    pills.forEach((p) => p.setAttribute('aria-pressed', String(p === btn)))
+    const field = document.getElementById('pbProgramField')
+    const show = btn.dataset.role !== 'admin'
+    field.style.display = show ? '' : 'none'
+    if (show) field.classList.add('reveal')
+    document.getElementById('pbRow').classList.toggle('role-unpicked', !show)
+  }
+</script>
+</body>
+</html>
