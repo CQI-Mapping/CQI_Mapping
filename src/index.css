@@ -1909,8 +1909,9 @@ code {
 /* ---- Profile ----
    Two-column layout mirroring the design concept in
    design/profile-redesign.html: a role-tinted hero avatar, an identity card
-   with fact tiles, the display-name editor, the password panel with a live
-   checklist, and a personal audit trail. */
+   with fact tiles, the display-name editor, and a personal audit trail.
+   (The password panel was removed — password recovery lives in the
+   standalone Set-a-new-password screen reached from the sign-in page.) */
 
 .profile-hero {
   position: relative;
@@ -2094,6 +2095,14 @@ code {
   color: var(--text-muted);
 }
 
+/* Since the password panel left, the activity card is its column's only
+   resident: it stretches to the left column's height so both columns end
+   on the same line instead of leaving a hole beneath the timeline. */
+.profile-card--fill {
+  flex: 1;
+  min-height: 0;
+}
+
 /* Card with the identity avatar, e-mail, role badge and fact tiles. */
 .profile-identity__main {
   display: flex;
@@ -2271,6 +2280,42 @@ code {
   color: var(--text-muted);
 }
 
+/* Fresh account, empty trail: a dashed placeholder instead of a bare
+   sentence, so the stretched activity card never reads as broken. */
+.profile-empty {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 26px 16px;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-soft);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.profile-empty svg {
+  color: var(--primary);
+  opacity: 0.55;
+}
+
+.profile-empty p {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.profile-empty span {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 /* Discard + Save in one row; Discard only renders while there are edits. */
 .profile-card__actions {
   display: flex;
@@ -2285,6 +2330,17 @@ code {
   margin: 2px 0 0;
   padding: 0;
   list-style: none;
+}
+
+/* Inside the stretched activity card, the trail scrolls within the card
+   when there are more entries than fit — the card never overflows the page. */
+.profile-card--fill .profile-timeline {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
 }
 
 .profile-timeline::before {

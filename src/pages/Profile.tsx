@@ -103,7 +103,8 @@ function Profile({ profile, onSaved }: ProfileProps) {
   const canSave = Boolean(profile) && dirty && fullName.trim().length > 0
 
   // The user's own recent audit entries drive two views: the hero's "Active"
-  // chip and the timeline card. A fetch failure is not worth a page error.
+  // chip and the timeline card. Twelve entries keep the trail's column as
+  // tall as its neighbour; a fetch failure is not worth a page error.
   const [logs, setLogs] = useState<ActivityLogEntry[]>([])
   const [activityRefresh, setActivityRefresh] = useState(0)
   const latestEntry = logs[0] ?? null
@@ -114,7 +115,7 @@ function Profile({ profile, onSaved }: ProfileProps) {
   useEffect(() => {
     if (!profile?.email) return
     let cancelled = false
-    fetchActivityLogs({ userEmail: profile.email, limit: 4 })
+    fetchActivityLogs({ userEmail: profile.email, limit: 12 })
       .then((entries) => {
         if (!cancelled) setLogs(entries)
       })
@@ -427,7 +428,7 @@ function Profile({ profile, onSaved }: ProfileProps) {
 
         {/* RIGHT: recent activity */}
         <div className="profile-col">
-          <section className="panel profile-card card-enter" aria-label="Recent activity">
+          <section className="panel profile-card card-enter profile-card--fill" aria-label="Recent activity">
             <div className="profile-card__head">
               <h3><Icon name="clock" size={15} />Recent activity</h3>
               <span className="profile-card__hint">your audit trail</span>
@@ -451,7 +452,11 @@ function Profile({ profile, onSaved }: ProfileProps) {
                 })}
               </ul>
             ) : (
-              <p className="profile-note-plain">No activity recorded yet — actions you take will appear here.</p>
+              <div className="profile-empty">
+                <Icon name="clock" size={20} />
+                <p>No activity recorded yet</p>
+                <span>Actions you take across the system will appear here as they happen.</span>
+              </div>
             )}
           </section>
         </div>
