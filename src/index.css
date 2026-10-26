@@ -1,9 +1,9 @@
 /* 2026 Presentable theme */
 :root {
-  --bg-app: #e2ece3;
+  --bg-app: #ffffff;
   --bg-panel: #f8fbf8;
-  --bg-soft: #e9f2ea;
-  --border: #d9e4da;
+  --bg-soft: #eef4ee;
+  --border: #dfe8de;
   --border-strong: #c7d4c9;
   --text: #0f172a;
   --text-muted: #64748b;
@@ -66,12 +66,14 @@ body,
 body {
   margin: 0;
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  /* The light app background again: soft sage with the two faint radial
-     tints the starter shipped. The circuit art stays on the login only. */
+  /* The app field matches the sign-in page: white carrying the same soft
+     green/gold glows, kept still and faint — the login's animated blur
+     blobs would fight the content, and the dark-green card face covers
+     much of it there. */
   background-color: var(--bg-app);
   background-image:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(22, 163, 74, 0.05), transparent 60%),
-    radial-gradient(ellipse 40% 30% at 100% 0%, rgba(245, 197, 24, 0.04), transparent 55%);
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(22, 163, 74, 0.08), transparent 60%),
+    radial-gradient(ellipse 40% 30% at 100% 0%, rgba(245, 197, 24, 0.05), transparent 55%);
   color: var(--text);
   font-size: 15px;
   line-height: 1.5;
