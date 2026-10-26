@@ -6049,7 +6049,9 @@ button.reports-panel__more:hover {
   justify-content: center;
   padding: 24px;
   overflow: hidden;
-  background: #ffffff;
+  /* Same sage field as the signed-in app (var(--bg-app)) — one backdrop
+     story across the system; the glow blobs sit on it as before. */
+  background: var(--bg-app);
 }
 
 .login-blobs {
