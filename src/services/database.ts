@@ -213,7 +213,7 @@ export async function uploadAvatar(profileId: string, file: File): Promise<strin
     .upload(path, file, { upsert: true, contentType: file.type })
   if (error) {
     if (error.message.toLowerCase().includes('security')) {
-      throw new Error('Could not save the picture — the avatars storage bucket is missing its upload policy. Run migrations/005-profile-username-avatar.sql.')
+      throw new Error('Could not save the picture — the avatars storage bucket is missing its upload policy. Run migrations/005-profile-picture-and-nickname.sql.')
     }
     throw error
   }

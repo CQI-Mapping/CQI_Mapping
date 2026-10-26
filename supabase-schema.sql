@@ -56,7 +56,7 @@ CREATE TABLE public.profiles (
     nickname TEXT,
     -- Public URL of the profile picture: the email-derived Gravatar or an
     -- upload in the 'avatars' storage bucket (avatars/<uid>/avatar).
-    -- See migrations/005-profile-username-avatar.sql for the bucket RLS.
+    -- See migrations/005-profile-picture-and-nickname.sql for the bucket RLS.
     avatar_url TEXT,
     role user_role NOT NULL DEFAULT 'user',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
