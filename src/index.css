@@ -1791,6 +1791,312 @@ code {
   grid-template-columns: 2fr 2fr 2fr 1fr 2fr auto;
 }
 
+/* ---- Admin "Add User" — persona card ----
+   Direction A from design/add-user-redesign.html, implemented: the form's
+   fields grouped by intent — a section for who the person is, then one for
+   how they sign in — with the role as three explainer cards instead of a
+   blind dropdown, and the program field revealing only for the roles it
+   genuinely scopes. The legacy .create-user row stays because the
+   manager's Add User form still uses it. */
+
+.au {
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.au__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px 22px 16px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(90deg, rgba(34, 197, 94, 0.07), transparent 55%);
+}
+
+.au__head h3 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  font-size: 16px;
+}
+
+.au__badge {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--primary-light), var(--primary-dark));
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+  box-shadow: 0 4px 10px rgba(22, 163, 74, 0.35);
+}
+
+.au__head p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.au__body {
+  padding: 18px 22px 20px;
+  display: grid;
+  gap: 20px;
+}
+
+.au__section-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.au__section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.au__step {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--primary-dark);
+  color: #fff;
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.au__who {
+  display: grid;
+  grid-template-columns: 2fr 6fr;
+  gap: 18px;
+  margin-top: 12px;
+}
+
+/* The role as three selectable cards — choosing a role is a decision you
+   can see, each with a one-line "what they can do" and a tick when picked. */
+.role-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.role-card {
+  position: relative;
+  text-align: left;
+  font: inherit;
+  width: 100%;
+  cursor: pointer;
+  padding: 12px 13px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1.5px solid var(--border);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s var(--ease-spring), background 0.15s ease;
+}
+
+.role-card:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+
+.role-card .rc-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.role-card .rc-head svg {
+  color: var(--text-muted);
+  transition: color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.role-card .rc-desc {
+  margin: 5px 0 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.role-card[aria-pressed='true'] {
+  border-color: var(--primary);
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(34, 197, 94, 0.03));
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.14);
+}
+
+.role-card[aria-pressed='true'] .rc-head svg {
+  color: var(--primary);
+}
+
+.role-card .rc-tick {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity 0.18s var(--ease-spring), transform 0.18s var(--ease-spring);
+}
+
+.role-card[aria-pressed='true'] .rc-tick {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* The program field reveals only when the picked role needs one. */
+.au__program {
+  margin-top: 14px;
+  animation: cardIn 0.3s var(--ease-spring) both;
+}
+
+.au__select {
+  position: relative;
+}
+
+.au__select svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.au__select select {
+  width: 100%;
+  padding-left: 36px;
+}
+
+/* The admin's dashed chip: states why no program applies. */
+.au__hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 10px 13px;
+  border-radius: 12px;
+  background: var(--bg-soft);
+  border: 1px dashed var(--border-strong);
+  font-size: 12.5px;
+  color: var(--text-muted);
+  animation: cardIn 0.3s var(--ease-spring) both;
+}
+
+.au__hint svg {
+  flex-shrink: 0;
+  color: var(--primary);
+}
+
+/* Credentials: email with its icon, password with its toggle. */
+.au__creds {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.au-mail {
+  position: relative;
+}
+
+.au-mail svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.au-mail .input {
+  padding-left: 36px;
+}
+
+.au__cred-note {
+  grid-column: 1 / -1;
+  margin: -4px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Footer: helper text on the left, breathing gradient CTA on the right. */
+.au__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 22px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-soft);
+}
+
+.au__foot p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+@media (max-width: 860px) {
+  .au__who {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .au__creds {
+    grid-template-columns: 1fr;
+  }
+  .role-cards {
+    grid-template-columns: 1fr;
+  }
+  .au__foot {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    text-align: center;
+  }
+}
+
+/* A fetched account's program chip in the All Users table. */
+.users-program-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.users-program-chip--none {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
 /* ---- Resources ---- */
 
 .create-resource {

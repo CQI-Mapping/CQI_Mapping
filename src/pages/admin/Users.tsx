@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react'
 import Icon from '../../components/icons'
 import { useDraft } from '../../hooks/useDraft'
-import { adminCreateUser, adminDeleteUser, addActivityLog, fetchAllProfiles, fetchPrograms, updateUserRole } from '../../services/database'
+import { adminCreateUser, adminDeleteUser, addActivityLog, fetchAllProfilesWithProgram, fetchPrograms, profileProgramOf, updateUserRole } from '../../services/database'
 import { supabase } from '../../utils/supabaseClient'
-import type { Profile, Program, UserRole } from '../../services/database'
+import type { ProfileWithProgram, Program, UserRole } from '../../services/database'
 
 const ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Admin',
@@ -32,7 +32,7 @@ export default function Users() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  const [users, setUsers] = useState<Profile[]>([])
+  const [users, setUsers] = useState<ProfileWithProgram[]>([])
   const [loading, setLoading] = useState(true)
   const [currentEmail, setCurrentEmail] = useState('')
   const [roleBusyId, setRoleBusyId] = useState('')
@@ -40,7 +40,7 @@ export default function Users() {
 
   const loadUsers = async () => {
     setLoading(true)
-    try { setUsers(await fetchAllProfiles()) }
+    try { setUsers(await fetchAllProfilesWithProgram()) }
     catch (e) { setError('Unable to load users: ' + (e instanceof Error ? e.message : String(e))) }
     finally { setLoading(false) }
   }
@@ -89,6 +89,10 @@ export default function Users() {
       )
       clearDraft()
       setPassword('')
+      // The next creation is a fresh conscious pick: role and program reset
+      // with the credentials so an earlier assignment can't be reused.
+      setRole('')
+      setProgramId('')
       loadUsers()
     } catch (e) {
       setError('Failed to create user: ' + (e instanceof Error ? e.message : String(e)))
@@ -169,66 +173,140 @@ export default function Users() {
       {error && <p className="msg msg--error" role="alert">{error}</p>}
       {success && <p className="msg msg--success" role="status">{success}</p>}
 
-      <div className="panel create-user" style={{ borderTop: '3px solid #16a34a' }}>
-        <h3>Add User</h3>
+      {/* Add User — the persona-card concept from design/add-user-redesign.html:
+          fields grouped by intent (who the person is, then how they sign in),
+          the role as three explainer cards instead of a blind dropdown, and a
+          program field that only exists when the role actually scopes one. */}
+      <div className="panel au">
+        <div className="au__head">
+          <h3><span className="au__badge" aria-hidden="true">＋</span>Add User</h3>
+          <p>Creates the account immediately — everything can be changed later in Profile.</p>
+        </div>
+
         <form onSubmit={handleSubmit}>
-          <div className={`create-user__row${roleNeedsProgram ? ' create-user__row--with-program' : ''}`}>
-            <label className="field">
-              <span>Email</span>
-              <input className="input" type="email" placeholder="user@example.com" value={email} required
-                onChange={(e) => setEmail(e.target.value)} />
-            </label>
-            <label className="field">
-              <span>Password</span>
-              <div className="password-wrapper">
-                <input className="input" type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••" value={password} required
-                  onChange={(e) => setPassword(e.target.value)} />
-                <button type="button" className="password-toggle" onClick={() => setShowPassword(!showPassword)}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}>
-                  {showPassword ? 'Hide' : 'Show'}
-                </button>
+          <div className="au__body">
+            {/* 1 · Who is this person */}
+            <div>
+              <div className="au__section-title"><span className="au__step">1</span>Who is this person</div>
+              <div className="au__who">
+                <label className="field">
+                  <span>Full name</span>
+                  <input className="input" type="text" placeholder="Juan Dela Cruz" value={fullName}
+                    onChange={(e) => setFullName(e.target.value)} />
+                </label>
+                <div className="field">
+                  <span>Role</span>
+                  <div className="role-cards" role="group" aria-label="Role">
+                    <button type="button" className="role-card" aria-pressed={role === 'admin'}
+                      onClick={() => setRole('admin')}>
+                      <span className="rc-tick" aria-hidden="true"><Icon name="check" size={9} strokeWidth={3.6} /></span>
+                      <span className="rc-head">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z" />
+                        </svg>
+                        Administrator
+                      </span>
+                      <p className="rc-desc">Runs the whole system — programs, accounts, reports. Not bounded to one program.</p>
+                    </button>
+                    <button type="button" className="role-card" aria-pressed={role === 'manager'}
+                      onClick={() => setRole('manager')}>
+                      <span className="rc-tick" aria-hidden="true"><Icon name="check" size={9} strokeWidth={3.6} /></span>
+                      <span className="rc-head">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <rect x="3" y="7" width="18" height="13" rx="2" />
+                          <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        </svg>
+                        Program Head
+                      </span>
+                      <p className="rc-desc">Leads CQI for one program — outcomes, alignment and that program's courses.</p>
+                    </button>
+                    <button type="button" className="role-card" aria-pressed={role === 'user'}
+                      onClick={() => setRole('user')}>
+                      <span className="rc-tick" aria-hidden="true"><Icon name="check" size={9} strokeWidth={3.6} /></span>
+                      <span className="rc-head">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <rect x="3" y="4" width="18" height="18" rx="2" />
+                          <path d="M7 10h10M7 14h6" />
+                        </svg>
+                        Faculty
+                      </span>
+                      <p className="rc-desc">Teaches assigned subjects and tracks CLO progress for their own classes.</p>
+                    </button>
+                  </div>
+                </div>
               </div>
-            </label>
-            <label className="field">
-              <span>Full name</span>
-              <input className="input" type="text" placeholder="Juan Dela Cruz" value={fullName}
-                onChange={(e) => setFullName(e.target.value)} />
-            </label>
-            <label className="field">
-              <span>Role</span>
-              <select
-                className="input"
-                value={role}
-                onChange={(e) => setRole(e.target.value as UserRole)}
-                required
-              >
-                <option value="" disabled>Please select role</option>
-                <option value="manager">Manager</option>
-                <option value="admin">Admin</option>
-                <option value="user">Faculty</option>
-              </select>
-            </label>
-            {roleNeedsProgram && (
-              <label className="field">
-                <span>Program</span>
-                <select
-                  className="input"
-                  value={programId}
-                  required
-                  disabled={busy || programs.length === 0}
-                  onChange={(e) => setProgramId(e.target.value)}
-                >
-                  <option value="">
-                    {programs.length === 0 ? 'No programs on file — add one first' : 'Select program…'}
-                  </option>
-                  {programs.map((p) => (
-                    <option key={p.id} value={p.id}>{p.code} — {p.name}</option>
-                  ))}
-                </select>
-              </label>
-            )}
-            <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
+
+              {role === 'admin' ? (
+                <div className="au__hint">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M12 8v5M12 16.5v.5" />
+                  </svg>
+                  Administrators see every program — no assignment needed.
+                </div>
+              ) : roleNeedsProgram ? (
+                <label className="field au__program">
+                  <span>Program</span>
+                  <div className="au__select">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4" />
+                    </svg>
+                    <select
+                      className="input"
+                      value={programId}
+                      required
+                      disabled={busy || programs.length === 0}
+                      onChange={(e) => setProgramId(e.target.value)}
+                    >
+                      <option value="">
+                        {programs.length === 0 ? 'No programs on file — add one first' : 'Select program…'}
+                      </option>
+                      {programs.map((p) => (
+                        <option key={p.id} value={p.id}>{p.code} — {p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </label>
+              ) : null}
+            </div>
+
+            {/* 2 · How they sign in */}
+            <div>
+              <div className="au__section-title"><span className="au__step">2</span>How they sign in</div>
+              <div className="au__creds">
+                <label className="field">
+                  <span>Email</span>
+                  <div className="au-mail">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <rect x="2" y="4" width="20" height="16" rx="2" />
+                      <path d="M22 7l-10 6L2 7" />
+                    </svg>
+                    <input className="input" type="email" placeholder="user@example.com" value={email} required
+                      onChange={(e) => setEmail(e.target.value)} />
+                  </div>
+                </label>
+                <label className="field">
+                  <span>Password</span>
+                  <div className="password-wrapper">
+                    <input className="input" type={showPassword ? 'text' : 'password'}
+                      placeholder="••••••••" value={password} required
+                      onChange={(e) => setPassword(e.target.value)} />
+                    <button type="button" className="password-toggle" onClick={() => setShowPassword(!showPassword)}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}>
+                      {showPassword ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+                </label>
+                <p className="au__cred-note">
+                  At least 6 characters — the new user can change it after signing in, or reset it from the sign-in page themselves.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="au__foot">
+            <p>A welcome email is sent when the mail service is configured — otherwise share the password directly.</p>
+            <button className="btn btn--primary" type="submit" disabled={busy}>
               {busy ? 'Creating...' : (<><Icon name="plus" size={13} /> Create User</>)}
             </button>
           </div>
@@ -249,41 +327,53 @@ export default function Users() {
           </div>
         ) : (
           <table className="table">
-            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th></th></tr></thead>
+            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Program</th><th>Joined</th><th></th></tr></thead>
             <tbody>
-              {users.map((u) => (
-                <tr key={u.id}>
-                  <td>{u.full_name || '—'}</td>
-                  <td>{u.email}</td>
-                  <td>
-                    <span className={`role-badge role-badge--${u.role}`}>{u.role}</span>
-                    <select
-                      className="input input--sm"
-                      style={{ marginLeft: 8, maxWidth: 130 }}
-                      aria-label={`Change role for ${u.email}`}
-                      value={u.role}
-                      disabled={roleBusyId === u.id}
-                      onChange={(e) => handleRoleChange(u.id, e.target.value as UserRole, u.email)}
-                    >
-                      <option value="admin">Admin</option>
-                      <option value="manager">Manager</option>
-                      <option value="user">Faculty</option>
-                    </select>
-                  </td>
-                  <td>{new Date(u.created_at).toLocaleDateString()}</td>
-                  <td>
-                    {u.email !== currentEmail && (
-                      <button
-                        className="btn btn--danger btn--sm"
-                        disabled={deleteBusyId === u.id}
-                        onClick={() => handleDelete(u.id, u.email)}
+              {users.map((u) => {
+                const assigned = profileProgramOf(u)
+                return (
+                  <tr key={u.id}>
+                    <td>{u.full_name || '—'}</td>
+                    <td>{u.email}</td>
+                    <td>
+                      <span className={`role-badge role-badge--${u.role}`}>{u.role}</span>
+                      <select
+                        className="input input--sm"
+                        style={{ marginLeft: 8, maxWidth: 130 }}
+                        aria-label={`Change role for ${u.email}`}
+                        value={u.role}
+                        disabled={roleBusyId === u.id}
+                        onChange={(e) => handleRoleChange(u.id, e.target.value as UserRole, u.email)}
                       >
-                        {deleteBusyId === u.id ? 'Removing...' : (<><Icon name="trash" size={13} /> Remove</>)}
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                        <option value="admin">Admin</option>
+                        <option value="manager">Manager</option>
+                        <option value="user">Faculty</option>
+                      </select>
+                    </td>
+                    <td>
+                      {assigned ? (
+                        <span className="users-program-chip" title={assigned.name}>{assigned.code}</span>
+                      ) : (
+                        <span className="users-program-chip users-program-chip--none">
+                          {u.role === 'admin' ? 'All programs' : 'None'}
+                        </span>
+                      )}
+                    </td>
+                    <td>{new Date(u.created_at).toLocaleDateString()}</td>
+                    <td>
+                      {u.email !== currentEmail && (
+                        <button
+                          className="btn btn--danger btn--sm"
+                          disabled={deleteBusyId === u.id}
+                          onClick={() => handleDelete(u.id, u.email)}
+                        >
+                          {deleteBusyId === u.id ? 'Removing...' : (<><Icon name="trash" size={13} /> Remove</>)}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         )}

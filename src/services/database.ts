@@ -238,6 +238,37 @@ export async function fetchAllProfiles(): Promise<Profile[]> {
   return data
 }
 
+/**
+ * The same profile with the account's program join resolved.
+ *
+ * fetchAllProfilesWithProgram selects `program_id ( id, code, name )`, so an
+ * assigned account's program_id is an OBJECT, not the uuid — the same dual
+ * shape fetchCourses' join gives course.program_id. Admins, and accounts no
+ * one has assigned yet, hold program_id: null.
+ */
+export interface ProfileWithProgram extends Omit<Profile, 'program_id'> {
+  program_id: string | { id: string; code: string; name: string } | null
+}
+
+/** The assigned program of a fetched profile, when the join resolved a real
+    programs row — null for admins and the unassigned. */
+export function profileProgramOf(
+  profile: ProfileWithProgram,
+): { id: string; code: string; name: string } | null {
+  return typeof profile.program_id === 'object' && profile.program_id ? profile.program_id : null
+}
+
+/** Admin's Users & Accounts list: every profile with its program code,
+    name and id joined for display. Other callers keep plain fetchAllProfiles. */
+export async function fetchAllProfilesWithProgram(): Promise<ProfileWithProgram[]> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*, program_id ( id, code, name )')
+    .order('full_name', { ascending: true })
+  if (error) throw error
+  return data
+}
+
 export async function updateUserRole(profileId: string, role: UserRole): Promise<Profile> {
   const { data, error } = await supabase
     .from('profiles')
