@@ -1,14 +1,10 @@
 // Login page: the only entry point to the system.
 // Validates fields client-side, shows a generic error (never leaks Supabase details),
 // and records every sign-in attempt to the audit log via the record_login_event RPC.
-// UI: the NBSC brand plate (src/assets/login-bg.jpg) as the full-page background,
-// with the sign-in card floating centered over it.
-// Styles live in src/styles/Login.css.
 
 import { useState } from 'react'
 import { supabase } from '../utils/supabaseClient'
 import { recordLoginEvent } from '../services/database'
-import '../styles/Login.css'
 
 function Login() {
   const [email, setEmail] = useState('')
@@ -66,11 +62,20 @@ function Login() {
 
   return (
     <div className="login-page">
+      {/* Animated aurora blobs */}
+      <div className="login-blobs" aria-hidden="true">
+        <span className="login-blob login-blob--1" />
+        <span className="login-blob login-blob--2" />
+        <span className="login-blob login-blob--3" />
+      </div>
+
+      {/* Sign-in form panel */}
       <div className="login-panel">
         <div className="login-card">
           <div className="login-brand">
+            <div className="login-brand-mark">CQI</div>
             <h1>CQI Monitoring</h1>
-            <p className="login-subtitle">Log in to your account</p>
+            <p className="login-subtitle">NBSC · Institute of Computer Studies</p>
           </div>
 
           {error && <div className="login-alert login-alert--error" role="alert">{error}</div>}
@@ -145,7 +150,7 @@ function Login() {
                   Signing in…
                 </span>
               ) : (
-                <>Sign In &rarr;</>
+                <>Sign In →</>
               )}
             </button>
           </form>
