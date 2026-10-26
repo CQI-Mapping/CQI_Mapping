@@ -1,9 +1,9 @@
 /* ================================================================
-   Login — circuit-plate theme
-   The user's dark green circuit artwork (src/assets/login-bg.jpg)
-   covers the whole page behind a thin dark veil; the cream sign-in
-   card floats centered over it. Companion to src/pages/Login.tsx
-   (loads after index.css).
+   Login — brand-plate theme
+   The NBSC "CQI MONITORING" artwork (src/assets/login-bg.jpg) covers
+   the whole page behind a soft dark veil; the cream sign-in card
+   floats centered over it. Companion to src/pages/Login.tsx (loads
+   after index.css).
    ================================================================ */
 
 .login-page {
@@ -15,11 +15,10 @@
   --lp-green: #3a7a45;
   --lp-green-dark: #27552f;
 
-  /* The veil is thin: the circuit artwork is already dark at the center
-     where the card sits, and the user asked for this art as the plain
-     background - keep its texture and stripes visible. */
+  /* The veil deepens the artwork so the cream card pops against it;
+     the artwork itself keeps the wordmark, washes and flecks. */
   background:
-    linear-gradient(rgba(15, 40, 25, 0.15), rgba(15, 40, 25, 0.15)),
+    linear-gradient(rgba(15, 40, 25, 0.36), rgba(15, 40, 25, 0.36)),
     url('../assets/login-bg.jpg') center / cover no-repeat,
     var(--lp-cream);
   color: var(--lp-ink);
@@ -36,18 +35,14 @@
 }
 
 .login-card {
-  /* Deep-green glass over the circuit wallpaper, the friend design's card:
-     translucent, green-edged, faint glow. */
-  background: linear-gradient(160deg, rgba(20, 56, 40, 0.78), rgba(11, 35, 25, 0.86));
-  -webkit-backdrop-filter: blur(12px) saturate(1.1);
-  backdrop-filter: blur(12px) saturate(1.1);
-  border: 1px solid rgba(102, 220, 130, 0.25);
-  border-radius: 20px;
-  padding: 30px 30px 26px;
-  color: #f3fbf4;
-  box-shadow:
-    0 30px 60px -22px rgba(0, 0, 0, 0.65),
-    0 0 44px -8px rgba(34, 197, 94, 0.18);
+  background: rgba(252, 249, 238, 0.88);
+  -webkit-backdrop-filter: blur(9px) saturate(1.05);
+  backdrop-filter: blur(9px) saturate(1.05);
+  border: 1px solid rgba(221, 213, 191, 0.9);
+  border-radius: 18px;
+  padding: 30px 30px 24px;
+  color: var(--lp-ink);
+  box-shadow: 0 28px 56px -24px rgba(11, 30, 18, 0.55), 0 2px 10px rgba(11, 30, 18, 0.16);
   animation: lp-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -67,31 +62,17 @@
 .login-brand h1,
 .login-card > h2 {
   margin: 0;
-  font-size: 26px;
+  font-size: 21px;
   font-weight: 800;
   letter-spacing: -0.02em;
-  color: #fff;
+  color: var(--lp-ink);
   text-align: center;
 }
 
-/* Visually hidden labels: the design drops the floating captions, but
-   screen readers and label-click focus still need them. */
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-  border: 0;
-}
-
 .login-subtitle {
-  margin: 6px 0 0;
-  color: rgba(210, 245, 222, 0.82);
-  font-size: 13.5px;
+  margin: 5px 0 0;
+  color: var(--lp-muted);
+  font-size: 12.5px;
   letter-spacing: 0.02em;
   text-align: center;
 }
@@ -106,9 +87,9 @@
 }
 
 .login-alert--error {
-  background: rgba(127, 29, 29, 0.35);
-  border: 1px solid rgba(248, 113, 113, 0.4);
-  color: #fecaca;
+  background: #fbe9e4;
+  border: 1px solid #eec7bc;
+  color: #93321f;
   animation: login-shake 0.3s ease;
 }
 
@@ -135,16 +116,6 @@
 
 .login-card .input-wrap {
   position: relative;
-  background: rgba(255, 255, 255, 0.09);
-  border: 1px solid rgba(255, 255, 255, 0.17);
-  border-radius: 12px;
-  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.login-card .input-wrap:focus-within {
-  border-color: rgba(96, 220, 140, 0.6);
-  background: rgba(255, 255, 255, 0.12);
-  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.22);
 }
 
 .login-card .input-wrap > svg {
@@ -152,36 +123,37 @@
   left: 14px;
   top: 50%;
   transform: translateY(-50%);
-  color: rgba(255, 255, 255, 0.88);
+  color: #a29d87;
   pointer-events: none;
 }
 
 .login-card .form-group input {
   width: 100%;
-  border: none;
+  border: 1px solid var(--lp-line);
   border-radius: 12px;
   padding: 12px 13px 12px 40px;
   font-size: 14px;
   font-family: inherit;
-  background: transparent;
-  color: #fff;
-  caret-color: #7de2a8;
-  transition: none;
+  background: #fff;
+  color: var(--lp-ink);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .login-card .form-group input:focus {
   outline: none;
+  border-color: var(--lp-green);
+  box-shadow: 0 0 0 3px rgba(58, 122, 69, 0.16);
 }
 
 .login-card .form-group input::placeholder {
-  color: rgba(255, 255, 255, 0.55);
+  color: #a9a68f;
 }
 
 .login-card .form-group input:-webkit-autofill,
 .login-card .form-group input:-webkit-autofill:hover,
 .login-card .form-group input:-webkit-autofill:focus {
-  -webkit-text-fill-color: #fff;
-  -webkit-box-shadow: 0 0 0 1000px #17402c inset;
+  -webkit-text-fill-color: var(--lp-ink);
+  -webkit-box-shadow: 0 0 0 1000px #fff inset;
   transition: background-color 5000s ease-in-out 0s;
 }
 
@@ -190,11 +162,11 @@
 }
 
 .login-card .password-toggle {
-  color: rgba(255, 255, 255, 0.75);
+  color: #a29d87;
 }
 
 .login-card .password-toggle:hover {
-  color: #fff;
+  color: var(--lp-green);
 }
 
 /* ---------- button ---------- */
@@ -203,18 +175,18 @@
   position: relative;
   overflow: hidden;
   width: 100%;
-  margin-top: 12px;
+  margin-top: 6px;
   border: none;
   border-radius: 12px;
   padding: 13px 16px;
-  background: linear-gradient(135deg, #16a34a 0%, #22c55e 100%);
-  color: #fff;
+  background: linear-gradient(135deg, #3a7a45 0%, #2c6234 100%);
+  color: #f3f7ea;
   font-size: 15px;
   font-family: inherit;
   font-weight: 700;
   letter-spacing: 0.3px;
   cursor: pointer;
-  box-shadow: 0 16px 28px -14px rgba(22, 138, 62, 0.8);
+  box-shadow: 0 16px 28px -14px rgba(44, 98, 52, 0.75);
   transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
 }
 
