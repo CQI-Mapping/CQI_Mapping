@@ -5740,18 +5740,18 @@ button.reports-panel__more:hover {
 
 .login-card .form-group input {
   width: 100%;
-  border: 1px solid rgba(0, 0, 0, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 11px;
   padding: 12px 13px 12px 40px;
   font-size: 14px;
   font-family: inherit;
-  background: #fff;
-  color: #111;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
 .login-card .form-group input::placeholder {
-  color: rgba(0, 0, 0, 0.4);
+  color: rgba(255, 255, 255, 0.4);
 }
 
 .login-card .form-group input:focus {
