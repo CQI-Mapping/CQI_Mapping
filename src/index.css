@@ -6245,7 +6245,7 @@ button.reports-panel__more:hover {
   font-size: 13px;
   font-weight: 600;
   font-family: inherit;
-  color: var(--login-green-light);
+  color: #fff; /* white on the dark-green card, like the body text */
   cursor: pointer;
   text-align: left;
 }
