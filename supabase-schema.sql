@@ -51,6 +51,9 @@ CREATE TABLE public.profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     email TEXT UNIQUE NOT NULL,
     full_name TEXT,
+    -- Casual name shown quoted (e.g. Maria "Bebot" dela Cruz). Optional;
+    -- reports and audit labels keep using full_name.
+    nickname TEXT,
     -- Public handle picked by the user. Optional and unique when set;
     -- the app only writes normalized (lowercase) values and enforces
     -- the format there, the UNIQUE constraint is the last guard.

@@ -31,6 +31,7 @@ export interface Profile {
   id: string
   email: string
   full_name: string | null
+  nickname: string | null
   username: string | null
   avatar_url: string | null
   role: UserRole
@@ -192,7 +193,7 @@ export async function ensureProfile(user: User): Promise<Profile> {
 
 export async function updateProfile(
   profileId: string,
-  updates: Partial<Pick<Profile, 'full_name' | 'username' | 'avatar_url'>>,
+  updates: Partial<Pick<Profile, 'full_name' | 'nickname' | 'username' | 'avatar_url'>>,
 ): Promise<Profile> {
   const { data, error } = await supabase
     .from('profiles')

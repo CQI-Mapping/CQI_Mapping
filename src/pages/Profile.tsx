@@ -23,6 +23,9 @@ const MIN_PASSWORD_LENGTH = 6
 /** Same cap the concept mockup stamped on the name field. */
 const NAME_MAX_LENGTH = 80
 
+/** Nicknames stay casual — a short, quotable word. */
+const NICKNAME_MAX_LENGTH = 40
+
 /** Handles: 3–30 of a-z, 0-9, dot, dash, underscore — starts alphanumerically.
  *  The DB unique index is the last guard; users without handles read null. */
 const USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{1,29}$/
@@ -85,10 +88,12 @@ function Profile({ profile, onSaved }: ProfileProps) {
   // Draft survives page navigation; cleared on successful save and on Discard.
   const [draft, setDraft] = useDraft('cqi.draft.Profile', {
     fullName: profile?.full_name || '',
+    nickname: profile?.nickname ?? '',
     username: profile?.username ?? '',
   })
-  const { fullName, username } = draft
+  const { fullName, nickname, username } = draft
   const setFullName = (v: string) => setDraft((d) => ({ ...d, fullName: v }))
+  const setNickname = (v: string) => setDraft((d) => ({ ...d, nickname: v }))
   const setUsername = (v: string) => setDraft((d) => ({ ...d, username: v.replace(/\s/g, '') }))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -97,14 +102,18 @@ function Profile({ profile, onSaved }: ProfileProps) {
   const role: UserRole = profile?.role ?? 'user'
   const savedName = profile?.full_name ?? ''
   const displayName = savedName || profile?.email || ''
+  const savedNickname = profile?.nickname ?? ''
   const savedUsername = profile?.username ?? ''
 
   // Handles save normalized: trimmed + downcased, empty clears the handle.
   const usernameNormalized = username.trim().toLowerCase()
   const usernameValid = usernameNormalized === '' || USERNAME_PATTERN.test(usernameNormalized)
+  // Nickname is casual and optional: trimmed, never empty-string in the DB.
+  const nicknameNormalized = nickname.trim()
   const nameDirty = fullName.trim() !== savedName
+  const nicknameDirty = nicknameNormalized !== savedNickname
   const usernameDirty = usernameNormalized !== savedUsername
-  const dirty = nameDirty || usernameDirty
+  const dirty = nameDirty || nicknameDirty || usernameDirty
   const canSave = Boolean(profile) && dirty && fullName.trim().length > 0 && usernameValid
 
   // Passwords stay in state only — useDraft persists to sessionStorage, which the
@@ -205,6 +214,7 @@ function Profile({ profile, onSaved }: ProfileProps) {
     try {
       const updated = await updateProfile(profile.id, {
         full_name: fullName.trim(),
+        nickname: nicknameNormalized || null,
         username: usernameNormalized || null,
       })
       await addActivityLog('profile.updated', {
@@ -213,7 +223,11 @@ function Profile({ profile, onSaved }: ProfileProps) {
         label: updated.full_name || updated.email,
       })
       onSaved(updated)
-      setDraft({ fullName: updated.full_name || '', username: updated.username ?? '' })
+      setDraft({
+        fullName: updated.full_name || '',
+        nickname: updated.nickname ?? '',
+        username: updated.username ?? '',
+      })
       setMessage('Profile saved.')
       setActivityRefresh((n) => n + 1)
     } catch (err) {
@@ -229,11 +243,11 @@ function Profile({ profile, onSaved }: ProfileProps) {
     }
   }
 
-  // Set the name and handle back to the saved values, wiping half-typed edits.
+  // Set name, nickname and handle back to the saved values, wiping edits.
   const handleDiscard = () => {
     setError('')
     setMessage('')
-    setDraft({ fullName: savedName, username: savedUsername })
+    setDraft({ fullName: savedName, nickname: savedNickname, username: savedUsername })
   }
 
   // ----- Profile picture -----
@@ -320,7 +334,7 @@ function Profile({ profile, onSaved }: ProfileProps) {
             <h2>Profile</h2>
             <p>
               {profile
-                ? `${displayName || 'Your account'}${profile.username ? ` · @${profile.username}` : ''}`
+                ? `${displayName || 'Your account'}${profile.nickname ? ` "${profile.nickname}"` : ''}${profile.username ? ` · @${profile.username}` : ''}`
                 : 'Loading your account…'}
             </p>
           </div>
@@ -381,6 +395,11 @@ function Profile({ profile, onSaved }: ProfileProps) {
                 <div className="profile-identity__meta">
                   <Icon name="mail" size={13} />
                   <span>{profile?.email ?? '—'}</span>
+                  {profile?.nickname && (
+                    <span className="profile-identity__handle" title="Known casually as">
+                      "{profile.nickname}"
+                    </span>
+                  )}
                   {profile?.username && (
                     <span className="profile-identity__handle" title="Your public handle">
                       @{profile.username}
@@ -422,9 +441,9 @@ function Profile({ profile, onSaved }: ProfileProps) {
             </div>
           </section>
 
-          <form className="panel profile-card card-enter" aria-label="Display name" onSubmit={handleSubmit}>
+          <form className="panel profile-card card-enter" aria-label="Name, nickname and handle" onSubmit={handleSubmit}>
             <div className="profile-card__head">
-              <h3><Icon name="user" size={15} />Display name</h3>
+              <h3><Icon name="user" size={15} />Name &amp; handle</h3>
               <span className="profile-card__hint">shown across reports &amp; audit logs</span>
             </div>
 
@@ -440,6 +459,23 @@ function Profile({ profile, onSaved }: ProfileProps) {
               />
               <span className="profile-name-count" aria-hidden="true">
                 {fullName.length} / {NAME_MAX_LENGTH}
+              </span>
+            </label>
+
+            <label className="field">
+              <span>Nickname</span>
+              <input
+                className="input"
+                type="text"
+                value={nickname}
+                maxLength={NICKNAME_MAX_LENGTH}
+                placeholder='what friends call you — e.g. "Bebot"'
+                autoComplete="off"
+                onChange={(e) => setNickname(e.target.value)}
+                disabled={!profile}
+              />
+              <span className="profile-name-count" aria-hidden="true">
+                {nickname.length} / {NICKNAME_MAX_LENGTH} · shown in quotes
               </span>
             </label>
 
