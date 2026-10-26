@@ -204,14 +204,12 @@ describe('renderReportsPdf sections', () => {
   renderReportsPdf(doc, base)
 
   it('numbers the section bands in order', () => {
+    // Three bands print: per request the sheet ends after the coverage chart.
     const headings = texts.filter((t) => /^\d+\.\s/.test(t.text) && t.font.includes('bold')).map((t) => t.text)
     expect(headings[0]).toBe('1.  Executive Summary')
     expect(headings).toContain('2.  Curriculum Mapping Summary')
     expect(headings).toContain('3.  PO Coverage Chart')
-    expect(headings).toContain('4.  CLO - PO Alignment Matrix')
-    expect(headings).toContain('5.  Alignment to PEOs, Goals and CHED Memoranda')
-    expect(headings).toContain('6.  CQI Monitoring & Recommendations')
-    expect(headings).toContain('7.  Key Findings and Remarks')
+    expect(headings.length).toBe(3)
   })
 
   it('draws the KPI values and their qualifiers', () => {
@@ -245,50 +243,6 @@ describe('renderReportsPdf sections', () => {
     expect(texts.some((t) => t.text.includes('no mapped CLOs'))).toBe(true)
   })
 
-  it('titles the matrix and its ending note honestly', () => {
-    expect(texts.some((t) => t.text === '4.  CLO - PO Alignment Matrix')).toBe(true)
-    expect(texts.some((t) => t.text.includes('names that program outcome'))).toBe(true)
-  })
-
-  it('names each document with the outcomes that cite it', () => {
-    expect(texts.some((t) => t.text === 'PEO 1')).toBe(true)
-    expect(texts.some((t) => t.text === 'Graduates demonstrate professional and ethical competence.')).toBe(true)
-    expect(texts.some((t) => t.text === 'Program outcomes (2): PO-1, PO-2')).toBe(true)
-    expect(texts.some((t) => t.text === 'Strategic Goal 2')).toBe(true)
-    // A document nothing cites is listed and said so, not skipped: the count
-    // is a finding here. Silence would read as a missing record.
-    expect(texts.some((t) => t.text === 'Program outcomes aligned: none')).toBe(true)
-  })
-
-  it('says plainly when no documents are recorded', () => {
-    const r = recorder()
-    renderReportsPdf(r.doc, { ...emptyModel, documents: { rows: [] } })
-    expect(r.texts.some((t) => t.text.includes('No PEOs, strategic goals or memoranda recorded'))).toBe(true)
-  })
-
-  it('prints the CQI action with its status', () => {
-    expect(texts.some((t) => t.text === 'Pending')).toBe(true)
-    expect(texts.some((t) => t.text.includes('unmapped CLOs'))).toBe(true)
-  })
-
-  it('says plainly when the CQI table is absent', () => {
-    const other = recorder()
-    renderReportsPdf(other.doc, emptyModel)
-    expect(other.texts.some((t) => t.text.includes('not set up on this database'))).toBe(true)
-  })
-
-  it('numbers the findings and the recommendations', () => {
-    expect(texts.some((t) => t.text === '1. Mapping coverage is 82% — 203 of 248 learning outcomes name a program outcome.')).toBe(true)
-    expect(texts.some((t) => t.text === '1.')).toBe(true)
-  })
-
-  it('signs the sheet with who prepared it', () => {
-    expect(texts.some((t) => t.text === 'Maria Santos')).toBe(true)
-    expect(texts.some((t) => t.text === 'Coordinator')).toBe(true)
-    expect(texts.some((t) => t.text === 'Reviewed by')).toBe(true)
-    expect(texts.some((t) => t.text === 'Date: October 17, 2026')).toBe(true)
-  })
-
   it('empties gracefully across every section', () => {
     // emptyModel exercises the same pass with nothing anywhere: no throw, and
     // every numbered band still present -- a section that vanished entirely
@@ -296,18 +250,30 @@ describe('renderReportsPdf sections', () => {
     const r = recorder()
     renderReportsPdf(r.doc, emptyModel)
     const headings = r.texts.filter((t) => /^\d+\.\s/.test(t.text)).map((t) => t.text)
-    expect(headings.length).toBe(7)
-    expect(r.texts.some((t) => t.text.includes('Nothing to align yet'))).toBe(true)
+    expect(headings.length).toBe(3)
   })
 
   it('keeps every line out of the footer band and clear of the running header', () => {
     // The defect this pins: a caption drawn with nothing behind it landed
     // where the footer stamps, and glyphs from the two interleaved. Body ink
     // is capped above the stamp zone on every page, and page 2 onward leaves
-    // the running header band (0..8mm) untouched.
+    // the running header band (0..8mm) untouched. The overflow rides the
+    // mapping table, the section that still paginates.
     const tall: ReportsPdfModel = {
       ...base,
-      findings: Array.from({ length: 40 }, (_, i) => `Finding number ${i + 1}, stated at length to keep the section flowing past page breaks.`),
+      mapping: {
+        rows: [
+          ...base.mapping.rows,
+          ...Array.from({ length: 60 }, (_, i) => ({
+            code: `IT${900 + i}`,
+            title: `Overflow course ${i + 1} kept the sheet past the page edge`,
+            year: '2026 - 2027',
+            semester: i % 2 ? '2' : '1',
+            clos: 3 + (i % 5),
+            status: i % 2 ? ('Partially Mapped' as const) : ('Mapped' as const),
+          })),
+        ],
+      },
     }
     const r = recorder()
     renderReportsPdf(r.doc, tall)

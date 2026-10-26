@@ -598,85 +598,11 @@ export function renderReportsPdf(doc: PdfDoc, model: ReportsPdfModel): void {
   else w.bars()
   w.gap()
 
-  // ---- 4. CLO-to-PO matrix ----
-  // The band prints even with nothing to align -- a numbered sheet that skips
-  // its own numbers reads as pages falling out of a bound one.
-  const cols = model.matrix.columns
-  w.sectionHeading(4, 'CLO - PO Alignment Matrix')
-  if (cols.length === 0 || model.matrix.rows.length === 0) {
-    w.empty('Nothing to align yet: map learning outcomes to program outcomes first.')
-  } else {
-    w.sub(`${model.matrix.rows.length} mapped learning outcome(s) across ${cols.length} program outcome(s). ${model.matrix.unmappedCount} further outcome(s) map nothing.`)
-    const colW = Math.min(11, (CONTENT_W - 24) / cols.length)
-    // Column headings ride their own row so the letter codes stay readable,
-    // and ink navy -- the alignment headers are navy in the documents too.
-    w.tableHeader(
-      ['', ...cols.map((c) => c.label)],
-      [24, ...cols.map(() => colW)],
-      cols.map(() => 'left' as Align),
-      false,
-      NAVY,
-    )
-    for (const row of model.matrix.rows) {
-      w.matrixRow(row.label, row.hits, cols.length, colW)
-    }
-    w.sub('A filled cell means the learning outcome names that program outcome. The matrix reads from the outcomes themselves; noting depth per cell has yet to be captured.')
-  }
-  w.gap()
-
-  // ---- 5. Alignment to PEOs, Goals and CHED Memoranda ----
-  // The named side of the alignment: each institutional document with the
-  // program outcomes that cite it, so the reader can walk one document to the
-  // outcomes that carry it.
-  w.sectionHeading(5, 'Alignment to PEOs, Goals and CHED Memoranda')
-  if (model.documents.rows.length === 0) {
-    w.empty('No PEOs, strategic goals or memoranda recorded yet.')
-  } else {
-    for (const entry of model.documents.rows) {
-      // Keep a document and its outcome list together: an entry split across
-      // a page break reads as two documents.
-      w.space(3 * LEADING + 4)
-      w.put(entry.label, MARGIN, { style: 'bold', size: SIZE.body })
-      if (entry.detail) w.put(entry.detail, MARGIN, { color: MUTED, size: SIZE.foot })
-      w.put(
-        entry.codes.length > 0
-          ? `Program outcomes (${entry.codes.length}): ${entry.codes.join(', ')}`
-          : 'Program outcomes aligned: none',
-        MARGIN + 3,
-        { color: DARK, size: SIZE.foot },
-      )
-      w.nudge(2.2)
-    }
-  }
-  w.gap()
-
-  // ---- 6. CQI Actions ----
-  w.sectionHeading(6, 'CQI Monitoring & Recommendations')
-  const cw = [18, 66, 30, 24, CONTENT_W - 138]
-  const cAligns: Align[] = ['left', 'left', 'left', 'left', 'left']
-  w.tableHeader(['Code', 'Recommendation', 'Responsible', 'Target Date', 'Status'], cw, cAligns, true)
-  if (model.cqi.missing) w.empty('The CQI actions table is not set up on this database yet.')
-  else if (model.cqi.rows.length === 0) w.empty('No CQI actions recorded.')
-  else {
-    for (const row of model.cqi.rows) {
-      w.row([row.code, row.recommendation, row.responsible, row.target ?? '—', row.status], cw, cAligns)
-    }
-  }
-  w.gap()
-
-  // ---- 7. Findings and remarks ----
-  w.sectionHeading(7, 'Key Findings and Remarks')
-  let n = 0
-  for (const finding of model.findings) {
-    n += 1
-    w.put(`${n}. ${finding}`, MARGIN + 2, { size: SIZE.body })
-  }
-  w.gap()
-  w.put('Recommendations', MARGIN, { style: 'bold', color: DARK })
-  w.bulleted(model.recommendations, true)
-  w.gap()
-
-  w.signatureRow(model.signatures.date)
+  // ---- 4-7. Per request the printed sheet ends at the coverage chart: the
+  //      CLO-PO alignment matrix, the PEO / Goal / CHED alignment documents,
+  //      the CQI actions table, the findings-and-recommendations section and
+  //      the signature row draw no longer. The model keeps its fields for when
+  //      these sections print again.
 
   // ---- repeat section bands for tables that broke mid-section handled in
   //      drawHeaderRow; footers are stamped last, when the count is known ----
