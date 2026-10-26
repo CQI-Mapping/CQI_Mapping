@@ -34,6 +34,7 @@ export interface Profile {
   nickname: string | null
   avatar_url: string | null
   role: UserRole
+  program_id: string | null
   created_at: string
   updated_at: string
 }
@@ -285,11 +286,18 @@ async function invokeAdminUsers(body: Record<string, unknown>): Promise<unknown>
   return data
 }
 
+/**
+ * Creates an account through the admin-users Edge Function.
+ * `programId` is admin-only and pairs with the manager/faculty roles —
+ * the Edge Function verifies the id against the programs table and
+ * clears it for admins, so the form can send what it picked as-is.
+ */
 export async function adminCreateUser(
   email: string,
   password: string,
   fullName: string,
-  role: UserRole
+  role: UserRole,
+  programId?: string | null,
 ): Promise<AdminCreateUserResult> {
   const data = (await invokeAdminUsers({
     action: 'create',
@@ -297,6 +305,7 @@ export async function adminCreateUser(
     password,
     fullName,
     role,
+    ...(programId ? { programId } : {}),
   })) as AdminCreateUserResult
   return data
 }

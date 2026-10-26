@@ -63,6 +63,15 @@ CREATE TABLE public.profiles (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Program assignment for manager/faculty accounts lives here rather than
+-- inline in profiles above: programs is created further down, and Postgres
+-- does not allow forward references. See migrations/006-profile-program.sql
+-- for existing databases.
+ALTER TABLE public.profiles
+    ADD COLUMN IF NOT EXISTS program_id UUID REFERENCES public.programs(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS profiles_program_id_idx ON public.profiles (program_id);
+
 CREATE TABLE public.resources (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       title TEXT NOT NULL,

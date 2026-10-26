@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react'
 import Icon from '../../components/icons'
 import { useDraft } from '../../hooks/useDraft'
-import { adminCreateUser, adminDeleteUser, addActivityLog, fetchAllProfiles, updateUserRole } from '../../services/database'
+import { adminCreateUser, adminDeleteUser, addActivityLog, fetchAllProfiles, fetchPrograms, updateUserRole } from '../../services/database'
 import { supabase } from '../../utils/supabaseClient'
-import type { Profile, UserRole } from '../../services/database'
+import type { Profile, Program, UserRole } from '../../services/database'
 
 const ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Admin',
@@ -23,6 +23,9 @@ export default function Users() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [role, setRole] = useState<UserRole>('manager')
+  // Program assignment for manager/faculty accounts (hidden for admins).
+  const [programId, setProgramId] = useState('')
+  const [programs, setPrograms] = useState<Program[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -41,20 +44,28 @@ export default function Users() {
 
   useEffect(() => {
     loadUsers()
+    fetchPrograms()
+      .then(setPrograms)
+      .catch(() => { /* dropdown shows its empty state; creating still possible for admins */ })
     supabase?.auth.getUser().then(({ data }) => {
       if (data?.user?.email) setCurrentEmail(data.user.email)
     }).catch(() => { /* keep empty; self-guard falls back to allowing row actions */ })
   }, [])
+
+  const roleNeedsProgram = role !== 'admin'
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setSuccess('')
     if (!email.trim() || !password.trim()) { setError('Email and password are required.'); return }
+    // Managers and faculty are program-scoped accounts — the program is
+    // required so the dropdown choice can't silently be forgotten.
+    if (roleNeedsProgram && !programId) { setError('Choose the program this account belongs to.'); return }
     setBusy(true)
     try {
       const createdEmail = email.trim()
-      const created = await adminCreateUser(createdEmail, password, fullName.trim(), role)
+      const created = await adminCreateUser(createdEmail, password, fullName.trim(), role, programId || null)
       await addActivityLog('user.created', {
         entity: 'user',
         entity_id: created?.id,
@@ -155,7 +166,7 @@ export default function Users() {
       <div className="panel create-user" style={{ borderTop: '3px solid #16a34a' }}>
         <h3>Add User</h3>
         <form onSubmit={handleSubmit}>
-          <div className="create-user__row">
+          <div className={`create-user__row${roleNeedsProgram ? ' create-user__row--with-program' : ''}`}>
             <label className="field">
               <span>Email</span>
               <input className="input" type="email" placeholder="user@example.com" value={email} required
@@ -186,6 +197,25 @@ export default function Users() {
                 <option value="user">Faculty</option>
               </select>
             </label>
+            {roleNeedsProgram && (
+              <label className="field">
+                <span>Program</span>
+                <select
+                  className="input"
+                  value={programId}
+                  required
+                  disabled={busy || programs.length === 0}
+                  onChange={(e) => setProgramId(e.target.value)}
+                >
+                  <option value="">
+                    {programs.length === 0 ? 'No programs on file — add one first' : 'Select program…'}
+                  </option>
+                  {programs.map((p) => (
+                    <option key={p.id} value={p.id}>{p.code} — {p.name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
             <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
               {busy ? 'Creating...' : (<><Icon name="plus" size={13} /> Create User</>)}
             </button>

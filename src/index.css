@@ -1785,6 +1785,12 @@ code {
   align-items: center;
 }
 
+/* The Program select joins the Email/Password/Name/Role row when the
+   chosen role is manager or faculty. */
+.create-user__row--with-program {
+  grid-template-columns: 2fr 2fr 2fr 1fr 2fr auto;
+}
+
 /* ---- Resources ---- */
 
 .create-resource {
