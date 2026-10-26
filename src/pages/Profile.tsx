@@ -8,7 +8,7 @@ import { useDraft } from '../hooks/useDraft'
 import Icon from '../components/icons'
 import { updateProfile, addActivityLog, fetchActivityLogs, uploadAvatar } from '../services/database'
 import { supabase } from '../utils/supabaseClient'
-import { gravatarUrl, initialsOf } from '../utils/avatar'
+import { loadEmailAvatar, initialsOf } from '../utils/avatar'
 import { ACTION_LABELS } from './admin/ActivityLabels'
 import type { Profile as ProfileType, ActivityLogEntry, UserRole } from '../services/database'
 
@@ -165,14 +165,14 @@ function Profile({ profile, onSaved }: ProfileProps) {
     }
   }, [profile?.email])
 
-  // Picture precedence: an uploaded file wins; otherwise the email's
-  // Gravatar (d=initials with the name's letters) is automatically every
-  // account's picture, no upload required. While the hash is being computed
-  // the initials tile shows, so there is never an empty corner.
+  // Picture precedence: an uploaded file wins; otherwise the email's real
+  // Gravatar photo if the account has one (probed off-DOM), else the
+  // theme's initials tile. Gravatar's generated initials are never shown —
+  // their hash-driven colours can clash badly with the palette.
   const [emailAvatar, setEmailAvatar] = useState<string | null>(null)
   useEffect(() => {
     let cancelled = false
-    gravatarUrl(profile?.email, 256, initialsOf(displayName))
+    loadEmailAvatar(profile?.email)
       .then((url) => {
         if (!cancelled) setEmailAvatar(url)
       })
@@ -182,7 +182,7 @@ function Profile({ profile, onSaved }: ProfileProps) {
     return () => {
       cancelled = true
     }
-  }, [profile?.email, displayName])
+  }, [profile?.email])
   const avatarSrc = profile?.avatar_url ?? emailAvatar
 
   // Save the edited name, log it, and push the updated profile up to App.tsx.
@@ -347,7 +347,7 @@ function Profile({ profile, onSaved }: ProfileProps) {
                 onClick={handleAvatarPick}
                 disabled={!profile || avatarBusy}
                 aria-label="Change profile picture"
-                title={profile?.avatar_url ? 'Change your uploaded picture' : 'Derived from your email via Gravatar — click to upload your own'}
+                title={profile?.avatar_url ? 'Change your uploaded picture' : 'Your Gravatar photo, or initials when none — click to upload your own'}
               >
                 <div className="profile-identity__avatar" aria-hidden="true">
                   {avatarSrc ? (

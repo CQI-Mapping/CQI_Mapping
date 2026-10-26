@@ -1,9 +1,9 @@
-// Avatar helpers: every account gets a picture derived from its email, with
-// zero setup — the address is hashed (SHA-256, per Gravatar's current spec)
-// and turned into a Gravatar image URL. Users with a real Gravatar account
-// automatically get their own photo; everyone else gets an `initials`-style
-// image whose colour is generated from the hash, so two accounts never look
-// alike. An explicitly uploaded picture (profile.avatar_url) always wins.
+// Avatar helpers: an explicitly uploaded picture (profile.avatar_url)
+// always wins; below it sits the email's Gravatar photo when the account
+// has one, and below that the app's own initials tile. Gravatar is asked
+// for real account photos only (d=404), never its generated initials —
+// those take their colour scheme from the email hash and can clash hard
+// with the theme (e.g. purple letters on a green tile).
 
 /** Up to two leading letters for an avatar tile; empty names read '··'. */
 export function initialsOf(name: string): string {
@@ -30,17 +30,30 @@ export async function gravatarHash(email: string | null | undefined): Promise<st
 
 /**
  * The email's Gravatar image URL, or null when there is nothing to hash.
- * `d=initials` with locally computed letters keeps the picture sensible for
- * accounts that never registered a Gravatar profile.
+ * `d=404` serves the account's real photo when the email has a Gravatar
+ * identity and fails with 404 when it doesn't — loadEmailAvatar turns
+ * that miss into null so the UI can fall back to its initials tile.
  */
-export async function gravatarUrl(
-  email: string | null | undefined,
-  size = 256,
-  initials?: string,
-): Promise<string | null> {
+export async function gravatarUrl(email: string | null | undefined, size = 256): Promise<string | null> {
   const hash = await gravatarHash(email)
   if (!hash) return null
-  const params = new URLSearchParams({ s: String(size), d: 'initials' })
-  if (initials) params.set('initials', initials)
-  return `https://gravatar.com/avatar/${hash}?${params.toString()}`
+  return `https://gravatar.com/avatar/${hash}?s=${size}&d=404`
+}
+
+/**
+ * The email's Gravatar photo URL once confirmed to exist (probed with an
+ * off-DOM <img> — no 404 flash, no flash-of-missing-picture), else null
+ * when there is no email or no Gravatar account behind it. Digits itself
+ * resolve quickly; the caller's initials tile shows until it lands.
+ */
+export async function loadEmailAvatar(email: string | null | undefined, size = 256): Promise<string | null> {
+  const url = await gravatarUrl(email, size)
+  if (!url) return null
+  if (typeof Image === 'undefined') return null // non-DOM test environment
+  return await new Promise<string | null>((resolve) => {
+    const probe = new window.Image()
+    probe.onload = () => resolve(url)
+    probe.onerror = () => resolve(null)
+    probe.src = url
+  })
 }

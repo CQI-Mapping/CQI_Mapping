@@ -57,7 +57,7 @@ import { supabase } from './utils/supabaseClient'
 import { ensureProfile, syncDemoRole, addActivityLog } from './services/database'
 import type { Profile as ProfileType, UserRole, NavItem } from './services/database'
 import type { Session } from '@supabase/supabase-js'
-import { gravatarUrl, initialsOf } from './utils/avatar'
+import { loadEmailAvatar } from './utils/avatar'
 
 const NAV: Record<UserRole, NavItem[]> = {
   admin: [
@@ -214,13 +214,14 @@ function App() {
   const [retryTick, setRetryTick] = useState(0)
   const profileUserIdRef = useRef<string | null>(null)
 
-  // The email-derived Gravatar drives the sidebar avatar whenever no picture
-  // was uploaded. Hashing is async, so it lands a beat after sign-in; the
-  // sidebar renders initials until then.
+  // The email's real Gravatar photo drives the sidebar avatar whenever no
+  // picture was uploaded. The availability probe is async, so it lands a
+  // beat after sign-in; the sidebar renders initials until then, and
+  // addresses without a Gravatar account simply stay on initials.
   const [emailAvatar, setEmailAvatar] = useState<string | null>(null)
   useEffect(() => {
     let cancelled = false
-    gravatarUrl(profile?.email, 256, initialsOf(profile?.full_name || profile?.email || ''))
+    loadEmailAvatar(profile?.email)
       .then((url) => {
         if (!cancelled) setEmailAvatar(url)
       })
@@ -230,7 +231,7 @@ function App() {
     return () => {
       cancelled = true
     }
-  }, [profile?.email, profile?.full_name])
+  }, [profile?.email])
 
   // On first render: subscribe to auth changes. Supabase emits INITIAL_SESSION
   // on subscribe (session or null), which is the single source of truth — no

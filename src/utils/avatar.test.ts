@@ -44,11 +44,10 @@ describe('gravatarHash', () => {
 })
 
 describe('gravatarUrl', () => {
-  it('builds the image URL over the email with initials defaults', async () => {
-    const url = await gravatarUrl('MyEmailAddress@example.com', 256, 'MS')
+  it('asks the avatar endpoint for real account photos only (d=404)', async () => {
+    const url = await gravatarUrl('MyEmailAddress@example.com', 256)
     expect(url).toBe(
-      'https://gravatar.com/avatar/84059b07d4be67b806386c0aad8070a23f18836bbaae342275dc0a83414c32ee' +
-        '?s=256&d=initials&initials=MS',
+      'https://gravatar.com/avatar/84059b07d4be67b806386c0aad8070a23f18836bbaae342275dc0a83414c32ee?s=256&d=404',
     )
   })
 
