@@ -10,8 +10,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@rolldown/binding-win32-x64-msvc": "^1.2.12",
-    "@rollup/rollup-win32-x64-msvc": "^4.64.0",
     "@supabase/supabase-js": "^2.45.4",
     "@huggingface/transformers": "^4.3.1",
     "d3": "^7.9.0",
@@ -21,6 +19,10 @@
     "jspdf": "^4.2.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
+  },
+  "optionalDependencies": {
+    "@rolldown/binding-win32-x64-msvc": "^1.2.12",
+    "@rollup/rollup-win32-x64-msvc": "^4.64.0"
   },
   "devDependencies": {
     "@types/d3": "^7.4.3",
