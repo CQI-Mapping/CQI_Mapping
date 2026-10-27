@@ -65,6 +65,14 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
                 user), else the full name, else the email's local part. */}
             {profile?.nickname || profile?.full_name || profile?.email?.split('@')[0] || 'Welcome'}
           </h1>
+          {/* When the headline is the nickname, the manager's full name is
+              spelled out beneath it; with no nickname the headline already
+              IS the name, so the second line would only repeat it. */}
+          {profile?.nickname && (
+            <p className="dashbanner__realname">
+              {profile?.full_name || profile?.email?.split('@')[0]}
+            </p>
+          )}
           <p className="dashbanner__desc">
             Track your program's outcomes, view CLO progress, and explore alignment across subjects.
           </p>

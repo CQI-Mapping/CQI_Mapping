@@ -1166,6 +1166,14 @@ code {
   color: #fff;
 }
 
+/* The manager's full name spelled out beneath a nickname headline. */
+.dashbanner__realname {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.78);
+}
+
 .dashbanner__meta {
   display: inline-flex;
   align-items: center;
