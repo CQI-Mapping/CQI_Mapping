@@ -3574,8 +3574,9 @@ textarea.input {
   gap: 12px;
 }
 
-/* Subject picker in the report toolbar (screen only — toolbar is no-print) */
-.sd-toolbar__subject {
+/* Department + subject pickers in the report toolbar (screen only — toolbar is no-print) */
+.sd-toolbar__subject,
+.sd-toolbar__dept {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -3583,7 +3584,8 @@ textarea.input {
   color: var(--text-muted);
 }
 
-.sd-toolbar__subject select {
+.sd-toolbar__subject select,
+.sd-toolbar__dept select {
   min-width: 220px;
   max-width: 340px;
 }

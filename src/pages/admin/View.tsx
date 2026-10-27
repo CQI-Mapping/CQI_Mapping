@@ -18,6 +18,7 @@ import {
   fetchCourseLearningOutcomesStandalone,
   fetchCourses,
   fetchChedMemoOrders,
+  fetchPrograms,
 } from '../../services/database'
 import type {
   StrategicGoal,
@@ -26,8 +27,10 @@ import type {
   CourseLearningOutcomeStandalone,
   Course,
   ChedMemoOrder,
+  Program,
 } from '../../services/database'
 import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
+import { courseProgramId } from '../../utils/alignment'
 import { isActive, buildGroups, splitReportPos, poNumber } from '../../utils/report'
 import SyllabusReport from '../../components/SyllabusReport'
 import Icon from '../../components/icons'
@@ -49,7 +52,11 @@ function View({ userEmail }: ViewProps) {
   const [clos, setClos] = useState<CourseLearningOutcomeStandalone[]>([])
   const [courses, setCourses] = useState<Course[]>([])
   const [cmos, setCmos] = useState<ChedMemoOrder[]>([])
+  const [programs, setPrograms] = useState<Program[]>([])
   const [selectedCourseId, setSelectedCourseId] = useState('')
+  // Department scope for the Subject picker: '' lists every department's
+  // subjects; a program id narrows the picker to that department's courses.
+  const [deptId, setDeptId] = useState('')
 
   const [downloading, setDownloading] = useState(false)
 
@@ -83,13 +90,14 @@ function View({ userEmail }: ViewProps) {
     setLoading(true)
     setError(null)
     try {
-      const [g, p, po, clo, c, cmo] = await Promise.all([
+      const [g, p, po, clo, c, cmo, progs] = await Promise.all([
         fetchStrategicGoals(),
         fetchProgramEducationalObjectives(),
         fetchProgramOutcomesStandalone(),
         fetchCourseLearningOutcomesStandalone(),
         fetchCourses(),
         fetchChedMemoOrders(),
+        fetchPrograms(),
       ])
       setGoals(g)
       setPeos(p)
@@ -97,6 +105,7 @@ function View({ userEmail }: ViewProps) {
       setClos(clo)
       setCourses(c)
       setCmos(cmo)
+      setPrograms(progs)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load curriculum map data.')
     } finally {
@@ -162,8 +171,18 @@ function View({ userEmail }: ViewProps) {
   // CLOs link to a subject through their free-text `course` field, so matching
   // is lenient (see courseCodes.ts). Defaults to the first active subject.
   const activeCourses = courses.filter(isActive)
+
+  // Department scope: programs are the report's departments (the Overall
+  // Report words a program as "BSIT Department"). '' = every department;
+  // picking one narrows the Subject picker to that department's courses.
+  // courseProgramId handles course.program_id's dual uuid/joined-object shape.
+  const activePrograms = programs.filter(isActive)
+  const departmentCourses = deptId
+    ? activeCourses.filter((c) => courseProgramId(c) === deptId)
+    : activeCourses
+
   const selectedCourse =
-    activeCourses.find((c) => c.id === selectedCourseId) ?? activeCourses[0] ?? null
+    departmentCourses.find((c) => c.id === selectedCourseId) ?? departmentCourses[0] ?? null
   const subjectClos = selectedCourse
     ? clos.filter((c) => isActive(c) && cloMatchesSubject(c.course || '', normalizeCode(selectedCourse.code)))
     : []
@@ -185,7 +204,25 @@ function View({ userEmail }: ViewProps) {
           Generated: {new Date().toLocaleDateString()} &middot; {userEmail}
         </span>
         <div className="sd-toolbar-controls">
-          {activeCourses.length > 0 && (
+          {activeCourses.length > 0 && activePrograms.length > 0 && (
+            <label className="sd-toolbar__dept">
+              <span>Department</span>
+              <select
+                className="input input--sm"
+                value={deptId}
+                onChange={(e) => setDeptId(e.target.value)}
+                aria-label="Filter subjects by department"
+              >
+                <option value="">All departments</option>
+                {activePrograms.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.code}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {departmentCourses.length > 0 && (
             <label className="sd-toolbar__subject">
               <span>Subject</span>
               <select
@@ -194,7 +231,7 @@ function View({ userEmail }: ViewProps) {
                 onChange={(e) => setSelectedCourseId(e.target.value)}
                 aria-label="Select subject for this syllabus"
               >
-                {activeCourses.map((c) => (
+                {departmentCourses.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.code}{c.title ? ` — ${c.title}` : ''}
                   </option>
