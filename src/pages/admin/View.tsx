@@ -40,9 +40,12 @@ import PageBanner from '../../components/PageBanner'
 
 interface ViewProps {
   userEmail: string
+  /** Page banner heading. The manager's sidebar opens this page as "View
+      Syllabus"; admins see the admin wording by leaving it at the default. */
+  title?: string
 }
 
-function View({ userEmail }: ViewProps) {
+function View({ userEmail, title = 'Curriculum Report' }: ViewProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -198,7 +201,7 @@ function View({ userEmail }: ViewProps) {
   return (
     <div className="syllabus-doc">
       {/* Screen-only page banner; the document's own letterhead follows. */}
-      <PageBanner title="Curriculum Report" sub="The official course syllabus for one subject, ready to print." />
+      <PageBanner title={title} sub="The official course syllabus for one subject, ready to print." />
       <div className="syllabus-doc__toolbar no-print">
         <span className="syllabus-doc__meta">
           Generated: {new Date().toLocaleDateString()} &middot; {userEmail}
