@@ -379,9 +379,13 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   const totalCount = items.length
   const activeCount = items.filter(isActive).length
 
-  // Shared edit form used by both grid and list card styles.
+  // Shared edit form used by both grid and list card styles. Wrapped in
+  // .resource-card__edit so the fields stack: the list card is a flex ROW
+  // (body + actions side by side), and without the wrapper the edit fields
+  // become that row's children — picker, code, description, PO input and
+  // the Save/Cancel pair all sprawling sideways across the card.
   const renderEdit = () => (
-    <>
+    <div className="resource-card__edit">
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         {editForm.course ? (
           <div className="input input--sm subject-picker__chosen">
@@ -452,7 +456,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                         <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}><Icon name="check" size={13} /> Save</button>
                         <button className="btn btn--ghost btn--sm" onClick={() => setEditingId(null)}>Cancel</button>
                       </div>
-    </>
+    </div>
   )
 
   return (

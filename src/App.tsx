@@ -15,8 +15,8 @@
 // Manager role pages (sidebar order):
 //   Dashboard, Program, CHED Memorandum Orders, Strategic Goals,
 //   Program Educational Objectives, Program Outcomes,
-//   Curriculum, Course, Subject Graph, Reports, Users, Activity Logs,
-//   Profile
+//   Curriculum, Course, Subject Graph, View Syllabus, Reports, Users,
+//   Activity Logs, Profile
 //
 // Faculty pages (sidebar order):
 //   Dashboard, Course Learning Outcomes, Curriculum, Subject Graph,
@@ -86,6 +86,7 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'curriculum', label: 'Curriculum' },
     { id: 'course', label: 'Course' },
     { id: 'subject-view', label: 'Generate Map' },
+    { id: 'view', label: 'View Syllabus' },
     { id: 'reports', label: 'Reports' },
     { id: 'users', label: 'Users' },
     { id: 'activity-logs', label: 'Activity Logs' },
@@ -135,6 +136,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     course: ManagerCourse,
     'program-outcomes': ManagerProgramOutcomes,
     'subject-view': AdminSubjectView,
+    view: AdminView,
     reports: Reports,
     users: ManagerUsers,
     'activity-logs': ManagerActivityLogs,
@@ -431,7 +433,12 @@ function App() {
     if (page === 'users') return <Page />
     if (SHARED_ACADEMIC_PAGES.has(page)) return <Page allowDelete={allowDelete} />
     if (page === 'curriculum' && role !== 'user') return <Page userEmail={profile?.email} allowDelete={role === 'admin'} />
-    if (page === 'view') return <Page userEmail={profile?.email} />
+    if (page === 'view') {
+      // One shared page, per-role banner wording: the admin's sidebar calls it
+      // Curriculum Report, the manager's View Syllabus. (The faculty nav has no
+      // 'view' item, so the gating above never routes them here.)
+      return <Page userEmail={profile?.email} title={role === 'manager' ? 'View Syllabus' : undefined} />
+    }
     if (page === 'reports') return <Page profile={profile} onNavigate={navigate} />
     // The log page filters by role, and which roles it may offer depends on
     // the viewer: RLS hides admin-authored rows from managers (migration 003),

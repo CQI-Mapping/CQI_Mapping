@@ -35,6 +35,13 @@ export interface Profile {
   avatar_url: string | null
   role: UserRole
   program_id: string | null
+  /**
+   * Soft delete ('active' | 'archived'). Optional because the column is a
+   * migration (008-archived-accounts.sql) a database may predate: absent
+   * columns come back undefined, which isActive() then reads as active —
+   * the same tolerance Course.year_level gets.
+   */
+  status?: string
   created_at: string
   updated_at: string
 }
@@ -293,6 +300,43 @@ export async function updateUserProgram(profileId: string, programId: string | n
     .single()
   if (error) throw error
   return data
+}
+
+/**
+ * Archive an account (profiles.status = 'archived') or restore it.
+ *
+ * The auth user is deliberately untouched: the account stays fully
+ * restorable, nothing is ever lost, and the only thing an archived account
+ * loses is sign-in — Login refuses it while the status reads archived. The
+ * direct-update pattern matches updateUserRole: admins own these columns
+ * under RLS, so a manager can never park or revive an account.
+ */
+export async function updateUserStatus(
+  profileId: string,
+  status: 'active' | 'archived',
+): Promise<Profile> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ status })
+    .eq('id', profileId)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+/** The signed-in user's own profile status, for the Login guard. Only the
+    one row its owner may always read is selected (RLS "Users can view own
+    profile"), so it works for every role. null when no row exists yet — an
+    account created seconds ago is simply not archived. */
+export async function fetchOwnProfileStatus(userId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('status')
+    .eq('id', userId)
+    .maybeSingle()
+  if (error) throw error
+  return data?.status ?? null
 }
 
 // Privileged account operations run through the admin-users Edge Function.
@@ -854,6 +898,13 @@ export async function deleteProgramOutcomeStandalone(id: string): Promise<void> 
 
 export interface CourseLearningOutcomeStandalone {
   id: string
+  /**
+   * The faculty member who created the row. Optional because the column is
+   * a migration (009-private-clos.sql) a database may predate, and rows
+   * from before it are unowned. RLS scopes faculty reads to their own
+   * owner_id; managers and admins see every row.
+   */
+  owner_id?: string | null
   code: string
   course: string
   title: string
@@ -873,9 +924,21 @@ export async function fetchCourseLearningOutcomesStandalone(): Promise<CourseLea
 }
 
 export async function createCourseLearningOutcomeStandalone(payload: Partial<CourseLearningOutcomeStandalone>): Promise<CourseLearningOutcomeStandalone> {
+  // Ownership is stamped here, not left to the caller: every creator owns
+  // what they make, so the RLS policies can scope faculty visibility to
+  // their own rows ("a new user can't see another user's outcomes").
+  // The form payload never carries owner_id, so the spread cannot override it.
+  let ownerId: string | null = null
+  try {
+    const { data: userData } = await supabase.auth.getUser()
+    ownerId = userData.user?.id ?? null
+  } catch {
+    // An unowned insert is rejected by RLS with a readable permission
+    // error — better than a raw auth-service failure message here.
+  }
   const { data, error } = await supabase
     .from('admin_course_learning_outcomes')
-    .insert(payload)
+    .insert({ ...payload, owner_id: ownerId })
     .select()
     .single()
   if (error) throw error

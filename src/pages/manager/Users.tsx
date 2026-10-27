@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react'
 import Icon from '../../components/icons'
 import { adminCreateUser, addActivityLog, fetchAllProfiles } from '../../services/database'
+import { isActive } from '../../utils/report'
 import { supabase } from '../../utils/supabaseClient'
 import type { Profile } from '../../services/database'
 
@@ -26,7 +27,12 @@ function Users() {
     setError('')
     try {
       const profiles = await fetchAllProfiles()
-      setUsers(profiles)
+      // Faculty directory scope: admin accounts are not this page's business —
+      // managers add faculty and review accounts, they don't administer admins —
+      // and archived accounts are parked (their sign-in is refused), so both
+      // are filtered out of the table. The inviter-name lookup below still
+      // reads the full list.
+      setUsers(profiles.filter((u) => u.role !== 'admin' && isActive(u)))
       try {
         const { data } = await supabase!.auth.getUser()
         const me = profiles.find((u) => u.id === data?.user?.id)

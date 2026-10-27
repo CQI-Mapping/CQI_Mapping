@@ -15,9 +15,10 @@
 --   strategic_goals               — institutional strategic goals (admin/manager)
 --   admin_program_outcomes        — standalone admin-managed PO list
 --   program_educational_objectives— PEOs (admin/manager)
---   admin_course_learning_outcomes— standalone admin-managed CLO list
+--   admin_course_learning_outcomes— standalone CLO list, owned per faculty
 --   ched_memorandum_orders        — CHED memo orders (admin/manager)
---   (admins and managers may create/edit/archive these; only admins delete)
+--   (outcomes: faculty see/edit only their own; admins/managers see all;
+--    only admins delete others' rows)
 --   po_feedback                   — shared CLO→PO pick/reject log (curation)
 -- =============================================================================
 
@@ -59,6 +60,11 @@ CREATE TABLE public.profiles (
     -- See migrations/005-profile-picture-and-nickname.sql for the bucket RLS.
     avatar_url TEXT,
     role user_role NOT NULL DEFAULT 'user',
+    -- Soft delete: 'active' (default) or 'archived'. An archived account stays
+    -- fully restorable and is refused at sign-in; hard delete remains available
+    -- on archived rows. See migrations/008-archived-accounts.sql for existing
+    -- databases.
+    status TEXT NOT NULL DEFAULT 'active',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -258,6 +264,10 @@ DROP INDEX IF EXISTS public.admin_program_outcomes_code_cmo_nulls_equal;
 -- Same CLO code is allowed in different courses (e.g. CLO-1 for CS-101 and CLO-1 for IT21)
 CREATE TABLE public.admin_course_learning_outcomes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    -- The faculty member who created the row. NULL only for rows that
+    -- predate ownership (see migrations/009-private-clos.sql); unowned rows
+    -- are admin/manager-visible but hidden from faculty.
+    owner_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     code TEXT NOT NULL,
     course TEXT NOT NULL DEFAULT '',
     title TEXT NOT NULL,
@@ -266,8 +276,11 @@ CREATE TABLE public.admin_course_learning_outcomes (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE UNIQUE INDEX IF NOT EXISTS admin_course_learning_outcomes_code_course_unique
-    ON public.admin_course_learning_outcomes (code, course);
+-- Per-owner uniqueness: two faculty members may both define CLO1 for the
+-- same course; one user still cannot duplicate a code for one course.
+-- (owner_id NULL rows are not pairwise-constrained — NULLs stay distinct.)
+CREATE UNIQUE INDEX IF NOT EXISTS admin_course_learning_outcomes_code_course_owner_unique
+    ON public.admin_course_learning_outcomes (code, course, owner_id);
 DO $$ BEGIN
     IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'admin_course_learning_outcomes_code_key') THEN
         ALTER TABLE public.admin_course_learning_outcomes DROP CONSTRAINT admin_course_learning_outcomes_code_key;
@@ -443,28 +456,30 @@ CREATE POLICY "Managers and admins can update course learning outcomes" ON publi
 CREATE POLICY "Admins can delete course learning outcomes" ON public.course_learning_outcomes FOR DELETE
     USING (public.current_user_role() = 'admin');
 
--- Is this address an admin's? Used by the activity log's read policy to keep a
--- manager out of the admin's entries. SECURITY DEFINER so the answer does not
+-- Which role does this email's profile hold? Used by the activity log's read
+-- policy to scope what a manager sees. SECURITY DEFINER so the answer does not
 -- depend on profiles' own RLS staying as permissive as it is today -- two
 -- policies coupled together would mean tightening one silently changing the
 -- other, with nothing to indicate why.
-CREATE OR REPLACE FUNCTION public.is_admin_email(p_email TEXT)
-RETURNS BOOLEAN
+--
+-- lower() on both sides: the log stamps whatever email the auth system
+-- recorded, and a capitalised variant ("Admin@cqi.test") must still resolve to
+-- the same profile row.
+CREATE OR REPLACE FUNCTION public.actor_role(p_email TEXT)
+RETURNS public.user_role
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-    SELECT EXISTS (
-        SELECT 1
-        FROM public.profiles
-        WHERE role = 'admin'
-          AND email IS NOT DISTINCT FROM p_email
-    );
+    SELECT role
+    FROM public.profiles
+    WHERE lower(email) IS NOT DISTINCT FROM lower(p_email)
+    LIMIT 1;
 $$;
 
-REVOKE ALL ON FUNCTION public.is_admin_email(TEXT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.is_admin_email(TEXT) TO authenticated;
+REVOKE ALL ON FUNCTION public.actor_role(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.actor_role(TEXT) TO authenticated;
 
 -- ACTIVITY LOGS
 -- No INSERT policy: rows are written server-side only, via the SECURITY DEFINER
@@ -472,23 +487,25 @@ GRANT EXECUTE ON FUNCTION public.is_admin_email(TEXT) TO authenticated;
 -- forge log entries with someone else's email.
 --
 -- Visibility is a hierarchy, not a flat grant: an admin sees every entry, a
--- manager sees faculty and other managers but never an admin's. The earlier
--- form of this policy granted both roles every row, which let a manager read
--- the admin's activity. Existing databases get the same policy, and the same
--- is_admin_email() helper, from migrations/003-manager-log-visibility.sql --
--- apply that one there, never this file.
+-- manager sees faculty entries only — manager, admin and unattributable rows
+-- are outside their level. The earlier forms of this policy granted both
+-- supervisory roles every row, then every non-admin row; the manager's remit
+-- on this page is faculty activity. Existing databases get the same policy,
+-- and the same actor_role() helper, from
+-- migrations/007-manager-log-faculty-only.sql -- apply that one there, never
+-- this file.
 --
 -- The role is read from profiles at query time rather than stored on each row,
 -- so visibility follows an actor's CURRENT role; see the migration for the
--- reasoning. A row with a null user_email cannot be attributed to anyone, so it
--- is hidden from managers too.
+-- reasoning. A row with a null user_email cannot be attributed to anyone, so
+-- it is hidden from managers too.
 CREATE POLICY "Scoped activity log visibility" ON public.activity_logs FOR SELECT
     USING (
         public.current_user_role() = 'admin'
         OR (
             public.current_user_role() = 'manager'
             AND user_email IS NOT NULL
-            AND NOT public.is_admin_email(user_email)
+            AND public.actor_role(user_email) = 'user'
         )
     );
 
@@ -547,20 +564,29 @@ CREATE POLICY "Admins can manage program_educational_objectives" ON public.progr
     WITH CHECK (public.current_user_role() = 'admin');
 
 -- ADMIN COURSE LEARNING OUTCOMES
-CREATE POLICY "Authenticated users can read admin_course_learning_outcomes" ON public.admin_course_learning_outcomes FOR SELECT
-    USING (auth.role() = 'authenticated');
-
+-- Outcomes are owned by their creator: faculty SELECT/UPDATE/DELETE only
+-- their own rows (ownership is stamped on insert by the app service),
+-- managers keep read oversight of everything, admins keep full control.
+-- Unowned rows (pre-ownership legacy) are admin/manager-visible only.
 CREATE POLICY "Admins can manage admin_course_learning_outcomes" ON public.admin_course_learning_outcomes FOR ALL
     USING (public.current_user_role() = 'admin')
     WITH CHECK (public.current_user_role() = 'admin');
 
--- All roles may create and edit course learning outcomes; only admins delete them.
-CREATE POLICY "Authenticated users can create admin_course_learning_outcomes" ON public.admin_course_learning_outcomes FOR INSERT
-    WITH CHECK (public.current_user_role() IN ('admin', 'manager', 'user'));
+CREATE POLICY "Managers can read every course learning outcome" ON public.admin_course_learning_outcomes FOR SELECT
+    USING (public.current_user_role() = 'manager');
 
-CREATE POLICY "Authenticated users can update admin_course_learning_outcomes" ON public.admin_course_learning_outcomes FOR UPDATE
-    USING (public.current_user_role() IN ('admin', 'manager', 'user'))
-    WITH CHECK (public.current_user_role() IN ('admin', 'manager', 'user'));
+CREATE POLICY "Faculty see only their own course learning outcomes" ON public.admin_course_learning_outcomes FOR SELECT
+    USING (public.current_user_role() = 'user' AND owner_id = auth.uid());
+
+CREATE POLICY "Outcomes are created owned by their creator" ON public.admin_course_learning_outcomes FOR INSERT
+    WITH CHECK (owner_id = auth.uid());
+
+CREATE POLICY "Faculty edit only their own course learning outcomes" ON public.admin_course_learning_outcomes FOR UPDATE
+    USING (owner_id = auth.uid())
+    WITH CHECK (owner_id = auth.uid());
+
+CREATE POLICY "Faculty delete their own course learning outcomes" ON public.admin_course_learning_outcomes FOR DELETE
+    USING (owner_id = auth.uid());
 
 -- CHED MEMORANDUM ORDERS
 CREATE POLICY "Authenticated users can read ched_memorandum_orders" ON public.ched_memorandum_orders FOR SELECT

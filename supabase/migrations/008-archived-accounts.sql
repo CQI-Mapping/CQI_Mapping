@@ -1,0 +1,32 @@
+-- Archived accounts: soft delete for Users & Accounts
+-- ============================================================
+-- Run this in the Supabase SQL Editor. Idempotent (ADD COLUMN IF NOT EXISTS).
+-- No row is touched beyond the default backfill.
+--
+-- WHY
+--   "Remove" (the admin-users Edge Function delete) is permanent: the auth
+--   user is gone, so a mistaken removal cannot be undone. Every other record
+--   in the app has an archive/restore cycle; accounts are the exception that
+--   this closes. An admin "removes" an account by archiving it, and can
+--   bring it back.
+--
+-- WHAT IT CHANGES
+--   profiles.status — 'active' (the default, so existing rows read as active
+--   the moment the column lands) or 'archived'.
+--
+--     * Admin Users & Accounts lists archived accounts on an Archive tab
+--       with a Restore button (and keeps hard delete there for parked rows).
+--     * The manager's faculty directory hides archived accounts.
+--     * Sign-in refuses an archived account with a message pointing at the
+--       administrator (the Login guard reads this column).
+--
+--   Nothing is deleted. RLS already lets admins update any profile row, so
+--   the status update needs no new policy; managers cannot change it.
+--
+-- AFTER RUNNING
+--   No code change is needed to read the column (the profile selects are
+--   `*`), and no re-sign-in is required to write it — the column is simply
+--   there.
+
+ALTER TABLE public.profiles
+    ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';

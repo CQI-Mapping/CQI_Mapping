@@ -1,9 +1,14 @@
-// Admin Users page: create new accounts (admin, manager, or faculty) and list all users.
+// Admin Users page: create new accounts (admin, manager, or faculty), list
+// all users, and manage their lifecycle — roles, program assignment, the
+// display name, and the archive/restore cycle. Archiving is the app's soft
+// delete: the account stays restorable, sign-in is refused while archived,
+// and only archived rows can be hard-deleted.
 
 import { useState, useEffect } from 'react'
 import Icon from '../../components/icons'
 import { useDraft } from '../../hooks/useDraft'
-import { adminCreateUser, adminDeleteUser, addActivityLog, fetchAllProfilesWithProgram, fetchPrograms, profileProgramOf, updateUserProgram, updateUserRole } from '../../services/database'
+import { adminCreateUser, adminDeleteUser, addActivityLog, fetchAllProfilesWithProgram, fetchPrograms, profileProgramOf, updateProfile, updateUserProgram, updateUserRole, updateUserStatus } from '../../services/database'
+import { isActive } from '../../utils/report'
 import { supabase } from '../../utils/supabaseClient'
 import type { ProfileWithProgram, Program, UserRole } from '../../services/database'
 
@@ -12,6 +17,11 @@ const ROLE_LABELS: Record<UserRole, string> = {
   manager: 'Manager',
   user: 'Faculty',
 }
+
+/** Same caps the Profile page's display-name editor stamps on the fields —
+    fixing someone's name here must never exceed what they could set there. */
+const NAME_MAX_LENGTH = 80
+const NICKNAME_MAX_LENGTH = 40
 
 export default function Users() {
   // Draft persists email + name across page navigation. The password is
@@ -39,6 +49,16 @@ export default function Users() {
   // The row's program select shares the busy pattern with the one above.
   const [programBusyId, setProgramBusyId] = useState('')
   const [deleteBusyId, setDeleteBusyId] = useState('')
+  // Archive tab: the parked accounts, listed separately so the directory
+  // stays a roster of people who can actually sign in.
+  const [archived, setArchived] = useState(false)
+  const [statusBusyId, setStatusBusyId] = useState('')
+  // Fix-profile modal: the admin repairing another account's identity (a
+  // placeholder name like "test") without waiting for that user to sign in
+  // and fix their own Profile page. Mirrors the Program page's modal.
+  const [editingUser, setEditingUser] = useState<ProfileWithProgram | null>(null)
+  const [editForm, setEditForm] = useState({ fullName: '', nickname: '' })
+  const [editBusy, setEditBusy] = useState(false)
 
   const loadUsers = async () => {
     setLoading(true)
@@ -164,8 +184,11 @@ export default function Users() {
     }
   }
 
+  // Hard delete — offered on ARCHIVED rows only. An active account always
+  // goes through the archive first, so a mistaken removal can be undone;
+  // by the time an account reaches this path it has already been parked.
   const handleDelete = async (userId: string, email: string) => {
-    if (!window.confirm(`Remove user ${email}? This cannot be undone.`)) return
+    if (!window.confirm(`Permanently remove user ${email}? This cannot be undone.`)) return
     setError('')
     setSuccess('')
     setDeleteBusyId(userId)
@@ -173,7 +196,7 @@ export default function Users() {
       await adminDeleteUser(userId)
       setUsers((prev) => prev.filter((u) => u.id !== userId))
       await addActivityLog('user.deleted', { entity: 'user', entity_id: userId, label: email })
-      setSuccess(`User ${email} removed.`)
+      setSuccess(`User ${email} permanently removed.`)
     } catch (e) {
       setError('Failed to remove user: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
@@ -181,8 +204,111 @@ export default function Users() {
     }
   }
 
+  // Archive (soft delete): the auth user is untouched, so nothing is lost —
+  // the account stops signing in (Login refuses archived rows) and waits
+  // here for a restore. The inviter's own row is guarded the same way the
+  // delete path is: an admin cannot park themselves.
+  const handleArchive = async (userId: string, email: string) => {
+    if (!window.confirm(`Archive user ${email}? They cannot sign in until the account is restored.`)) return
+    setError('')
+    setSuccess('')
+    setStatusBusyId(userId)
+    try {
+      await updateUserStatus(userId, 'archived')
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status: 'archived' } : u)))
+      await addActivityLog('user.archived', { entity: 'user', entity_id: userId, label: email })
+      setSuccess(`Account ${email} archived. You can restore it from the Archive tab.`)
+    } catch (e) {
+      setError('Failed to archive user: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setStatusBusyId('')
+    }
+  }
+
+  const handleRestore = async (userId: string, email: string) => {
+    setError('')
+    setSuccess('')
+    setStatusBusyId(userId)
+    try {
+      await updateUserStatus(userId, 'active')
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status: 'active' } : u)))
+      await addActivityLog('user.restored', { entity: 'user', entity_id: userId, label: email })
+      setSuccess(`Account ${email} restored — they can sign in again.`)
+    } catch (e) {
+      setError('Failed to restore user: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setStatusBusyId('')
+    }
+  }
+
+  // ----- Fix profile -----
+
+  // Seeded from the row so the fields open pre-filled, exactly the identity
+  // the user sees on their own Profile page.
+  const openEdit = (u: ProfileWithProgram) => {
+    setEditingUser(u)
+    setEditForm({ fullName: u.full_name || '', nickname: u.nickname ?? '' })
+  }
+
+  const closeEdit = () => {
+    // Mid-save the modal must stay put: the save writes the fields it shows.
+    if (editBusy) return
+    setEditingUser(null)
+    setEditForm({ fullName: '', nickname: '' })
+  }
+
+  // Saves the repaired name through the same updateProfile the Profile page
+  // uses — RLS already lets admins update any profile row, so no new SQL is
+  // needed. Nickname follows the Profile page's normalization: trimmed, and
+  // empty becomes null rather than an empty string in the DB.
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingUser) return
+    const name = editForm.fullName.trim()
+    if (!name) return
+    const nickname = editForm.nickname.trim()
+    setError('')
+    setSuccess('')
+    setEditBusy(true)
+    let saved = false
+    try {
+      await updateProfile(editingUser.id, { full_name: name, nickname: nickname || null })
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === editingUser.id ? { ...u, full_name: name, nickname: nickname || null } : u,
+        ),
+      )
+      await addActivityLog('user.profile_updated', {
+        entity: 'user',
+        entity_id: editingUser.id,
+        label: `${editingUser.email} → ${name}`,
+      })
+      setSuccess(
+        nickname
+          ? `Profile of ${editingUser.email} fixed — reports will show ${name} "${nickname}".`
+          : `Profile of ${editingUser.email} fixed — reports will show ${name}.`,
+      )
+      saved = true
+    } catch (e) {
+      setError('Failed to update profile: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setEditBusy(false)
+    }
+    // On success the modal closes; on failure it stays open so the error is
+    // read against the fields that produced it.
+    if (saved) {
+      setEditingUser(null)
+      setEditForm({ fullName: '', nickname: '' })
+    }
+  }
+
   const totalUsers = users.length
-  const activeManagers = users.filter((u) => u.role === 'manager').length
+  const activeUsers = users.filter(isActive)
+  const archivedUsers = users.filter((u) => !isActive(u))
+  // The directory follows the tab: active accounts are the roster, archived
+  // ones are the park waiting for a restore.
+  const shown = archived ? archivedUsers : activeUsers
+  const activeManagers = activeUsers.filter((u) => u.role === 'manager').length
 
   return (
     <div className="programs-page users">
@@ -205,12 +331,12 @@ export default function Users() {
         <div className="program-stat">
           <div className="program-stat__label">Managers</div>
           <div className="program-stat__value" style={{ color: '#16a34a' }}>{activeManagers}</div>
-          <div className="program-stat__sub">Faculty / managers</div>
+          <div className="program-stat__sub">Active program heads</div>
         </div>
         <div className="program-stat">
-          <div className="program-stat__label">Status</div>
-          <div className="program-stat__value" style={{ fontSize: 16, color: '#0f172a' }}>Secure</div>
-          <div className="program-stat__sub">Admin-managed</div>
+          <div className="program-stat__label">Archived</div>
+          <div className="program-stat__value" style={{ color: '#64748b' }}>{archivedUsers.length}</div>
+          <div className="program-stat__sub">Restorable accounts</div>
         </div>
       </div>
 
@@ -370,13 +496,30 @@ export default function Users() {
             ))}
           </div>
         ) : (
+          <>
+          <div className="program-toolbar">
+            <div className="sd-tabs" style={{ marginBottom: 0, flex: 1 }}>
+              <button className={`sd-tab ${!archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(false)}>Active</button>
+              <button className={`sd-tab ${archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(true)}>
+                Archive {archivedUsers.length > 0 && <span className="sd-tab__count">{archivedUsers.length}</span>}
+              </button>
+            </div>
+          </div>
           <table className="table">
             <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Program</th><th>Joined</th><th></th></tr></thead>
             <tbody>
-              {users.map((u) => {
+              {shown.length === 0 && (
+                <tr>
+                  <td colSpan={6}>
+                    {archived ? 'No archived accounts — everything is active.' : 'No active accounts yet.'}
+                  </td>
+                </tr>
+              )}
+              {shown.map((u) => {
                 const assigned = profileProgramOf(u)
+                const rowArchived = !isActive(u)
                 return (
-                  <tr key={u.id}>
+                  <tr key={u.id} style={rowArchived ? { opacity: 0.65 } : undefined}>
                     <td>{u.full_name || '—'}</td>
                     <td>{u.email}</td>
                     <td>
@@ -386,7 +529,7 @@ export default function Users() {
                         style={{ marginLeft: 8, maxWidth: 130 }}
                         aria-label={`Change role for ${u.email}`}
                         value={u.role}
-                        disabled={roleBusyId === u.id}
+                        disabled={roleBusyId === u.id || rowArchived}
                         onChange={(e) => handleRoleChange(u.id, e.target.value as UserRole, u.email)}
                       >
                         <option value="admin">Admin</option>
@@ -403,7 +546,7 @@ export default function Users() {
                           style={{ maxWidth: 130 }}
                           aria-label={`Assign program for ${u.email}`}
                           value={assigned?.id ?? ''}
-                          disabled={programBusyId === u.id || programs.length === 0}
+                          disabled={programBusyId === u.id || programs.length === 0 || rowArchived}
                           onChange={(e) => handleProgramChange(u.id, e.target.value, u.email)}
                         >
                           <option value="">None</option>
@@ -416,13 +559,51 @@ export default function Users() {
                     <td>{new Date(u.created_at).toLocaleDateString()}</td>
                     <td>
                       {u.email !== currentEmail && (
-                        <button
-                          className="btn btn--danger btn--sm"
-                          disabled={deleteBusyId === u.id}
-                          onClick={() => handleDelete(u.id, u.email)}
-                        >
-                          {deleteBusyId === u.id ? 'Removing...' : (<><Icon name="trash" size={13} /> Remove</>)}
-                        </button>
+                        rowArchived ? (
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              className="btn btn--ghost btn--sm"
+                              onClick={() => openEdit(u)}
+                              title="Fix their name & nickname — the same fields their Profile page shows"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="btn btn--ghost btn--sm"
+                              disabled={statusBusyId === u.id}
+                              onClick={() => handleRestore(u.id, u.email)}
+                              title="Bring the account back — they can sign in again"
+                            >
+                              {statusBusyId === u.id ? 'Restoring...' : 'Restore'}
+                            </button>
+                            <button
+                              className="btn btn--danger btn--sm"
+                              disabled={deleteBusyId === u.id}
+                              onClick={() => handleDelete(u.id, u.email)}
+                              title="Permanent — the account cannot come back"
+                            >
+                              {deleteBusyId === u.id ? 'Removing...' : (<><Icon name="trash" size={13} /> Remove</>)}
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              className="btn btn--ghost btn--sm"
+                              onClick={() => openEdit(u)}
+                              title="Fix their name & nickname — the same fields their Profile page shows"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="btn btn--ghost btn--sm"
+                              disabled={statusBusyId === u.id}
+                              onClick={() => handleArchive(u.id, u.email)}
+                              title="Soft delete — reversible from the Archive tab"
+                            >
+                              {statusBusyId === u.id ? 'Archiving...' : 'Archive'}
+                            </button>
+                          </div>
+                        )
                       )}
                     </td>
                   </tr>
@@ -430,8 +611,65 @@ export default function Users() {
               })}
             </tbody>
           </table>
+          </>
         )}
       </div>
+
+      {/* Fix profile — same modal the Programs page uses. Fields mirror the
+          Profile page's display-name editor (same caps, same nickname
+          normalization), so what the admin sets here is exactly what the
+          user could have set themselves. */}
+      {editingUser && (
+        <div className="modal-overlay" onClick={closeEdit}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="modal__header">
+              <h3>Edit profile</h3>
+              <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>{editingUser.email}</p>
+            </div>
+            <form onSubmit={handleEditSubmit}>
+              <div className="modal__body">
+                <div className="modal__grid-2">
+                  <label className="field" style={{ marginBottom: 0 }}>
+                    <span>Full name</span>
+                    <input
+                      className="input input--sm"
+                      type="text"
+                      placeholder="Juan Dela Cruz"
+                      value={editForm.fullName}
+                      maxLength={NAME_MAX_LENGTH}
+                      onChange={(e) => setEditForm((f) => ({ ...f, fullName: e.target.value }))}
+                      required
+                    />
+                  </label>
+                  <label className="field" style={{ marginBottom: 0 }}>
+                    <span>Nickname</span>
+                    <input
+                      className="input input--sm"
+                      type="text"
+                      placeholder='optional — e.g. "Bebot"'
+                      autoComplete="off"
+                      value={editForm.nickname}
+                      maxLength={NICKNAME_MAX_LENGTH}
+                      onChange={(e) => setEditForm((f) => ({ ...f, nickname: e.target.value }))}
+                    />
+                  </label>
+                </div>
+                <p className="au__cred-note" style={{ marginTop: 10 }}>
+                  Reports and audit logs use the full name; the nickname shows in quotes. Clearing it removes the quoted name.
+                </p>
+              </div>
+              <div className="modal__footer">
+                <button type="button" className="btn btn--ghost btn--sm" onClick={closeEdit} disabled={editBusy}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn--primary btn--sm" disabled={editBusy || !editForm.fullName.trim()}>
+                  {editBusy ? 'Saving...' : 'Save changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

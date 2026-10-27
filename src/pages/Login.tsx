@@ -4,7 +4,7 @@
 
 import { useState } from 'react'
 import { supabase } from '../utils/supabaseClient'
-import { recordLoginEvent } from '../services/database'
+import { recordLoginEvent, fetchOwnProfileStatus } from '../services/database'
 
 function Login() {
   const [email, setEmail] = useState('')
@@ -34,7 +34,7 @@ function Login() {
 
     setBusy(true)
 
-    const { error } = await supabase!.auth.signInWithPassword({
+    const { data, error } = await supabase!.auth.signInWithPassword({
       email: trimmedEmail,
       password,
     })
@@ -61,6 +61,29 @@ function Login() {
       )
       setBusy(false)
       return
+    }
+
+    // Archived account: the credential still works (the auth user is
+    // untouched — that is what makes the archive reversible), but the
+    // profile row says the account is parked, so the session is dropped
+    // before it ever reaches the app shell. The row is readable by its own
+    // owner under RLS, so one small query settles it for every role.
+    const userId = data.user?.id
+    if (userId) {
+      try {
+        const status = await fetchOwnProfileStatus(userId)
+        if (status === 'archived') {
+          await supabase!.auth.signOut()
+          recordLoginEvent(trimmedEmail, false, 'account_archived')
+          setError('This account has been archived. Ask your administrator to restore it.')
+          setBusy(false)
+          return
+        }
+      } catch {
+        // A failed status probe must not lock anyone out of a healthy
+        // account: fall through and let the app continue — its own profile
+        // load will surface any real problem.
+      }
     }
 
     // Success: App.tsx picks up the new session and swaps in the dashboard.

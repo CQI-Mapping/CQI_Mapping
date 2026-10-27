@@ -375,9 +375,6 @@ function Profile({ profile, onSaved }: ProfileProps) {
                 onChange={(e) => setFullName(e.target.value)}
                 disabled={!profile}
               />
-              <span className="profile-name-count" aria-hidden="true">
-                {fullName.length} / {NAME_MAX_LENGTH}
-              </span>
             </label>
 
             <label className="field">
@@ -392,9 +389,6 @@ function Profile({ profile, onSaved }: ProfileProps) {
                 onChange={(e) => setNickname(e.target.value)}
                 disabled={!profile}
               />
-              <span className="profile-name-count" aria-hidden="true">
-                {nickname.length} / {NICKNAME_MAX_LENGTH} · shown in quotes
-              </span>
             </label>
 
             {profile && dirty && !fullName.trim() && (

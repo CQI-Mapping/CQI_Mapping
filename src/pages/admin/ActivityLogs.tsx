@@ -1,11 +1,13 @@
 // Activity Logs — enhanced activity logs view shared by admin and manager.
 //
 // Every filter here is applied by the database, not in the browser. The log is
-// global — admin and manager both see every actor, including each other and the
-// faculty — so isolating one person is the whole point of the user filter, and
-// that is only possible if the query itself is narrowed. The previous version
-// fetched a fixed 100 rows and filtered them in memory, which meant an entry
-// past row 100 was unreachable no matter what you typed.
+// global for the admin — every actor, including other admins and managers —
+// while a manager's database scope is faculty activity only (migration 007),
+// which is exactly the level their page presents. Isolating one person is the
+// whole point of the user filter, and that is only possible if the query
+// itself is narrowed. The previous version fetched a fixed 100 rows and
+// filtered them in memory, which meant an entry past row 100 was unreachable
+// no matter what you typed.
 //
 // The per-actor summary answers "who has been doing what" without making anyone
 // read the table row by row. Both views run off the same filter state, so the
@@ -45,7 +47,7 @@ interface ActivityLogsViewProps {
    * actually return. Defaults to 'user' — least privilege, matching the
    * fallback App.tsx already uses for a profile it has not loaded. Getting
    * this wrong costs only a filter option: the RLS policy decides what rows
-   * exist regardless (migrations/003-manager-log-visibility.sql).
+   * exist regardless (migrations/003 and 007).
    */
   viewerRole?: UserRole
 }
@@ -53,10 +55,10 @@ interface ActivityLogsViewProps {
 /**
  * Role filter options, in the order a supervisor reads them down the column.
  *
- * Admins are dropped for a manager because their entries are filtered out of
- * the table by RLS, and an option that can only ever return an empty table is
- * a defect rather than a choice. Enforcement stays in the database; this only
- * stops the UI from advertising a filter that cannot be satisfied.
+ * A manager's page offers Faculty alone: their database scope (migration 007)
+ * is faculty activity, and an option that can only ever return an empty table
+ * is a defect rather than a choice. Enforcement stays in the database; this
+ * only stops the UI from advertising a filter that cannot be satisfied.
  */
 const ROLE_FILTER_OPTIONS = [
   { value: 'admin', label: 'Admins' },
@@ -75,9 +77,11 @@ function summarise(row: ActivityRollupRow): string {
 
 function ActivityLogsView({ title = 'Activity Logs', description, viewerRole = 'user' }: ActivityLogsViewProps = {}) {
   const isAdminViewer = viewerRole === 'admin'
+  // Managers get Faculty alone — their database scope is faculty activity
+  // (migration 007), so Managers/Admins options could only ever show nothing.
   const roleOptions = isAdminViewer
     ? ROLE_FILTER_OPTIONS
-    : ROLE_FILTER_OPTIONS.filter((o) => o.value !== 'admin')
+    : ROLE_FILTER_OPTIONS.filter((o) => o.value === 'user')
   const [entries, setEntries] = useState<ActivityLogEntry[]>([])
   const [actors, setActors] = useState<string[]>([])
   /**
@@ -87,6 +91,11 @@ function ActivityLogsView({ title = 'Activity Logs', description, viewerRole = '
    * opaque address — which defeats the question the page exists to answer. An
    * admin wanting to monitor the managers cannot tell which rows are a manager's;
    * a manager cannot tell a colleague from faculty.
+   *
+   * Keys are lowercased and every lookup lowercases what it looks for: the log
+   * stamps the email exactly as the auth system recorded it, and a capitalised
+   * variant ("Admin@cqi.test") is the same account as "admin@cqi.test". Exact
+   * matching is what left those actors reading as "Unknown" in the rollup.
    *
    * RLS on profiles allows admin and manager to read all rows, which is exactly
    * who reaches this page, so the join needs no policy of its own.
@@ -128,7 +137,7 @@ function ActivityLogsView({ title = 'Activity Logs', description, viewerRole = '
     fetchAllProfiles()
       .then((rows) => {
         if (cancelled) return
-        setRoleByEmail(Object.fromEntries(rows.map((p) => [p.email, p.role])))
+        setRoleByEmail(Object.fromEntries(rows.map((p) => [p.email.toLowerCase(), p.role])))
       })
       .catch(() => {
         // No roles, not no log. The entries are still all there; they just
@@ -137,6 +146,25 @@ function ActivityLogsView({ title = 'Activity Logs', description, viewerRole = '
       })
     return () => { cancelled = true }
   }, [])
+
+  /**
+   * A log entry's actor role, resolved case-insensitively against the profile
+   * map. One helper so the row filter, the rollup badges and the table badges
+   * all attribute the same email the same way.
+   */
+  const roleOf = (email: string | null | undefined): UserRole | undefined =>
+    roleByEmail[(email ?? '').toLowerCase()]
+
+  /**
+   * The User dropdown's options. For a manager these are the faculty actors
+   * only: the table below can never show another tier, so offering an admin's
+   * or a colleague's email would produce an empty table on pick. The list
+   * narrows as the roles arrive — on a slow profile load it briefly shows
+   * everyone, then converges on what the database scopes.
+   */
+  const visibleActors = isAdminViewer
+    ? actors
+    : actors.filter((a) => roleOf(a) === 'user')
 
   const filters = useMemo(
     () => ({
@@ -184,8 +212,15 @@ function ActivityLogsView({ title = 'Activity Logs', description, viewerRole = '
     // Role is resolved in the browser from profiles, not on the row, so it
     // cannot be a server-side filter. That is the same trade as the label
     // search below, and it is why both live here rather than in the query.
+    //
+    // Manager scope, mirrored from the database: migration 007 returns faculty
+    // entries only, and this filter keeps the page honest even before that
+    // migration has been applied — manager, admin and unattributable ("Unknown")
+    // rows never render for a manager, whichever side of the migration the
+    // database is on.
     const roleOk = (e: ActivityLogEntry) =>
-      !roleFilter || roleByEmail[e.user_email || ''] === roleFilter
+      (!isAdminViewer || roleOf(e.user_email) === 'user') &&
+      (!roleFilter || roleOf(e.user_email) === roleFilter)
 
     const q = search.trim().toLowerCase()
     return entries.filter(
@@ -193,7 +228,7 @@ function ActivityLogsView({ title = 'Activity Logs', description, viewerRole = '
         roleOk(e) &&
         (!q || searchableDetails(e).includes(q)),
     )
-  }, [entries, search, roleFilter, roleByEmail])
+  }, [entries, search, roleFilter, roleByEmail, isAdminViewer])
 
   /**
    * The per-actor summary, ordered by role then by volume.
@@ -228,8 +263,8 @@ function ActivityLogsView({ title = 'Activity Logs', description, viewerRole = '
     }
     return [...byUser.values()].sort(
       (a, b) =>
-        (ROLE_ORDER[roleByEmail[a.user_email] ?? ''] ?? 9) -
-          (ROLE_ORDER[roleByEmail[b.user_email] ?? ''] ?? 9) ||
+        (ROLE_ORDER[roleOf(a.user_email) ?? ''] ?? 9) -
+          (ROLE_ORDER[roleOf(b.user_email) ?? ''] ?? 9) ||
         b.total - a.total ||
         a.user_email.localeCompare(b.user_email),
     )
@@ -341,7 +376,9 @@ function ActivityLogsView({ title = 'Activity Logs', description, viewerRole = '
             <h2>{title}</h2>
             <p>
               {description ||
-                `Audit trail of ${entries.length} entries — every actor, filtered by the database.`}
+                (isAdminViewer
+                  ? `Audit trail of ${entries.length} entries — every actor, filtered by the database.`
+                  : `Audit trail of ${entries.length} entries — faculty activity, filtered by the database.`)}
             </p>
           </div>
         </div>
@@ -393,26 +430,32 @@ function ActivityLogsView({ title = 'Activity Logs', description, viewerRole = '
             />
           </label>
 
-          <label className="activity-filter">
-            <span>Role</span>
-            <select
-              className="input input--sm"
-              value={roleFilter}
-              onChange={(e) => {
-                setRoleFilter(e.target.value)
-                // Role and User narrow the same axis, so picking one clears the
-                // other. Leaving both set reads as a contradiction and shows an
-                // empty table that looks like data loss.
-                if (e.target.value) setUserFilter('')
-              }}
-              aria-label="Filter the log by role"
-            >
-              <option value="">All roles</option>
-              {roleOptions.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          </label>
+          {/* The Role select earns its place only when there is a real choice:
+              a manager's scope is faculty activity, so their filter row drops
+              it rather than offering "Faculty" next to an "All roles" that
+              resolves to the same rows. */}
+          {roleOptions.length > 1 && (
+            <label className="activity-filter">
+              <span>Role</span>
+              <select
+                className="input input--sm"
+                value={roleFilter}
+                onChange={(e) => {
+                  setRoleFilter(e.target.value)
+                  // Role and User narrow the same axis, so picking one clears the
+                  // other. Leaving both set reads as a contradiction and shows an
+                  // empty table that looks like data loss.
+                  if (e.target.value) setUserFilter('')
+                }}
+                aria-label="Filter the log by role"
+              >
+                <option value="">All roles</option>
+                {roleOptions.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </label>
+          )}
 
           <label className="activity-filter">
             <span>User</span>
@@ -422,7 +465,7 @@ function ActivityLogsView({ title = 'Activity Logs', description, viewerRole = '
               onChange={(e) => setUserFilter(e.target.value)}
             >
               <option value="">All users</option>
-              {actors.map((a) => (
+              {visibleActors.map((a) => (
                 <option key={a} value={a}>{a}</option>
               ))}
             </select>
@@ -473,11 +516,12 @@ function ActivityLogsView({ title = 'Activity Logs', description, viewerRole = '
             Showing {rows.length} of {entries.length} loaded entries
           </p>
         )}
-        {/* Say why the admin is missing rather than letting a manager conclude
-            the log is broken or that entries are being withheld from them. */}
+        {/* Say why the other tiers are missing rather than letting a manager
+            conclude the log is broken or that entries are being withheld from
+            them arbitrarily. */}
         {!isAdminViewer && (
           <p className="activity-filters__scope">
-            Showing faculty and manager activity. Admin entries are outside your
+            Showing faculty activity. Manager and admin entries are outside your
             level.
           </p>
         )}
@@ -530,8 +574,8 @@ function ActivityLogsView({ title = 'Activity Logs', description, viewerRole = '
                         )}
                       </td>
                       <td>
-                        <span className={`role-badge role-badge--${roleByEmail[r.user_email] ?? 'unknown'}`}>
-                          {labelRole(roleByEmail[r.user_email])}
+                        <span className={`role-badge role-badge--${roleOf(r.user_email) ?? 'unknown'}`}>
+                          {labelRole(roleOf(r.user_email))}
                         </span>
                       </td>
                       <td>{r.total}</td>
@@ -574,8 +618,8 @@ function ActivityLogsView({ title = 'Activity Logs', description, viewerRole = '
                   <td>{new Date(entry.created_at).toLocaleString()}</td>
                   <td>
                     {entry.user_email || '—'}
-                    <span className={`role-badge role-badge--${roleByEmail[entry.user_email ?? ''] ?? 'unknown'}`}>
-                      {labelRole(roleByEmail[entry.user_email ?? ''])}
+                    <span className={`role-badge role-badge--${roleOf(entry.user_email) ?? 'unknown'}`}>
+                      {labelRole(roleOf(entry.user_email))}
                     </span>
                   </td>
                   <td>
