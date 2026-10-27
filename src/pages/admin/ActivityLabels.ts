@@ -92,6 +92,8 @@ export const ACTION_LABELS: Record<string, string> = {
   // User administration
   'user.created': 'Created user account',
   'user.deleted': 'Deleted user account',
+  'user.archived': 'Archived user account',
+  'user.restored': 'Restored user account',
   'user.program_assigned': 'Assigned user program',
   'role.updated': 'Changed user role',
   'profile.updated': 'Updated profile',
@@ -166,6 +168,7 @@ export function labelRole(role: string | null | undefined): string {
 export const FAILURE_REASON_LABELS: Record<string, string> = {
   invalid_credentials: 'invalid credentials',
   service_unreachable: 'sign-in service unreachable',
+  account_archived: 'account archived',
 }
 
 export function labelReason(raw: string): string {

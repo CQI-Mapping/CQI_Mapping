@@ -1,9 +1,14 @@
-// Admin Users page: create new accounts (admin, manager, or faculty) and list all users.
+// Admin Users page: create new accounts (admin, manager, or faculty), list
+// all users, and manage their lifecycle — roles, program assignment, and the
+// archive/restore cycle. Archiving is the app's soft delete: the account
+// stays restorable, sign-in is refused while archived, and only archived
+// rows can be hard-deleted.
 
 import { useState, useEffect } from 'react'
 import Icon from '../../components/icons'
 import { useDraft } from '../../hooks/useDraft'
-import { adminCreateUser, adminDeleteUser, addActivityLog, fetchAllProfilesWithProgram, fetchPrograms, profileProgramOf, updateUserProgram, updateUserRole } from '../../services/database'
+import { adminCreateUser, adminDeleteUser, addActivityLog, fetchAllProfilesWithProgram, fetchPrograms, profileProgramOf, updateUserProgram, updateUserRole, updateUserStatus } from '../../services/database'
+import { isActive } from '../../utils/report'
 import { supabase } from '../../utils/supabaseClient'
 import type { ProfileWithProgram, Program, UserRole } from '../../services/database'
 
@@ -39,6 +44,10 @@ export default function Users() {
   // The row's program select shares the busy pattern with the one above.
   const [programBusyId, setProgramBusyId] = useState('')
   const [deleteBusyId, setDeleteBusyId] = useState('')
+  // Archive tab: the parked accounts, listed separately so the directory
+  // stays a roster of people who can actually sign in.
+  const [archived, setArchived] = useState(false)
+  const [statusBusyId, setStatusBusyId] = useState('')
 
   const loadUsers = async () => {
     setLoading(true)
@@ -164,8 +173,11 @@ export default function Users() {
     }
   }
 
+  // Hard delete — offered on ARCHIVED rows only. An active account always
+  // goes through the archive first, so a mistaken removal can be undone;
+  // by the time an account reaches this path it has already been parked.
   const handleDelete = async (userId: string, email: string) => {
-    if (!window.confirm(`Remove user ${email}? This cannot be undone.`)) return
+    if (!window.confirm(`Permanently remove user ${email}? This cannot be undone.`)) return
     setError('')
     setSuccess('')
     setDeleteBusyId(userId)
@@ -173,7 +185,7 @@ export default function Users() {
       await adminDeleteUser(userId)
       setUsers((prev) => prev.filter((u) => u.id !== userId))
       await addActivityLog('user.deleted', { entity: 'user', entity_id: userId, label: email })
-      setSuccess(`User ${email} removed.`)
+      setSuccess(`User ${email} permanently removed.`)
     } catch (e) {
       setError('Failed to remove user: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
@@ -181,8 +193,50 @@ export default function Users() {
     }
   }
 
+  // Archive (soft delete): the auth user is untouched, so nothing is lost —
+  // the account stops signing in (Login refuses archived rows) and waits
+  // here for a restore. The inviter's own row is guarded the same way the
+  // delete path is: an admin cannot park themselves.
+  const handleArchive = async (userId: string, email: string) => {
+    if (!window.confirm(`Archive user ${email}? They cannot sign in until the account is restored.`)) return
+    setError('')
+    setSuccess('')
+    setStatusBusyId(userId)
+    try {
+      await updateUserStatus(userId, 'archived')
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status: 'archived' } : u)))
+      await addActivityLog('user.archived', { entity: 'user', entity_id: userId, label: email })
+      setSuccess(`Account ${email} archived. You can restore it from the Archive tab.`)
+    } catch (e) {
+      setError('Failed to archive user: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setStatusBusyId('')
+    }
+  }
+
+  const handleRestore = async (userId: string, email: string) => {
+    setError('')
+    setSuccess('')
+    setStatusBusyId(userId)
+    try {
+      await updateUserStatus(userId, 'active')
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status: 'active' } : u)))
+      await addActivityLog('user.restored', { entity: 'user', entity_id: userId, label: email })
+      setSuccess(`Account ${email} restored — they can sign in again.`)
+    } catch (e) {
+      setError('Failed to restore user: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setStatusBusyId('')
+    }
+  }
+
   const totalUsers = users.length
-  const activeManagers = users.filter((u) => u.role === 'manager').length
+  const activeUsers = users.filter(isActive)
+  const archivedUsers = users.filter((u) => !isActive(u))
+  // The directory follows the tab: active accounts are the roster, archived
+  // ones are the park waiting for a restore.
+  const shown = archived ? archivedUsers : activeUsers
+  const activeManagers = activeUsers.filter((u) => u.role === 'manager').length
 
   return (
     <div className="programs-page users">
@@ -205,12 +259,12 @@ export default function Users() {
         <div className="program-stat">
           <div className="program-stat__label">Managers</div>
           <div className="program-stat__value" style={{ color: '#16a34a' }}>{activeManagers}</div>
-          <div className="program-stat__sub">Faculty / managers</div>
+          <div className="program-stat__sub">Active program heads</div>
         </div>
         <div className="program-stat">
-          <div className="program-stat__label">Status</div>
-          <div className="program-stat__value" style={{ fontSize: 16, color: '#0f172a' }}>Secure</div>
-          <div className="program-stat__sub">Admin-managed</div>
+          <div className="program-stat__label">Archived</div>
+          <div className="program-stat__value" style={{ color: '#64748b' }}>{archivedUsers.length}</div>
+          <div className="program-stat__sub">Restorable accounts</div>
         </div>
       </div>
 
@@ -370,13 +424,30 @@ export default function Users() {
             ))}
           </div>
         ) : (
+          <>
+          <div className="program-toolbar">
+            <div className="sd-tabs" style={{ marginBottom: 0, flex: 1 }}>
+              <button className={`sd-tab ${!archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(false)}>Active</button>
+              <button className={`sd-tab ${archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(true)}>
+                Archive {archivedUsers.length > 0 && <span className="sd-tab__count">{archivedUsers.length}</span>}
+              </button>
+            </div>
+          </div>
           <table className="table">
             <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Program</th><th>Joined</th><th></th></tr></thead>
             <tbody>
-              {users.map((u) => {
+              {shown.length === 0 && (
+                <tr>
+                  <td colSpan={6}>
+                    {archived ? 'No archived accounts — everything is active.' : 'No active accounts yet.'}
+                  </td>
+                </tr>
+              )}
+              {shown.map((u) => {
                 const assigned = profileProgramOf(u)
+                const rowArchived = !isActive(u)
                 return (
-                  <tr key={u.id}>
+                  <tr key={u.id} style={rowArchived ? { opacity: 0.65 } : undefined}>
                     <td>{u.full_name || '—'}</td>
                     <td>{u.email}</td>
                     <td>
@@ -386,7 +457,7 @@ export default function Users() {
                         style={{ marginLeft: 8, maxWidth: 130 }}
                         aria-label={`Change role for ${u.email}`}
                         value={u.role}
-                        disabled={roleBusyId === u.id}
+                        disabled={roleBusyId === u.id || rowArchived}
                         onChange={(e) => handleRoleChange(u.id, e.target.value as UserRole, u.email)}
                       >
                         <option value="admin">Admin</option>
@@ -403,7 +474,7 @@ export default function Users() {
                           style={{ maxWidth: 130 }}
                           aria-label={`Assign program for ${u.email}`}
                           value={assigned?.id ?? ''}
-                          disabled={programBusyId === u.id || programs.length === 0}
+                          disabled={programBusyId === u.id || programs.length === 0 || rowArchived}
                           onChange={(e) => handleProgramChange(u.id, e.target.value, u.email)}
                         >
                           <option value="">None</option>
@@ -416,13 +487,35 @@ export default function Users() {
                     <td>{new Date(u.created_at).toLocaleDateString()}</td>
                     <td>
                       {u.email !== currentEmail && (
-                        <button
-                          className="btn btn--danger btn--sm"
-                          disabled={deleteBusyId === u.id}
-                          onClick={() => handleDelete(u.id, u.email)}
-                        >
-                          {deleteBusyId === u.id ? 'Removing...' : (<><Icon name="trash" size={13} /> Remove</>)}
-                        </button>
+                        rowArchived ? (
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              className="btn btn--ghost btn--sm"
+                              disabled={statusBusyId === u.id}
+                              onClick={() => handleRestore(u.id, u.email)}
+                              title="Bring the account back — they can sign in again"
+                            >
+                              {statusBusyId === u.id ? 'Restoring...' : 'Restore'}
+                            </button>
+                            <button
+                              className="btn btn--danger btn--sm"
+                              disabled={deleteBusyId === u.id}
+                              onClick={() => handleDelete(u.id, u.email)}
+                              title="Permanent — the account cannot come back"
+                            >
+                              {deleteBusyId === u.id ? 'Removing...' : (<><Icon name="trash" size={13} /> Remove</>)}
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            className="btn btn--ghost btn--sm"
+                            disabled={statusBusyId === u.id}
+                            onClick={() => handleArchive(u.id, u.email)}
+                            title="Soft delete — reversible from the Archive tab"
+                          >
+                            {statusBusyId === u.id ? 'Archiving...' : 'Archive'}
+                          </button>
+                        )
                       )}
                     </td>
                   </tr>
@@ -430,6 +523,7 @@ export default function Users() {
               })}
             </tbody>
           </table>
+          </>
         )}
       </div>
     </div>

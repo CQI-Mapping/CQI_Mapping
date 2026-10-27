@@ -35,6 +35,13 @@ export interface Profile {
   avatar_url: string | null
   role: UserRole
   program_id: string | null
+  /**
+   * Soft delete ('active' | 'archived'). Optional because the column is a
+   * migration (008-archived-accounts.sql) a database may predate: absent
+   * columns come back undefined, which isActive() then reads as active —
+   * the same tolerance Course.year_level gets.
+   */
+  status?: string
   created_at: string
   updated_at: string
 }
@@ -293,6 +300,43 @@ export async function updateUserProgram(profileId: string, programId: string | n
     .single()
   if (error) throw error
   return data
+}
+
+/**
+ * Archive an account (profiles.status = 'archived') or restore it.
+ *
+ * The auth user is deliberately untouched: the account stays fully
+ * restorable, nothing is ever lost, and the only thing an archived account
+ * loses is sign-in — Login refuses it while the status reads archived. The
+ * direct-update pattern matches updateUserRole: admins own these columns
+ * under RLS, so a manager can never park or revive an account.
+ */
+export async function updateUserStatus(
+  profileId: string,
+  status: 'active' | 'archived',
+): Promise<Profile> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ status })
+    .eq('id', profileId)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+/** The signed-in user's own profile status, for the Login guard. Only the
+    one row its owner may always read is selected (RLS "Users can view own
+    profile"), so it works for every role. null when no row exists yet — an
+    account created seconds ago is simply not archived. */
+export async function fetchOwnProfileStatus(userId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('status')
+    .eq('id', userId)
+    .maybeSingle()
+  if (error) throw error
+  return data?.status ?? null
 }
 
 // Privileged account operations run through the admin-users Edge Function.

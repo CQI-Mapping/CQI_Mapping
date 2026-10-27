@@ -59,6 +59,11 @@ CREATE TABLE public.profiles (
     -- See migrations/005-profile-picture-and-nickname.sql for the bucket RLS.
     avatar_url TEXT,
     role user_role NOT NULL DEFAULT 'user',
+    -- Soft delete: 'active' (default) or 'archived'. An archived account stays
+    -- fully restorable and is refused at sign-in; hard delete remains available
+    -- on archived rows. See migrations/008-archived-accounts.sql for existing
+    -- databases.
+    status TEXT NOT NULL DEFAULT 'active',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
