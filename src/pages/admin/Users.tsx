@@ -1,13 +1,13 @@
 // Admin Users page: create new accounts (admin, manager, or faculty), list
-// all users, and manage their lifecycle — roles, program assignment, and the
-// archive/restore cycle. Archiving is the app's soft delete: the account
-// stays restorable, sign-in is refused while archived, and only archived
-// rows can be hard-deleted.
+// all users, and manage their lifecycle — roles, program assignment, the
+// display name, and the archive/restore cycle. Archiving is the app's soft
+// delete: the account stays restorable, sign-in is refused while archived,
+// and only archived rows can be hard-deleted.
 
 import { useState, useEffect } from 'react'
 import Icon from '../../components/icons'
 import { useDraft } from '../../hooks/useDraft'
-import { adminCreateUser, adminDeleteUser, addActivityLog, fetchAllProfilesWithProgram, fetchPrograms, profileProgramOf, updateUserProgram, updateUserRole, updateUserStatus } from '../../services/database'
+import { adminCreateUser, adminDeleteUser, addActivityLog, fetchAllProfilesWithProgram, fetchPrograms, profileProgramOf, updateProfile, updateUserProgram, updateUserRole, updateUserStatus } from '../../services/database'
 import { isActive } from '../../utils/report'
 import { supabase } from '../../utils/supabaseClient'
 import type { ProfileWithProgram, Program, UserRole } from '../../services/database'
@@ -17,6 +17,11 @@ const ROLE_LABELS: Record<UserRole, string> = {
   manager: 'Manager',
   user: 'Faculty',
 }
+
+/** Same caps the Profile page's display-name editor stamps on the fields —
+    fixing someone's name here must never exceed what they could set there. */
+const NAME_MAX_LENGTH = 80
+const NICKNAME_MAX_LENGTH = 40
 
 export default function Users() {
   // Draft persists email + name across page navigation. The password is
@@ -48,6 +53,12 @@ export default function Users() {
   // stays a roster of people who can actually sign in.
   const [archived, setArchived] = useState(false)
   const [statusBusyId, setStatusBusyId] = useState('')
+  // Fix-profile modal: the admin repairing another account's identity (a
+  // placeholder name like "test") without waiting for that user to sign in
+  // and fix their own Profile page. Mirrors the Program page's modal.
+  const [editingUser, setEditingUser] = useState<ProfileWithProgram | null>(null)
+  const [editForm, setEditForm] = useState({ fullName: '', nickname: '' })
+  const [editBusy, setEditBusy] = useState(false)
 
   const loadUsers = async () => {
     setLoading(true)
@@ -227,6 +238,67 @@ export default function Users() {
       setError('Failed to restore user: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
       setStatusBusyId('')
+    }
+  }
+
+  // ----- Fix profile -----
+
+  // Seeded from the row so the fields open pre-filled, exactly the identity
+  // the user sees on their own Profile page.
+  const openEdit = (u: ProfileWithProgram) => {
+    setEditingUser(u)
+    setEditForm({ fullName: u.full_name || '', nickname: u.nickname ?? '' })
+  }
+
+  const closeEdit = () => {
+    // Mid-save the modal must stay put: the save writes the fields it shows.
+    if (editBusy) return
+    setEditingUser(null)
+    setEditForm({ fullName: '', nickname: '' })
+  }
+
+  // Saves the repaired name through the same updateProfile the Profile page
+  // uses — RLS already lets admins update any profile row, so no new SQL is
+  // needed. Nickname follows the Profile page's normalization: trimmed, and
+  // empty becomes null rather than an empty string in the DB.
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingUser) return
+    const name = editForm.fullName.trim()
+    if (!name) return
+    const nickname = editForm.nickname.trim()
+    setError('')
+    setSuccess('')
+    setEditBusy(true)
+    let saved = false
+    try {
+      await updateProfile(editingUser.id, { full_name: name, nickname: nickname || null })
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === editingUser.id ? { ...u, full_name: name, nickname: nickname || null } : u,
+        ),
+      )
+      await addActivityLog('user.profile_updated', {
+        entity: 'user',
+        entity_id: editingUser.id,
+        label: `${editingUser.email} → ${name}`,
+      })
+      setSuccess(
+        nickname
+          ? `Profile of ${editingUser.email} fixed — reports will show ${name} "${nickname}".`
+          : `Profile of ${editingUser.email} fixed — reports will show ${name}.`,
+      )
+      saved = true
+    } catch (e) {
+      setError('Failed to update profile: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setEditBusy(false)
+    }
+    // On success the modal closes; on failure it stays open so the error is
+    // read against the fields that produced it.
+    if (saved) {
+      setEditingUser(null)
+      setEditForm({ fullName: '', nickname: '' })
     }
   }
 
@@ -491,6 +563,13 @@ export default function Users() {
                           <div style={{ display: 'flex', gap: 6 }}>
                             <button
                               className="btn btn--ghost btn--sm"
+                              onClick={() => openEdit(u)}
+                              title="Fix their name & nickname — the same fields their Profile page shows"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="btn btn--ghost btn--sm"
                               disabled={statusBusyId === u.id}
                               onClick={() => handleRestore(u.id, u.email)}
                               title="Bring the account back — they can sign in again"
@@ -507,14 +586,23 @@ export default function Users() {
                             </button>
                           </div>
                         ) : (
-                          <button
-                            className="btn btn--ghost btn--sm"
-                            disabled={statusBusyId === u.id}
-                            onClick={() => handleArchive(u.id, u.email)}
-                            title="Soft delete — reversible from the Archive tab"
-                          >
-                            {statusBusyId === u.id ? 'Archiving...' : 'Archive'}
-                          </button>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              className="btn btn--ghost btn--sm"
+                              onClick={() => openEdit(u)}
+                              title="Fix their name & nickname — the same fields their Profile page shows"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="btn btn--ghost btn--sm"
+                              disabled={statusBusyId === u.id}
+                              onClick={() => handleArchive(u.id, u.email)}
+                              title="Soft delete — reversible from the Archive tab"
+                            >
+                              {statusBusyId === u.id ? 'Archiving...' : 'Archive'}
+                            </button>
+                          </div>
                         )
                       )}
                     </td>
@@ -526,6 +614,62 @@ export default function Users() {
           </>
         )}
       </div>
+
+      {/* Fix profile — same modal the Programs page uses. Fields mirror the
+          Profile page's display-name editor (same caps, same nickname
+          normalization), so what the admin sets here is exactly what the
+          user could have set themselves. */}
+      {editingUser && (
+        <div className="modal-overlay" onClick={closeEdit}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="modal__header">
+              <h3>Edit profile</h3>
+              <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>{editingUser.email}</p>
+            </div>
+            <form onSubmit={handleEditSubmit}>
+              <div className="modal__body">
+                <div className="modal__grid-2">
+                  <label className="field" style={{ marginBottom: 0 }}>
+                    <span>Full name</span>
+                    <input
+                      className="input input--sm"
+                      type="text"
+                      placeholder="Juan Dela Cruz"
+                      value={editForm.fullName}
+                      maxLength={NAME_MAX_LENGTH}
+                      onChange={(e) => setEditForm((f) => ({ ...f, fullName: e.target.value }))}
+                      required
+                    />
+                  </label>
+                  <label className="field" style={{ marginBottom: 0 }}>
+                    <span>Nickname</span>
+                    <input
+                      className="input input--sm"
+                      type="text"
+                      placeholder='optional — e.g. "Bebot"'
+                      autoComplete="off"
+                      value={editForm.nickname}
+                      maxLength={NICKNAME_MAX_LENGTH}
+                      onChange={(e) => setEditForm((f) => ({ ...f, nickname: e.target.value }))}
+                    />
+                  </label>
+                </div>
+                <p className="au__cred-note" style={{ marginTop: 10 }}>
+                  Reports and audit logs use the full name; the nickname shows in quotes. Clearing it removes the quoted name.
+                </p>
+              </div>
+              <div className="modal__footer">
+                <button type="button" className="btn btn--ghost btn--sm" onClick={closeEdit} disabled={editBusy}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn--primary btn--sm" disabled={editBusy || !editForm.fullName.trim()}>
+                  {editBusy ? 'Saving...' : 'Save changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

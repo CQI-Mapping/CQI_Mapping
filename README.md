@@ -442,6 +442,7 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 
 ### `admin/Users.tsx`
 - Create accounts with role select (**admin**, **manager**, or **faculty**) plus table of all users with role badges. Needs `VITE_SUPABASE_SERVICE_ROLE_KEY`. No role `<select>` on existing rows — role changes via SQL or `updateUserRole()`.
+- **Edit** per row opens a modal fixing another account's Full name + Nickname — the same display-name fields that user's Profile page shows (same 80/40 caps, empty nickname clears it). Saves through `updateProfile()` (RLS already lets admins update any profile row) and logs `user.profile_updated`.
 - Password Show/Hide uses light-form `.password-wrapper` override (dark text on white).
 
 ### `admin/Course.tsx` and `manager/Course.tsx`
