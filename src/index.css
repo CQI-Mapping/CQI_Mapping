@@ -4222,27 +4222,6 @@ textarea.input {
   color: #14532d;
 }
 
-/* The lead sentence is flagged with a small green square, as in the brief --
-   the marker is decorative, so the sentence itself stays what an `h2+p` pair
-   is to a screen reader: the heading followed by its description. */
-.reports-banner__lead {
-  margin: 5px 0 0;
-  font-size: 12.5px;
-  line-height: 1.4;
-  color: #334155;
-}
-
-.reports-banner__lead::before {
-  content: '';
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  margin-right: 7px;
-  border-radius: 2px;
-  background: #16a34a;
-  vertical-align: 1px;
-}
-
 .reports-banner__crumb {
   margin: 6px 0 0;
   font-size: 11.5px;
@@ -5136,14 +5115,6 @@ button.reports-panel__more:hover {
 
 .program-hero__action .btn--primary:hover {
   background: #f0fdf4;
-}
-
-.reports-banner__lead {
-  color: rgba(255, 251, 244, 0.75);
-}
-
-.reports-banner__lead::before {
-  background: #bbf7d0;
 }
 
 .reports-banner__crumb {

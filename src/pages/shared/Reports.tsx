@@ -535,10 +535,6 @@ function Reports({ profile, onNavigate }: ReportsProps) {
           </span>
           <div className="reports-banner__title">
             <h2>Overall Report</h2>
-            <p className="reports-banner__lead">
-              Comprehensive overview of curriculum mapping, outcomes alignment,
-              and continuous quality improvement.
-            </p>
             {program && (
               <p className="reports-banner__crumb">
                 {SCHOOL.institute} · {program.code} Program
