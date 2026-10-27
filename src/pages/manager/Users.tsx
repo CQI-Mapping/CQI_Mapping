@@ -26,7 +26,11 @@ function Users() {
     setError('')
     try {
       const profiles = await fetchAllProfiles()
-      setUsers(profiles)
+      // Faculty directory scope: admin accounts are not this page's business —
+      // managers add faculty and review accounts, they don't administer admins —
+      // so admin rows are filtered out of the table. The inviter-name lookup
+      // below still reads the full list.
+      setUsers(profiles.filter((u) => u.role !== 'admin'))
       try {
         const { data } = await supabase!.auth.getUser()
         const me = profiles.find((u) => u.id === data?.user?.id)
