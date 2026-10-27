@@ -898,6 +898,13 @@ export async function deleteProgramOutcomeStandalone(id: string): Promise<void> 
 
 export interface CourseLearningOutcomeStandalone {
   id: string
+  /**
+   * The faculty member who created the row. Optional because the column is
+   * a migration (009-private-clos.sql) a database may predate, and rows
+   * from before it are unowned. RLS scopes faculty reads to their own
+   * owner_id; managers and admins see every row.
+   */
+  owner_id?: string | null
   code: string
   course: string
   title: string
@@ -917,9 +924,21 @@ export async function fetchCourseLearningOutcomesStandalone(): Promise<CourseLea
 }
 
 export async function createCourseLearningOutcomeStandalone(payload: Partial<CourseLearningOutcomeStandalone>): Promise<CourseLearningOutcomeStandalone> {
+  // Ownership is stamped here, not left to the caller: every creator owns
+  // what they make, so the RLS policies can scope faculty visibility to
+  // their own rows ("a new user can't see another user's outcomes").
+  // The form payload never carries owner_id, so the spread cannot override it.
+  let ownerId: string | null = null
+  try {
+    const { data: userData } = await supabase.auth.getUser()
+    ownerId = userData.user?.id ?? null
+  } catch {
+    // An unowned insert is rejected by RLS with a readable permission
+    // error — better than a raw auth-service failure message here.
+  }
   const { data, error } = await supabase
     .from('admin_course_learning_outcomes')
-    .insert(payload)
+    .insert({ ...payload, owner_id: ownerId })
     .select()
     .single()
   if (error) throw error

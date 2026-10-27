@@ -437,6 +437,7 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 - Same banner + skeleton pattern. The manager page is deliberately slim — no role-badge line, no "what you can do" panel.
 - Manager: stats (Curriculum, Programs, Courses, POs, CLOs, Faculty) + Course quick-action.
 - Faculty: Subjects (= Courses count) and Course Outcomes stats + recent CLOs (latest 5 by `created_at`).
+- CLO stats are role-scoped: RLS lets managers/admins read every outcome, while a faculty user counts only their own (migration `009-private-clos.sql`).
 
 > **Theme note (2026 look):** the app sits on the same dark circuit wallpaper everywhere. Dashboards keep the entrance-art banner; every content page's banner strip uses the open-book artwork (`banner-bg-page.jpg`); page banners, panels, table headers and hairlines are sage-tinted so the light content sits comfortably against the dark background. Both banners carry a deep drop shadow + faint green rim so they lift off the wallpaper.
 
@@ -571,6 +572,8 @@ New role-restricted feature, end to end. Example: a `reports` table that admins 
 | Admin entries missing for an admin | The scoped policy is missing. Run `003-manager-log-visibility.sql` (or `007-manager-log-faculty-only.sql`, which recreates the policy and its newer `actor_role()` helper); both are safe to re-run. |
 | A manager sees **manager or Unknown** rows in the log | `003` still let a manager read other managers' and unattributable rows, and its admin check matched emails case-sensitively, so an entry stamped `Admin@cqi.test` (capital A) slipped through as Unknown. Run `supabase/migrations/007-manager-log-faculty-only.sql` — managers then see faculty entries only, and email matching is case-insensitive. Safe to re-run. |
 | An archived account cannot sign in ("account has been archived") | That is the soft delete working: an admin archived the account, and sign-in stays refused until it is restored. An admin restores it from Users & Accounts → Archive tab. |
+| A faculty user's Course Learning Outcomes page is **empty** (or shows fewer rows than before) | Outcomes are owned per faculty member since `009-private-clos.sql` — each user sees only what they created; managers and admins still see everything. The migration attributes existing rows from `clo.created` audit entries; rows with no matching log stay unowned (admin/manager-visible). Hand one to a user with the UPDATE snippet in the migration's header comment. |
+| Faculty Delete on a CLO fails with a permission error | Before `009` there was no DELETE policy for non-admins, so the button could never work. The migration lets an owner delete their own rows — run it. |
 | Logged in but shown as `user` (no admin powers) | The profile's `role` column is `user` in the DB. Promote it (section 3.1 SQL) — the role lives in `profiles`, not in the email. |
 | Logged in but stuck on Login or empty dashboard | Profile missing. `ensureProfile` now auto-creates a profile row on sign-in, so this self-heals; if it persists, check the profile INSERT policy exists. |
 | `42501` / "permission denied for table" | RLS blocking. Check the role of the signed-in user (`SELECT role FROM profiles WHERE id = auth.uid()`) and confirm the matching policy exists. |

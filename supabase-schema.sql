@@ -15,9 +15,10 @@
 --   strategic_goals               — institutional strategic goals (admin/manager)
 --   admin_program_outcomes        — standalone admin-managed PO list
 --   program_educational_objectives— PEOs (admin/manager)
---   admin_course_learning_outcomes— standalone admin-managed CLO list
+--   admin_course_learning_outcomes— standalone CLO list, owned per faculty
 --   ched_memorandum_orders        — CHED memo orders (admin/manager)
---   (admins and managers may create/edit/archive these; only admins delete)
+--   (outcomes: faculty see/edit only their own; admins/managers see all;
+--    only admins delete others' rows)
 --   po_feedback                   — shared CLO→PO pick/reject log (curation)
 -- =============================================================================
 
@@ -263,6 +264,10 @@ DROP INDEX IF EXISTS public.admin_program_outcomes_code_cmo_nulls_equal;
 -- Same CLO code is allowed in different courses (e.g. CLO-1 for CS-101 and CLO-1 for IT21)
 CREATE TABLE public.admin_course_learning_outcomes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    -- The faculty member who created the row. NULL only for rows that
+    -- predate ownership (see migrations/009-private-clos.sql); unowned rows
+    -- are admin/manager-visible but hidden from faculty.
+    owner_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     code TEXT NOT NULL,
     course TEXT NOT NULL DEFAULT '',
     title TEXT NOT NULL,
@@ -271,8 +276,11 @@ CREATE TABLE public.admin_course_learning_outcomes (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE UNIQUE INDEX IF NOT EXISTS admin_course_learning_outcomes_code_course_unique
-    ON public.admin_course_learning_outcomes (code, course);
+-- Per-owner uniqueness: two faculty members may both define CLO1 for the
+-- same course; one user still cannot duplicate a code for one course.
+-- (owner_id NULL rows are not pairwise-constrained — NULLs stay distinct.)
+CREATE UNIQUE INDEX IF NOT EXISTS admin_course_learning_outcomes_code_course_owner_unique
+    ON public.admin_course_learning_outcomes (code, course, owner_id);
 DO $$ BEGIN
     IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'admin_course_learning_outcomes_code_key') THEN
         ALTER TABLE public.admin_course_learning_outcomes DROP CONSTRAINT admin_course_learning_outcomes_code_key;
@@ -556,20 +564,29 @@ CREATE POLICY "Admins can manage program_educational_objectives" ON public.progr
     WITH CHECK (public.current_user_role() = 'admin');
 
 -- ADMIN COURSE LEARNING OUTCOMES
-CREATE POLICY "Authenticated users can read admin_course_learning_outcomes" ON public.admin_course_learning_outcomes FOR SELECT
-    USING (auth.role() = 'authenticated');
-
+-- Outcomes are owned by their creator: faculty SELECT/UPDATE/DELETE only
+-- their own rows (ownership is stamped on insert by the app service),
+-- managers keep read oversight of everything, admins keep full control.
+-- Unowned rows (pre-ownership legacy) are admin/manager-visible only.
 CREATE POLICY "Admins can manage admin_course_learning_outcomes" ON public.admin_course_learning_outcomes FOR ALL
     USING (public.current_user_role() = 'admin')
     WITH CHECK (public.current_user_role() = 'admin');
 
--- All roles may create and edit course learning outcomes; only admins delete them.
-CREATE POLICY "Authenticated users can create admin_course_learning_outcomes" ON public.admin_course_learning_outcomes FOR INSERT
-    WITH CHECK (public.current_user_role() IN ('admin', 'manager', 'user'));
+CREATE POLICY "Managers can read every course learning outcome" ON public.admin_course_learning_outcomes FOR SELECT
+    USING (public.current_user_role() = 'manager');
 
-CREATE POLICY "Authenticated users can update admin_course_learning_outcomes" ON public.admin_course_learning_outcomes FOR UPDATE
-    USING (public.current_user_role() IN ('admin', 'manager', 'user'))
-    WITH CHECK (public.current_user_role() IN ('admin', 'manager', 'user'));
+CREATE POLICY "Faculty see only their own course learning outcomes" ON public.admin_course_learning_outcomes FOR SELECT
+    USING (public.current_user_role() = 'user' AND owner_id = auth.uid());
+
+CREATE POLICY "Outcomes are created owned by their creator" ON public.admin_course_learning_outcomes FOR INSERT
+    WITH CHECK (owner_id = auth.uid());
+
+CREATE POLICY "Faculty edit only their own course learning outcomes" ON public.admin_course_learning_outcomes FOR UPDATE
+    USING (owner_id = auth.uid())
+    WITH CHECK (owner_id = auth.uid());
+
+CREATE POLICY "Faculty delete their own course learning outcomes" ON public.admin_course_learning_outcomes FOR DELETE
+    USING (owner_id = auth.uid());
 
 -- CHED MEMORANDUM ORDERS
 CREATE POLICY "Authenticated users can read ched_memorandum_orders" ON public.ched_memorandum_orders FOR SELECT
