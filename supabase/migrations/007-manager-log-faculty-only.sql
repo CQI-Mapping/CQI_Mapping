@@ -63,15 +63,14 @@ $$;
 REVOKE ALL ON FUNCTION public.actor_role(TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.actor_role(TEXT) TO authenticated;
 
--- 003's helper is superseded by actor_role() above; drop it so a database
--- cannot keep two answers to the same question around. IF EXISTS: a database
--- that never applied 003 has nothing to drop.
-
-DROP FUNCTION IF EXISTS public.is_admin_email(TEXT);
-
 -- ============================================================
--- 2. Replace the read policy
+-- 2. Replace the read policy — BEFORE dropping 003's helper
 -- ============================================================
+-- The old policy's body calls is_admin_email(), so Postgres refuses to drop
+-- that function while the policy still depends on it (2BP01). Dropping the
+-- policy first leaves the function with no dependents, and the new policy
+-- below then uses actor_role() exclusively.
+--
 -- Both historical names are dropped: a database that applied 003 carries
 -- "Scoped activity log visibility", one that never did may still carry
 -- "Admins and managers can view activity logs". Either way this lands on
@@ -79,6 +78,12 @@ DROP FUNCTION IF EXISTS public.is_admin_email(TEXT);
 
 DROP POLICY IF EXISTS "Scoped activity log visibility" ON public.activity_logs;
 DROP POLICY IF EXISTS "Admins and managers can view activity logs" ON public.activity_logs;
+
+-- 003's helper is superseded by actor_role() above; drop it so a database
+-- cannot keep two answers to the same question around. IF EXISTS: a database
+-- that never applied 003 has nothing to drop.
+
+DROP FUNCTION IF EXISTS public.is_admin_email(TEXT);
 
 CREATE POLICY "Scoped activity log visibility" ON public.activity_logs FOR SELECT
     USING (
