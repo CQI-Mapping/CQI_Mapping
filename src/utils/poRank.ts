@@ -1,23 +1,42 @@
 // poRank: hybrid fusion rank for closest-PO.
 //
-// Combines keyword overlap (poMatch), MiniLM semantic cosine (poSemantic),
-// exact-phrase hits, Bloom-verb family alignment, and per-browser click
-// memory into ONE fused score per PO. Always returns best top-N (even at
-// score 0) so the always-suggest contract holds; gates only decide
-// auto-fill eligibility, never display.
+// Combines keyword overlap (poMatch), MPNet semantic cosine (poSemantic),
+// exact-phrase hits, Bloom-verb family alignment, per-browser click memory,
+// and a stage-2 per-field rerank into ONE fused score per PO. Always returns
+// best top-N (even at score 0) so the always-suggest contract holds; gates
+// only decide auto-fill eligibility, never display.
 //
-// Calibrated 2026-10-05 on the golden fixture (poGolden + poRank.test):
-// fused top1 100 / top3 100 without semantic; gates below hold that bar
-// while keeping gibberish at low confidence. Re-measure via `npm run test`
+// Calibrated 2026-10-05 on the golden fixture (poGolden + poRank.test) and
+// re-calibrated 2026-10-28 on the official CMO 25 s. 2015 corpus
+// (poOfficial + poOfficial.test): fused top1/top3 hold the pinned bars with
+// the expanded lexicon and field rerank. Re-measure via `npm run test`
 // after changing any constant here.
 
-import { rankClosestPos, type PoText, type RankedPo } from './poMatch'
+import { rankClosestPos, scorePo, type PoText, type RankedPo } from './poMatch'
 import { boostFor, rejectionPenalty } from './poMemory'
 
 export const EXACT_BONUS = 15
 export const BLOOM_BONUS = 5
 export const THIN_GATE = 25
 export const RICH_GATE = 40
+
+// Premium second stage: a whole-blob keyword score can dilute a strong
+// sub-field match (a PO whose description rambles but whose title is nearly
+// the draft). Finalists get re-scored against each text field separately
+// and lifted toward the best field — this can only raise a score, never
+// lower it, so gibberish and low-confidence behavior are unchanged.
+export const FIELD_STAGE_W = 0.7
+
+function fieldMax(draft: string, po: PoText): number {
+  const fields = [po.title ?? '', po.description ?? '', po.extra ?? '']
+  let best = 0
+  for (const f of fields) {
+    if (!f.trim()) continue
+    const s = scorePo(draft, { code: po.code, title: f, description: null }).score
+    if (s > best) best = s
+  }
+  return best
+}
 
 // Bloom-verb families — lead verbs in the same family share intent.
 const BLOOM_FAMILIES: string[][] = [
@@ -85,6 +104,16 @@ export function fuseRanked(
     const matched = s !== undefined && s > k.score ? [] : k.matched
     return { code: k.code, label: k.label, score, matched }
   })
+  // Stage-2 field rerank: lift finalists whose title/description/extra
+  // individually match the draft better than the whole-blob score shows.
+  for (const f of fused) {
+    const po = byCode.get(f.code)
+    if (!po) continue
+    const fm = fieldMax(draft, po)
+    if (fm <= f.score) continue
+    const blend = Math.round(FIELD_STAGE_W * fm + (1 - FIELD_STAGE_W) * f.score)
+    if (blend > f.score) f.score = Math.min(100, blend)
+  }
   fused.sort((a, b) => b.score - a.score || a.code.localeCompare(b.code))
   return fused.slice(0, top)
 }

@@ -1,6 +1,7 @@
 // Probe set for the CLO closest-PO contract: exact / paraphrase /
 // gibberish-always-suggest / empty. Keyword-only (offline-safe); semantic
-// thresholds are calibrated separately once MiniLM lands.
+// thresholds are calibrated separately (poOfficial.test + the mpnet
+// calibration probe).
 
 import { describe, expect, it } from 'vitest'
 import { rankClosestPos, type PoText } from './poMatch'

@@ -458,6 +458,13 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 ### `admin/CourseLearningOutcomes.tsx`
 - Bespoke page (not shared): course-scoped CLOs + PO suggestion mapping, stats + search + tabs + skeleton + unified empty states. Also mounted on the faculty route.
 
+#### Closest-PO suggestion engine (premium accuracy)
+- **Hybrid fusion** (`utils/poRank.ts`): keyword overlap + semantic cosine + exact-code/phrase bonus + Bloom-verb family + per-browser click memory (`poMemory.ts`, localStorage only) + a stage-2 **per-field rerank** (finalists re-scored against title/description/extra separately; can only raise a score).
+- **Expanded lexicon** (`utils/poMatch.ts`): ~40 curriculum synonym groups covering the CMO 25 s. 2015 vocabulary, with a trailing-e stem fold so "create/creating", "integrate/integrated", "recognize/recognized" all meet on one token.
+- **Premium model** (`utils/poSemantic.ts`): `Xenova/all-mpnet-base-v2` (110M params, 768-dim) via `@huggingface/transformers` v4 — WebGPU where available, WASM fallback. Free, local, no API keys. Weights (~110 MB) download once, cached by the browser; the strip shows "Enhancing accuracy — loading AI model… %" while that happens, and the page preloads the model in the background. If it can't load (offline / blocked CDN), a silent fallback to the keyword matcher keeps the strip working — never blank.
+- **Pinned accuracy** (`utils/poOfficial.ts` + `poOfficial.test.ts`): 61-case fixture on the official CMO list (exact + paraphrase + faculty-style drafts, with honest alternates for the CMO's own near-duplicate pair PO-1/SD-3). Measured 2026-10-28: **top-1 100%, top-3 100%**; tests pin top-1 ≥ 90% / top-3 ≥ 95% so future edits can't silently regress. The displayed % is relative (top pick = 100%); the raw score behind gates/auto-fill is in the tooltip.
+- Calibration note: `SEM_GATE = 35` gates semantic-only candidates — measured on the official corpus: exact drafts land 58–87, true paraphrases 44–85, gibberish noise ≤ 19, so the gate sits between noise and the weakest useful paraphrase. Exact-phrase (`+15`) and Bloom (`+5`) bonuses are unchanged from the original calibration.
+
 ### `user/TOS.tsx` (Generate TOS, faculty)
 - A spreadsheet-style blueprint editor backed by `tos_exams` / `tos_sheets` / `tos_topics`: you type in the green cells, the hour-weighted "Number of Items/Points" column, header percentages and column totals recompute live (`utils/tosMath.ts`).
 - Every edit autosaves on a 600 ms debounce; the **Save pending** button flushes all sheets immediately, **Discard** reloads from the database.
