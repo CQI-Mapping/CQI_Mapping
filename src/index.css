@@ -2558,13 +2558,6 @@ code {
   color: var(--text-muted);
 }
 
-/* Live char counter under the name field. */
-.profile-name-count {
-  align-self: flex-end;
-  font-size: 11.5px;
-  color: var(--text-muted);
-}
-
 /* Editing state strip: green while changes await a save, amber when empty. */
 .profile-note {
   display: flex;
