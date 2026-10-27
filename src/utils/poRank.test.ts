@@ -31,10 +31,15 @@ describe('fuseRanked', () => {
   })
 
   it('merges semantic winners over keyword order', () => {
-    const kw = full('Design and develop software systems')
-    const sem = [{ code: 'PO-1', label: 'PO-1', score: 90, matched: [] }]
-    const [top] = fuseRanked('Design and develop software systems', kw, sem, POS, 3)
+    const draft = 'Design and develop software systems'
+    const kw = full(draft)
+    // Premium: the stage-2 field rerank lifts PO-2 (its title matches the
+    // draft verbatim) to ~97, so a true semantic winner has to out-score
+    // that — a real paraphrase lands ~99 on mpnet cosine.
+    const sem = [{ code: 'PO-1', label: 'PO-1', score: 99, matched: [] }]
+    const [top, second] = fuseRanked(draft, kw, sem, POS, 3)
     expect(top.code).toBe('PO-1')
+    expect(second.code).toBe('PO-2')
   })
 
   it('holds golden accuracy targets after fusion (measured 2026-10-05)', () => {

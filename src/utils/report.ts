@@ -44,6 +44,23 @@ export const poDigits = (code: string) => {
   return m ? parseInt(m[0], 10) : null
 }
 export const poNumber = (code: string) => poDigits(code) ?? 9999
+
+/**
+ * Full order key for outcome codes that carry both a prefix family and a
+ * number: PO-1 … PO-4 (the CMO 25 s. 2015 program outcomes) sort before
+ * SD-1 … SD-13 (the sub-discipline ones), numerically within each family.
+ * A plain numeric key would interleave the families (SD-1 landing among
+ * PO-1…PO-4); a plain string key would order SD-10 before SD-2. Codes
+ * without a "PREFIX-number" shape sort after every prefixed one, stably
+ * by raw code.
+ */
+export const outcomeCodeKey = (code: string) => {
+  const m = (code || '').trim().match(/^([A-Za-z]+)\s*-?\s*(\d+)$/)
+  return m
+    ? `${m[1].toUpperCase()}|${m[2].padStart(6, '0')}`
+    : `\uffff${(code || '').trim()}`
+}
+
 export const poLabel = (code: string) => {
   const d = poDigits(code)
   return d === null ? (code || '—') : String(d)

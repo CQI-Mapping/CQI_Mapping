@@ -32,11 +32,11 @@ import type {
 } from '../../services/database'
 import SuggestionInput, { type SuggestionOption } from '../../components/SuggestionInput'
 import { rankClosestPos, type PoText, type RankedPo } from '../../utils/poMatch'
-import { rankSemantic } from '../../utils/poSemantic'
+import { rankSemantic, subscribeSemantic, preloadSemantic, type SemanticLoadState } from '../../utils/poSemantic'
 import { fuseRanked, toRelative } from '../../utils/poRank'
 import { pickedBefore, recordPick, recordRejection, draftSig } from '../../utils/poMemory'
 import SyllabusReport from '../../components/SyllabusReport'
-import { splitReportPos, buildGroups } from '../../utils/report'
+import { splitReportPos, buildGroups, outcomeCodeKey } from '../../utils/report'
 import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
 import { downloadSyllabusPdf } from '../../utils/syllabusPdf'
 import { reportFileName } from '../../utils/download'
@@ -97,9 +97,12 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   const viewReportRef = useRef<HTMLDivElement>(null)
   // Shared pick/reject log for curation (manager/admin readable; null = hidden).
   const [feedback, setFeedback] = useState<PoFeedback[] | null>(null)
-  // Semantic (TensorFlow USE) re-rank, frontend-only. Null = not loaded / failed.
+  // Semantic (MPNet via Transformers.js v4) re-rank, frontend-only.
+  // Null = model not loaded / failed — the keyword-only floor keeps suggesting.
   const [createSemantic, setCreateSemantic] = useState<RankedPo[] | null>(null)
   const [editSemantic, setEditSemantic] = useState<RankedPo[] | null>(null)
+  // Model download progress for the "enhancing accuracy" strip line.
+  const [semStatus, setSemStatus] = useState<SemanticLoadState>({ status: 'idle', progress: 0 })
 
   const autoResize = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return
@@ -189,12 +192,10 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
           fetchChedMemoOrders().catch(() => []),
         ])
         const active = pos.filter((p) => !p.status || p.status === 'active')
-        // Numeric PO order PO-1…PO-27 for the suggest dropdown
-        active.sort((a, b) => {
-          const n = (s: string) => { const m = s.match(/PO\D*(\d+)/i); return m ? parseInt(m[1], 10) : 9999 }
-          const na = n(a.code || ''); const nb = n(b.code || '')
-          return na !== nb ? na - nb : String(a.code).localeCompare(String(b.code))
-        })
+        // PO-1…PO-4 first, then SD-1…SD-13, numeric within each family —
+        // the official CMO 25 s. 2015 list seeds both families, so a
+        // plain numeric or alphabetical key would misorder SD-10 vs SD-2.
+        active.sort((a, b) => outcomeCodeKey(a.code || '').localeCompare(outcomeCodeKey(b.code || '')))
         // Keep the raw reference lists for the syllabus reader overlay.
         if (!cancelled) {
           reportData.current = {
@@ -329,6 +330,15 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   const createDisplay = toRelative(createShown)
   const editDisplay = toRelative(editShown)
 
+  // Warm the semantic model in the background once the page settles, so by
+  // the time faculty type a description the premium re-rank is already live.
+  // First visit shows the download %; later visits load from browser cache.
+  useEffect(() => {
+    const unsub = subscribeSemantic(setSemStatus)
+    const t = setTimeout(() => preloadSemantic(), 1200)
+    return () => { unsub(); clearTimeout(t) }
+  }, [])
+
   // Debounced semantic re-rank for the create-form description.
   useEffect(() => {
     const draft = form.description.trim()
@@ -408,6 +418,11 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
       </div>
       <textarea className="input input--sm" rows={2} ref={autoResize} value={editForm.description} onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} placeholder="Description" />
       <SuggestionInput value={editForm.programOutcomes} onChange={(v) => setEditForm({ ...editForm, programOutcomes: v })} options={poSuggestions} placeholder="Type to search POs" />
+      {semStatus.status === 'loading' && (
+        <span style={{ fontSize: 12, color: '#15803d' }}>
+          Enhancing accuracy — loading AI model… {semStatus.progress}%
+        </span>
+      )}
       {editDisplay.length > 0 ? (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '6px 0' }}>
           <span style={{ fontSize: 12, color: '#64748b', width: '100%' }}>
@@ -538,6 +553,13 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             placeholder="Type to search POs"
           />
         </label>
+        {semStatus.status === 'loading' && (
+          <div className="field" style={{ marginTop: -4 }}>
+            <span style={{ fontSize: 12, color: '#15803d' }}>
+              Enhancing accuracy — loading AI model… {semStatus.progress}%
+            </span>
+          </div>
+        )}
         {createDisplay.length > 0 ? (
           <div className="field" style={{ marginTop: -4 }}>
             <span style={{ fontSize: 12, color: '#64748b' }}>

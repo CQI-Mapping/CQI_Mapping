@@ -15,6 +15,7 @@ import {
   addActivityLog,
 } from '../../services/database'
 import type { ProgramOutcomeStandalone, ChedMemoOrder } from '../../services/database'
+import { outcomeCodeKey } from '../../utils/report'
 
 const FIXED_CMO_OPTIONS = [
   { id: 'fixed-common', title: 'Common to All Programs in All Types of Schools', code: '' },
@@ -212,14 +213,11 @@ export default function ProgramOutcomesAdmin() {
     cmoMap.get(key)!.push(item)
   }
 
-  // Sort each group by numeric PO order
-  const sortPo = (a: ProgramOutcomeStandalone, b: ProgramOutcomeStandalone) => {
-    const n = (s: string) => {
-      const m = s.match(/PO\D*(\d+)/i)
-      return m ? parseInt(m[1], 10) : 9999
-    }
-    return n(a.code || '') - n(b.code || '')
-  }
+  // Sort each group by outcome order — PO family first, then SD family,
+  // numeric within each (see outcomeCodeKey), so the seeded CMO 25 s. 2015
+  // list keeps its two numbering runs in order.
+  const sortPo = (a: ProgramOutcomeStandalone, b: ProgramOutcomeStandalone) =>
+    outcomeCodeKey(a.code || '').localeCompare(outcomeCodeKey(b.code || ''))
 
   const cmoLabel = (id: string) => {
     const fixed = FIXED_CMO_OPTIONS.find((c) => c.id === id)

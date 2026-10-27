@@ -42,37 +42,83 @@ function stem(t: string): string {
   return t
 }
 
+// Verb stems split by spelling: "create" vs "creating"→"creat". Folding a
+// trailing "e" makes both spellings meet at one token, so drafts in either
+// form ("create" / "creating" / "creat-") match the outcome text.
+function foldE(t: string): string {
+  return t.length > 4 && t.endsWith('e') ? t.slice(0, -1) : t
+}
+
+/** Full normalization used for map keys and tokens: stem, then fold e. */
+function norm(t: string): string {
+  return foldE(stem(t))
+}
+
 function tokenSet(s: string): Set<string> {
-  return new Set(tokens(s).map((t) => canonical(stem(t))))
+  return new Set(tokens(s).map((t) => canonical(t)))
 }
 
 // Offline curriculum synonym groups — canonical head is the first entry.
 // Lets "build apps" match "develop software" with zero shared raw words.
+// Expanded to ~40 groups covering the CMO 25 s. 2015 outcome vocabulary
+// (utilize/uphold/impact/project-plan/integrate/…), so the keyword floor —
+// the path that runs before (or without) the semantic model — still lands
+// the draft in the right outcome family.
 const SYN_GROUPS: string[][] = [
   ['develop', 'build', 'create', 'construct', 'implement'],
-  ['software', 'app', 'application', 'program', 'system'],
+  ['software', 'app', 'application', 'program', 'system', 'website', 'web', 'mobile', 'platform', 'dashboard', 'online'],
   ['design', 'plan', 'architect', 'model'],
   ['evaluate', 'test', 'assess', 'validate', 'measure'],
   ['analyze', 'compare', 'contrast', 'examine', 'investigate'],
-  ['manage', 'maintain', 'administer', 'operate'],
+  ['manage', 'maintain', 'administer', 'operate', 'administration', 'management', 'administrative'],
   ['data', 'database', 'information', 'dataset'],
   ['network', 'infrastructure', 'server'],
   ['security', 'protect', 'secure', 'safety'],
   ['solve', 'resolve', 'troubleshoot', 'debug'],
   ['communicate', 'present', 'report', 'document', 'write'],
   ['team', 'collaborate', 'cooperate', 'group'],
-  ['ethic', 'professional', 'responsibility', 'conduct'],
+  ['ethic', 'ethical', 'professional', 'responsibility', 'responsibilty', 'conduct'],
   ['learn', 'study', 'understand', 'demonstrate'],
+  // ── Premium expansion: CMO 25 s. 2015 vocabulary ──────────────────────
+  ['utilize', 'use', 'used', 'employ', 'leverage', 'harness', 'utilized', 'utilization', 'usage'],
+  ['uphold', 'observe', 'observed', 'adhere', 'follow', 'comply', 'compliance'],
+  ['need', 'requirement', 'demand', 'necessity', 'required'],
+  ['impact', 'affect', 'affected', 'influence', 'effect'],
+  ['society', 'social', 'community', 'communities', 'public', 'societal'],
+  ['global', 'local', 'worldwide', 'international'],
+  ['organization', 'business', 'enterprise', 'company', 'industry', 'firm'],
+  ['user', 'individual', 'stakeholder', 'client', 'customer', 'people'],
+  ['project', 'roadmap', 'milestone', 'schedule', 'deliverable'],
+  ['leader', 'leadership', 'member', 'role'],
+  ['goal', 'objective', 'mission', 'vision', 'purpose'],
+  ['technique', 'method', 'approach', 'methodology'],
+  ['tool', 'equipment', 'instrument', 'tooling'],
+  ['knowledge', 'expertise', 'competence', 'competency'],
+  ['mathematic', 'math', 'science', 'scientific'],
+  ['complex', 'complicated', 'intricate'],
+  ['problem', 'issue', 'challenge', 'task'],
+  ['modern', 'current', 'latest', 'contemporary'],
+  ['select', 'choose', 'pick', 'choice', 'selection', 'selected'],
+  ['process', 'procedure', 'workflow', 'pipeline'],
+  ['component', 'module', 'element', 'unit'],
+  ['constraint', 'limitation', 'restriction', 'limit'],
+  ['integrate', 'integrated', 'integration', 'incorporate', 'embed', 'deploy', 'deployed', 'deployment'],
+  ['assist', 'support', 'help', 'aid'],
+  ['recognize', 'recognized', 'identify', 'identified', 'determine', 'detect'],
+  ['performance', 'efficiency', 'productivity', 'speed', 'improve', 'improved'],
+  ['self', 'personal', 'own'],
 ]
 
 const SYN_MAP: Map<string, string> = (() => {
   const m = new Map<string, string>()
-  for (const g of SYN_GROUPS) for (const w of g) m.set(w, g[0])
+  // Keys and heads are normalized the same way tokens are, so "create" and
+  // "creating" land on the same map entry no matter which spelling arrives.
+  for (const g of SYN_GROUPS) for (const w of g) m.set(norm(w), norm(g[0]))
   return m
 })()
 
 function canonical(t: string): string {
-  return SYN_MAP.get(t) ?? t
+  return SYN_MAP.get(norm(t)) ?? norm(t)
 }
 
 export function scorePo(draft: string, po: PoText): { score: number; matched: string[] } {

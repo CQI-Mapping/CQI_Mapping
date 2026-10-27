@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import EntityCrudPage, { type AlignmentOption, type AlignmentField } from '../admin/curriculum/EntityCrudPage.js'
+import { outcomeCodeKey } from '../../utils/report'
 import {
   fetchProgramOutcomesStandalone,
   createProgramOutcomeStandalone,
@@ -110,19 +111,13 @@ export default function ProgramOutcomes() {
       groupOf={(i) => ((i.description || '').trim() || 'UNCATEGORIZED')}
       sort={(a, b) => {
         // Arrange by CMO Alignment group first (matching the admin page's
-        // grouping), then by numeric PO order within each group (PO-1 … PO-27).
-        const n = (s: string) => {
-          const m = s.match(/PO\D*(\d+)/i)
-          return m ? parseInt(m[1], 10) : 9999
-        }
+        // grouping), then by outcome order within each group — PO-1…PO-4
+        // and SD-1…SD-13, numeric within each family, so SD-10 never
+        // sorts before SD-2.
         const g = (p: ProgramOutcomeStandalone) => (p.description || '').trim().toUpperCase() || '\uffff'
         const ga = g(a); const gb = g(b)
         if (ga !== gb) return ga < gb ? -1 : 1
-        const ca = String((a as { code?: string }).code || '')
-        const cb = String((b as { code?: string }).code || '')
-        const na = n(ca); const nb = n(cb)
-        if (na !== nb) return na - nb
-        return ca.localeCompare(cb)
+        return outcomeCodeKey(String((a as { code?: string }).code || '')).localeCompare(outcomeCodeKey(String((b as { code?: string }).code || '')))
       }}
     />
   )
