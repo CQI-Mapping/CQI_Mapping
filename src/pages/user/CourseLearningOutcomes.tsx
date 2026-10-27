@@ -36,7 +36,7 @@ import { rankSemantic } from '../../utils/poSemantic'
 import { fuseRanked, toRelative } from '../../utils/poRank'
 import { pickedBefore, recordPick, recordRejection, draftSig } from '../../utils/poMemory'
 import SyllabusReport from '../../components/SyllabusReport'
-import { splitReportPos, buildGroups } from '../../utils/report'
+import { splitReportPos, buildGroups, outcomeCodeKey } from '../../utils/report'
 import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
 import { downloadSyllabusPdf } from '../../utils/syllabusPdf'
 import { reportFileName } from '../../utils/download'
@@ -189,12 +189,10 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
           fetchChedMemoOrders().catch(() => []),
         ])
         const active = pos.filter((p) => !p.status || p.status === 'active')
-        // Numeric PO order PO-1…PO-27 for the suggest dropdown
-        active.sort((a, b) => {
-          const n = (s: string) => { const m = s.match(/PO\D*(\d+)/i); return m ? parseInt(m[1], 10) : 9999 }
-          const na = n(a.code || ''); const nb = n(b.code || '')
-          return na !== nb ? na - nb : String(a.code).localeCompare(String(b.code))
-        })
+        // PO-1…PO-4 first, then SD-1…SD-13, numeric within each family —
+        // the official CMO 25 s. 2015 list seeds both families, so a
+        // plain numeric or alphabetical key would misorder SD-10 vs SD-2.
+        active.sort((a, b) => outcomeCodeKey(a.code || '').localeCompare(outcomeCodeKey(b.code || '')))
         // Keep the raw reference lists for the syllabus reader overlay.
         if (!cancelled) {
           reportData.current = {
