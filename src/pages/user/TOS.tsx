@@ -911,6 +911,13 @@ export default function TOS() {
                   <TosBlueprintEditor
                     exam={row}
                     onSaved={refreshListRef.current ?? undefined}
+                    onCommitted={async () => {
+                      // Close only once the panel has re-read, so the card
+                      // the editor collapses into shows the database's
+                      // values, not the last snapshot.
+                      await refreshList()
+                      cancelCardEdit()
+                    }}
                     onRenamed={(next) =>
                       setExamList((prev) =>
                         prev.map((r) =>

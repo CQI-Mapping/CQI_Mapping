@@ -90,6 +90,12 @@ export interface TosBlueprintEditorProps {
   exam: TosExamRow
   /** Fired after every successful write, so the card list can re-read. */
   onSaved?: () => void
+  /**
+   * Fired once the explicit Save has landed and the panel has re-read, so the
+   * page can close the editor and show the updated card. The debounced
+   * autosaves never fire it — they keep the editor open while the user types.
+   */
+  onCommitted?: () => void | Promise<unknown>
   /** Fired when a rename lands, so a list showing that row can update it. */
   onRenamed?: (
     next: {
@@ -103,7 +109,12 @@ export interface TosBlueprintEditorProps {
   ) => void
 }
 
-export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlueprintEditorProps) {
+export default function TosBlueprintEditor({
+  exam,
+  onSaved,
+  onRenamed,
+  onCommitted,
+}: TosBlueprintEditorProps) {
   const [sheets, setSheets] = useState<TosSheet[]>([])
   const [form, setForm] = useState<TosExam>(() => toForm(exam))
   const [activeKind, setActiveKind] = useState<SheetKind>('items')
@@ -470,7 +481,11 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
     }
 
     reportSaved()
-  }, [exam.id, form, clearTimers, fail, reportSaved])
+    // The explicit Save is also the close. The page re-reads the list first,
+    // then collapses this editor, so what is left on screen is the card as
+    // the database now holds it.
+    await onCommitted?.()
+  }, [exam.id, form, clearTimers, fail, reportSaved, onCommitted])
 
   /** Throw unsaved edits away and re-read. Timers first, or they write back. */
   const discardPending = useCallback(async () => {
@@ -701,6 +716,9 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
         saving={saving}
         dirty={dirty}
         onDiscard={discardPending}
+        // The card's Save writes everything pending and then closes the
+        // editor, so its tooltip says both halves.
+        saveTitle="Save this blueprint and close the editor"
       />
     </div>
   )
