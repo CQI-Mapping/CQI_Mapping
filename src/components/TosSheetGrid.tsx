@@ -66,6 +66,15 @@ export interface TosSheetGridProps {
    * the debounce firing, and tells you it landed.
    */
   onSave: () => void
+  /**
+   * The Save button's tooltip.
+   *
+   * The page's own Save also commits the blueprint and starts a fresh blank
+   * draft, so it says so. A card's Save only flushes, and keeps the default
+   * wording — same button, different job, and the tooltip is where the
+   * difference is worth a sentence.
+   */
+  saveTitle?: string
   /** True while a write is in flight, for the button's own state. */
   saving?: boolean
   /**
@@ -140,6 +149,7 @@ export default function TosSheetGrid({
   saving,
   dirty,
   onDiscard,
+  saveTitle,
 }: TosSheetGridProps) {
   const totals = bloomTotals(sheet.topics)
   const share = shares(sheet.topics, sheet.total)
@@ -364,7 +374,7 @@ export default function TosSheetGrid({
             className={`btn btn--primary btn--sm${dirty ? ' btn--pending' : ''}`}
             onClick={onSave}
             disabled={saving}
-            title="Write every pending edit to the database now"
+            title={saveTitle ?? 'Write every pending edit to the database now'}
           >
             {/* The marker is a real character, not a CSS pseudo-element, so it
                 is announced by a screen reader along with the label. */}

@@ -253,13 +253,20 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
         if (examTimer.current) window.clearTimeout(examTimer.current)
         examTimer.current = window.setTimeout(async () => {
           try {
+            // Blank dropdowns store NULL rather than '' — the UNIQUE key
+            // covers both columns, and '' twice would make two header-less
+            // drafts duplicate keys. The NOT NULL term follows the selection:
+            // '' when both are cleared, so a legacy term cannot outlive them.
             await updateTosExam(exam.id, {
               code: next.code,
               title: next.title,
               exam_type: next.examType,
-              term: composeTerm(next.semester, next.schoolYear),
-              semester: next.semester,
-              school_year: next.schoolYear,
+              term:
+                next.semester || next.schoolYear
+                  ? composeTerm(next.semester, next.schoolYear)
+                  : '',
+              semester: next.semester || null,
+              school_year: next.schoolYear || null,
               prepared_by: next.preparedBy,
               total_hours: num(next.totalHours),
             })
@@ -384,9 +391,15 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
         code: form.code,
         title: form.title,
         exam_type: form.examType,
-        term: composeTerm(form.semester, form.schoolYear),
-        semester: form.semester,
-        school_year: form.schoolYear,
+        // Same NULL-not-'' rule as page saveNow / patchExam, for the same
+        // UNIQUE-key reason; this card's save stays flush-only, though — a
+        // card's Save writes what is here without starting another draft.
+        term:
+          form.semester || form.schoolYear
+            ? composeTerm(form.semester, form.schoolYear)
+            : '',
+        semester: form.semester || null,
+        school_year: form.schoolYear || null,
         prepared_by: form.preparedBy,
         total_hours: num(form.totalHours),
       })

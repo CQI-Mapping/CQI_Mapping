@@ -263,7 +263,8 @@ export default function TOS() {
   const refreshListRef = useRef<(() => void) | null>(null)
 
   /**
-   * Write everything that is pending, right now.
+   * Write everything that is pending, then file the blueprint as its own card
+   * and hand the editor a fresh blank draft.
    *
    * Every edit on this page autosaves on a 600ms debounce, so there is a window
    * after you stop typing where nothing has reached the database yet. This
@@ -273,6 +274,20 @@ export default function TOS() {
    * It writes every sheet, not just the visible one. A pending topic change on
    * the paper you cannot see is still pending, and a Save button that silently
    * dropped it would be worse than having none.
+   *
+   * Once those writes land, the save proper begins: anything typed — a course
+   * title, a semester, a single topic row — makes what is on screen a finished
+   * blueprint, so the editor is pointed at a new empty row the way the first
+   * visit is. The blueprint just saved keeps its place in the list below; this
+   * is how one press of Save adds one card without disturbing the others.
+   *
+   * A draft with nothing in it is not filed again: Save then only flushes and
+   * reports, because an empty exam is already sitting in the database and
+   * saving has to keep it that way rather than stack a second one.
+   *
+   * A failed write aborts before any of that: the editor stays on the draft as
+   * it stands and the pending marker stays up — a hiccup must never wipe the
+   * form the user filled, nor file half of it.
    *
    * The write bodies are repeated rather than extracted, because each debounce
    * closure already carries its own `id` and `kind`. Sharing one helper across
@@ -311,12 +326,23 @@ export default function TOS() {
           code: exam.code,
           title: exam.title,
           exam_type: exam.examType,
-          term: composeTerm(exam.semester, exam.schoolYear),
-          semester: exam.semester,
-          school_year: exam.schoolYear,
+          // An unselected semester or year is stored as NULL, not '' — the
+          // UNIQUE key covers both columns, and two drafts both storing ''
+          // would be duplicate keys. Postgres treats NULLs as distinct, so
+          // successive empty drafts never collide. The NOT NULL `term`
+          // recomposes only from a real selection; writing '' instead keeps a
+          // legacy row's last term from outliving a cleared dropdown.
+          term: exam.semester || exam.schoolYear ? composeTerm(exam.semester, exam.schoolYear) : '',
+          semester: exam.semester || null,
+          school_year: exam.schoolYear || null,
           prepared_by: exam.preparedBy,
           total_hours: num(exam.totalHours),
-        }).then(() => undefined).catch((e) => fail(e, 'Could not save the exam details.')),
+        })
+          .then(() => undefined)
+          .catch((e) => {
+            fail(e, 'Could not save the exam details.')
+            throw e
+          }),
       )
     }
 
@@ -327,7 +353,10 @@ export default function TOS() {
       writes.push(
         updateTosSheet(id, { total: num(target.total) })
           .then(() => undefined)
-          .catch((e) => fail(e, 'Could not save the blueprint total.')),
+          .catch((e) => {
+            fail(e, 'Could not save the blueprint total.')
+            throw e
+          }),
       )
       writes.push(
         replaceTosTopics(
@@ -339,11 +368,83 @@ export default function TOS() {
             hours: num(t.hours),
             bloom: t.bloom,
           })),
-        ).catch((e) => fail(e, 'Could not save the topics.')),
+        ).catch((e) => {
+          fail(e, 'Could not save the topics.')
+          throw e
+        }),
       )
     }
 
-    await Promise.all(writes)
+    // allSettled rather than all: every write gets to finish so a second
+    // failure is diagnosed too, and one rejection must not turn the results
+    // the rest carry into an unhandled throw.
+    const results = await Promise.allSettled(writes)
+    if (results.some((r) => r.status === 'rejected')) {
+      // Back out with the form as the user left it — the pending marker stays
+      // up because dirty was never cleared.
+      setSaving(false)
+      return
+    }
+
+    // Anything typed — a course title, a semester, a single topic row — makes
+    // this a blueprint worth keeping as it was just written, and the editor
+    // moves to a fresh row. A completely untouched draft skips this: Save on
+    // an empty form has no second empty form to file.
+    const hasContent =
+      Boolean(exam.code || exam.title || exam.semester || exam.schoolYear) ||
+      sheetsRef.current.some((s) => s.topics.length > 0)
+
+    if (hasContent) {
+      try {
+        // The same two inserts the first-visit loader makes: an empty exam
+        // row, then its multiple choice sheet. A fresh draft is the same
+        // arrangement reached through Save instead of a page load.
+        const created = await createTosExam(
+          {
+            code: '',
+            title: '',
+            exam_type: 'Prelim',
+            term: '',
+            semester: null,
+            school_year: null,
+            total_hours: 8,
+          },
+          await currentUserId(),
+        )
+        const itemsSheet = await createTosSheet({
+          exam_id: created.id,
+          kind: 'items',
+          label: 'Multiple Choice',
+          total: 20,
+          position: 0,
+        })
+        sheetIds.current = { items: itemsSheet.id, points: null }
+        // The first debounced write on this row is its first edit, and a row
+        // with nothing typed has nothing worth logging — the same arrangement
+        // the first-visit loader relies on.
+        createdThisSession.current = true
+        setActiveId(created.id)
+        setActiveKind('items')
+        setSheets([{ ...blankSheet(), id: itemsSheet.id }])
+        setExam({
+          code: '',
+          title: '',
+          examType: 'Prelim',
+          semester: '',
+          schoolYear: '',
+          preparedBy: '',
+          totalHours: 8,
+        })
+      } catch (e) {
+        // The flush landed — the blueprint just saved is already its card —
+        // but the next draft could not be started. Stay on the saved work
+        // rather than a row that may not exist.
+        fail(e, 'The blueprint saved, but starting the next blank one failed.')
+        setSaving(false)
+        return
+      }
+    }
+
     reportSaved()
   }, [ready, exam, activeId, fail, reportSaved])
 
@@ -420,18 +521,21 @@ export default function TOS() {
       try {
         let rows = await fetchTosExams()
         if (rows.length === 0) {
-          // exam_type is NOT NULL and sits in UNIQUE (user_id, code,
-          // exam_type, term), but the header no longer offers a field for it.
-          // A constant is therefore what every exam gets, and updates never
-          // write the column again -- existing rows keep the value they had.
+          // The draft starts with everything blank. The semester and year are
+          // stored as NULL rather than '' because UNIQUE (user_id, code,
+          // exam_type, semester, school_year) decides this table's equality:
+          // Postgres reads NULLs as distinct from everything, including each
+          // other, so a later blank draft saved beside this one is a new row
+          // and not a duplicate-key error. The NOT NULL term follows suit with
+          // '' -- composed from nothing, equal to nothing worth showing.
           const created = await createTosExam(
             {
               code: '',
               title: '',
               exam_type: 'Prelim',
               term: '',
-              semester: '',
-              school_year: '',
+              semester: null,
+              school_year: null,
               total_hours: 8,
             },
             await currentUserId(),
@@ -738,13 +842,19 @@ export default function TOS() {
         examTimer.current = window.setTimeout(async () => {
           if (!activeId) return
           try {
+            // Same NULL-not-'' rule saveNow uses: blank dropdowns store NULL,
+            // so successive empty drafts can never collide on the UNIQUE key,
+            // and the stored term vanishes with them instead of sticking.
             await updateTosExam(activeId, {
               code: next.code,
               title: next.title,
               exam_type: next.examType,
-              term: composeTerm(next.semester, next.schoolYear),
-              semester: next.semester,
-              school_year: next.schoolYear,
+              term:
+                next.semester || next.schoolYear
+                  ? composeTerm(next.semester, next.schoolYear)
+                  : '',
+              semester: next.semester || null,
+              school_year: next.schoolYear || null,
               prepared_by: next.preparedBy,
               total_hours: num(next.totalHours),
             })
@@ -1149,6 +1259,9 @@ export default function TOS() {
         saving={saving}
         dirty={dirty}
         onDiscard={discardPending}
+        // This is not the flush the tooltip defaults to: saveNow commits the
+        // blueprint and starts the next draft, so the button says what it does.
+        saveTitle="Save this blueprint and start a blank one for the next"
       />
 
       {/* ---- saved blueprints ----
