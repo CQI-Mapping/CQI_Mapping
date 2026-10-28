@@ -57,6 +57,12 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
   // ordered by the subject's newest CLO, capped at 5. Faculty scan subjects,
   // not individual CLO codes, so each row leads with the subject and carries
   // the CLO count; clicking a subject opens its latest CLO in the modal.
+  // Rows show "CODE — Name" (resolved from the loaded course list) so the
+  // subject reads like everywhere else in the app; a code that no longer
+  // resolves falls back to the bare code.
+  const courseTitleByCode = (code: string) =>
+    courses.find((c) => c.code === code)?.title || ''
+
   const subjectFeed = (() => {
     const byCourse = new Map<string, CourseLearningOutcomeStandalone[]>()
     for (const l of clos) {
@@ -203,7 +209,9 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
                         boxShadow: allArchived ? '0 0 0 4px #f1f5f9' : '0 0 0 4px #dcfce7',
                       }}
                     />
-                    <span className="activity-feed__action">{course}</span>
+                    <span className="activity-feed__action">
+                      {course}{courseTitleByCode(course) ? ` — ${courseTitleByCode(course)}` : ''}
+                    </span>
                     <span className="activity-feed__user">
                       {`${rows.length} CLO${rows.length === 1 ? '' : 's'} · latest ${newest}`}
                     </span>
