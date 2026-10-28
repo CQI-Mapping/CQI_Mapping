@@ -53,10 +53,27 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
     { label: 'Course Outcomes', value: String(clos.length), accent: '#15803d', icon: 'clo', sub: 'CLOs per course', target: 'clo' },
   ]
 
-  // Recent CLOs as the faculty feed (audit log is manager/admin only).
-  const recent = [...clos]
-    .sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))
-    .slice(0, 5)
+  // Recent outcomes, BY SUBJECT: one row per subject that has CLO activity —
+  // ordered by the subject's newest CLO, capped at 5. Faculty scan subjects,
+  // not individual CLO codes, so each row leads with the subject and carries
+  // the CLO count; clicking a subject opens its latest CLO in the modal.
+  const subjectFeed = (() => {
+    const byCourse = new Map<string, CourseLearningOutcomeStandalone[]>()
+    for (const l of clos) {
+      const key = (l.course || '').trim() || '—'
+      const list = byCourse.get(key) ?? []
+      list.push(l)
+      byCourse.set(key, list)
+    }
+    return [...byCourse.entries()]
+      .map(([course, rows]) => ({
+        course,
+        rows,
+        latest: [...rows].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))[0],
+      }))
+      .sort((a, b) => +new Date(b.latest.created_at) - +new Date(a.latest.created_at))
+      .slice(0, 5)
+  })()
 
   // Ticking clock: the greeting and date pill re-render every minute, so a
   // dashboard left open turns over correctly at noon, 6 PM and midnight.
@@ -160,28 +177,40 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
         <div className="dashboard-panel">
           <div className="dashboard-panel__header">
             <h3>Recent outcomes</h3>
-            <span>Latest 5 CLOs · click to view</span>
+            <span>Latest 5 subjects · click to view</span>
           </div>
-          {recent.length === 0 ? (
+          {subjectFeed.length === 0 ? (
             <p className="dashboard-panel__empty">No course outcomes yet.</p>
           ) : (
             <ul className="activity-feed">
-              {recent.map((r) => (
-                <li
-                  key={r.id}
-                  className="activity-feed__item activity-feed__item--link"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => setViewItem(r)}
-                  onKeyDown={(e) => activate(e, () => setViewItem(r))}
-                  aria-label={`View ${r.code || 'course outcome'}`}
-                >
-                  <span className="activity-feed__dot" style={{ background: r.status === 'archived' ? '#94a3b8' : '#22c55e', boxShadow: r.status === 'archived' ? '0 0 0 4px #f1f5f9' : '0 0 0 4px #dcfce7' }} />
-                  <span className="activity-feed__action">{r.code || r.title}</span>
-                  <span className="activity-feed__user">{[r.course, r.title].filter(Boolean).join(' · ').slice(0, 60) || '—'}</span>
-                  <time className="activity-feed__time">{new Date(r.created_at).toLocaleString()}</time>
-                </li>
-              ))}
+              {subjectFeed.map(({ course, rows, latest }) => {
+                const allArchived = rows.every((x) => x.status === 'archived')
+                const newest = latest.code || latest.title || 'course outcome'
+                return (
+                  <li
+                    key={course}
+                    className="activity-feed__item activity-feed__item--link"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setViewItem(latest)}
+                    onKeyDown={(e) => activate(e, () => setViewItem(latest))}
+                    aria-label={`View subject ${course !== '—' ? course : ''} outcomes`}
+                  >
+                    <span
+                      className="activity-feed__dot"
+                      style={{
+                        background: allArchived ? '#94a3b8' : '#22c55e',
+                        boxShadow: allArchived ? '0 0 0 4px #f1f5f9' : '0 0 0 4px #dcfce7',
+                      }}
+                    />
+                    <span className="activity-feed__action">{course}</span>
+                    <span className="activity-feed__user">
+                      {`${rows.length} CLO${rows.length === 1 ? '' : 's'} · latest ${newest}`}
+                    </span>
+                    <time className="activity-feed__time">{new Date(latest.created_at).toLocaleString()}</time>
+                  </li>
+                )
+              })}
             </ul>
           )}
         </div>
