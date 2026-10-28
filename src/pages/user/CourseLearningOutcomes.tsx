@@ -210,8 +210,14 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
         const sgByCode = new Map(sgs.map((s) => [s.code.trim().toLowerCase(), s.description ?? '']))
         const cmoById = new Map(cmos.map((c) => [c.id, `${c.title ?? ''} ${c.code ?? ''}`.trim()]))
         const splitCodes = (v: string | null) => (v ?? '').split(',').map((s) => s.trim()).filter(Boolean)
-        if (!cancelled) setPoSuggestions(active.map(toSuggestion))
-        if (!cancelled) setPoTexts(active.map((p) => {
+        // Suggestion corpus: manager rows only. Faculty map CLOs against the
+        // manager-inputted list (PO 1…13); admin rows live in the same table
+        // but belong to the admin's own list (PO-1…PO-27) and must stay out
+        // of the chips — otherwise PO-14-style codes the manager never typed
+        // leak into the suggestions.
+        const managerActive = active.filter((p) => p.source === 'manager')
+        if (!cancelled) setPoSuggestions(managerActive.map(toSuggestion))
+        if (!cancelled) setPoTexts(managerActive.map((p) => {
           const rec = p as { description?: string | null; cmo_id?: string | null; peo_text?: string | null; sg_text?: string | null }
           const peoTitles = splitCodes(rec.peo_text ?? null).map((c) => peoByCode.get(c.toLowerCase()) ?? '').filter(Boolean)
           const sgDescs = splitCodes(rec.sg_text ?? null).map((c) => sgByCode.get(c.toLowerCase()) ?? '').filter(Boolean)
