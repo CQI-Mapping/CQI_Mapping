@@ -36,7 +36,7 @@ import { rankSemantic, subscribeSemantic, preloadSemantic, type SemanticLoadStat
 import { fuseRanked, toRelative } from '../../utils/poRank'
 import { pickedBefore, recordPick, recordRejection, draftSig } from '../../utils/poMemory'
 import SyllabusReport from '../../components/SyllabusReport'
-import { splitReportPos, buildGroups, outcomeCodeKey, type PoGroup } from '../../utils/report'
+import { splitReportPos, buildGroups, outcomeCodeKey, isManagerOutcome, type PoGroup } from '../../utils/report'
 import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
 import { downloadSyllabusPdf } from '../../utils/syllabusPdf'
 import { reportFileName } from '../../utils/download'
@@ -220,10 +220,11 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
         const { managerPos: mappingPos } = splitReportPos(active)
         const activeCmos = cmos.filter((m) => !m.status || m.status === 'active')
         if (!cancelled) setMappingGroups(buildGroups(mappingPos, activeCmos))
-        // Use the same outcomes shown in Curriculum Mapping for both
-        // manual selection and description-based suggestions.
-        if (!cancelled) setPoSuggestions(mappingPos.map(toSuggestion))
-        if (!cancelled) setPoTexts(mappingPos.map((p) => {
+        // Suggestions use every active manager-created PO, independent of
+        // whether it appears in the Curriculum Mapping reference categories.
+        const managerPos = active.filter(isManagerOutcome)
+        if (!cancelled) setPoSuggestions(managerPos.map(toSuggestion))
+        if (!cancelled) setPoTexts(managerPos.map((p) => {
           const rec = p as { description?: string | null; cmo_id?: string | null; peo_text?: string | null; sg_text?: string | null }
           const peoTitles = splitCodes(rec.peo_text ?? null).map((c) => peoByCode.get(c.toLowerCase()) ?? '').filter(Boolean)
           const sgDescs = splitCodes(rec.sg_text ?? null).map((c) => sgByCode.get(c.toLowerCase()) ?? '').filter(Boolean)

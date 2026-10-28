@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { poListItem, goalLine, isManagerCmCategory, splitReportPos } from './report'
+import { poListItem, goalLine, isManagerCmCategory, isManagerOutcome, splitReportPos } from './report'
 import type { ProgramOutcomeStandalone } from '../services/database'
 
 const programOutcome = (over: Partial<ProgramOutcomeStandalone> = {}): ProgramOutcomeStandalone => ({
@@ -94,6 +94,23 @@ describe('goalLine', () => {
 })
 
 describe('Curriculum Mapping outcomes', () => {
+  it('includes all manager outcomes, not admin outcomes, in manager-only suggestions', () => {
+    const managerCm = programOutcome({
+      id: 'manager-cm',
+      source: 'manager',
+      description: 'Bachelor of Science in Information Technology Program Outcomes (CMO 25 S. 2015)',
+    })
+    const managerOther = programOutcome({
+      id: 'manager-other',
+      source: 'manager',
+      description: 'College Defined Program Outcome',
+    })
+    const admin = programOutcome({ id: 'admin', source: 'admin' })
+
+    expect([managerCm, managerOther, admin].filter(isManagerOutcome).map((outcome) => outcome.id))
+      .toEqual(['manager-cm', 'manager-other'])
+  })
+
   it('recognizes only manager outcomes in the two official CMO categories', () => {
     expect(isManagerCmCategory(programOutcome({
       source: 'manager',
