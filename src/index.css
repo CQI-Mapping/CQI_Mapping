@@ -6966,6 +6966,56 @@ button.reports-panel__more:hover {
   display: none;
 }
 
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 14px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+}
+
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.login-google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 12px;
+  background: #fff;
+  color: #1f2937;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.login-google-btn:hover:not(:disabled) {
+  background: #f8fafc;
+  transform: translateY(-1px);
+}
+
+.login-google-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.login-google-btn:focus-visible {
+  outline: 2px solid var(--login-green-light);
+  outline-offset: 3px;
+}
+
 .login-btn:focus-visible,
 .password-toggle:focus-visible,
 .login-demo summary:focus-visible {
@@ -7119,5 +7169,4 @@ button.reports-panel__more:hover {
     transition: none;
   }
 }
-
 

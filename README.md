@@ -215,6 +215,17 @@ VITE_SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 - `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` — from **Settings > API** (safe to expose; Supabase RLS protects the data).
 - `VITE_SUPABASE_SERVICE_ROLE_KEY` — **optional**, only for the admin "Create user" feature. It **bypasses RLS**, so keep it secret and never commit it.
 
+### 4.1 Enable Google sign-in (existing accounts only)
+
+The login page includes **Continue with Google**. Configure the provider in Supabase before using it:
+
+1. In **Supabase Dashboard > Authentication > Providers**, enable Google and add the OAuth client ID and secret from Google Cloud Console.
+2. In Google Cloud Console, add the Supabase callback URL shown by the provider setup (usually `https://<project-ref>.supabase.co/auth/v1/callback`) as an authorized redirect URI.
+3. In **Supabase Dashboard > Authentication > URL Configuration**, set the app's Site URL and add its local and deployed origins to the redirect URL allow list.
+4. In **Authentication > Settings**, disable **Allow new users to sign up**. This keeps Google sign-in for existing app accounts only; create accounts through the app's existing account-management flow first.
+
+The Google button redirects back to the current app origin after authentication. If Supabase reports that sign-ups are disabled, the login page explains that the Google account must already have an app account.
+
 ### 5. Run
 ```bash
 npm install
