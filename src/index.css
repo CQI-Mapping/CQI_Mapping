@@ -1371,6 +1371,24 @@ code {
   box-shadow: 0 0 0 4px #dcfce7;
 }
 
+/* Faculty dashboard's subject feed has no status dot: the leading 8px
+   column collapses so the subject sits flush at the panel edge. */
+.activity-feed--plain .activity-feed__item {
+  grid-template-columns: 1fr auto;
+}
+
+.activity-feed--plain .activity-feed__action {
+  grid-column: 1;
+}
+
+.activity-feed--plain .activity-feed__user {
+  grid-column: 1;
+}
+
+.activity-feed--plain .activity-feed__time {
+  grid-column: 2;
+}
+
 .activity-feed__action {
   font-size: 13px;
   font-weight: 600;

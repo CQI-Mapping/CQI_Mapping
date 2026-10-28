@@ -188,9 +188,8 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
           {subjectFeed.length === 0 ? (
             <p className="dashboard-panel__empty">No course outcomes yet.</p>
           ) : (
-            <ul className="activity-feed">
+            <ul className="activity-feed activity-feed--plain">
               {subjectFeed.map(({ course, rows, latest }) => {
-                const allArchived = rows.every((x) => x.status === 'archived')
                 const newest = latest.code || latest.title || 'course outcome'
                 return (
                   <li
@@ -202,13 +201,6 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
                     onKeyDown={(e) => activate(e, () => setViewItem(latest))}
                     aria-label={`View subject ${course !== '—' ? course : ''} outcomes`}
                   >
-                    <span
-                      className="activity-feed__dot"
-                      style={{
-                        background: allArchived ? '#94a3b8' : '#22c55e',
-                        boxShadow: allArchived ? '0 0 0 4px #f1f5f9' : '0 0 0 4px #dcfce7',
-                      }}
-                    />
                     <span className="activity-feed__action">
                       {course}{courseTitleByCode(course) ? ` — ${courseTitleByCode(course)}` : ''}
                     </span>
