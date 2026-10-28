@@ -330,8 +330,17 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
     return parts.join(', ')
   }
 
-  const createClosest = rankClosestPos(form.description, poTexts, Math.max(3, poTexts.length))
-  const editClosest = rankClosestPos(editForm.description, poTexts, Math.max(3, poTexts.length))
+  // Suggestions need real content: a 1-2 character draft ("f") scores trivia
+  // in the keyword ranker and the top-anchored display then shows confident
+  // "100%" chips for junk. The 4-char floor is the same one the semantic
+  // engine and the "no close match" hint already use.
+  const DRAFT_MIN = 4
+  const createClosest = form.description.trim().length >= DRAFT_MIN
+    ? rankClosestPos(form.description, poTexts, Math.max(3, poTexts.length))
+    : []
+  const editClosest = editForm.description.trim().length >= DRAFT_MIN
+    ? rankClosestPos(editForm.description, poTexts, Math.max(3, poTexts.length))
+    : []
   // Hybrid fusion: keyword + semantic + exact-phrase + Bloom + click memory.
   // memTick re-runs fusion after local reject/memory writes (read sync).
   void memTick
