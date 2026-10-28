@@ -215,29 +215,31 @@ export default function SyllabusReport({
           {/* Single continuous table (like the source PDF): each CMO group
               is a <tbody> whose repeated header row carries the CMO title. */}
           <table className="sd-table sd-table--mapping">
-            {managerGroups.map((group) => (
-              <tbody key={group.heading}>
-                <tr>
-                  <th className="sd-mapping__col-po">{group.heading}</th>
-                  <th className="sd-mapping__col-align">Program Educational Objectives</th>
-                  <th className="sd-mapping__col-align">Strategic Goals</th>
-                </tr>
-                {group.items.map((p, rowNumber) => (
-                  <tr key={p.id}>
-                    {/* Number by position in the section, starting from 1 —
-                        the source CMO document numbers its rows sequentially
-                        per group. Code-derived labels inherit whatever the
-                        data carries (a duplicated "PO 5" printed as two 5s
-                        and skipped 4). */}
-                    <td>{rowNumber + 1}. {p.title.replace(/\.$/, '')}</td>
-                    {/* Blank when unaligned — the source document leaves
-                        those cells empty rather than showing a dash. */}
-                    <td>{p.peo_text?.trim()}</td>
-                    <td>{p.sg_text?.trim()}</td>
+            {managerGroups.map((group, groupIndex) => {
+              // Rows number continuously from 1 across every CMO group —
+              // the source document runs 1…17 over both sections. Never
+              // from the stored code, which carries whatever the data
+              // does (a duplicated "PO 5" printed as two 5s and skipped 4).
+              const rowBase = managerGroups
+                .slice(0, groupIndex)
+                .reduce((count, prior) => count + prior.items.length, 0)
+              return (
+                <tbody key={group.heading}>
+                  <tr>
+                    <th className="sd-mapping__col-po">{group.heading}</th>
+                    <th className="sd-mapping__col-align">Program Educational Objectives</th>
+                    <th className="sd-mapping__col-align">Strategic Goals</th>
                   </tr>
-                ))}
-              </tbody>
-            ))}
+                  {group.items.map((p, rowNumber) => (
+                    <tr key={p.id}>
+                      <td>{rowBase + rowNumber + 1}. {p.title.replace(/\.$/, '')}</td>
+                      <td>{p.peo_text?.trim()}</td>
+                      <td>{p.sg_text?.trim()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              )
+            })}
           </table>
         </div>
       )}

@@ -237,6 +237,11 @@ export async function downloadSyllabusDocx(
   if (managerGroups.length > 0) {
     children.push(para('CURRICULUM MAPPING', { bold: true, align: CENTER }))
     const mapRows: DocxTableRow[] = []
+    // Rows number continuously from 1 across every CMO group — the source
+    // document runs 1…17 over both sections. Never from the stored code,
+    // which carries whatever the data does (a duplicated "PO 5" printed
+    // as two 5s and skipped 4).
+    let rowNumber = 0
     for (const group of managerGroups) {
       mapRows.push(
         new TableRow({
@@ -248,16 +253,14 @@ export async function downloadSyllabusDocx(
           ],
         }),
       )
-      for (const [rowNumber, p] of group.items.entries()) {
+      for (const p of group.items) {
+        rowNumber += 1
         mapRows.push(
           new TableRow({
             children: [
               // Left blank when unaligned — the source document leaves those
-              // cells empty rather than showing a dash. Number by position
-              // in the section, starting from 1 (the source CMO document's
-              // style) — code-derived labels inherit data sloppiness
-              // (a duplicated "PO 5" printed as two 5s and skipped 4).
-              cell([para(`${rowNumber + 1}. ${p.title.replace(/\.$/, '')}`)]),
+              // cells empty rather than showing a dash.
+              cell([para(`${rowNumber}. ${p.title.replace(/\.$/, '')}`)]),
               cell([para(p.peo_text?.trim() || '')]),
               cell([para(p.sg_text?.trim() || '')]),
             ],
