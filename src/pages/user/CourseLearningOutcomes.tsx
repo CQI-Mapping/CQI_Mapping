@@ -542,9 +542,11 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
       {error && <p className="msg msg--error" role="alert">{error}</p>}
       {message && <p className="msg msg--success" role="status">{message}</p>}
 
-      {/* Two-column layout: workspace left, Curriculum Mapping reference right. */}
+      {/* The create form and the Curriculum Mapping reference form one
+          same-height pair; the CLO list flows below at full width. */}
       <div className="clo-layout">
         <div className="clo-layout__main">
+        <div className="clo-layout__pair">
       <form className="panel create-resource" onSubmit={submit} style={{ borderTop: '3px solid #16a34a' }}>
         <h3>New Course Learning Outcome</h3>
         <label className="field">
@@ -654,6 +656,38 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
           <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>{busy ? 'Saving...' : (<><Icon name="plus" size={13} /> Add</>)}</button>
         </div>
       </form>
+
+      {/* Right side of the pair: the CURRICULUM MAPPING outcomes as a writing
+          reference. Numbered continuously across the CMO groups — the same
+          run the syllabus document prints. Outcomes only: no Program
+          Educational Objectives, no Strategic Goals. Positioned absolutely
+          so the panel is exactly as tall as the form beside it; the list
+          scrolls inside its own box. */}
+      <aside className="panel clo-layout__ref" aria-label="Curriculum Mapping reference">
+        {/* No panel title — the CMO group headings below speak for
+            themselves; the screen space is better spent on the list. */}
+        <div className="clo-layout__ref-scroll">
+          {mappingGroups.length === 0 ? (
+            <p className="clo-layout__ref-empty">No Curriculum Mapping outcomes yet — they come from the manager&rsquo;s Program Outcomes.</p>
+          ) : (
+            mappingGroups.map((group, gi) => {
+              const rowBase = mappingGroups.slice(0, gi).reduce((n, prior) => n + prior.items.length, 0)
+              return (
+                <div key={group.heading} className="clo-layout__ref-group">
+                  <p className="clo-layout__ref-head">{group.heading}</p>
+                  {group.items.map((p, i) => (
+                    <div key={p.id} className="clo-layout__ref-row">
+                      <span className="clo-layout__ref-num">{rowBase + i + 1}.</span>
+                      <span>{p.title.replace(/\.$/, '')}</span>
+                    </div>
+                  ))}
+                </div>
+              )
+            })
+          )}
+        </div>
+      </aside>
+      </div>
 
       {loading ? (
         <div className="program-grid" style={{ marginTop: 8 }}>
@@ -769,38 +803,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
           )}
         </div>
       )}
-        </div>
-
-        {/* Right side: the CURRICULUM MAPPING outcomes as a writing reference.
-            Numbered continuously across the CMO groups — the same run the
-            syllabus document prints. Outcomes only: no Program Educational
-            Objectives, no Strategic Goals. */}
-        <aside className="panel clo-layout__ref" aria-label="Curriculum Mapping reference">
-          {/* No panel title — the CMO group headings below speak for
-              themselves; the screen space is better spent on the list. */}
-          {/* The list scrolls inside its own box: the panel stays pinned beside
-              the workspace instead of stretching the page. */}
-          <div className="clo-layout__ref-scroll">
-            {mappingGroups.length === 0 ? (
-              <p className="clo-layout__ref-empty">No Curriculum Mapping outcomes yet — they come from the manager&rsquo;s Program Outcomes.</p>
-            ) : (
-              mappingGroups.map((group, gi) => {
-                const rowBase = mappingGroups.slice(0, gi).reduce((n, prior) => n + prior.items.length, 0)
-                return (
-                  <div key={group.heading} className="clo-layout__ref-group">
-                    <p className="clo-layout__ref-head">{group.heading}</p>
-                    {group.items.map((p, i) => (
-                      <div key={p.id} className="clo-layout__ref-row">
-                        <span className="clo-layout__ref-num">{rowBase + i + 1}.</span>
-                        <span>{p.title.replace(/\.$/, '')}</span>
-                      </div>
-                    ))}
-                  </div>
-                )
-              })
-            )}
-          </div>
-        </aside>
+      </div>
       </div>
 
       {viewClo && (

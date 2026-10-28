@@ -5319,14 +5319,13 @@ button.reports-panel__more:hover {
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
 }
 
-/* CLO page: workspace left, Curriculum Mapping reference right. The
-   reference mirrors the syllabus document's mapping section — continuous
-   1…17 numbering across the CMO groups, outcomes only (no PEO/SG). */
+/* CLO page: the create form and the Curriculum Mapping reference form one
+   same-height pair; the CLO list flows below at full width. The reference
+   mirrors the syllabus document's mapping section — continuous 1…17
+   numbering across the CMO groups, outcomes only (no PEO/SG). */
 .clo-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
   gap: 16px;
-  align-items: start;
 }
 
 .clo-layout__main {
@@ -5335,18 +5334,33 @@ button.reports-panel__more:hover {
   gap: 16px;
 }
 
+/* The pair: the aside is absolutely positioned over the right column, so
+   the row's height comes from the form alone and the reference panel is
+   exactly as tall as the form beside it — one joined block. */
+.clo-layout__pair {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 16px;
+  align-items: start;
+}
+
 .clo-layout__ref {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
   /* Top padding matches the left panel's title offset (3px green border +
      18px padding + h3 leading) so the first CMO heading sits level with
      "New Course Learning Outcome" — the two panels read as one row. */
   padding: 22px 18px 16px;
-  /* Pinned beside the workspace; the list scrolls inside its own box. */
-  position: sticky;
-  top: 16px;
 }
 
 .clo-layout__ref-scroll {
-  max-height: calc(100vh - 200px);
+  flex: 1;
   min-height: 0;
   overflow-y: auto;
   padding-right: 6px;
@@ -5388,15 +5402,17 @@ button.reports-panel__more:hover {
 }
 
 @media (max-width: 1100px) {
-  .clo-layout {
+  .clo-layout__pair {
     grid-template-columns: 1fr;
   }
 
   .clo-layout__ref {
     position: static;
+    width: auto;
   }
 
   .clo-layout__ref-scroll {
+    flex: none;
     max-height: 60vh;
   }
 }
