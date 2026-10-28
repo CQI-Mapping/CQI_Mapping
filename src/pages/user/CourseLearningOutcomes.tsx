@@ -36,7 +36,7 @@ import { rankSemantic, subscribeSemantic, preloadSemantic, type SemanticLoadStat
 import { fuseRanked, toRelative } from '../../utils/poRank'
 import { pickedBefore, recordPick, recordRejection, draftSig } from '../../utils/poMemory'
 import SyllabusReport from '../../components/SyllabusReport'
-import { splitReportPos, buildGroups, outcomeCodeKey } from '../../utils/report'
+import { splitReportPos, buildGroups, outcomeCodeKey, type PoGroup } from '../../utils/report'
 import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
 import { downloadSyllabusPdf } from '../../utils/syllabusPdf'
 import { reportFileName } from '../../utils/download'
@@ -70,6 +70,10 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
 
   const [poSuggestions, setPoSuggestions] = useState<SuggestionOption[]>([])
   const [poTexts, setPoTexts] = useState<PoText[]>([])
+  // Right-side reference: the CURRICULUM MAPPING outcomes (manager-sourced
+  // rows in the two official CMO categories), grouped as the syllabus
+  // document prints them. Outcomes only — no PEOs, no Strategic Goals.
+  const [mappingGroups, setMappingGroups] = useState<PoGroup[]>([])
   const [courses, setCourses] = useState<Course[]>([])
   const [form, setForm] = useState(EMPTY)
   const [editForm, setEditForm] = useState(EMPTY)
@@ -210,6 +214,11 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
         const sgByCode = new Map(sgs.map((s) => [s.code.trim().toLowerCase(), s.description ?? '']))
         const cmoById = new Map(cmos.map((c) => [c.id, `${c.title ?? ''} ${c.code ?? ''}`.trim()]))
         const splitCodes = (v: string | null) => (v ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+        // Right-side reference: the CURRICULUM MAPPING outcomes — manager
+        // rows in the two official CMO categories, grouped and ordered
+        // exactly as the syllabus document prints them (outcomes only).
+        const activeCmos = cmos.filter((m) => !m.status || m.status === 'active')
+        if (!cancelled) setMappingGroups(buildGroups(splitReportPos(active).managerPos, activeCmos))
         // Suggestion corpus: manager rows only. Faculty map CLOs against the
         // manager-inputted list (PO 1…13); admin rows live in the same table
         // but belong to the admin's own list (PO-1…PO-27) and must stay out
@@ -533,6 +542,9 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
       {error && <p className="msg msg--error" role="alert">{error}</p>}
       {message && <p className="msg msg--success" role="status">{message}</p>}
 
+      {/* Two-column layout: workspace left, Curriculum Mapping reference right. */}
+      <div className="clo-layout">
+        <div className="clo-layout__main">
       <form className="panel create-resource" onSubmit={submit} style={{ borderTop: '3px solid #16a34a' }}>
         <h3>New Course Learning Outcome</h3>
         <label className="field">
@@ -757,6 +769,35 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
           )}
         </div>
       )}
+        </div>
+
+        {/* Right side: the CURRICULUM MAPPING outcomes as a writing reference.
+            Numbered continuously across the CMO groups — the same run the
+            syllabus document prints. Outcomes only: no Program Educational
+            Objectives, no Strategic Goals. */}
+        <aside className="panel clo-layout__ref" aria-label="Curriculum Mapping reference">
+          <h3>Curriculum Mapping</h3>
+          <p className="clo-layout__ref-sub">Program Outcomes reference while writing CLOs.</p>
+          {mappingGroups.length === 0 ? (
+            <p className="clo-layout__ref-empty">No Curriculum Mapping outcomes yet — they come from the manager&rsquo;s Program Outcomes.</p>
+          ) : (
+            mappingGroups.map((group, gi) => {
+              const rowBase = mappingGroups.slice(0, gi).reduce((n, prior) => n + prior.items.length, 0)
+              return (
+                <div key={group.heading} className="clo-layout__ref-group">
+                  <p className="clo-layout__ref-head">{group.heading}</p>
+                  {group.items.map((p, i) => (
+                    <div key={p.id} className="clo-layout__ref-row">
+                      <span className="clo-layout__ref-num">{rowBase + i + 1}.</span>
+                      <span>{p.title.replace(/\.$/, '')}</span>
+                    </div>
+                  ))}
+                </div>
+              )
+            })
+          )}
+        </aside>
+      </div>
 
       {viewClo && (
         <div
