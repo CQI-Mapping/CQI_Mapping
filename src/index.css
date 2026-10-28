@@ -5336,7 +5336,10 @@ button.reports-panel__more:hover {
 }
 
 .clo-layout__ref {
-  padding: 16px 18px;
+  /* Top padding matches the left panel's title offset (3px green border +
+     18px padding + h3 leading) so the first CMO heading sits level with
+     "New Course Learning Outcome" — the two panels read as one row. */
+  padding: 22px 18px 16px;
   /* Pinned beside the workspace; the list scrolls inside its own box. */
   position: sticky;
   top: 16px;
