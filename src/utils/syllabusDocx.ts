@@ -25,7 +25,7 @@ import type {
   ProgramEducationalObjective,
   StrategicGoal,
 } from '../services/database'
-import { SCHOOL, DOC_VISION, DOC_MISSION, poLabel, poListItem, goalLine } from './report'
+import { SCHOOL, DOC_VISION, DOC_MISSION, poListItem, goalLine } from './report'
 import type { PoGroup } from './report'
 import { uniqueResolvedRefs, courseCreditLabel, courseHoursSentence } from './courseCodes'
 import { saveBlob, reportFileName } from './download'
@@ -248,13 +248,16 @@ export async function downloadSyllabusDocx(
           ],
         }),
       )
-      for (const p of group.items) {
+      for (const [rowNumber, p] of group.items.entries()) {
         mapRows.push(
           new TableRow({
             children: [
               // Left blank when unaligned — the source document leaves those
-              // cells empty rather than showing a dash.
-              cell([para(`${poLabel(p.code)}. ${p.title.replace(/\.$/, '')}`)]),
+              // cells empty rather than showing a dash. Number by position
+              // in the section, starting from 1 (the source CMO document's
+              // style) — code-derived labels inherit data sloppiness
+              // (a duplicated "PO 5" printed as two 5s and skipped 4).
+              cell([para(`${rowNumber + 1}. ${p.title.replace(/\.$/, '')}`)]),
               cell([para(p.peo_text?.trim() || '')]),
               cell([para(p.sg_text?.trim() || '')]),
             ],
