@@ -217,16 +217,13 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
         // Right-side reference: the CURRICULUM MAPPING outcomes — manager
         // rows in the two official CMO categories, grouped and ordered
         // exactly as the syllabus document prints them (outcomes only).
+        const { managerPos: mappingPos } = splitReportPos(active)
         const activeCmos = cmos.filter((m) => !m.status || m.status === 'active')
-        if (!cancelled) setMappingGroups(buildGroups(splitReportPos(active).managerPos, activeCmos))
-        // Suggestion corpus: manager rows only. Faculty map CLOs against the
-        // manager-inputted list (PO 1…13); admin rows live in the same table
-        // but belong to the admin's own list (PO-1…PO-27) and must stay out
-        // of the chips — otherwise PO-14-style codes the manager never typed
-        // leak into the suggestions.
-        const managerActive = active.filter((p) => p.source === 'manager')
-        if (!cancelled) setPoSuggestions(managerActive.map(toSuggestion))
-        if (!cancelled) setPoTexts(managerActive.map((p) => {
+        if (!cancelled) setMappingGroups(buildGroups(mappingPos, activeCmos))
+        // Use the same outcomes shown in Curriculum Mapping for both
+        // manual selection and description-based suggestions.
+        if (!cancelled) setPoSuggestions(mappingPos.map(toSuggestion))
+        if (!cancelled) setPoTexts(mappingPos.map((p) => {
           const rec = p as { description?: string | null; cmo_id?: string | null; peo_text?: string | null; sg_text?: string | null }
           const peoTitles = splitCodes(rec.peo_text ?? null).map((c) => peoByCode.get(c.toLowerCase()) ?? '').filter(Boolean)
           const sgDescs = splitCodes(rec.sg_text ?? null).map((c) => sgByCode.get(c.toLowerCase()) ?? '').filter(Boolean)
