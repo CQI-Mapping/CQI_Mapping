@@ -778,24 +778,28 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
         <aside className="panel clo-layout__ref" aria-label="Curriculum Mapping reference">
           <h3>Curriculum Mapping</h3>
           <p className="clo-layout__ref-sub">Program Outcomes reference while writing CLOs.</p>
-          {mappingGroups.length === 0 ? (
-            <p className="clo-layout__ref-empty">No Curriculum Mapping outcomes yet — they come from the manager&rsquo;s Program Outcomes.</p>
-          ) : (
-            mappingGroups.map((group, gi) => {
-              const rowBase = mappingGroups.slice(0, gi).reduce((n, prior) => n + prior.items.length, 0)
-              return (
-                <div key={group.heading} className="clo-layout__ref-group">
-                  <p className="clo-layout__ref-head">{group.heading}</p>
-                  {group.items.map((p, i) => (
-                    <div key={p.id} className="clo-layout__ref-row">
-                      <span className="clo-layout__ref-num">{rowBase + i + 1}.</span>
-                      <span>{p.title.replace(/\.$/, '')}</span>
-                    </div>
-                  ))}
-                </div>
-              )
-            })
-          )}
+          {/* The list scrolls inside its own box: the panel stays pinned beside
+              the workspace instead of stretching the page. */}
+          <div className="clo-layout__ref-scroll">
+            {mappingGroups.length === 0 ? (
+              <p className="clo-layout__ref-empty">No Curriculum Mapping outcomes yet — they come from the manager&rsquo;s Program Outcomes.</p>
+            ) : (
+              mappingGroups.map((group, gi) => {
+                const rowBase = mappingGroups.slice(0, gi).reduce((n, prior) => n + prior.items.length, 0)
+                return (
+                  <div key={group.heading} className="clo-layout__ref-group">
+                    <p className="clo-layout__ref-head">{group.heading}</p>
+                    {group.items.map((p, i) => (
+                      <div key={p.id} className="clo-layout__ref-row">
+                        <span className="clo-layout__ref-num">{rowBase + i + 1}.</span>
+                        <span>{p.title.replace(/\.$/, '')}</span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })
+            )}
+          </div>
         </aside>
       </div>
 

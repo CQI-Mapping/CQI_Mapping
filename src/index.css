@@ -5319,6 +5319,16 @@ button.reports-panel__more:hover {
 
 .clo-layout__ref {
   padding: 16px 18px;
+  /* Pinned beside the workspace; the list scrolls inside its own box. */
+  position: sticky;
+  top: 16px;
+}
+
+.clo-layout__ref-scroll {
+  max-height: calc(100vh - 200px);
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 6px;
 }
 
 .clo-layout__ref h3 {
@@ -5371,6 +5381,14 @@ button.reports-panel__more:hover {
 @media (max-width: 1100px) {
   .clo-layout {
     grid-template-columns: 1fr;
+  }
+
+  .clo-layout__ref {
+    position: static;
+  }
+
+  .clo-layout__ref-scroll {
+    max-height: 60vh;
   }
 }
 
