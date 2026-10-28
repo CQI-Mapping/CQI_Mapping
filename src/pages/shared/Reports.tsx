@@ -666,13 +666,6 @@ function Reports({ profile, onNavigate }: ReportsProps) {
               icon="warning"
               tone="warn"
             />
-            <KpiCard
-              label="CQI Actions"
-              value={summary.unaligned + coursesWithoutOutcomes.length + coursesWithoutInstructor.length}
-              sub="Open Recommendations"
-              icon="actions"
-              tone="good"
-            />
           </div>
 
           {/* ---- panels: two columns, one row ----
