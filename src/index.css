@@ -5331,18 +5331,6 @@ button.reports-panel__more:hover {
   padding-right: 6px;
 }
 
-.clo-layout__ref h3 {
-  margin: 0 0 2px;
-  font-size: 15px;
-  color: var(--text-main, #0f172a);
-}
-
-.clo-layout__ref-sub {
-  margin: 0 0 10px;
-  font-size: 12.5px;
-  color: var(--text-muted);
-}
-
 .clo-layout__ref-empty {
   margin: 6px 0 0;
   font-size: 12.5px;

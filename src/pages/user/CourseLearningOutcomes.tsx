@@ -776,8 +776,8 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             syllabus document prints. Outcomes only: no Program Educational
             Objectives, no Strategic Goals. */}
         <aside className="panel clo-layout__ref" aria-label="Curriculum Mapping reference">
-          <h3>Curriculum Mapping</h3>
-          <p className="clo-layout__ref-sub">Program Outcomes reference while writing CLOs.</p>
+          {/* No panel title — the CMO group headings below speak for
+              themselves; the screen space is better spent on the list. */}
           {/* The list scrolls inside its own box: the panel stays pinned beside
               the workspace instead of stretching the page. */}
           <div className="clo-layout__ref-scroll">
