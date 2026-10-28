@@ -566,11 +566,7 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
               onChange={(e) => patchExam({ title: e.target.value })}
             >
               <option value="">
-                {courses.length === 0
-                  ? 'No courses available'
-                  : selectedProgramId
-                    ? '- select course -'
-                    : '- select course (all programs) -'}
+                {courses.length === 0 ? 'No courses available' : '- select course -'}
               </option>
               {courseOptions.map((o) => (
                 <option key={o.id} value={o.value}>
