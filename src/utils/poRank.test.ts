@@ -69,4 +69,17 @@ describe('fuseRanked', () => {
     expect(shown).toHaveLength(3)
     expect(shown.every((r) => r.shown === 0)).toBe(true)
   })
+
+  it('deduplicates ranked results by code', () => {
+    const dupPos: PoText[] = [
+      { code: 'PO 5', title: 'Design, implement and evaluate computer-based systems' },
+      { code: 'PO 3', title: 'Design and develop computing solutions' },
+      { code: 'PO 5', title: 'Identify and analyze user needs in computer-based systems' },
+    ]
+    const kw = rankClosestPos('Design, implement, test and debug programs', dupPos, 3)
+    const fused = fuseRanked('Design, implement, test and debug programs', kw, null, dupPos, 3)
+    const codes = fused.map((r) => r.code)
+    expect(codes).toHaveLength(2)
+    expect(codes).toEqual(['PO 5', 'PO 3'])
+  })
 })

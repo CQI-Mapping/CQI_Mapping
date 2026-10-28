@@ -438,7 +438,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             <span key={r.code} style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
               <button type="button" className="btn btn--ghost btn--sm"
                 style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: 3 }}
-                title={`${r.matched.length > 0 ? `${r.label} — shown ${r.shown}% (raw ${r.raw}%: ${r.matched.join(', ')})` : `${r.label} — shown ${r.shown}% (raw ${r.raw}% semantic)`}${pickedBefore(editForm.description, r.code) ? ' • picked before' : ''}`}
+                title={r.label}
                 onClick={() => { logPick(editForm.description, r.code); setEditForm((f) => ({ ...f, programOutcomes: appendPo(f.programOutcomes, r.code) })) }}>
                 <span>{r.raw > 0 ? `${r.code} · ${r.shown}%` : `~ ${r.code}`}</span>
                 <span aria-hidden="true" style={{ height: 3, borderRadius: 999, background: '#f1f5f9', overflow: 'hidden' }}>
@@ -578,7 +578,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                 <span key={r.code} style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
                   <button type="button" className="btn btn--ghost btn--sm"
                     style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: 3 }}
-                    title={`${r.matched.length > 0 ? `${r.label} — shown ${r.shown}% (raw ${r.raw}%: ${r.matched.join(', ')})` : `${r.label} — shown ${r.shown}% (raw ${r.raw}% semantic)`}${pickedBefore(form.description, r.code) ? ' • picked before' : ''}`}
+                    title={r.label}
                     onClick={() => { logPick(form.description, r.code); setForm((f) => ({ ...f, programOutcomes: appendPo(f.programOutcomes, r.code) })) }}>
                     <span>{r.raw > 0 ? `${r.code} · ${r.shown}%` : `~ ${r.code}`}</span>
                     <span aria-hidden="true" style={{ height: 3, borderRadius: 999, background: '#f1f5f9', overflow: 'hidden' }}>

@@ -115,7 +115,16 @@ export function fuseRanked(
     if (blend > f.score) f.score = Math.min(100, blend)
   }
   fused.sort((a, b) => b.score - a.score || a.code.localeCompare(b.code))
-  return fused.slice(0, top)
+  // Deduplicate by code: keep the highest-scoring record if duplicate codes exist in DB.
+  const seen = new Set<string>()
+  const deduped: RankedPo[] = []
+  for (const f of fused) {
+    const key = f.code.trim().toUpperCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    deduped.push(f)
+  }
+  return deduped.slice(0, top)
 }
 
 /** Display view: relative percentage anchored at top = 100. Gates stay raw. */
