@@ -395,6 +395,12 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   const totalCount = items.length
   const activeCount = items.filter(isActive).length
 
+  // Chosen-subject summary: the stored value is the course CODE, so the
+  // human-readable name is resolved from the loaded course list for display
+  // ("IT10 — Web Systems and Technologies"). Unresolved (deleted) codes
+  // display the bare code.
+  const courseTitleByCode = (code: string) => courses.find((c) => c.code === code)?.title || ''
+
   // Shared edit form used by both grid and list card styles. Wrapped in
   // .resource-card__edit so the fields stack: the list card is a flex ROW
   // (body + actions side by side), and without the wrapper the edit fields
@@ -406,7 +412,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
         {editForm.course ? (
           <div className="input input--sm subject-picker__chosen">
             <span className="subject-picker__text">
-              {editForm.course}
+              {editForm.course}{courseTitleByCode(editForm.course) ? ` — ${courseTitleByCode(editForm.course)}` : ''}
             </span>
             <button type="button" className="btn btn--ghost btn--sm" onClick={() => setEditForm((f) => ({ ...f, course: '' }))}>
               Change
@@ -522,7 +528,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
           {form.course ? (
             <div className="input input--sm subject-picker__chosen">
               <span className="subject-picker__text">
-                {form.course}
+                {form.course}{courseTitleByCode(form.course) ? ` — ${courseTitleByCode(form.course)}` : ''}
               </span>
               <button type="button" className="btn btn--ghost btn--sm" onClick={() => setForm((f) => ({ ...f, course: '' }))}>
                 Change
