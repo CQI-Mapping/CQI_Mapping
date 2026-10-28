@@ -64,7 +64,6 @@ import type { PoOutcome } from '../../utils/alignment'
 import { normalizeCode } from '../../utils/courseCodes'
 import PoCoverageBars from '../../components/PoCoverageBars'
 import Icon from '../../components/icons'
-import type { IconName } from '../../components/icons'
 
 interface ReportsProps {
   profile: {
@@ -420,12 +419,12 @@ function Reports({ profile, onNavigate }: ReportsProps) {
             sub: yearsOffered ? `Across ${yearsOffered} year${yearsOffered === 1 ? '' : 's'}` : 'Across all academic years',
           },
           {
-            label: 'Total CLOs',
+            label: "Total CLO's",
             value: String(programClos.length),
             sub: program ? `${program.code} courses` : 'From all courses',
           },
-          { label: 'Total POs', value: String(summary.outcomes), sub: 'Program Outcomes' },
-          { label: 'Total PEOs', value: String(peos.length), sub: 'Educational Objectives' },
+          { label: "Total PO's", value: String(summary.outcomes), sub: 'Program Outcomes' },
+          { label: "Total PEO's", value: String(peos.length), sub: 'Educational Objectives' },
           {
             label: 'Mapping Coverage',
             value: subjectCoverage.total === 0 ? '—' : `${subjectCoverage.percent}%`,
@@ -619,11 +618,11 @@ function Reports({ profile, onNavigate }: ReportsProps) {
       ) : (
         <>
           {/* ---- KPI row ----
-              Eight tiles in one row, each with an icon, a figure and the
+              Tiles show the label, figure and
               qualifier that makes the figure mean something -- a count on its
               own ("33") invites the reader to assume it is the answer. */}
           <div className="stat-grid stat-grid--2026 reports-kpis">
-            <KpiCard label="Total Programs" value={programs.length} sub={program.code} icon="cap" />
+            <KpiCard label="Total Programs" value={programs.length} sub={program.code} />
             <KpiCard
               label="Total Courses"
               value={programCourseList.length}
@@ -632,39 +631,31 @@ function Reports({ profile, onNavigate }: ReportsProps) {
                   ? `Across ${yearsOffered} year${yearsOffered === 1 ? '' : 's'}`
                   : 'Across all academic years'
               }
-              icon="book"
             />
             <KpiCard
-              label="Total CLOs"
+              label="Total CLO's"
               value={programClos.length}
               sub={program ? `${program.code} courses` : 'From all courses'}
-              icon="doc"
             />
             <KpiCard
-              label="Total POs"
+              label="Total PO's"
               value={summary.outcomes}
               sub="Program Outcomes"
-              icon="target"
             />
             <KpiCard
-              label="Total PEOs"
+              label="Total PEO's"
               value={peos.length}
               sub="Program Educational Objectives"
-              icon="people"
             />
             <KpiCard
               label="Mapping Coverage"
               value={subjectCoverage.total === 0 ? '—' : `${subjectCoverage.percent}%`}
               sub={`(${subjectCoverage.fully} / ${subjectCoverage.total} subjects)`}
-              icon="checkCircle"
-              tone="good"
             />
             <KpiCard
               label="Unmapped / Incomplete"
               value={summary.unaligned + mapping.gaps.length}
               sub="CLOs / Relationships"
-              icon="warning"
-              tone="warn"
             />
           </div>
 
@@ -841,35 +832,20 @@ function PanelHead({ title }: { title: string }) {
 /**
  * One KPI tile.
  *
- * The image's tile reads icon-and-label on the first line, then the figure,
- * then the qualifier — centred as one column, so the eye drops from the icon
- * to the number it explains without a left edge to hunt for.
- *
- * `tone` colours the icon only. All figures are dark: a coloured number is a
- * judgement, and the tile beside it ("45 unmapped") is neither good nor bad —
- * it is the count of what still isn't written down.
+ * The label, figure, and qualifier are centered as a single column.
  */
 function KpiCard({
   label,
   value,
   sub,
-  icon,
-  tone = 'neutral',
 }: {
   label: string
   value: string | number
   sub: string
-  icon: IconName
-  tone?: 'neutral' | 'good' | 'warn' | 'bad'
 }) {
   return (
     <div className="stat-card stat-card--2026 reports-kpi card-enter">
-      <div className="reports-kpi__top">
-        <span className={`reports-kpi__icon reports-kpi__icon--${tone}`}>
-          <Icon name={icon} size={17} />
-        </span>
-        <span className="stat-card__label">{label}</span>
-      </div>
+      <span className="stat-card__label">{label}</span>
       <span className="stat-card__value reports-kpi__value">{value}</span>
       <span className="stat-card__sub">{sub}</span>
     </div>
