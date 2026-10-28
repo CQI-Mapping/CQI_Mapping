@@ -11,6 +11,7 @@ import {
   programLabel,
   courseLabel,
   relId,
+  describeTosError,
   SEMESTERS,
   EXAM_TYPES,
   SCHOOL_YEAR,
@@ -232,5 +233,33 @@ describe('programIdForLabel', () => {
 
   it('returns empty when there are no programs at all', () => {
     expect(programIdForLabel([], 'BSIT - something')).toBe('')
+  })
+})
+
+describe('describeTosError', () => {
+  it('translates the uniqueness failure into words the header can act on', () => {
+    expect(
+      describeTosError(
+        { code: '23505', message: 'duplicate key value violates unique constraint' },
+        'fallback',
+      ),
+    ).toBe(
+      'A blueprint with this program, course, exam type, semester and school year already exists. Change one of them, or keep editing the one you have.',
+    )
+  })
+
+  it('joins the parts PostgREST provides, hint included', () => {
+    expect(describeTosError({ message: 'm', hint: 'h', code: '42P01' }, 'fallback')).toBe(
+      'm — h — 42P01',
+    )
+  })
+
+  it('keeps the caller wording when the error carries nothing readable', () => {
+    expect(describeTosError(null, 'fallback')).toBe('fallback')
+    expect(describeTosError({ message: '' }, 'fallback')).toBe('fallback')
+  })
+
+  it('passes a plain string through untouched', () => {
+    expect(describeTosError('network dropped', 'fallback')).toBe('network dropped')
   })
 })

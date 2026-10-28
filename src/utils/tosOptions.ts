@@ -130,3 +130,28 @@ export function buildExamTypeOptions(saved: string): string[] {
 export function programIdForLabel(programs: Program[], label: string): string {
   return programs.find((p) => programLabel(p) === label)?.id ?? ''
 }
+
+/**
+ * Save failures out of the database read like PostgreSQL, and name neither the
+ * row nor the cure. This translates the one a blueprint save can actually hit
+ * -- code 23505, the UNIQUE constraint refusing two blueprints that file the
+ * same program, course, exam type, semester and school year -- and passes
+ * everything else through with whatever diagnostics PostgREST did provide
+ * joined on: the package's own docs warn that reading only `message` hides the
+ * actionable part, which it puts in `hint` and classes by `code`. Reading the
+ * fields structurally also avoids leaning on `instanceof Error`, a poor gate
+ * for a value that arrived over the wire.
+ */
+export function describeTosError(e: unknown, fallback: string): string {
+  const code = (e as { code?: unknown } | null | undefined)?.code
+  if (code === '23505') {
+    return 'A blueprint with this program, course, exam type, semester and school year already exists. Change one of them, or keep editing the one you have.'
+  }
+  if (typeof e === 'string') return e
+  if (!e || typeof e !== 'object') return fallback
+  const { message, hint, code: dbCode } = e as Record<string, unknown>
+  const parts = [message, hint, dbCode].filter(
+    (p): p is string => typeof p === 'string' && p.trim() !== '',
+  )
+  return parts.length > 0 ? parts.join(' — ') : fallback
+}

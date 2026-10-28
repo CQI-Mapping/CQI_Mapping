@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   fetchPrograms,
   fetchCourses,
+  fetchTosExam,
   fetchTosSheets,
   fetchTosTopics,
   createTosSheet,
@@ -39,6 +40,7 @@ import {
   buildSchoolYearOptions,
   buildExamTypeOptions,
   composeTerm,
+  describeTosError,
   splitTerm,
   programIdForLabel,
 } from '../utils/tosOptions'
@@ -131,7 +133,7 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
   const topicsTimer = useRef<Record<SheetKind, number | null>>({ items: null, points: null })
 
   const fail = useCallback((e: unknown, fallback: string) => {
-    setError(e instanceof Error && e.message ? e.message : fallback)
+    setError(describeTosError(e, fallback))
   }, [])
 
   const reportSaved = useCallback(() => {
@@ -152,16 +154,21 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
     setLoading(true)
     setError(null)
     try {
-      const rows = await fetchTosSheets(exam.id)
+      // The row this card was rendered from is the list's latest snapshot,
+      // which can lag the newest autosave. Reading the row back from the
+      // database here means the form starts from what is actually stored,
+      // whatever the panel had not caught up with yet.
+      const row = await fetchTosExam(exam.id)
+      const rows = await fetchTosSheets(row.id)
       const loaded: TosSheet[] = []
-      for (const row of rows) {
-        const topicRows = await fetchTosTopics(row.id)
+      for (const sheetRow of rows) {
+        const topicRows = await fetchTosTopics(sheetRow.id)
         loaded.push({
-          id: row.id,
-          kind: row.kind,
-          label: row.label,
-          total: num(row.total),
-          note: row.note ?? '',
+          id: sheetRow.id,
+          kind: sheetRow.kind,
+          label: sheetRow.label,
+          total: num(sheetRow.total),
+          note: sheetRow.note ?? '',
           topics: topicRows.map(toTopic),
         })
       }
@@ -173,7 +180,7 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
       }
       setActiveKind('items')
       setSheets(loaded)
-      setForm(toForm(exam))
+      setForm(toForm(row))
       setDirty(false)
       setSaving(false)
       setSavedAt(null)
@@ -182,8 +189,20 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
     } finally {
       setLoading(false)
     }
-  }, [exam, fail])
+  }, [exam.id, fail])
 
+  /**
+   * Load once, when the card opens.
+   *
+   * `load` used to hang off the whole `exam` prop, whose object identity
+   * changes with every refresh of the saved-blueprints panel -- and that panel
+   * refreshes after every autosave anywhere, including this card's own. Each
+   * refresh therefore re-ran load() and rebuilt the form from the row snapshot,
+   * silently erasing whatever had been typed in the meantime: a Save pressed
+   * afterwards then wrote the erased form back, and the card reverted to what
+   * it was before the edit. Keying only on the row's id keeps the re-fetch at
+   * the moment the card opens; the refetch reads current values anyway.
+   */
   useEffect(() => {
     load()
   }, [load])
@@ -404,7 +423,10 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
         total_hours: num(form.totalHours),
       })
         .then(() => undefined)
-        .catch((e) => fail(e, 'Could not save the exam details.')),
+        .catch((e) => {
+          fail(e, 'Could not save the exam details.')
+          throw e
+        }),
     )
 
     for (const { kind } of SHEET_KINDS) {
@@ -414,7 +436,10 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
       writes.push(
         updateTosSheet(id, { total: num(target.total) })
           .then(() => undefined)
-          .catch((e) => fail(e, 'Could not save the blueprint total.')),
+          .catch((e) => {
+            fail(e, 'Could not save the blueprint total.')
+            throw e
+          }),
       )
       writes.push(
         replaceTosTopics(
@@ -426,11 +451,24 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
             hours: num(t.hours),
             bloom: t.bloom,
           })),
-        ).catch((e) => fail(e, 'Could not save the topics.')),
+        ).catch((e) => {
+          fail(e, 'Could not save the topics.')
+          throw e
+        }),
       )
     }
 
-    await Promise.all(writes)
+    // The catches only shape the message; the throw is what lets allSettled
+    // see the failure. Without it every rejected write resolved anyway, this
+    // reported Saved, and the panel showed a card the database does not hold.
+    const results = await Promise.allSettled(writes)
+    if (results.some((r) => r.status === 'rejected')) {
+      // Keep the editor exactly as the user left it; `dirty` stays up, so the
+      // pending marker keeps saying there is work that has not landed.
+      setSaving(false)
+      return
+    }
+
     reportSaved()
   }, [exam.id, form, clearTimers, fail, reportSaved])
 

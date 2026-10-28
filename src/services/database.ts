@@ -1307,6 +1307,22 @@ export async function createTosExam(
   return data as TosExamRow
 }
 
+/**
+ * One blueprint by id. RLS scopes the read to its owner like every other
+ * query here.
+ *
+ * Exists because the row a card is rendered from is the saved-blueprints
+ * panel's last snapshot, which can lag the newest autosave. The card editor
+ * and the page's editor both reload the row through this, so the form is
+ * always built from what the database actually holds rather than from a
+ * snapshot the next refresh has not arrived to correct.
+ */
+export async function fetchTosExam(id: string): Promise<TosExamRow> {
+  const { data, error } = await supabase.from('tos_exams').select('*').eq('id', id).single()
+  if (error) throw error
+  return data as TosExamRow
+}
+
 export async function updateTosExam(
   id: string,
   updates: Partial<TosExamRow>,

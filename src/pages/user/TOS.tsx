@@ -35,6 +35,7 @@ import {
   deleteTosExam,
   fetchCourses,
   fetchPrograms,
+  fetchTosExam,
   fetchTosExams,
   fetchTosSheets,
   fetchTosSheetsByExam,
@@ -56,6 +57,7 @@ import {
   buildSchoolYearOptions,
   buildExamTypeOptions,
   composeTerm,
+  describeTosError,
   splitTerm,
   programIdForLabel,
 } from '../../utils/tosOptions'
@@ -129,22 +131,6 @@ const newSheet = (kind: SheetKind): TosSheet => {
  */
 /** Archived rows stay in the database but out of a new pick. */
 const isActive = <T extends { status?: string }>(x: T) => !x.status || x.status === 'active'
-
-/**
- * PostgREST puts the actionable part of a failure in `hint` and its class in
- * `code` -- the package's own docs warn that logging only `message` hides the
- * hint. Reading the fields structurally also avoids leaning on
- * `instanceof Error`, which is a poor gate for a value that arrived over the wire.
- */
-const messageOf = (e: unknown, fallback: string): string => {
-  if (typeof e === 'string') return e
-  if (!e || typeof e !== 'object') return fallback
-  const { message, hint, code } = e as Record<string, unknown>
-  const parts = [message, hint, code].filter(
-    (p): p is string => typeof p === 'string' && p.trim() !== '',
-  )
-  return parts.length > 0 ? parts.join(' — ') : fallback
-}
 
 /** The signed-in user's id, which the tos_exams insert requires. */
 const currentUserId = async (): Promise<string> => {
@@ -243,7 +229,7 @@ export default function TOS() {
   const ready = !loading && !error && Boolean(activeId)
 
   const fail = useCallback((e: unknown, fallback: string) => {
-    setError(messageOf(e, fallback))
+    setError(describeTosError(e, fallback))
   }, [])
 
   const reportSaved = useCallback(() => {
@@ -261,6 +247,33 @@ export default function TOS() {
   // depend on refreshList directly — that would rebuild all of them whenever
   // the list callback's identity changed.
   const refreshListRef = useRef<(() => void) | null>(null)
+
+  /**
+   * Stop every debounced write that has not run yet.
+   *
+   * saveNow calls it before flushing the writes by hand, discardPending before
+   * re-reading the row, and syncTop before the top editor re-reads what a card
+   * editor has just written to the same row — in each case, a timer firing
+   * afterwards would write back values the caller has already replaced.
+   */
+  const cancelPendingWrites = useCallback(() => {
+    if (examTimer.current) {
+      window.clearTimeout(examTimer.current)
+      examTimer.current = null
+    }
+    for (const { kind } of SHEET_KINDS) {
+      const sheetTimerId = sheetTimer.current[kind]
+      if (sheetTimerId) {
+        window.clearTimeout(sheetTimerId)
+        sheetTimer.current[kind] = null
+      }
+      const topicsTimerId = topicsTimer.current[kind]
+      if (topicsTimerId) {
+        window.clearTimeout(topicsTimerId)
+        topicsTimer.current[kind] = null
+      }
+    }
+  }, [])
 
   /**
    * Write everything that is pending, then file the blueprint as its own card
@@ -301,22 +314,7 @@ export default function TOS() {
 
     // Clear first, so a debounce that fires while this runs cannot start a
     // second, identical write after this one has already read the state.
-    if (examTimer.current) {
-      window.clearTimeout(examTimer.current)
-      examTimer.current = null
-    }
-    for (const { kind } of SHEET_KINDS) {
-      const sheetTimerId = sheetTimer.current[kind]
-      if (sheetTimerId) {
-        window.clearTimeout(sheetTimerId)
-        sheetTimer.current[kind] = null
-      }
-      const topicsTimerId = topicsTimer.current[kind]
-      if (topicsTimerId) {
-        window.clearTimeout(topicsTimerId)
-        topicsTimer.current[kind] = null
-      }
-    }
+    cancelPendingWrites()
 
     const writes: Promise<void>[] = []
 
@@ -446,7 +444,7 @@ export default function TOS() {
     }
 
     reportSaved()
-  }, [ready, exam, activeId, fail, reportSaved])
+  }, [ready, exam, activeId, cancelPendingWrites, fail, reportSaved])
 
   // A failed write leaves the edit unsaved, so the pending marker must stay up.
   // setError already covers the diagnosis; this covers "your work is still
@@ -643,6 +641,39 @@ export default function TOS() {
     [activeId, dirty, loadInto],
   )
 
+  /**
+   * Bring the top editor back in step with the row it has open, after the
+   * card editor for that same row has written to the database.
+   *
+   * Since Save started handing the editor its own fresh draft, the row open at
+   * the top is also a card in the list below, so one blueprint can have two
+   * editors on screen. The card's writes land straight in the database; the
+   * top editor's form would otherwise keep whatever it held before them — and
+   * its next debounced write would file those stale values back over the
+   * card's work, which is how a blueprint you just filled ends up reading
+   * empty again. Re-reading the row keeps the two from contradicting each
+   * other: one row, one truth, whichever editor wrote to it last.
+   *
+   * Skipped while the top editor itself has unsaved edits: the user is
+   * typing there, and their values are newer than the card's for the fields
+   * they touched. Reloading would yank the text out from under the cursor.
+   */
+  const syncTop = useCallback(
+    async (id: string) => {
+      if (id !== activeId || dirty) return
+      cancelPendingWrites()
+      try {
+        const row = await fetchTosExam(id)
+        await loadInto(row)
+        setDirty(false)
+        setSaving(false)
+      } catch (e) {
+        fail(e, 'Could not bring the editor above up to date with the card changes.')
+      }
+    },
+    [activeId, dirty, cancelPendingWrites, loadInto, fail],
+  )
+
   /** Open a card's blueprint inline, or close the one that is open. */
   const toggleCardEdit = useCallback((row: TosExamRow) => {
     setEditingId((prev) => (prev === row.id ? null : row.id))
@@ -673,20 +704,7 @@ export default function TOS() {
         return
       try {
         if (row.id === activeId) {
-          if (examTimer.current) {
-            window.clearTimeout(examTimer.current)
-            examTimer.current = null
-          }
-          for (const { kind } of SHEET_KINDS) {
-            if (sheetTimer.current[kind]) {
-              window.clearTimeout(sheetTimer.current[kind])
-              sheetTimer.current[kind] = null
-            }
-            if (topicsTimer.current[kind]) {
-              window.clearTimeout(topicsTimer.current[kind])
-              topicsTimer.current[kind] = null
-            }
-          }
+          cancelPendingWrites()
           // Park on the next active exam, or an empty form when none remains.
           // Not a fresh auto-created row: deleting the last blueprint is a
           // cleanup, not the setup for a new one.
@@ -800,30 +818,17 @@ export default function TOS() {
    * the discarded state straight back, so every timer is cancelled first.
    */
   const discardPending = useCallback(async () => {
-    for (const kind of ['items', 'points'] as const) {
-      const sheetTimerId = sheetTimer.current[kind]
-      if (sheetTimerId) {
-        window.clearTimeout(sheetTimerId)
-        sheetTimer.current[kind] = null
-      }
-      const topicsTimerId = topicsTimer.current[kind]
-      if (topicsTimerId) {
-        window.clearTimeout(topicsTimerId)
-        topicsTimer.current[kind] = null
-      }
-    }
-    if (examTimer.current) {
-      window.clearTimeout(examTimer.current)
-      examTimer.current = null
-    }
+    cancelPendingWrites()
 
     setLoading(true)
     setError(null)
     try {
-      const rows = await fetchTosExams()
-      if (rows.length === 0) return
-      setActiveId(rows[0].id)
-      await loadInto(rows[0])
+      // Reload the row the editor has open, not whatever the list says is
+      // newest: with every Save starting a fresh draft, the newest row and
+      // the open one are the same only until another card is touched.
+      if (!activeId) return
+      const row = await fetchTosExam(activeId)
+      await loadInto(row)
       setDirty(false)
       setSaving(false)
       setSavedAt(null)
@@ -832,7 +837,7 @@ export default function TOS() {
     } finally {
       setLoading(false)
     }
-  }, [loadInto, fail])
+  }, [activeId, cancelPendingWrites, loadInto, fail])
 
   const patchExam = useCallback(
     (patch: Partial<TosExam>) => {
@@ -1329,7 +1334,14 @@ export default function TOS() {
                   </div>
                   <TosBlueprintEditor
                     exam={row}
-                    onSaved={refreshListRef.current ?? undefined}
+                    onSaved={() => {
+                      refreshListRef.current?.()
+                      /* When the card being edited IS the blueprint the top
+                         editor has open, the top editor must not be left
+                         holding its older copy of the row — re-read it, or
+                         its next debounced write would undo the card's. */
+                      if (row.id === activeId) void syncTop(row.id)
+                    }}
                     onRenamed={(next) =>
                       setExamList((prev) =>
                         prev.map((r) =>
