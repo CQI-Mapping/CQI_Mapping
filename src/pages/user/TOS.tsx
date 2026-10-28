@@ -998,38 +998,41 @@ export default function TOS() {
               ))}
             </select>
           </label>
-          <label className="field">
-            <span>Semester</span>
-            <select
-              className="input input--sm"
-              value={exam.semester}
-              disabled={!ready}
-              onChange={(e) => patchExam({ semester: e.target.value })}
-            >
-              <option value="">- select semester -</option>
-              {semesterOptions.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>School Year</span>
-            <select
-              className="input input--sm"
-              value={exam.schoolYear}
-              disabled={!ready}
-              onChange={(e) => patchExam({ schoolYear: e.target.value })}
-            >
-              <option value="">- select school year -</option>
-              {schoolYearOptions.map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
-          </label>
+          {/* Semester and School Year sit side by side so the header stays compact. */}
+          <div className="field-row">
+            <label className="field">
+              <span>Semester</span>
+              <select
+                className="input input--sm"
+                value={exam.semester}
+                disabled={!ready}
+                onChange={(e) => patchExam({ semester: e.target.value })}
+              >
+                <option value="">- select semester -</option>
+                {semesterOptions.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>School Year</span>
+              <select
+                className="input input--sm"
+                value={exam.schoolYear}
+                disabled={!ready}
+                onChange={(e) => patchExam({ schoolYear: e.target.value })}
+              >
+                <option value="">- select school year -</option>
+                {schoolYearOptions.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
 
         <div className="tos-savestate" role="status">

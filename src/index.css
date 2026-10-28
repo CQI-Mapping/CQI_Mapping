@@ -4223,6 +4223,17 @@ textarea.input {
   margin-bottom: 0;
 }
 
+/* Two identifying fields side by side (Semester + School Year). */
+.tos-field-grid .field-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.tos-field-grid .field-row .field {
+  margin-bottom: 0;
+  flex: 1;
+}
+
 /* Save indicator under the header fields. Reserves no height when empty so
    the panel does not jump as the message cycles saving -> saved. */
 .tos-savestate {
