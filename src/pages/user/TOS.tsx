@@ -35,7 +35,6 @@ import {
   createTosExam,
   createTosSheet,
   addActivityLog,
-  deleteTosExam,
   fetchCourses,
   fetchPrograms,
   fetchTosExams,
@@ -579,35 +578,6 @@ export default function TOS() {
     setEditingId(null)
   }, [])
 
-  /**
-   * Delete a library blueprint outright — archive is the soft path, this is
-   * the hard one. The row's papers and its topics belong to it, so one delete
-   * clears the whole document. The editor at the top is a draft of its own and
-   * holds no copy of this row, so a delete never has to touch it.
-   */
-  const deleteExam = useCallback(
-    async (row: TosExamRow) => {
-      if (
-        !window.confirm(
-          'Delete this blueprint permanently? Its papers and topics are removed with it, and this cannot be undone.',
-        )
-      )
-        return
-      try {
-        await deleteTosExam(row.id)
-        await addActivityLog('tos_exam.deleted', {
-          entity: 'tos_exam',
-          entity_id: row.id,
-          label: [row.code, row.title].filter(Boolean).join(' — ') || 'Table of Specification',
-        })
-        await refreshList()
-      } catch (e) {
-        fail(e, 'Could not delete the blueprint.')
-      }
-    },
-    [refreshList, fail],
-  )
-
   // The panel's tab decides which half of the list it shows, the same way the
   // Curriculum page's Active/Archive tabs do.
   const visibleExams = useMemo(
@@ -988,15 +958,6 @@ export default function TOS() {
                       onClick={() => setExamStatus(row.id, row.status === 'archived' ? 'active' : 'archived')}
                     >
                       {row.status === 'archived' ? 'Restore' : 'Archive'}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn--danger btn--sm"
-                      onClick={() => deleteExam(row)}
-                      aria-label={`Delete ${row.code || row.title || 'blueprint'}`}
-                      title="Delete"
-                    >
-                      <Icon name="trash" size={13} />
                     </button>
                   </div>
                 </>
