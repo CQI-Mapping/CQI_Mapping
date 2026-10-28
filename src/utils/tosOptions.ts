@@ -23,7 +23,10 @@ import type { Course, Program } from '../services/database'
  */
 export const SCHOOL_YEAR = '2026-2027'
 
-export const SEMESTERS = ['1st Semester', '2nd Semester']
+export const SEMESTERS = ['1st Semester', '2nd Semester', 'Summer']
+
+/** The exam coverages a blueprint can be for, matching the workbook's title line. */
+export const EXAM_TYPES = ['Prelim', 'Midterm', 'Finals']
 
 /** School years offered in the picker, current year first. */
 export function schoolYearOptions(): string[] {
@@ -112,6 +115,13 @@ export function buildSemesterOptions(saved: string): string[] {
 /** The school years, with a saved year that matches none kept as its own. */
 export function buildSchoolYearOptions(saved: string): string[] {
   const options = schoolYearOptions()
+  if (saved && !options.includes(saved)) options.unshift(saved)
+  return options
+}
+
+/** The exam coverages, with a saved type that matches none kept as its own. */
+export function buildExamTypeOptions(saved: string): string[] {
+  const options = [...EXAM_TYPES]
   if (saved && !options.includes(saved)) options.unshift(saved)
   return options
 }

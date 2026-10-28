@@ -4,6 +4,7 @@ import {
   buildCourseOptions,
   buildSemesterOptions,
   buildSchoolYearOptions,
+  buildExamTypeOptions,
   composeTerm,
   splitTerm,
   programIdForLabel,
@@ -11,6 +12,7 @@ import {
   courseLabel,
   relId,
   SEMESTERS,
+  EXAM_TYPES,
   SCHOOL_YEAR,
 } from './tosOptions'
 import type { Course, Program } from '../services/database'
@@ -146,18 +148,34 @@ describe('buildCourseOptions', () => {
 })
 
 describe('buildSemesterOptions', () => {
-  it('offers both semesters', () => {
+  it('offers all three semesters', () => {
     expect(buildSemesterOptions('')).toEqual(SEMESTERS)
   })
 
   it('keeps a saved semester that matches neither', () => {
-    const options = buildSemesterOptions('Summer')
-    expect(options[0]).toBe('Summer')
-    expect(options).toHaveLength(3)
+    const options = buildSemesterOptions('Midyear')
+    expect(options[0]).toBe('Midyear')
+    expect(options).toHaveLength(4)
   })
 
   it('does not duplicate a listed semester', () => {
-    expect(buildSemesterOptions(SEMESTERS[0])).toHaveLength(2)
+    expect(buildSemesterOptions(SEMESTERS[0])).toHaveLength(3)
+  })
+})
+
+describe('buildExamTypeOptions', () => {
+  it('offers all three exam types', () => {
+    expect(buildExamTypeOptions('')).toEqual(EXAM_TYPES)
+  })
+
+  it('keeps a saved exam type that matches none', () => {
+    const options = buildExamTypeOptions('Summer')
+    expect(options[0]).toBe('Summer')
+    expect(options).toHaveLength(4)
+  })
+
+  it('does not duplicate a listed exam type', () => {
+    expect(buildExamTypeOptions(EXAM_TYPES[0])).toHaveLength(3)
   })
 })
 

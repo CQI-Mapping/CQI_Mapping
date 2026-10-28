@@ -37,6 +37,7 @@ import {
   buildCourseOptions,
   buildSemesterOptions,
   buildSchoolYearOptions,
+  buildExamTypeOptions,
   composeTerm,
   splitTerm,
   programIdForLabel,
@@ -89,7 +90,14 @@ export interface TosBlueprintEditorProps {
   onSaved?: () => void
   /** Fired when a rename lands, so a list showing that row can update it. */
   onRenamed?: (
-    next: { code: string; title: string; semester: string; schoolYear: string; total_hours: number },
+    next: {
+      code: string
+      title: string
+      examType: string
+      semester: string
+      schoolYear: string
+      total_hours: number
+    },
   ) => void
 }
 
@@ -210,6 +218,7 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
   const schoolYearOptions = useMemo(() => buildSchoolYearOptions(form.schoolYear), [
     form.schoolYear,
   ])
+  const examTypeOptions = useMemo(() => buildExamTypeOptions(form.examType), [form.examType])
 
   const sheet = useMemo(
     () => sheets.find((s) => s.kind === activeKind) ?? newSheet(activeKind),
@@ -247,6 +256,7 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
             await updateTosExam(exam.id, {
               code: next.code,
               title: next.title,
+              exam_type: next.examType,
               term: composeTerm(next.semester, next.schoolYear),
               semester: next.semester,
               school_year: next.schoolYear,
@@ -256,6 +266,7 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
             onRenamed?.({
               code: next.code,
               title: next.title,
+              examType: next.examType,
               semester: next.semester,
               schoolYear: next.schoolYear,
               total_hours: num(next.totalHours),
@@ -372,6 +383,7 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
       updateTosExam(exam.id, {
         code: form.code,
         title: form.title,
+        exam_type: form.examType,
         term: composeTerm(form.semester, form.schoolYear),
         semester: form.semester,
         school_year: form.schoolYear,
@@ -512,6 +524,22 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
               {courseOptions.map((o) => (
                 <option key={o.id} value={o.value}>
                   {o.value}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>Table of Specification for</span>
+            <select
+              className="input input--sm"
+              value={form.examType}
+              disabled={!ready}
+              onChange={(e) => patchExam({ examType: e.target.value })}
+            >
+              <option value="">- select exam type -</option>
+              {examTypeOptions.map((t) => (
+                <option key={t} value={t}>
+                  {t}
                 </option>
               ))}
             </select>

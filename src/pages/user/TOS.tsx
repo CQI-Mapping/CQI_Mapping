@@ -54,6 +54,7 @@ import {
   buildCourseOptions,
   buildSemesterOptions,
   buildSchoolYearOptions,
+  buildExamTypeOptions,
   composeTerm,
   splitTerm,
   programIdForLabel,
@@ -76,7 +77,8 @@ const SHEET_KINDS: { kind: SheetKind; label: string }[] = [
 
 /**
  * The document's title line: "Table of Specification for Prelim: Multiple
- * Choice Type".
+ * Choice Type". The exam type is now picked from a dropdown, so the "for ..."
+ * clause varies with the choice.
  *
  * Shared by the grid's header and the library panel's cards so a card is
  * titled exactly as its blueprint and its exported workbook are. Written once
@@ -158,8 +160,6 @@ export default function TOS() {
   const [exam, setExam] = useState<TosExam>(() => ({
     code: '',
     title: '',
-    // Read-only: there is no field for it any more, but the exported workbook's
-    // title line reads "Table of Specification for Prelim" and needs it.
     examType: 'Prelim',
     semester: '',
     schoolYear: '',
@@ -310,6 +310,7 @@ export default function TOS() {
         updateTosExam(activeId, {
           code: exam.code,
           title: exam.title,
+          exam_type: exam.examType,
           term: composeTerm(exam.semester, exam.schoolYear),
           semester: exam.semester,
           school_year: exam.schoolYear,
@@ -670,6 +671,7 @@ export default function TOS() {
   const schoolYearOptions = useMemo(() => buildSchoolYearOptions(exam.schoolYear), [
     exam.schoolYear,
   ])
+  const examTypeOptions = useMemo(() => buildExamTypeOptions(exam.examType), [exam.examType])
 
   // ---- debounced writes -----------------------------------------------
 
@@ -739,6 +741,7 @@ export default function TOS() {
             await updateTosExam(activeId, {
               code: next.code,
               title: next.title,
+              exam_type: next.examType,
               term: composeTerm(next.semester, next.schoolYear),
               semester: next.semester,
               school_year: next.schoolYear,
@@ -998,6 +1001,22 @@ export default function TOS() {
               ))}
             </select>
           </label>
+          <label className="field">
+            <span>Table of Specification for</span>
+            <select
+              className="input input--sm"
+              value={exam.examType}
+              disabled={!ready}
+              onChange={(e) => patchExam({ examType: e.target.value })}
+            >
+              <option value="">- select exam type -</option>
+              {examTypeOptions.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </label>
           {/* Semester and School Year sit side by side so the header stays compact. */}
           <div className="field-row">
             <label className="field">
@@ -1206,6 +1225,7 @@ export default function TOS() {
                                 ...r,
                                 code: next.code,
                                 title: next.title,
+                                exam_type: next.examType,
                                 semester: next.semester,
                                 school_year: next.schoolYear,
                                 term: composeTerm(next.semester, next.schoolYear),
