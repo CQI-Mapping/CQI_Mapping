@@ -626,21 +626,6 @@ export default function TOS() {
     [examList, fail],
   )
 
-  /** Open a different blueprint in the editor above. */
-  const openExam = useCallback(
-    async (row: TosExamRow) => {
-      if (row.id === activeId) return
-      if (dirty && !window.confirm('You have unsaved edits on this blueprint. Open another one and lose them?')) {
-        return
-      }
-      setActiveId(row.id)
-      await loadInto(row)
-      setDirty(false)
-      setSaving(false)
-    },
-    [activeId, dirty, loadInto],
-  )
-
   /**
    * Bring the top editor back in step with the row it has open, after the
    * card editor for that same row has written to the database.
@@ -1409,15 +1394,6 @@ export default function TOS() {
                     >
                       <Icon name="edit" size={13} />
                     </button>
-                    {row.id !== activeId && (
-                      <button
-                        type="button"
-                        className="btn btn--ghost btn--sm"
-                        onClick={() => openExam(row)}
-                      >
-                        Open
-                      </button>
-                    )}
                     <button
                       type="button"
                       className="btn btn--ghost btn--sm"
