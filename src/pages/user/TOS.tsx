@@ -52,7 +52,10 @@ import { downloadTosExcel } from '../../utils/tosXlsx'
 import {
   buildProgramOptions,
   buildCourseOptions,
-  buildTermOptions,
+  buildSemesterOptions,
+  buildSchoolYearOptions,
+  composeTerm,
+  splitTerm,
   programIdForLabel,
 } from '../../utils/tosOptions'
 import Icon from '../../components/icons'
@@ -158,7 +161,8 @@ export default function TOS() {
     // Read-only: there is no field for it any more, but the exported workbook's
     // title line reads "Table of Specification for Prelim" and needs it.
     examType: 'Prelim',
-    term: '',
+    semester: '',
+    schoolYear: '',
     preparedBy: '',
     totalHours: 8,
   }))
@@ -306,7 +310,9 @@ export default function TOS() {
         updateTosExam(activeId, {
           code: exam.code,
           title: exam.title,
-          term: exam.term,
+          term: composeTerm(exam.semester, exam.schoolYear),
+          semester: exam.semester,
+          school_year: exam.schoolYear,
           prepared_by: exam.preparedBy,
           total_hours: num(exam.totalHours),
         }).then(() => undefined).catch((e) => fail(e, 'Could not save the exam details.')),
@@ -387,11 +393,13 @@ export default function TOS() {
     }
     setActiveKind('items')
     setSheets(loaded)
+    const split = splitTerm(row.term)
     setExam({
       code: row.code,
       title: row.title,
       examType: row.exam_type,
-      term: row.term,
+      semester: row.semester ?? split.semester,
+      schoolYear: row.school_year ?? split.schoolYear,
       preparedBy: row.prepared_by ?? '',
       totalHours: num(row.total_hours),
     })
@@ -416,7 +424,15 @@ export default function TOS() {
           // A constant is therefore what every exam gets, and updates never
           // write the column again -- existing rows keep the value they had.
           const created = await createTosExam(
-            { code: '', title: '', exam_type: 'Prelim', term: '', total_hours: 8 },
+            {
+              code: '',
+              title: '',
+              exam_type: 'Prelim',
+              term: '',
+              semester: '',
+              school_year: '',
+              total_hours: 8,
+            },
             await currentUserId(),
           )
           await createTosSheet({
@@ -576,7 +592,14 @@ export default function TOS() {
           } else {
             setActiveId('')
             setSheets([blankSheet()])
-            setExam((e) => ({ ...e, code: '', title: '', term: '', preparedBy: '' }))
+            setExam((e) => ({
+              ...e,
+              code: '',
+              title: '',
+              semester: '',
+              schoolYear: '',
+              preparedBy: '',
+            }))
             createdThisSession.current = false
           }
           setDirty(false)
@@ -643,7 +666,10 @@ export default function TOS() {
     [courses, selectedProgramId, exam.title],
   )
 
-  const termOptions = useMemo(() => buildTermOptions(exam.term), [exam.term])
+  const semesterOptions = useMemo(() => buildSemesterOptions(exam.semester), [exam.semester])
+  const schoolYearOptions = useMemo(() => buildSchoolYearOptions(exam.schoolYear), [
+    exam.schoolYear,
+  ])
 
   // ---- debounced writes -----------------------------------------------
 
@@ -713,7 +739,9 @@ export default function TOS() {
             await updateTosExam(activeId, {
               code: next.code,
               title: next.title,
-              term: next.term,
+              term: composeTerm(next.semester, next.schoolYear),
+              semester: next.semester,
+              school_year: next.schoolYear,
               prepared_by: next.preparedBy,
               total_hours: num(next.totalHours),
             })
@@ -971,21 +999,33 @@ export default function TOS() {
             </select>
           </label>
           <label className="field">
-            {/* Labelled Semester, matching how the options actually read
-                ("1st Semester, 2026-2027") and how the faculty says it. The
-                column and the variable stay `term` — that is the stored name
-                and the exported workbook's own wording. */}
             <span>Semester</span>
             <select
               className="input input--sm"
-              value={exam.term}
+              value={exam.semester}
               disabled={!ready}
-              onChange={(e) => patchExam({ term: e.target.value })}
+              onChange={(e) => patchExam({ semester: e.target.value })}
             >
               <option value="">- select semester -</option>
-              {termOptions.map((t) => (
-                <option key={t} value={t}>
-                  {t}
+              {semesterOptions.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>School Year</span>
+            <select
+              className="input input--sm"
+              value={exam.schoolYear}
+              disabled={!ready}
+              onChange={(e) => patchExam({ schoolYear: e.target.value })}
+            >
+              <option value="">- select school year -</option>
+              {schoolYearOptions.map((y) => (
+                <option key={y} value={y}>
+                  {y}
                 </option>
               ))}
             </select>
@@ -1071,7 +1111,7 @@ export default function TOS() {
         sheet={sheet}
         header={{
           courseTitle: exam.title,
-          term: exam.term,
+          term: composeTerm(exam.semester, exam.schoolYear),
           // Same line the exported workbook writes at A8.
           title: docTitle(exam.examType, sheet.kind),
         }}
@@ -1157,7 +1197,19 @@ export default function TOS() {
                     onSaved={refreshListRef.current ?? undefined}
                     onRenamed={(next) =>
                       setExamList((prev) =>
-                        prev.map((r) => (r.id === row.id ? { ...r, ...next } : r)),
+                        prev.map((r) =>
+                          r.id === row.id
+                            ? {
+                                ...r,
+                                code: next.code,
+                                title: next.title,
+                                semester: next.semester,
+                                school_year: next.schoolYear,
+                                term: composeTerm(next.semester, next.schoolYear),
+                                total_hours: next.total_hours,
+                              }
+                            : r,
+                        ),
                       )
                     }
                   />
@@ -1178,7 +1230,11 @@ export default function TOS() {
                       <span className="tos-card__label">Course Title:</span>{' '}
                       {row.title || 'No course title yet'}
                     </h4>
-                    <p>{row.term || 'No semester set'}</p>
+                    <p>
+                      {row.semester || row.school_year
+                        ? composeTerm(row.semester ?? '', row.school_year ?? '')
+                        : row.term || 'No semester set'}
+                    </p>
                     {/* The document's own title line, so the card, the
                         blueprint and the exported workbook all name the paper
                         the same way. */}

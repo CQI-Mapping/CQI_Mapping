@@ -1231,7 +1231,10 @@ export interface TosExamRow {
   code: string
   title: string
   exam_type: string
+  /** Stored and kept in sync with semester + school_year. */
   term: string
+  semester: string | null
+  school_year: string | null
   coverage: string | null
   prepared_by: string | null
   total_hours: number

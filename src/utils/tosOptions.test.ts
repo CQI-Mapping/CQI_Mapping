@@ -2,12 +2,15 @@ import { describe, it, expect } from 'vitest'
 import {
   buildProgramOptions,
   buildCourseOptions,
-  buildTermOptions,
+  buildSemesterOptions,
+  buildSchoolYearOptions,
+  composeTerm,
+  splitTerm,
   programIdForLabel,
   programLabel,
   courseLabel,
   relId,
-  TERMS,
+  SEMESTERS,
   SCHOOL_YEAR,
 } from './tosOptions'
 import type { Course, Program } from '../services/database'
@@ -142,30 +145,61 @@ describe('buildCourseOptions', () => {
   })
 })
 
-describe('buildTermOptions', () => {
+describe('buildSemesterOptions', () => {
   it('offers both semesters', () => {
-    expect(buildTermOptions('')).toEqual(TERMS)
+    expect(buildSemesterOptions('')).toEqual(SEMESTERS)
   })
 
-  // Terms saved before the picker existed match neither option. Dropping the
-  // value would put the control on the placeholder and overwrite it on the next
-  // unrelated edit.
-  it('keeps a saved term that is neither semester', () => {
-    const options = buildTermOptions('Summer, 2024-2025')
-    expect(options[0]).toBe('Summer, 2024-2025')
+  it('keeps a saved semester that matches neither', () => {
+    const options = buildSemesterOptions('Summer')
+    expect(options[0]).toBe('Summer')
     expect(options).toHaveLength(3)
   })
 
-  it('does not duplicate a saved term that is listed', () => {
-    expect(buildTermOptions(TERMS[0])).toHaveLength(2)
+  it('does not duplicate a listed semester', () => {
+    expect(buildSemesterOptions(SEMESTERS[0])).toHaveLength(2)
+  })
+})
+
+describe('buildSchoolYearOptions', () => {
+  it('offers the current school year and neighbours', () => {
+    const options = buildSchoolYearOptions('')
+    expect(options).toContain(SCHOOL_YEAR)
+    expect(options.length).toBeGreaterThan(1)
   })
 
-  // Both semesters share an academic year on the usual Aug-July calendar.
-  it('puts 1st and 2nd Semester in the same school year', () => {
-    expect(TERMS).toEqual([
-      `1st Semester, ${SCHOOL_YEAR}`,
-      `2nd Semester, ${SCHOOL_YEAR}`,
-    ])
+  it('keeps a saved school year that matches none', () => {
+    const options = buildSchoolYearOptions('1999-2000')
+    expect(options[0]).toBe('1999-2000')
+    expect(options.length).toBeGreaterThan(1)
+  })
+
+  it('does not duplicate a listed school year', () => {
+    expect(buildSchoolYearOptions(SCHOOL_YEAR).filter((y) => y === SCHOOL_YEAR)).toHaveLength(1)
+  })
+})
+
+describe('composeTerm', () => {
+  it('joins semester and school year the way the workbook prints', () => {
+    expect(composeTerm('1st Semester', '2026-2027')).toBe('1st Semester, 2026-2027')
+    expect(composeTerm('2nd Semester', '2026-2027')).toBe('2nd Semester, 2026-2027')
+  })
+})
+
+describe('splitTerm', () => {
+  it('splits a stored term back into semester and school year', () => {
+    expect(splitTerm('1st Semester, 2026-2027')).toEqual({
+      semester: '1st Semester',
+      schoolYear: '2026-2027',
+    })
+    expect(splitTerm('2nd Semester, 2026-2027')).toEqual({
+      semester: '2nd Semester',
+      schoolYear: '2026-2027',
+    })
+  })
+
+  it('treats a value with no comma as the semester alone', () => {
+    expect(splitTerm('Summer')).toEqual({ semester: 'Summer', schoolYear: '' })
   })
 })
 

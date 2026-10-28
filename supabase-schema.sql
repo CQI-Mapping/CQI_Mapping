@@ -910,14 +910,18 @@ CREATE TABLE IF NOT EXISTS public.tos_exams (
     code TEXT NOT NULL,
     title TEXT NOT NULL,
     exam_type TEXT NOT NULL DEFAULT 'Prelim',
+    -- Stored so anything still reading it (older exports, the library card)
+    -- keeps working; recomposed from semester + school_year on every write.
     term TEXT NOT NULL,
+    semester TEXT,
+    school_year TEXT,
     coverage TEXT,
     prepared_by TEXT,
     total_hours NUMERIC NOT NULL DEFAULT 8,
     status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (user_id, code, exam_type, term)
+    UNIQUE (user_id, code, exam_type, semester, school_year)
 );
 
 -- One exam carries several blueprints: 'items' for the multiple
