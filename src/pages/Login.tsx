@@ -2,7 +2,7 @@
 // Validates fields client-side, shows a generic error (never leaks Supabase details),
 // and records every sign-in attempt to the audit log via the record_login_event RPC.
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { supabase } from '../utils/supabaseClient'
 import { recordLoginEvent, fetchOwnProfileStatus } from '../services/database'
 
@@ -20,40 +20,6 @@ function Login() {
   const [resetSent, setResetSent] = useState(false)
   const [resetError, setResetError] = useState('')
   const [resetBusy, setResetBusy] = useState(false)
-
-  useEffect(() => {
-    const url = new URL(window.location.href)
-    const oauthError = url.searchParams.get('error')
-    if (!oauthError) return
-
-    const errorCode = url.searchParams.get('error_code')
-    setError(
-      errorCode === 'signup_disabled'
-        ? 'Google sign-in is for existing accounts only. Ask your administrator to create your account first.'
-        : oauthError === 'access_denied'
-          ? 'Google sign-in was cancelled.'
-          : 'Google sign-in failed. Check your account and try again.',
-    )
-    url.searchParams.delete('error')
-    url.searchParams.delete('error_code')
-    url.searchParams.delete('error_description')
-    window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`)
-  }, [])
-
-  const handleGoogleSignIn = async () => {
-    setError('')
-    setBusy(true)
-    try {
-      const { error } = await supabase!.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: `${window.location.origin}/` },
-      })
-      if (error) throw error
-    } catch {
-      setError('Could not start Google sign-in. Please try again.')
-      setBusy(false)
-    }
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -257,23 +223,6 @@ function Login() {
                   )}
                 </button>
               </form>
-
-              <div className="login-divider"><span>or</span></div>
-              <button
-                type="button"
-                className="login-google-btn"
-                onClick={handleGoogleSignIn}
-                disabled={busy}
-                aria-busy={busy}
-              >
-                <svg viewBox="0 0 48 48" width="19" height="19" aria-hidden="true">
-                  <path fill="#4285F4" d="M47.6 24.5c0-1.6-.1-3.1-.4-4.5H24v9h13.2c-.6 2.9-2.3 5.4-4.9 7.1v5.9h7.9c4.6-4.2 7.4-10.3 7.4-17.5z" />
-                  <path fill="#34A853" d="M24 48c6.5 0 12-2.1 16-5.8l-7.9-6.1c-2.2 1.5-4.9 2.4-8.1 2.4-6.2 0-11.5-4.2-13.4-9.9H2.4v6.2C6.3 42.6 14.5 48 24 48z" />
-                  <path fill="#FBBC05" d="M10.6 28.6a14.4 14.4 0 0 1 0-9.2v-6.2H2.4a24 24 0 0 0 0 21.6z" />
-                  <path fill="#EA4335" d="M24 9.5c3.5 0 6.7 1.2 9.2 3.6l6.9-6.9C35.9 2.4 30.5 0 24 0 14.5 0 6.3 5.4 2.4 13.2l8.2 6.2C12.5 13.7 17.8 9.5 24 9.5z" />
-                </svg>
-                <span>{busy ? 'Connecting to Google…' : 'Continue with Google'}</span>
-              </button>
             </>
           ) : (
             <>
