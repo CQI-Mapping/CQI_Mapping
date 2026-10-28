@@ -256,8 +256,13 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
     return () => { cancelled = true }
   }, [])
 
+  // CLO codes are numbers only — the stored code is the bare digit run.
+  // Stripping non-digits at every input and at payload time keeps legacy
+  // lettered codes ("Clo1", "CLO-1") from being re-saved.
+  const digitsOnly = (v: string) => v.replace(/\D/g, '')
+
   const outPayload = (f: typeof EMPTY) => ({
-    code: f.code.trim(),
+    code: digitsOnly(f.code),
     course: f.course.trim(),
     title: f.programOutcomes.trim(),
     description: f.description.trim() || null,
@@ -265,7 +270,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (await handleCreate(outPayload(form), 'clo.created', { code: form.code.trim(), course: form.course.trim() })) {
+    if (await handleCreate(outPayload(form), 'clo.created', { code: digitsOnly(form.code), course: form.course.trim() })) {
       setForm(EMPTY)
       autoCreateFor.current = null
     }
@@ -274,7 +279,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   const startEdit = (i: CourseLearningOutcomeStandalone) => {
     setEditingId(i.id)
     autoEditFor.current = null
-    setEditForm({ code: i.code, course: i.course || '', description: i.description || '', programOutcomes: i.title || '' })
+    setEditForm({ code: digitsOnly(i.code), course: i.course || '', description: i.description || '', programOutcomes: i.title || '' })
   }
 
   const saveEdit = async () => {
@@ -426,7 +431,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             ))}
           </select>
         )}
-        <input className="input input--sm" value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} placeholder="CLO Code" />
+        <input className="input input--sm" type="text" inputMode="numeric" value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: digitsOnly(e.target.value) })} placeholder="CLO Code (e.g. 1)" />
       </div>
       <textarea className="input input--sm" rows={2} ref={autoResize} value={editForm.description} onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} placeholder="Description" />
       <SuggestionInput value={editForm.programOutcomes} onChange={(v) => setEditForm({ ...editForm, programOutcomes: v })} options={poSuggestions} placeholder="Type to search POs" />
@@ -547,8 +552,8 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
         </label>
         <label className="field">
           <span>CLO Code</span>
-          <input className="input input--sm" type="text" placeholder="e.g. CLO-1" value={form.code}
-            onChange={(e) => setForm({ ...form, code: e.target.value })} required />
+          <input className="input input--sm" type="text" inputMode="numeric" placeholder="e.g. 1" value={form.code}
+            onChange={(e) => setForm({ ...form, code: digitsOnly(e.target.value) })} required />
         </label>
         <label className="field">
           <span>Description</span>
