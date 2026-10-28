@@ -120,6 +120,13 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
               <span className="quick-action__text"><strong>Review Outcomes</strong><small>PO alignment check</small></span>
               <svg className="quick-action__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 18l6-6-6-6"/></svg>
             </button>
+            <button className="quick-action" type="button" onClick={() => go('subject-view')}>
+              <span className="quick-action__icon" style={{ background: '#15803d' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><circle cx="12" cy="12" r="3" /><path d="M19.07 18.93A10 10 0 0 0 21 12M2.93 5.07A10 10 0 0 1 12 3" /><path d="M12 12m-7 0a7 7 0 0 1 14 0" /></svg>
+              </span>
+              <span className="quick-action__text"><strong>Generate Map</strong><small>Start Visualization</small></span>
+              <svg className="quick-action__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
             <button className="quick-action" type="button" onClick={() => go('activity-logs')}>
               <span className="quick-action__icon" style={{ background: '#64748b' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
