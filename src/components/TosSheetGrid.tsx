@@ -86,8 +86,15 @@ export interface TosSheetGridProps {
    * it is what raises the pending marker on the Save button.
    */
   dirty?: boolean
-  /** Throw away unsaved edits and re-read the blueprint from the database. */
+  /** Throw away unsaved edits and reload the blueprint from the database. */
   onDiscard?: () => void
+  /**
+   * The Discard button's tooltip.
+   *
+   * A card's Discard reverts to the saved row; the page's draft has no saved
+   * copy at all, and its tooltip says exactly that.
+   */
+  discardTitle?: string
 }
 
 /** A green input cell that reads as a flat cell until you click it. */
@@ -149,6 +156,7 @@ export default function TosSheetGrid({
   saving,
   dirty,
   onDiscard,
+  discardTitle,
   saveTitle,
 }: TosSheetGridProps) {
   const totals = bloomTotals(sheet.topics)
@@ -388,7 +396,10 @@ export default function TosSheetGrid({
               type="button"
               className="btn btn--ghost btn--sm"
               onClick={onDiscard}
-              title="Discard unsaved edits and reload the blueprint from the database"
+              title={
+                discardTitle ??
+                'Discard unsaved edits and reload the blueprint from the database'
+              }
             >
               Discard
             </button>

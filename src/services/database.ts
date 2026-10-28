@@ -1266,12 +1266,13 @@ export interface TosTopicRow {
 }
 
 /**
- * The signed-in user's blueprints, newest activity first. RLS already
- * restricts this to rows the caller owns, so no user filter is needed
- * here and adding one would only risk disagreeing with the policy.
- */
-/**
- * The caller's blueprints, newest-touched first.
+ * The caller's blueprints, in the order they were filed — oldest first.
+ *
+ * The panel below the editor reads as a record of what was built, so a new
+ * card appends at its bottom instead of jumping over the others, and a
+ * blueprint's place does not shift every time it is edited. RLS already
+ * restricts this to rows the caller owns, so no user filter is needed here
+ * and adding one would only risk disagreeing with the policy.
  *
  * `status` defaults to 'active' because that is what every caller wants: an
  * archived blueprint is out of the way, not deleted. Pass 'all' for the
@@ -1282,7 +1283,7 @@ export async function fetchTosExams(
 ): Promise<TosExamRow[]> {
   let query = supabase.from('tos_exams').select('*')
   if (status !== 'all') query = query.eq('status', status)
-  const { data, error } = await query.order('updated_at', { ascending: false })
+  const { data, error } = await query.order('created_at', { ascending: true })
   if (error) throw error
   return data as TosExamRow[]
 }
