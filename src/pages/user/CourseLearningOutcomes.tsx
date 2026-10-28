@@ -689,7 +689,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                   {editingId === item.id ? renderEdit() : (
                     <>
                       <div className="resource-card__body">
-                        <h4>{item.code} — {item.course || 'No course'}</h4>
+                        <h4>{item.code} — {item.course || 'No course'}{courseTitleByCode(item.course) ? ` — ${courseTitleByCode(item.course)}` : ''}</h4>
                         {item.description && <p>{item.description}</p>}
                         <div style={{ fontSize: 12.5, background: '#f8fafc', border: '1px solid #f1f5f9', borderRadius: 8, padding: '8px 10px', color: '#475569', marginTop: 6 }}>
                           <strong style={{ color: '#64748b' }}>POs:</strong> {item.title || '—'}
@@ -721,7 +721,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                     <>
                       <div className="program-card__top">
                         <span className="program-card__code">{item.code}</span>
-                        <span className="program-card__status" style={{ background: '#f1f5f9', color: '#64748b', fontSize: 11, padding: '3px 8px', borderRadius: 999 }}>{item.course || '—'}</span>
+                        <span className="program-card__status" style={{ background: '#f1f5f9', color: '#64748b', fontSize: 11, padding: '3px 8px', borderRadius: 999 }}>{item.course || '—'}{courseTitleByCode(item.course) ? ` — ${courseTitleByCode(item.course)}` : ''}</span>
                         <span className={`program-card__status ${isActive(item) ? 'program-card__status--active' : 'program-card__status--archived'}`}>
                           <span className="program-card__status-dot" />{isActive(item) ? 'Active' : 'Archived'}
                         </span>
