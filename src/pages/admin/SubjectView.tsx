@@ -2600,7 +2600,7 @@ export default function SubjectView() {
               : rootType === 'program' ? !selectedProgramId
               : true) || loading || spinner}
             onClick={handleView}>
-            {spinner ? 'Loading…' : 'Visualization'}
+            {spinner ? 'Loading…' : 'Generate Visualization'}
           </button>
         </div>
 
@@ -2621,7 +2621,7 @@ export default function SubjectView() {
                   </svg>
                 </div>
                 <h4>Visualization for a subject, PO, or PEO</h4>
-                <p>Choose <strong>Subject</strong>, <strong>PO</strong>, or <strong>PEO</strong> on the left, pick a code, then press <strong>Visualization</strong>. Once a map is open, clicking any PO, CLO, PEO, strategic goal, or CHED memorandum re-roots the branch right there — wherever you click becomes where the graph starts. Clicking a subject jumps back to that subject; clicking a curriculum opens its sibling subjects.</p>
+                <p>Choose <strong>Subject</strong>, <strong>PO</strong>, or <strong>PEO</strong> on the left, pick a code, then press <strong>Generate Visualization</strong>. Once a map is open, clicking any PO, CLO, PEO, strategic goal, or CHED memorandum re-roots the branch right there — wherever you click becomes where the graph starts. Clicking a subject jumps back to that subject; clicking a curriculum opens its sibling subjects.</p>
               </div>
             </div>
           ) : graphError ? (
@@ -2634,15 +2634,15 @@ export default function SubjectView() {
           ) : (rootType === 'subject' && !selectedCourse) || (rootType === 'clo' && !selectedClo) || (rootType === 'po' && !selectedPo) || (rootType === 'peo' && !selectedPeo) || (rootType === 'sg' && !selectedSg) || (rootType === 'cmo' && !selectedCmo) || (rootType === 'curriculum' && !selectedCurriculum) || (rootType === 'program' && !selectedProgram) ? (
             <div className="subject-view__placeholder">
               <p>{({
-                subject: 'Select a subject on the left, then press Visualization.',
-                clo: 'Select a CLO on the left, then press Visualization.',
-                po: 'Select a PO on the left, then press Visualization.',
-                peo: 'Select a PEO on the left, then press Visualization.',
-                sg: 'Select a strategic goal on the left, then press Visualization.',
-                cmo: 'Select a CHED memorandum on the left, then press Visualization.',
-                curriculum: 'Select a curriculum on the left, then press Visualization.',
-                program: 'Select a program on the left, then press Visualization.',
-              } as Record<string, string>)[rootType] ?? 'Select what to visualize on the left, then press Visualization.'}</p>
+                subject: 'Select a subject on the left, then press Generate Visualization.',
+                clo: 'Select a CLO on the left, then press Generate Visualization.',
+                po: 'Select a PO on the left, then press Generate Visualization.',
+                peo: 'Select a PEO on the left, then press Generate Visualization.',
+                sg: 'Select a strategic goal on the left, then press Generate Visualization.',
+                cmo: 'Select a CHED memorandum on the left, then press Generate Visualization.',
+                curriculum: 'Select a curriculum on the left, then press Generate Visualization.',
+                program: 'Select a program on the left, then press Generate Visualization.',
+              } as Record<string, string>)[rootType] ?? 'Select what to visualize on the left, then press Generate Visualization.'}</p>
             </div>
           ) : (
             <div className="subject-view__graph-area">

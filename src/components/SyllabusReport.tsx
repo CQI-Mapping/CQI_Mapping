@@ -16,7 +16,7 @@ import type {
   StrategicGoal,
 } from '../services/database'
 import { uniqueResolvedRefs } from '../utils/courseCodes'
-import { SCHOOL, DOC_VISION, DOC_MISSION, poLabel, poListItem, goalLine, isActive } from '../utils/report'
+import { SCHOOL, DOC_VISION, DOC_MISSION, poListItem, goalLine, isActive } from '../utils/report'
 import type { EditableItem, EditableKind, EditState, PoGroup } from '../utils/report'
 import CourseDetails from './CourseDetails'
 
@@ -215,24 +215,31 @@ export default function SyllabusReport({
           {/* Single continuous table (like the source PDF): each CMO group
               is a <tbody> whose repeated header row carries the CMO title. */}
           <table className="sd-table sd-table--mapping">
-            {managerGroups.map((group) => (
-              <tbody key={group.heading}>
-                <tr>
-                  <th className="sd-mapping__col-po">{group.heading}</th>
-                  <th className="sd-mapping__col-align">Program Educational Objectives</th>
-                  <th className="sd-mapping__col-align">Strategic Goals</th>
-                </tr>
-                {group.items.map((p) => (
-                  <tr key={p.id}>
-                    <td>{poLabel(p.code)}. {p.title.replace(/\.$/, '')}</td>
-                    {/* Blank when unaligned — the source document leaves
-                        those cells empty rather than showing a dash. */}
-                    <td>{p.peo_text?.trim()}</td>
-                    <td>{p.sg_text?.trim()}</td>
+            {managerGroups.map((group, groupIndex) => {
+              // Rows number continuously from 1 across every CMO group —
+              // the source document runs 1…17 over both sections. Never
+              // from the stored code, which carries whatever the data
+              // does (a duplicated "PO 5" printed as two 5s and skipped 4).
+              const rowBase = managerGroups
+                .slice(0, groupIndex)
+                .reduce((count, prior) => count + prior.items.length, 0)
+              return (
+                <tbody key={group.heading}>
+                  <tr>
+                    <th className="sd-mapping__col-po">{group.heading}</th>
+                    <th className="sd-mapping__col-align">Program Educational Objectives</th>
+                    <th className="sd-mapping__col-align">Strategic Goals</th>
                   </tr>
-                ))}
-              </tbody>
-            ))}
+                  {group.items.map((p, rowNumber) => (
+                    <tr key={p.id}>
+                      <td>{rowBase + rowNumber + 1}. {p.title.replace(/\.$/, '')}</td>
+                      <td>{p.peo_text?.trim()}</td>
+                      <td>{p.sg_text?.trim()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              )
+            })}
           </table>
         </div>
       )}

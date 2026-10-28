@@ -17,6 +17,9 @@ interface ProfileProps {
   onSaved: (profile: ProfileType) => void
 }
 
+/** Supabase's minimum password length — keep in sync with auth config. */
+const MIN_PASSWORD_LENGTH = 6
+
 /** Same cap the concept mockup stamped on the name field. */
 const NAME_MAX_LENGTH = 80
 
@@ -101,6 +104,23 @@ function Profile({ profile, onSaved }: ProfileProps) {
   const nicknameDirty = nicknameNormalized !== savedNickname
   const dirty = nameDirty || nicknameDirty
   const canSave = Boolean(profile) && dirty && fullName.trim().length > 0
+
+  // Passwords stay in component state only (never in sessionStorage).
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [changingPassword, setChangingPassword] = useState(false)
+  const [passwordError, setPasswordError] = useState('')
+  const [passwordMessage, setPasswordMessage] = useState('')
+
+  const passwordLongEnough = password.length >= MIN_PASSWORD_LENGTH
+  const passwordsMatch = password.length > 0 && password === confirmPassword
+  const passwordStrength = !password
+    ? 0
+    : passwordLongEnough
+      ? 0.45 + 0.55 * Math.min(password.length / 16, 1)
+      : 0.15
+  const canSubmitPassword = Boolean(profile) && !changingPassword && passwordLongEnough && passwordsMatch
 
   // The user's own recent audit entries drive two views: the hero's "Active"
   // chip and the timeline card. Twelve entries keep the trail's column as
@@ -239,6 +259,40 @@ function Profile({ profile, onSaved }: ProfileProps) {
       setAvatarError(describe(err))
     } finally {
       setAvatarBusy(false)
+    }
+  }
+
+  // Update password in Supabase auth for the signed-in user and write to audit trail.
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!profile) return
+    setPasswordError('')
+    setPasswordMessage('')
+    if (!passwordLongEnough) {
+      setPasswordError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`)
+      return
+    }
+    if (!passwordsMatch) {
+      setPasswordError('Passwords do not match.')
+      return
+    }
+    setChangingPassword(true)
+    try {
+      const { error: updateError } = await supabase!.auth.updateUser({ password })
+      if (updateError) throw updateError
+      await addActivityLog('profile.password_changed', {
+        entity: 'profile',
+        entity_id: profile.id,
+        label: profile.full_name || profile.email,
+      })
+      setPassword('')
+      setConfirmPassword('')
+      setPasswordMessage('Password updated successfully.')
+      setActivityRefresh((n) => n + 1)
+    } catch (err) {
+      setPasswordError('Failed to change password: ' + describe(err))
+    } finally {
+      setChangingPassword(false)
     }
   }
 
@@ -420,8 +474,102 @@ function Profile({ profile, onSaved }: ProfileProps) {
           </form>
         </div>
 
-        {/* RIGHT: recent activity */}
+        {/* RIGHT: password & privacy + recent activity */}
         <div className="profile-col">
+          <section className="panel profile-card card-enter" aria-label="Change password">
+            <div className="profile-card__head">
+              <h3><Icon name="lock" size={15} />Change Password</h3>
+              <span className="profile-card__hint">account privacy &amp; security</span>
+            </div>
+
+            <form onSubmit={handlePasswordChange} noValidate>
+              <label className="field">
+                <span>New password</span>
+                <div className="profile-input-wrap">
+                  <input
+                    className="input"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    placeholder="Enter new password"
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value)
+                      if (passwordError) setPasswordError('')
+                      if (passwordMessage) setPasswordMessage('')
+                    }}
+                    disabled={!profile || changingPassword}
+                  />
+                  <button
+                    type="button"
+                    className="profile-password-toggle"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    title={showPassword ? 'Hide password' : 'Show password'}
+                    tabIndex={-1}
+                  >
+                    <Icon name="eye" size={15} />
+                  </button>
+                </div>
+              </label>
+
+              <label className="field">
+                <span>Confirm new password</span>
+                <input
+                  className="input"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  placeholder="Re-enter new password"
+                  value={confirmPassword}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value)
+                    if (passwordError) setPasswordError('')
+                    if (passwordMessage) setPasswordMessage('')
+                  }}
+                  disabled={!profile || changingPassword}
+                />
+              </label>
+
+              <div className="profile-reqs">
+                <span className={`profile-req${passwordLongEnough ? ' profile-req--ok' : ''}`}>
+                  <span className="profile-req__tick"><Icon name="check" size={9} strokeWidth={3.6} /></span>
+                  At least {MIN_PASSWORD_LENGTH} characters
+                </span>
+                <span className={`profile-req${passwordsMatch ? ' profile-req--ok' : ''}`}>
+                  <span className="profile-req__tick"><Icon name="check" size={9} strokeWidth={3.6} /></span>
+                  Both fields match
+                </span>
+              </div>
+
+              {password && (
+                <div className="profile-strength">
+                  <div className="profile-strength__bar" aria-hidden="true">
+                    <div className="profile-strength__fill" style={{ width: `${passwordStrength * 100}%` }} />
+                  </div>
+                  <div className="profile-strength__labels">
+                    <span>Weak</span>
+                    <span>Strong</span>
+                  </div>
+                </div>
+              )}
+
+              {passwordError && <p className="msg msg--error" role="alert">{passwordError}</p>}
+              {passwordMessage && <p className="msg msg--success" role="status">{passwordMessage}</p>}
+
+              <button
+                className="btn btn--primary profile-security-btn"
+                type="submit"
+                disabled={!canSubmitPassword}
+              >
+                {changingPassword ? 'Updating password…' : 'Update Password'}
+              </button>
+            </form>
+
+            <p className="profile-security-foot">
+              <Icon name="shield" size={15} />
+              Your current session stays signed in, and this update is logged to your activity trail.
+            </p>
+          </section>
+
           <section className="panel profile-card card-enter profile-card--fill" aria-label="Recent activity">
             <div className="profile-card__head">
               <h3><Icon name="clock" size={15} />Recent activity</h3>

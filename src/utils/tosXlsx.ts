@@ -35,6 +35,7 @@ import {
   type TosExam,
   type TosSheet,
 } from './tosMath'
+import { composeTerm } from './tosOptions'
 import { SCHOOL } from './report'
 import { saveBlob } from './download'
 
@@ -154,7 +155,7 @@ export function buildSheetSpec(exam: TosExam, sheet: TosSheet): SheetSpec {
   put(1, 1, SCHOOL.school)
   put(3, 1, WORKBOOK.institute)
   put(6, 1, exam.title ? `Course Title: ${exam.title}` : '')
-  put(7, 1, exam.term)
+  put(7, 1, composeTerm(exam.semester, exam.schoolYear))
   // The workbook distinguishes the two papers by suffixing the multiple choice
   // title; the performance sheet keeps the plain form.
   // The workbook titles its sheets "Table of Specification for Prelim", adding

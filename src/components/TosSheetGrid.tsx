@@ -66,6 +66,15 @@ export interface TosSheetGridProps {
    * the debounce firing, and tells you it landed.
    */
   onSave: () => void
+  /**
+   * The Save button's tooltip.
+   *
+   * The page's own Save also commits the blueprint and starts a fresh blank
+   * draft, so it says so. A card's Save only flushes, and keeps the default
+   * wording — same button, different job, and the tooltip is where the
+   * difference is worth a sentence.
+   */
+  saveTitle?: string
   /** True while a write is in flight, for the button's own state. */
   saving?: boolean
   /**
@@ -77,8 +86,15 @@ export interface TosSheetGridProps {
    * it is what raises the pending marker on the Save button.
    */
   dirty?: boolean
-  /** Throw away unsaved edits and re-read the blueprint from the database. */
+  /** Throw away unsaved edits and reload the blueprint from the database. */
   onDiscard?: () => void
+  /**
+   * The Discard button's tooltip.
+   *
+   * A card's Discard reverts to the saved row; the page's draft has no saved
+   * copy at all, and its tooltip says exactly that.
+   */
+  discardTitle?: string
 }
 
 /** A green input cell that reads as a flat cell until you click it. */
@@ -140,6 +156,8 @@ export default function TosSheetGrid({
   saving,
   dirty,
   onDiscard,
+  discardTitle,
+  saveTitle,
 }: TosSheetGridProps) {
   const totals = bloomTotals(sheet.topics)
   const share = shares(sheet.topics, sheet.total)
@@ -364,7 +382,7 @@ export default function TosSheetGrid({
             className={`btn btn--primary btn--sm${dirty ? ' btn--pending' : ''}`}
             onClick={onSave}
             disabled={saving}
-            title="Write every pending edit to the database now"
+            title={saveTitle ?? 'Write every pending edit to the database now'}
           >
             {/* The marker is a real character, not a CSS pseudo-element, so it
                 is announced by a screen reader along with the label. */}
@@ -378,7 +396,10 @@ export default function TosSheetGrid({
               type="button"
               className="btn btn--ghost btn--sm"
               onClick={onDiscard}
-              title="Discard unsaved edits and reload the blueprint from the database"
+              title={
+                discardTitle ??
+                'Discard unsaved edits and reload the blueprint from the database'
+              }
             >
               Discard
             </button>

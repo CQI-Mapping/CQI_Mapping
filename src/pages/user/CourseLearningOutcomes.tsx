@@ -36,7 +36,7 @@ import { rankSemantic, subscribeSemantic, preloadSemantic, type SemanticLoadStat
 import { fuseRanked, toRelative } from '../../utils/poRank'
 import { pickedBefore, recordPick, recordRejection, draftSig } from '../../utils/poMemory'
 import SyllabusReport from '../../components/SyllabusReport'
-import { splitReportPos, buildGroups, outcomeCodeKey } from '../../utils/report'
+import { splitReportPos, buildGroups, outcomeCodeKey, isManagerOutcome, type PoGroup } from '../../utils/report'
 import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
 import { downloadSyllabusPdf } from '../../utils/syllabusPdf'
 import { reportFileName } from '../../utils/download'
@@ -70,6 +70,10 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
 
   const [poSuggestions, setPoSuggestions] = useState<SuggestionOption[]>([])
   const [poTexts, setPoTexts] = useState<PoText[]>([])
+  // Right-side reference: the CURRICULUM MAPPING outcomes (manager-sourced
+  // rows in the two official CMO categories), grouped as the syllabus
+  // document prints them. Outcomes only — no PEOs, no Strategic Goals.
+  const [mappingGroups, setMappingGroups] = useState<PoGroup[]>([])
   const [courses, setCourses] = useState<Course[]>([])
   const [form, setForm] = useState(EMPTY)
   const [editForm, setEditForm] = useState(EMPTY)
@@ -210,8 +214,17 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
         const sgByCode = new Map(sgs.map((s) => [s.code.trim().toLowerCase(), s.description ?? '']))
         const cmoById = new Map(cmos.map((c) => [c.id, `${c.title ?? ''} ${c.code ?? ''}`.trim()]))
         const splitCodes = (v: string | null) => (v ?? '').split(',').map((s) => s.trim()).filter(Boolean)
-        if (!cancelled) setPoSuggestions(active.map(toSuggestion))
-        if (!cancelled) setPoTexts(active.map((p) => {
+        // Right-side reference: the CURRICULUM MAPPING outcomes — manager
+        // rows in the two official CMO categories, grouped and ordered
+        // exactly as the syllabus document prints them (outcomes only).
+        const { managerPos: mappingPos } = splitReportPos(active)
+        const activeCmos = cmos.filter((m) => !m.status || m.status === 'active')
+        if (!cancelled) setMappingGroups(buildGroups(mappingPos, activeCmos))
+        // Suggestions use every active manager-created PO, independent of
+        // whether it appears in the Curriculum Mapping reference categories.
+        const managerPos = active.filter(isManagerOutcome)
+        if (!cancelled) setPoSuggestions(managerPos.map(toSuggestion))
+        if (!cancelled) setPoTexts(managerPos.map((p) => {
           const rec = p as { description?: string | null; cmo_id?: string | null; peo_text?: string | null; sg_text?: string | null }
           const peoTitles = splitCodes(rec.peo_text ?? null).map((c) => peoByCode.get(c.toLowerCase()) ?? '').filter(Boolean)
           const sgDescs = splitCodes(rec.sg_text ?? null).map((c) => sgByCode.get(c.toLowerCase()) ?? '').filter(Boolean)
@@ -250,8 +263,13 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
     return () => { cancelled = true }
   }, [])
 
+  // CLO codes are numbers only — the stored code is the bare digit run.
+  // Stripping non-digits at every input and at payload time keeps legacy
+  // lettered codes ("Clo1", "CLO-1") from being re-saved.
+  const digitsOnly = (v: string) => v.replace(/\D/g, '')
+
   const outPayload = (f: typeof EMPTY) => ({
-    code: f.code.trim(),
+    code: digitsOnly(f.code),
     course: f.course.trim(),
     title: f.programOutcomes.trim(),
     description: f.description.trim() || null,
@@ -259,7 +277,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (await handleCreate(outPayload(form), 'clo.created', { code: form.code.trim(), course: form.course.trim() })) {
+    if (await handleCreate(outPayload(form), 'clo.created', { code: digitsOnly(form.code), course: form.course.trim() })) {
       setForm(EMPTY)
       autoCreateFor.current = null
     }
@@ -268,7 +286,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   const startEdit = (i: CourseLearningOutcomeStandalone) => {
     setEditingId(i.id)
     autoEditFor.current = null
-    setEditForm({ code: i.code, course: i.course || '', description: i.description || '', programOutcomes: i.title || '' })
+    setEditForm({ code: digitsOnly(i.code), course: i.course || '', description: i.description || '', programOutcomes: i.title || '' })
   }
 
   const saveEdit = async () => {
@@ -319,8 +337,17 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
     return parts.join(', ')
   }
 
-  const createClosest = rankClosestPos(form.description, poTexts, Math.max(3, poTexts.length))
-  const editClosest = rankClosestPos(editForm.description, poTexts, Math.max(3, poTexts.length))
+  // Suggestions need real content: a 1-2 character draft ("f") scores trivia
+  // in the keyword ranker and the top-anchored display then shows confident
+  // "100%" chips for junk. The 4-char floor is the same one the semantic
+  // engine and the "no close match" hint already use.
+  const DRAFT_MIN = 4
+  const createClosest = form.description.trim().length >= DRAFT_MIN
+    ? rankClosestPos(form.description, poTexts, Math.max(3, poTexts.length))
+    : []
+  const editClosest = editForm.description.trim().length >= DRAFT_MIN
+    ? rankClosestPos(editForm.description, poTexts, Math.max(3, poTexts.length))
+    : []
   // Hybrid fusion: keyword + semantic + exact-phrase + Bloom + click memory.
   // memTick re-runs fusion after local reject/memory writes (read sync).
   void memTick
@@ -389,6 +416,12 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   const totalCount = items.length
   const activeCount = items.filter(isActive).length
 
+  // Chosen-subject summary: the stored value is the course CODE, so the
+  // human-readable name is resolved from the loaded course list for display
+  // ("IT10 — Web Systems and Technologies"). Unresolved (deleted) codes
+  // display the bare code.
+  const courseTitleByCode = (code: string) => courses.find((c) => c.code === code)?.title || ''
+
   // Shared edit form used by both grid and list card styles. Wrapped in
   // .resource-card__edit so the fields stack: the list card is a flex ROW
   // (body + actions side by side), and without the wrapper the edit fields
@@ -400,7 +433,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
         {editForm.course ? (
           <div className="input input--sm subject-picker__chosen">
             <span className="subject-picker__text">
-              {editForm.course}
+              {editForm.course}{courseTitleByCode(editForm.course) ? ` — ${courseTitleByCode(editForm.course)}` : ''}
             </span>
             <button type="button" className="btn btn--ghost btn--sm" onClick={() => setEditForm((f) => ({ ...f, course: '' }))}>
               Change
@@ -414,7 +447,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             ))}
           </select>
         )}
-        <input className="input input--sm" value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} placeholder="CLO Code" />
+        <input className="input input--sm" type="text" inputMode="numeric" value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: digitsOnly(e.target.value) })} placeholder="CLO Code (e.g. 1)" />
       </div>
       <textarea className="input input--sm" rows={2} ref={autoResize} value={editForm.description} onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} placeholder="Description" />
       <SuggestionInput value={editForm.programOutcomes} onChange={(v) => setEditForm({ ...editForm, programOutcomes: v })} options={poSuggestions} placeholder="Type to search POs" />
@@ -432,7 +465,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             <span key={r.code} style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
               <button type="button" className="btn btn--ghost btn--sm"
                 style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: 3 }}
-                title={`${r.matched.length > 0 ? `${r.label} — shown ${r.shown}% (raw ${r.raw}%: ${r.matched.join(', ')})` : `${r.label} — shown ${r.shown}% (raw ${r.raw}% semantic)`}${pickedBefore(editForm.description, r.code) ? ' • picked before' : ''}`}
+                title={r.label}
                 onClick={() => { logPick(editForm.description, r.code); setEditForm((f) => ({ ...f, programOutcomes: appendPo(f.programOutcomes, r.code) })) }}>
                 <span>{r.raw > 0 ? `${r.code} · ${r.shown}%` : `~ ${r.code}`}</span>
                 <span aria-hidden="true" style={{ height: 3, borderRadius: 999, background: '#f1f5f9', overflow: 'hidden' }}>
@@ -507,6 +540,11 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
       {error && <p className="msg msg--error" role="alert">{error}</p>}
       {message && <p className="msg msg--success" role="status">{message}</p>}
 
+      {/* The create form and the Curriculum Mapping reference form one
+          same-height pair; the CLO list flows below at full width. */}
+      <div className="clo-layout">
+        <div className="clo-layout__main">
+        <div className="clo-layout__pair">
       <form className="panel create-resource" onSubmit={submit} style={{ borderTop: '3px solid #16a34a' }}>
         <h3>New Course Learning Outcome</h3>
         <label className="field">
@@ -516,7 +554,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
           {form.course ? (
             <div className="input input--sm subject-picker__chosen">
               <span className="subject-picker__text">
-                {form.course}
+                {form.course}{courseTitleByCode(form.course) ? ` — ${courseTitleByCode(form.course)}` : ''}
               </span>
               <button type="button" className="btn btn--ghost btn--sm" onClick={() => setForm((f) => ({ ...f, course: '' }))}>
                 Change
@@ -535,8 +573,8 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
         </label>
         <label className="field">
           <span>CLO Code</span>
-          <input className="input input--sm" type="text" placeholder="e.g. CLO-1" value={form.code}
-            onChange={(e) => setForm({ ...form, code: e.target.value })} required />
+          <input className="input input--sm" type="text" inputMode="numeric" placeholder="e.g. 1" value={form.code}
+            onChange={(e) => setForm({ ...form, code: digitsOnly(e.target.value) })} required />
         </label>
         <label className="field">
           <span>Description</span>
@@ -572,7 +610,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                 <span key={r.code} style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
                   <button type="button" className="btn btn--ghost btn--sm"
                     style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: 3 }}
-                    title={`${r.matched.length > 0 ? `${r.label} — shown ${r.shown}% (raw ${r.raw}%: ${r.matched.join(', ')})` : `${r.label} — shown ${r.shown}% (raw ${r.raw}% semantic)`}${pickedBefore(form.description, r.code) ? ' • picked before' : ''}`}
+                    title={r.label}
                     onClick={() => { logPick(form.description, r.code); setForm((f) => ({ ...f, programOutcomes: appendPo(f.programOutcomes, r.code) })) }}>
                     <span>{r.raw > 0 ? `${r.code} · ${r.shown}%` : `~ ${r.code}`}</span>
                     <span aria-hidden="true" style={{ height: 3, borderRadius: 999, background: '#f1f5f9', overflow: 'hidden' }}>
@@ -616,6 +654,38 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
           <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>{busy ? 'Saving...' : (<><Icon name="plus" size={13} /> Add</>)}</button>
         </div>
       </form>
+
+      {/* Right side of the pair: the CURRICULUM MAPPING outcomes as a writing
+          reference. Numbered continuously across the CMO groups — the same
+          run the syllabus document prints. Outcomes only: no Program
+          Educational Objectives, no Strategic Goals. Positioned absolutely
+          so the panel is exactly as tall as the form beside it; the list
+          scrolls inside its own box. */}
+      <aside className="panel clo-layout__ref" aria-label="Curriculum Mapping reference">
+        {/* No panel title — the CMO group headings below speak for
+            themselves; the screen space is better spent on the list. */}
+        <div className="clo-layout__ref-scroll">
+          {mappingGroups.length === 0 ? (
+            <p className="clo-layout__ref-empty">No Curriculum Mapping outcomes yet — they come from the manager&rsquo;s Program Outcomes.</p>
+          ) : (
+            mappingGroups.map((group, gi) => {
+              const rowBase = mappingGroups.slice(0, gi).reduce((n, prior) => n + prior.items.length, 0)
+              return (
+                <div key={group.heading} className="clo-layout__ref-group">
+                  <p className="clo-layout__ref-head">{group.heading}</p>
+                  {group.items.map((p, i) => (
+                    <div key={p.id} className="clo-layout__ref-row">
+                      <span className="clo-layout__ref-num">{rowBase + i + 1}.</span>
+                      <span>{p.title.replace(/\.$/, '')}</span>
+                    </div>
+                  ))}
+                </div>
+              )
+            })
+          )}
+        </div>
+      </aside>
+      </div>
 
       {loading ? (
         <div className="program-grid" style={{ marginTop: 8 }}>
@@ -672,7 +742,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                   {editingId === item.id ? renderEdit() : (
                     <>
                       <div className="resource-card__body">
-                        <h4>{item.code} — {item.course || 'No course'}</h4>
+                        <h4>{item.code} — {item.course || 'No course'}{courseTitleByCode(item.course) ? ` — ${courseTitleByCode(item.course)}` : ''}</h4>
                         {item.description && <p>{item.description}</p>}
                         <div style={{ fontSize: 12.5, background: '#f8fafc', border: '1px solid #f1f5f9', borderRadius: 8, padding: '8px 10px', color: '#475569', marginTop: 6 }}>
                           <strong style={{ color: '#64748b' }}>POs:</strong> {item.title || '—'}
@@ -704,7 +774,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                     <>
                       <div className="program-card__top">
                         <span className="program-card__code">{item.code}</span>
-                        <span className="program-card__status" style={{ background: '#f1f5f9', color: '#64748b', fontSize: 11, padding: '3px 8px', borderRadius: 999 }}>{item.course || '—'}</span>
+                        <span className="program-card__status" style={{ background: '#f1f5f9', color: '#64748b', fontSize: 11, padding: '3px 8px', borderRadius: 999 }}>{item.course || '—'}{courseTitleByCode(item.course) ? ` — ${courseTitleByCode(item.course)}` : ''}</span>
                         <span className={`program-card__status ${isActive(item) ? 'program-card__status--active' : 'program-card__status--archived'}`}>
                           <span className="program-card__status-dot" />{isActive(item) ? 'Active' : 'Archived'}
                         </span>
@@ -731,6 +801,8 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
           )}
         </div>
       )}
+      </div>
+      </div>
 
       {viewClo && (
         <div

@@ -1231,7 +1231,10 @@ export interface TosExamRow {
   code: string
   title: string
   exam_type: string
+  /** Stored and kept in sync with semester + school_year. */
   term: string
+  semester: string | null
+  school_year: string | null
   coverage: string | null
   prepared_by: string | null
   total_hours: number
@@ -1263,12 +1266,13 @@ export interface TosTopicRow {
 }
 
 /**
- * The signed-in user's blueprints, newest activity first. RLS already
- * restricts this to rows the caller owns, so no user filter is needed
- * here and adding one would only risk disagreeing with the policy.
- */
-/**
- * The caller's blueprints, newest-touched first.
+ * The caller's blueprints, in the order they were filed — oldest first.
+ *
+ * The panel below the editor reads as a record of what was built, so a new
+ * card appends at its bottom instead of jumping over the others, and a
+ * blueprint's place does not shift every time it is edited. RLS already
+ * restricts this to rows the caller owns, so no user filter is needed here
+ * and adding one would only risk disagreeing with the policy.
  *
  * `status` defaults to 'active' because that is what every caller wants: an
  * archived blueprint is out of the way, not deleted. Pass 'all' for the
@@ -1279,7 +1283,7 @@ export async function fetchTosExams(
 ): Promise<TosExamRow[]> {
   let query = supabase.from('tos_exams').select('*')
   if (status !== 'all') query = query.eq('status', status)
-  const { data, error } = await query.order('updated_at', { ascending: false })
+  const { data, error } = await query.order('created_at', { ascending: true })
   if (error) throw error
   return data as TosExamRow[]
 }
@@ -1300,6 +1304,22 @@ export async function createTosExam(
     .insert({ ...payload, user_id: userId })
     .select()
     .single()
+  if (error) throw error
+  return data as TosExamRow
+}
+
+/**
+ * One blueprint by id. RLS scopes the read to its owner like every other
+ * query here.
+ *
+ * Exists because the row a card is rendered from is the saved-blueprints
+ * panel's last snapshot, which can lag the newest autosave. The card editor
+ * and the page's editor both reload the row through this, so the form is
+ * always built from what the database actually holds rather than from a
+ * snapshot the next refresh has not arrived to correct.
+ */
+export async function fetchTosExam(id: string): Promise<TosExamRow> {
+  const { data, error } = await supabase.from('tos_exams').select('*').eq('id', id).single()
   if (error) throw error
   return data as TosExamRow
 }

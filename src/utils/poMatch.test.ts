@@ -40,6 +40,20 @@ describe('rankClosestPos contract', () => {
     expect(rankClosestPos('   ', POS, 3)).toEqual([])
     expect(rankClosestPos('design software', [], 3)).toEqual([])
   })
+
+  it('deduplicates suggestions if multiple PO records share the same code, keeping the highest score', () => {
+    const dupPos: PoText[] = [
+      { code: 'PO 5', title: 'Design, implement and evaluate computer-based systems' },
+      { code: 'PO 3', title: 'Design and develop computing solutions' },
+      { code: 'PO 5', title: 'Identify and analyze user needs in computer-based systems' },
+    ]
+    const ranked = rankClosestPos('Design, implement, test and debug programs', dupPos, 3)
+    const codes = ranked.map((r) => r.code)
+    expect(codes).toHaveLength(2)
+    expect(new Set(codes).size).toBe(codes.length)
+    expect(codes[0]).toBe('PO 5')
+    expect(ranked[0].label).toContain('Design, implement and evaluate')
+  })
 })
 
 describe('golden accuracy (keyword baseline)', () => {

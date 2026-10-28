@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   fetchPrograms,
   fetchCourses,
+  fetchTosExam,
   fetchTosSheets,
   fetchTosTopics,
   createTosSheet,
@@ -35,7 +36,12 @@ import { downloadTosExcel } from '../utils/tosXlsx'
 import {
   buildProgramOptions,
   buildCourseOptions,
-  buildTermOptions,
+  buildSemesterOptions,
+  buildSchoolYearOptions,
+  buildExamTypeOptions,
+  composeTerm,
+  describeTosError,
+  splitTerm,
   programIdForLabel,
 } from '../utils/tosOptions'
 import type { Course, Program } from '../services/database'
@@ -58,14 +64,18 @@ const newSheet = (kind: SheetKind): TosSheet => {
   return { id: '', kind, label: meta.label, total: kind === 'items' ? 20 : 50, note: '', topics: [] }
 }
 
-const toForm = (row: TosExamRow): TosExam => ({
-  code: row.code,
-  title: row.title,
-  examType: row.exam_type,
-  term: row.term,
-  preparedBy: row.prepared_by ?? '',
-  totalHours: num(row.total_hours),
-})
+const toForm = (row: TosExamRow): TosExam => {
+  const split = splitTerm(row.term)
+  return {
+    code: row.code,
+    title: row.title,
+    examType: row.exam_type,
+    semester: row.semester ?? split.semester,
+    schoolYear: row.school_year ?? split.schoolYear,
+    preparedBy: row.prepared_by ?? '',
+    totalHours: num(row.total_hours),
+  }
+}
 
 const toTopic = (row: TosTopicRow): TosTopic => ({
   id: row.id,
@@ -80,11 +90,31 @@ export interface TosBlueprintEditorProps {
   exam: TosExamRow
   /** Fired after every successful write, so the card list can re-read. */
   onSaved?: () => void
+  /**
+   * Fired once the explicit Save has landed and the panel has re-read, so the
+   * page can close the editor and show the updated card. The debounced
+   * autosaves never fire it — they keep the editor open while the user types.
+   */
+  onCommitted?: () => void | Promise<unknown>
   /** Fired when a rename lands, so a list showing that row can update it. */
-  onRenamed?: (next: { code: string; title: string; term: string; total_hours: number }) => void
+  onRenamed?: (
+    next: {
+      code: string
+      title: string
+      examType: string
+      semester: string
+      schoolYear: string
+      total_hours: number
+    },
+  ) => void
 }
 
-export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlueprintEditorProps) {
+export default function TosBlueprintEditor({
+  exam,
+  onSaved,
+  onRenamed,
+  onCommitted,
+}: TosBlueprintEditorProps) {
   const [sheets, setSheets] = useState<TosSheet[]>([])
   const [form, setForm] = useState<TosExam>(() => toForm(exam))
   const [activeKind, setActiveKind] = useState<SheetKind>('items')
@@ -114,7 +144,7 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
   const topicsTimer = useRef<Record<SheetKind, number | null>>({ items: null, points: null })
 
   const fail = useCallback((e: unknown, fallback: string) => {
-    setError(e instanceof Error && e.message ? e.message : fallback)
+    setError(describeTosError(e, fallback))
   }, [])
 
   const reportSaved = useCallback(() => {
@@ -135,16 +165,21 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
     setLoading(true)
     setError(null)
     try {
-      const rows = await fetchTosSheets(exam.id)
+      // The row this card was rendered from is the list's latest snapshot,
+      // which can lag the newest autosave. Reading the row back from the
+      // database here means the form starts from what is actually stored,
+      // whatever the panel had not caught up with yet.
+      const row = await fetchTosExam(exam.id)
+      const rows = await fetchTosSheets(row.id)
       const loaded: TosSheet[] = []
-      for (const row of rows) {
-        const topicRows = await fetchTosTopics(row.id)
+      for (const sheetRow of rows) {
+        const topicRows = await fetchTosTopics(sheetRow.id)
         loaded.push({
-          id: row.id,
-          kind: row.kind,
-          label: row.label,
-          total: num(row.total),
-          note: row.note ?? '',
+          id: sheetRow.id,
+          kind: sheetRow.kind,
+          label: sheetRow.label,
+          total: num(sheetRow.total),
+          note: sheetRow.note ?? '',
           topics: topicRows.map(toTopic),
         })
       }
@@ -156,7 +191,7 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
       }
       setActiveKind('items')
       setSheets(loaded)
-      setForm(toForm(exam))
+      setForm(toForm(row))
       setDirty(false)
       setSaving(false)
       setSavedAt(null)
@@ -165,8 +200,20 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
     } finally {
       setLoading(false)
     }
-  }, [exam, fail])
+  }, [exam.id, fail])
 
+  /**
+   * Load once, when the card opens.
+   *
+   * `load` used to hang off the whole `exam` prop, whose object identity
+   * changes with every refresh of the saved-blueprints panel -- and that panel
+   * refreshes after every autosave anywhere, including this card's own. Each
+   * refresh therefore re-ran load() and rebuilt the form from the row snapshot,
+   * silently erasing whatever had been typed in the meantime: a Save pressed
+   * afterwards then wrote the erased form back, and the card reverted to what
+   * it was before the edit. Keying only on the row's id keeps the re-fetch at
+   * the moment the card opens; the refetch reads current values anyway.
+   */
   useEffect(() => {
     load()
   }, [load])
@@ -197,7 +244,11 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
     () => buildCourseOptions(courses, selectedProgramId, form.title),
     [courses, selectedProgramId, form.title],
   )
-  const termOptions = useMemo(() => buildTermOptions(form.term), [form.term])
+  const semesterOptions = useMemo(() => buildSemesterOptions(form.semester), [form.semester])
+  const schoolYearOptions = useMemo(() => buildSchoolYearOptions(form.schoolYear), [
+    form.schoolYear,
+  ])
+  const examTypeOptions = useMemo(() => buildExamTypeOptions(form.examType), [form.examType])
 
   const sheet = useMemo(
     () => sheets.find((s) => s.kind === activeKind) ?? newSheet(activeKind),
@@ -232,17 +283,29 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
         if (examTimer.current) window.clearTimeout(examTimer.current)
         examTimer.current = window.setTimeout(async () => {
           try {
+            // Blank dropdowns store NULL rather than '' — the UNIQUE key
+            // covers both columns, and '' twice would make two header-less
+            // drafts duplicate keys. The NOT NULL term follows the selection:
+            // '' when both are cleared, so a legacy term cannot outlive them.
             await updateTosExam(exam.id, {
               code: next.code,
               title: next.title,
-              term: next.term,
+              exam_type: next.examType,
+              term:
+                next.semester || next.schoolYear
+                  ? composeTerm(next.semester, next.schoolYear)
+                  : '',
+              semester: next.semester || null,
+              school_year: next.schoolYear || null,
               prepared_by: next.preparedBy,
               total_hours: num(next.totalHours),
             })
             onRenamed?.({
               code: next.code,
               title: next.title,
-              term: next.term,
+              examType: next.examType,
+              semester: next.semester,
+              schoolYear: next.schoolYear,
               total_hours: num(next.totalHours),
             })
             await addActivityLog('tos_exam.updated', {
@@ -357,12 +420,24 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
       updateTosExam(exam.id, {
         code: form.code,
         title: form.title,
-        term: form.term,
+        exam_type: form.examType,
+        // Same NULL-not-'' rule as page saveNow / patchExam, for the same
+        // UNIQUE-key reason; this card's save stays flush-only, though — a
+        // card's Save writes what is here without starting another draft.
+        term:
+          form.semester || form.schoolYear
+            ? composeTerm(form.semester, form.schoolYear)
+            : '',
+        semester: form.semester || null,
+        school_year: form.schoolYear || null,
         prepared_by: form.preparedBy,
         total_hours: num(form.totalHours),
       })
         .then(() => undefined)
-        .catch((e) => fail(e, 'Could not save the exam details.')),
+        .catch((e) => {
+          fail(e, 'Could not save the exam details.')
+          throw e
+        }),
     )
 
     for (const { kind } of SHEET_KINDS) {
@@ -372,7 +447,10 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
       writes.push(
         updateTosSheet(id, { total: num(target.total) })
           .then(() => undefined)
-          .catch((e) => fail(e, 'Could not save the blueprint total.')),
+          .catch((e) => {
+            fail(e, 'Could not save the blueprint total.')
+            throw e
+          }),
       )
       writes.push(
         replaceTosTopics(
@@ -384,13 +462,30 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
             hours: num(t.hours),
             bloom: t.bloom,
           })),
-        ).catch((e) => fail(e, 'Could not save the topics.')),
+        ).catch((e) => {
+          fail(e, 'Could not save the topics.')
+          throw e
+        }),
       )
     }
 
-    await Promise.all(writes)
+    // The catches only shape the message; the throw is what lets allSettled
+    // see the failure. Without it every rejected write resolved anyway, this
+    // reported Saved, and the panel showed a card the database does not hold.
+    const results = await Promise.allSettled(writes)
+    if (results.some((r) => r.status === 'rejected')) {
+      // Keep the editor exactly as the user left it; `dirty` stays up, so the
+      // pending marker keeps saying there is work that has not landed.
+      setSaving(false)
+      return
+    }
+
     reportSaved()
-  }, [exam.id, form, clearTimers, fail, reportSaved])
+    // The explicit Save is also the close. The page re-reads the list first,
+    // then collapses this editor, so what is left on screen is the card as
+    // the database now holds it.
+    await onCommitted?.()
+  }, [exam.id, form, clearTimers, fail, reportSaved, onCommitted])
 
   /** Throw unsaved edits away and re-read. Timers first, or they write back. */
   const discardPending = useCallback(async () => {
@@ -486,11 +581,7 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
               onChange={(e) => patchExam({ title: e.target.value })}
             >
               <option value="">
-                {courses.length === 0
-                  ? 'No courses available'
-                  : selectedProgramId
-                    ? '- select course -'
-                    : '- select course (all programs) -'}
+                {courses.length === 0 ? 'No courses available' : '- select course -'}
               </option>
               {courseOptions.map((o) => (
                 <option key={o.id} value={o.value}>
@@ -500,21 +591,56 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
             </select>
           </label>
           <label className="field">
-            <span>Semester</span>
+            <span>Table of Specification for</span>
             <select
               className="input input--sm"
-              value={form.term}
+              value={form.examType}
               disabled={!ready}
-              onChange={(e) => patchExam({ term: e.target.value })}
+              onChange={(e) => patchExam({ examType: e.target.value })}
             >
-              <option value="">- select semester -</option>
-              {termOptions.map((t) => (
+              <option value="">- select exam type -</option>
+              {examTypeOptions.map((t) => (
                 <option key={t} value={t}>
                   {t}
                 </option>
               ))}
             </select>
           </label>
+          {/* Semester and School Year sit side by side so the header stays compact. */}
+          <div className="field-row">
+            <label className="field">
+              <span>Semester</span>
+              <select
+                className="input input--sm"
+                value={form.semester}
+                disabled={!ready}
+                onChange={(e) => patchExam({ semester: e.target.value })}
+              >
+                <option value="">- select semester -</option>
+                {semesterOptions.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>School Year</span>
+              <select
+                className="input input--sm"
+                value={form.schoolYear}
+                disabled={!ready}
+                onChange={(e) => patchExam({ schoolYear: e.target.value })}
+              >
+                <option value="">- select school year -</option>
+                {schoolYearOptions.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
 
         <div className="tos-savestate" role="status">
@@ -575,7 +701,7 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
         sheet={sheet}
         header={{
           courseTitle: form.title,
-          term: form.term,
+          term: composeTerm(form.semester, form.schoolYear),
           title: docTitle(form.examType, sheet.kind),
         }}
         issues={issues}
@@ -590,6 +716,9 @@ export default function TosBlueprintEditor({ exam, onSaved, onRenamed }: TosBlue
         saving={saving}
         dirty={dirty}
         onDiscard={discardPending}
+        // The card's Save writes everything pending and then closes the
+        // editor, so its tooltip says both halves.
+        saveTitle="Save this blueprint and close the editor"
       />
     </div>
   )

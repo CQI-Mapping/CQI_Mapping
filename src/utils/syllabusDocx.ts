@@ -25,7 +25,7 @@ import type {
   ProgramEducationalObjective,
   StrategicGoal,
 } from '../services/database'
-import { SCHOOL, DOC_VISION, DOC_MISSION, poLabel, poListItem, goalLine } from './report'
+import { SCHOOL, DOC_VISION, DOC_MISSION, poListItem, goalLine } from './report'
 import type { PoGroup } from './report'
 import { uniqueResolvedRefs, courseCreditLabel, courseHoursSentence } from './courseCodes'
 import { saveBlob, reportFileName } from './download'
@@ -237,6 +237,11 @@ export async function downloadSyllabusDocx(
   if (managerGroups.length > 0) {
     children.push(para('CURRICULUM MAPPING', { bold: true, align: CENTER }))
     const mapRows: DocxTableRow[] = []
+    // Rows number continuously from 1 across every CMO group — the source
+    // document runs 1…17 over both sections. Never from the stored code,
+    // which carries whatever the data does (a duplicated "PO 5" printed
+    // as two 5s and skipped 4).
+    let rowNumber = 0
     for (const group of managerGroups) {
       mapRows.push(
         new TableRow({
@@ -249,12 +254,13 @@ export async function downloadSyllabusDocx(
         }),
       )
       for (const p of group.items) {
+        rowNumber += 1
         mapRows.push(
           new TableRow({
             children: [
               // Left blank when unaligned — the source document leaves those
               // cells empty rather than showing a dash.
-              cell([para(`${poLabel(p.code)}. ${p.title.replace(/\.$/, '')}`)]),
+              cell([para(`${rowNumber}. ${p.title.replace(/\.$/, '')}`)]),
               cell([para(p.peo_text?.trim() || '')]),
               cell([para(p.sg_text?.trim() || '')]),
             ],

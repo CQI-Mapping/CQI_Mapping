@@ -145,7 +145,16 @@ export function rankClosestPos(draft: string, pos: PoText[], top = 3): RankedPo[
       return { code: po.code, label, score, matched }
     })
     .sort((a, b) => b.score - a.score || a.code.localeCompare(b.code))
+  // Deduplicate by code: keep the highest-scoring record if duplicate codes exist in DB.
+  const seen = new Set<string>()
+  const deduped: RankedPo[] = []
+  for (const r of ranked) {
+    const key = r.code.trim().toUpperCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    deduped.push(r)
+  }
   // Always suggest: return best top-N even when nothing overlaps (score 0).
   // Callers treat top score 0 as low confidence.
-  return ranked.slice(0, top)
+  return deduped.slice(0, top)
 }

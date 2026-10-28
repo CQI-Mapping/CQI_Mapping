@@ -2,12 +2,18 @@ import { describe, it, expect } from 'vitest'
 import {
   buildProgramOptions,
   buildCourseOptions,
-  buildTermOptions,
+  buildSemesterOptions,
+  buildSchoolYearOptions,
+  buildExamTypeOptions,
+  composeTerm,
+  splitTerm,
   programIdForLabel,
   programLabel,
   courseLabel,
   relId,
-  TERMS,
+  describeTosError,
+  SEMESTERS,
+  EXAM_TYPES,
   SCHOOL_YEAR,
 } from './tosOptions'
 import type { Course, Program } from '../services/database'
@@ -142,30 +148,77 @@ describe('buildCourseOptions', () => {
   })
 })
 
-describe('buildTermOptions', () => {
-  it('offers both semesters', () => {
-    expect(buildTermOptions('')).toEqual(TERMS)
+describe('buildSemesterOptions', () => {
+  it('offers all three semesters', () => {
+    expect(buildSemesterOptions('')).toEqual(SEMESTERS)
   })
 
-  // Terms saved before the picker existed match neither option. Dropping the
-  // value would put the control on the placeholder and overwrite it on the next
-  // unrelated edit.
-  it('keeps a saved term that is neither semester', () => {
-    const options = buildTermOptions('Summer, 2024-2025')
-    expect(options[0]).toBe('Summer, 2024-2025')
-    expect(options).toHaveLength(3)
+  it('keeps a saved semester that matches neither', () => {
+    const options = buildSemesterOptions('Midyear')
+    expect(options[0]).toBe('Midyear')
+    expect(options).toHaveLength(4)
   })
 
-  it('does not duplicate a saved term that is listed', () => {
-    expect(buildTermOptions(TERMS[0])).toHaveLength(2)
+  it('does not duplicate a listed semester', () => {
+    expect(buildSemesterOptions(SEMESTERS[0])).toHaveLength(3)
+  })
+})
+
+describe('buildExamTypeOptions', () => {
+  it('offers all three exam types', () => {
+    expect(buildExamTypeOptions('')).toEqual(EXAM_TYPES)
   })
 
-  // Both semesters share an academic year on the usual Aug-July calendar.
-  it('puts 1st and 2nd Semester in the same school year', () => {
-    expect(TERMS).toEqual([
-      `1st Semester, ${SCHOOL_YEAR}`,
-      `2nd Semester, ${SCHOOL_YEAR}`,
-    ])
+  it('keeps a saved exam type that matches none', () => {
+    const options = buildExamTypeOptions('Summer')
+    expect(options[0]).toBe('Summer')
+    expect(options).toHaveLength(4)
+  })
+
+  it('does not duplicate a listed exam type', () => {
+    expect(buildExamTypeOptions(EXAM_TYPES[0])).toHaveLength(3)
+  })
+})
+
+describe('buildSchoolYearOptions', () => {
+  it('offers the current school year and neighbours', () => {
+    const options = buildSchoolYearOptions('')
+    expect(options).toContain(SCHOOL_YEAR)
+    expect(options.length).toBeGreaterThan(1)
+  })
+
+  it('keeps a saved school year that matches none', () => {
+    const options = buildSchoolYearOptions('1999-2000')
+    expect(options[0]).toBe('1999-2000')
+    expect(options.length).toBeGreaterThan(1)
+  })
+
+  it('does not duplicate a listed school year', () => {
+    expect(buildSchoolYearOptions(SCHOOL_YEAR).filter((y) => y === SCHOOL_YEAR)).toHaveLength(1)
+  })
+})
+
+describe('composeTerm', () => {
+  it('joins semester and school year the way the workbook prints', () => {
+    expect(composeTerm('1st Semester', '2026-2027')).toBe('1st Semester, 2026-2027')
+    expect(composeTerm('2nd Semester', '2026-2027')).toBe('2nd Semester, 2026-2027')
+  })
+})
+
+describe('splitTerm', () => {
+  it('splits a stored term back into semester and school year', () => {
+    expect(splitTerm('1st Semester, 2026-2027')).toEqual({
+      semester: '1st Semester',
+      schoolYear: '2026-2027',
+    })
+    expect(splitTerm('2nd Semester, 2026-2027')).toEqual({
+      semester: '2nd Semester',
+      schoolYear: '2026-2027',
+    })
+  })
+
+  it('treats a value with no comma as the semester alone', () => {
+    expect(splitTerm('Summer')).toEqual({ semester: 'Summer', schoolYear: '' })
   })
 })
 
@@ -180,5 +233,33 @@ describe('programIdForLabel', () => {
 
   it('returns empty when there are no programs at all', () => {
     expect(programIdForLabel([], 'BSIT - something')).toBe('')
+  })
+})
+
+describe('describeTosError', () => {
+  it('translates the uniqueness failure into words the header can act on', () => {
+    expect(
+      describeTosError(
+        { code: '23505', message: 'duplicate key value violates unique constraint' },
+        'fallback',
+      ),
+    ).toBe(
+      'A blueprint with this program, course, exam type, semester and school year already exists. Change one of them, or keep editing the one you have.',
+    )
+  })
+
+  it('joins the parts PostgREST provides, hint included', () => {
+    expect(describeTosError({ message: 'm', hint: 'h', code: '42P01' }, 'fallback')).toBe(
+      'm — h — 42P01',
+    )
+  })
+
+  it('keeps the caller wording when the error carries nothing readable', () => {
+    expect(describeTosError(null, 'fallback')).toBe('fallback')
+    expect(describeTosError({ message: '' }, 'fallback')).toBe('fallback')
+  })
+
+  it('passes a plain string through untouched', () => {
+    expect(describeTosError('network dropped', 'fallback')).toBe('network dropped')
   })
 })

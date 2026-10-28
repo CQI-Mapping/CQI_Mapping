@@ -82,7 +82,8 @@ const exam: TosExam = {
   code: 'BSCS - Computer Science',
   title: 'IT21 - Object Oriented Programming',
   examType: 'Prelim',
-  term: '1st Semester, 20027',
+  semester: '1st Semester',
+  schoolYear: '2026-2027',
   preparedBy: '',
   totalHours: 8,
 }
@@ -227,7 +228,7 @@ describe('the exported header', () => {
   it('fills the letterhead and identity rows from the exam', () => {
     const { cells } = buildSheetSpec(exam, mc)
     expect(val(cells, 'A6')).toBe('Course Title: IT21 - Object Oriented Programming')
-    expect(val(cells, 'A7')).toBe(exam.term)
+    expect(val(cells, 'A7')).toBe('1st Semester, 2026-2027')
   })
 
   it('keeps the "Prepared by:" label but writes no name under it', () => {

@@ -95,7 +95,8 @@ export interface TosExam {
    * does. The column still exists and is still written on create.
    */
   examType: string
-  term: string
+  semester: string
+  schoolYear: string
   preparedBy: string
   totalHours: number
 }

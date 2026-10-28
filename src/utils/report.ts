@@ -128,8 +128,11 @@ export const MANAGER_CM_CATEGORIES = [
   'SPECIFIC TO A SUB-DISCIPLINE AND A MAJOR (CMO 25 S. 2015)',
 ]
 
+export const isManagerOutcome = (p: ProgramOutcomeStandalone) =>
+  (p as { source?: string }).source === 'manager'
+
 export const isManagerCmCategory = (p: ProgramOutcomeStandalone) => {
-  if ((p as { source?: string }).source !== 'manager') return false
+  if (!isManagerOutcome(p)) return false
   return MANAGER_CM_CATEGORIES.includes((p.description || '').trim().toUpperCase())
 }
 
@@ -139,7 +142,7 @@ export const isManagerCmCategory = (p: ProgramOutcomeStandalone) => {
 // Outcomes page), then by PO number within each group, and are restricted to
 // the manager-inputted BSIT categories above.
 export const splitReportPos = (visiblePos: ProgramOutcomeStandalone[]) => {
-  const adminPos = visiblePos.filter((p) => (p as { source?: string }).source !== 'manager')
+  const adminPos = visiblePos.filter((p) => !isManagerOutcome(p))
 
   const cmoGroupKey = (p: ProgramOutcomeStandalone) =>
     (p.description || '').trim().toUpperCase() || '\uffff'

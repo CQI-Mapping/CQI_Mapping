@@ -6,10 +6,13 @@
 // percentages, the column totals — recompute as you go. The layout follows the
 // faculty's workbook, green for inputs and gray for formulas.
 //
-// Persistence: exams, sheets, and topics live in Supabase under RLS scoped to
-// the signed-in user, so a blueprint survives a refresh and nobody else can see
-// it. Edits are optimistic — the grid updates on keystroke and the write follows,
-// so typing never waits on the network.
+// Persistence has one rule: the editor at the top is a draft, and a draft is
+// not in the database until Save is pressed. Nothing is created on page load —
+// the draft lives in local state, mirrored to localStorage so a refresh costs
+// nothing — and Save files the whole thing as one blueprint: the exam row, its
+// papers, their topics. Saved blueprints are then edited on their own cards in
+// the panel below, which autosave as they are typed into. One writer per
+// blueprint means the two can never disagree about what is stored.
 //
 // An exam owns its sheets; a sheet owns its topics. The hour weighting is never
 // stored — it is derived from topic hours and the sheet total on every read, so
@@ -32,16 +35,12 @@ import {
   createTosExam,
   createTosSheet,
   addActivityLog,
-  deleteTosExam,
   fetchCourses,
   fetchPrograms,
   fetchTosExams,
-  fetchTosSheets,
   fetchTosSheetsByExam,
-  fetchTosTopics,
   replaceTosTopics,
   updateTosExam,
-  updateTosSheet,
   type Course,
   type Program,
   type TosExamRow,
@@ -52,14 +51,23 @@ import { downloadTosExcel } from '../../utils/tosXlsx'
 import {
   buildProgramOptions,
   buildCourseOptions,
-  buildTermOptions,
+  buildSemesterOptions,
+  buildSchoolYearOptions,
+  buildExamTypeOptions,
+  composeTerm,
+  describeTosError,
   programIdForLabel,
 } from '../../utils/tosOptions'
 import Icon from '../../components/icons'
 import TosBlueprintEditor from '../../components/TosBlueprintEditor'
 import PageBanner from '../../components/PageBanner'
 
-const SAVE_DEBOUNCE_MS = 600
+/**
+ * Where the unsaved draft is mirrored, so a refresh or a closed tab does not
+ * cost the user their typing. Versioned, so a change to the draft's shape
+ * cannot resurrect something saved by an older build of the page.
+ */
+const DRAFT_KEY = 'cqic.tos.draft.v1'
 
 /**
  * The two papers of an exam, in the order the workbook shows them. Each is a
@@ -73,7 +81,8 @@ const SHEET_KINDS: { kind: SheetKind; label: string }[] = [
 
 /**
  * The document's title line: "Table of Specification for Prelim: Multiple
- * Choice Type".
+ * Choice Type". The exam type is now picked from a dropdown, so the "for ..."
+ * clause varies with the choice.
  *
  * Shared by the grid's header and the library panel's cards so a card is
  * titled exactly as its blueprint and its exported workbook are. Written once
@@ -89,7 +98,18 @@ const docTitle = (examType: string, kind: SheetKind) =>
 const docTitlesFor = (examType: string, sheets: { kind: SheetKind }[]) =>
   sheets.length > 0 ? sheets.map((s) => docTitle(examType, s.kind)) : [docTitle(examType, 'items')]
 
-/** A blank exam: identity left for the user, one empty blueprint sheet. */
+/** A blank exam: identity left for the user to fill in. */
+const blankExam = (): TosExam => ({
+  code: '',
+  title: '',
+  examType: 'Prelim',
+  semester: '',
+  schoolYear: '',
+  preparedBy: '',
+  totalHours: 8,
+})
+
+/** A blank draft: the exam above, plus one empty multiple choice sheet. */
 const blankSheet = (): TosSheet => ({
   id: '',
   kind: 'items',
@@ -100,10 +120,11 @@ const blankSheet = (): TosSheet => ({
 })
 
 /**
- * tos_sheets.total is NOT NULL CHECK (total > 0), so a lazily created sheet
- * cannot start at zero the way blankSheet() does. 20 matches the multiple
- * choice default; a performance sheet is seeded the same way and edited from
- * there.
+ * A second paper, added locally when its tab is first opened.
+ *
+ * tos_sheets.total is NOT NULL CHECK (total > 0), so the sheet cannot start at
+ * zero. 20 matches the multiple choice default; a performance sheet is seeded
+ * the same way and edited from there.
  */
 const newSheet = (kind: SheetKind): TosSheet => {
   const meta = SHEET_KINDS.find((s) => s.kind === kind)
@@ -125,22 +146,6 @@ const newSheet = (kind: SheetKind): TosSheet => {
 /** Archived rows stay in the database but out of a new pick. */
 const isActive = <T extends { status?: string }>(x: T) => !x.status || x.status === 'active'
 
-/**
- * PostgREST puts the actionable part of a failure in `hint` and its class in
- * `code` -- the package's own docs warn that logging only `message` hides the
- * hint. Reading the fields structurally also avoids leaning on
- * `instanceof Error`, which is a poor gate for a value that arrived over the wire.
- */
-const messageOf = (e: unknown, fallback: string): string => {
-  if (typeof e === 'string') return e
-  if (!e || typeof e !== 'object') return fallback
-  const { message, hint, code } = e as Record<string, unknown>
-  const parts = [message, hint, code].filter(
-    (p): p is string => typeof p === 'string' && p.trim() !== '',
-  )
-  return parts.length > 0 ? parts.join(' — ') : fallback
-}
-
 /** The signed-in user's id, which the tos_exams insert requires. */
 const currentUserId = async (): Promise<string> => {
   const { data, error } = await supabase!.auth.getUser()
@@ -150,31 +155,54 @@ const currentUserId = async (): Promise<string> => {
   return id
 }
 
+/**
+ * The draft a previous visit left behind, if there is one.
+ *
+ * Deliberately sceptical: storage can hold anything, and the page must open on
+ * a blank draft rather than crash because a half-written object came back.
+ * Anything unreadable, incomplete, or empty restores as nothing, and the blank
+ * draft the state initialisers fall back to takes over.
+ */
+const readDraft = (): { exam: TosExam; sheets: TosSheet[]; activeKind: SheetKind } | null => {
+  try {
+    const raw = window.localStorage.getItem(DRAFT_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as {
+      exam?: Partial<TosExam>
+      sheets?: TosSheet[]
+      activeKind?: SheetKind
+    }
+    if (!parsed.exam || !Array.isArray(parsed.sheets) || parsed.sheets.length === 0) return null
+    return {
+      exam: { ...blankExam(), ...parsed.exam },
+      sheets: parsed.sheets,
+      activeKind: parsed.activeKind ?? 'items',
+    }
+  } catch {
+    return null
+  }
+}
+
 export default function TOS() {
-  const [activeId, setActiveId] = useState('')
-  const [exam, setExam] = useState<TosExam>(() => ({
-    code: '',
-    title: '',
-    // Read-only: there is no field for it any more, but the exported workbook's
-    // title line reads "Table of Specification for Prelim" and needs it.
-    examType: 'Prelim',
-    term: '',
-    preparedBy: '',
-    totalHours: 8,
-  }))
-  const [sheets, setSheets] = useState<TosSheet[]>([blankSheet()])
-  const [activeKind, setActiveKind] = useState<SheetKind>('items')
+  // The draft, restored from localStorage when a previous visit left one.
+  // Each initialiser reads once at mount, so the three come back consistent
+  // with whatever was last written together.
+  const [exam, setExam] = useState<TosExam>(() => readDraft()?.exam ?? blankExam())
+  const [sheets, setSheets] = useState<TosSheet[]>(() => readDraft()?.sheets ?? [blankSheet()])
+  const [activeKind, setActiveKind] = useState<SheetKind>(
+    () => readDraft()?.activeKind ?? 'items',
+  )
   const [programs, setPrograms] = useState<Program[]>([])
   const [courses, setCourses] = useState<Course[]>([])
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   /**
-   * True from the first keystroke until the write lands.
+   * True from the first keystroke until Save files the draft.
    *
-   * Separate from `saving`, which is set at the same moment but is really
-   * "an edit is in flight somewhere". The Save button needs the other question:
-   * is there anything I have not written yet.
+   * Separate from `saving`, which is true only while the Save request itself
+   * is in flight. `dirty` is what the Save button's pending marker asks
+   * about: is there anything on screen the library does not hold yet.
    */
   const [dirty, setDirty] = useState(false)
   /** Every blueprint this account owns, refreshed after each save. */
@@ -194,21 +222,9 @@ export default function TOS() {
   const [error, setError] = useState<string | null>(null)
   const [savedAt, setSavedAt] = useState<string | null>(null)
 
-  const sheetIds = useRef<Record<SheetKind, string | null>>({ items: null, points: null })
-  const examTimer = useRef<number | null>(null)
-  /**
-   * True only for the blueprint this session auto-created on first visit.
-   *
-   * Creating an empty exam is a page-load side effect, not something the user
-   * did, so it is not logged from the loader. It exists to let the first
-   * debounced write in patchExam be recorded as tos_exam.created — the first
-   * moment there is a code or title worth recording.
-   */
-  const createdThisSession = useRef(false)
-  // One timer per sheet, not one per field: a pending write belongs to the
-  // sheet it was made on, so switching tabs must not cancel it.
-  const sheetTimer = useRef<Record<SheetKind, number | null>>({ items: null, points: null })
-  const topicsTimer = useRef<Record<SheetKind, number | null>>({ items: null, points: null })
+  // Reached through a ref so the card editors' onSaved does not have to change
+  // identity whenever refreshList does.
+  const refreshListRef = useRef<(() => void) | null>(null)
 
   /**
    * Every editor below works on the visible sheet. Deriving it rather than
@@ -221,233 +237,18 @@ export default function TOS() {
     [sheets, activeKind],
   )
 
-  /**
-   * Mirrors `sheets` so a debounced write can read the value as it stands when
-   * the timer fires. Reading the state captured at schedule time instead would
-   * drop every keystroke made inside the debounce window.
-   */
-  const sheetsRef = useRef(sheets)
-  sheetsRef.current = sheets
-
   const issues = useMemo(() => validateSheet(sheet, exam.totalHours), [sheet, exam.totalHours])
 
   /**
-   * Editing is only safe once the row exists: before that activeId is empty and
-   * every debounced write is a silent no-op, which looks identical to saving.
-   * A failed load therefore locks the form rather than pretending to work.
+   * Editing the draft is safe at any time — nothing writes as you type. The
+   * gate exists for the first read of the library and for failures, so an
+   * error sits visibly instead of being buried under more typing.
    */
-  const ready = !loading && !error && Boolean(activeId)
+  const ready = !loading && !error
 
   const fail = useCallback((e: unknown, fallback: string) => {
-    setError(messageOf(e, fallback))
+    setError(describeTosError(e, fallback))
   }, [])
-
-  const reportSaved = useCallback(() => {
-    setSaving(false)
-    setDirty(false)
-    setSavedAt(new Date().toLocaleTimeString())
-    setError(null)
-    // Re-read the list on every save so the panel below proves the write
-    // landed. Declared below and reached through a ref to keep this callback's
-    // identity stable for the debounced writers that depend on it.
-    refreshListRef.current?.()
-  }, [])
-
-  // reportSaved() is a dependency of every debounced write, so it must not
-  // depend on refreshList directly — that would rebuild all of them whenever
-  // the list callback's identity changed.
-  const refreshListRef = useRef<(() => void) | null>(null)
-
-  /**
-   * Write everything that is pending, right now.
-   *
-   * Every edit on this page autosaves on a 600ms debounce, so there is a window
-   * after you stop typing where nothing has reached the database yet. This
-   * cancels that window: each pending timer is cleared and its write is run
-   * immediately against the current refs.
-   *
-   * It writes every sheet, not just the visible one. A pending topic change on
-   * the paper you cannot see is still pending, and a Save button that silently
-   * dropped it would be worse than having none.
-   *
-   * The write bodies are repeated rather than extracted, because each debounce
-   * closure already carries its own `id` and `kind`. Sharing one helper across
-   * all three call sites means threading those through, for a page this size
-   * the duplication is cheaper than the indirection.
-   */
-  const saveNow = useCallback(async () => {
-    if (!ready) return
-    setSaving(true)
-    setError(null)
-
-    // Clear first, so a debounce that fires while this runs cannot start a
-    // second, identical write after this one has already read the state.
-    if (examTimer.current) {
-      window.clearTimeout(examTimer.current)
-      examTimer.current = null
-    }
-    for (const { kind } of SHEET_KINDS) {
-      const sheetTimerId = sheetTimer.current[kind]
-      if (sheetTimerId) {
-        window.clearTimeout(sheetTimerId)
-        sheetTimer.current[kind] = null
-      }
-      const topicsTimerId = topicsTimer.current[kind]
-      if (topicsTimerId) {
-        window.clearTimeout(topicsTimerId)
-        topicsTimer.current[kind] = null
-      }
-    }
-
-    const writes: Promise<void>[] = []
-
-    if (activeId && exam) {
-      writes.push(
-        updateTosExam(activeId, {
-          code: exam.code,
-          title: exam.title,
-          term: exam.term,
-          prepared_by: exam.preparedBy,
-          total_hours: num(exam.totalHours),
-        }).then(() => undefined).catch((e) => fail(e, 'Could not save the exam details.')),
-      )
-    }
-
-    for (const { kind } of SHEET_KINDS) {
-      const id = sheetIds.current[kind]
-      const target = sheetsRef.current.find((s) => s.kind === kind)
-      if (!id || !target) continue
-      writes.push(
-        updateTosSheet(id, { total: num(target.total) })
-          .then(() => undefined)
-          .catch((e) => fail(e, 'Could not save the blueprint total.')),
-      )
-      writes.push(
-        replaceTosTopics(
-          id,
-          target.topics.map((t) => ({
-            id: t.id,
-            title: t.title,
-            slo: t.slo,
-            hours: num(t.hours),
-            bloom: t.bloom,
-          })),
-        ).catch((e) => fail(e, 'Could not save the topics.')),
-      )
-    }
-
-    await Promise.all(writes)
-    reportSaved()
-  }, [ready, exam, activeId, fail, reportSaved])
-
-  // A failed write leaves the edit unsaved, so the pending marker must stay up.
-  // setError already covers the diagnosis; this covers "your work is still
-  // only on this screen".
-
-  // ---- loading an exam -------------------------------------------------
-
-  /**
-   * Pull every sheet of an exam into the working copy, each with its topics.
-   *
-   * Both papers load even though only one is visible: an exam whose performance
-   * sheet already exists must come back with it, or the tab would look empty
-   * and re-creating it would trip UNIQUE (exam_id, kind).
-   */
-  const loadInto = useCallback(async (row: TosExamRow) => {
-    const rows = await fetchTosSheets(row.id)
-    const itemsRow = rows.find((s) => s.kind === 'items') ?? rows[0]
-    if (!itemsRow) throw new Error('This exam has no blueprint sheet.')
-
-    const loaded = await Promise.all(
-      rows.map(async (s) => {
-        const topicRows = await fetchTosTopics(s.id)
-        return {
-          id: s.id,
-          kind: s.kind,
-          label: s.label,
-          total: num(s.total),
-          note: s.note ?? '',
-          topics: topicRows.map((t) => ({
-            id: t.id,
-            position: t.position,
-            title: t.title,
-            slo: t.slo ?? '',
-            hours: num(t.hours),
-            bloom: t.bloom ?? {},
-          })),
-        } satisfies TosSheet
-      }),
-    )
-
-    // Open on the multiple choice paper, as before. Anything else would change
-    // what the page looks like on every visit.
-    sheetIds.current = {
-      items: itemsRow.id,
-      points: rows.find((s) => s.kind === 'points')?.id ?? null,
-    }
-    setActiveKind('items')
-    setSheets(loaded)
-    setExam({
-      code: row.code,
-      title: row.title,
-      examType: row.exam_type,
-      term: row.term,
-      preparedBy: row.prepared_by ?? '',
-      totalHours: num(row.total_hours),
-    })
-  }, [])
-
-  // First visit: create an empty blueprint rather than a sample one. Every
-  // account used to open onto a copy of IT21, which meant a Manager got a
-  // syllabus they do not teach. The sheet starts with zero topics, so
-  // validateSheet reports NO_TOPICS until the first one is added -- which is
-  // accurate feedback, not a failure.
-  useEffect(() => {
-    let cancelled = false
-
-    const load = async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        let rows = await fetchTosExams()
-        if (rows.length === 0) {
-          // exam_type is NOT NULL and sits in UNIQUE (user_id, code,
-          // exam_type, term), but the header no longer offers a field for it.
-          // A constant is therefore what every exam gets, and updates never
-          // write the column again -- existing rows keep the value they had.
-          const created = await createTosExam(
-            { code: '', title: '', exam_type: 'Prelim', term: '', total_hours: 8 },
-            await currentUserId(),
-          )
-          await createTosSheet({
-            exam_id: created.id,
-            kind: 'items',
-            label: 'Multiple Choice',
-            total: 20,
-            position: 0,
-          })
-          rows = [created]
-          // Marks the next debounced write as the create. The exam exists at
-          // this point, but it is empty and nothing has been typed, so there is
-          // no code or title worth putting in the entry yet.
-          createdThisSession.current = true
-        }
-        if (cancelled) return
-        setActiveId(rows[0].id)
-        await loadInto(rows[0])
-        refreshListRef.current?.()
-      } catch (e) {
-        fail(e, 'Could not load your Table of Specification.')
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-
-    load()
-    return () => {
-      cancelled = true
-    }
-  }, [fail, loadInto])
 
   /**
    * Refresh the saved-blueprints panel.
@@ -471,346 +272,202 @@ export default function TOS() {
       setExamSheets(sheets)
       setArchivedCount(archivedRows.length)
     } catch {
-      // A failed list must not take the editor down with it — the blueprint on
+      // A failed list must not take the editor down with it — the draft on
       // screen is the user's work and is unaffected.
     }
   }, [])
 
-  // Wired here rather than making reportSaved depend on refreshList, which
-  // would rebuild every debounced writer whenever the list callback changed.
+  // Wired here rather than handing the card editors a dependency on
+  // refreshList's identity.
   refreshListRef.current = refreshList
 
-  /** Archive or restore, then re-read whichever tab is on screen. */
-  const setExamStatus = useCallback(
-    async (id: string, next: 'active' | 'archived') => {
-      const row = examList.find((r) => r.id === id)
-      try {
-        await updateTosExam(id, { status: next })
-        const all = await fetchTosExams('all')
-        setExamList(all)
-        setArchivedCount(all.filter((r) => r.status === 'archived').length)
-        // Archive and restore are separate actions, not one "status changed",
-        // so the log can tell which happened. Archiving a blueprint you are
-        // editing underneath is worth recording.
-        await addActivityLog(
-          next === 'archived' ? 'tos_exam.archived' : 'tos_exam.restored',
-          {
-            entity: 'tos_exam',
-            entity_id: id,
-            label: [row?.code, row?.title].filter(Boolean).join(' — ') || 'Table of Specification',
-          },
-        )
-      } catch (e) {
-        fail(e, 'Could not change the blueprint status.')
-      }
-    },
-    [examList, fail],
-  )
-
-  /** Open a different blueprint in the editor above. */
-  const openExam = useCallback(
-    async (row: TosExamRow) => {
-      if (row.id === activeId) return
-      if (dirty && !window.confirm('You have unsaved edits on this blueprint. Open another one and lose them?')) {
-        return
-      }
-      setActiveId(row.id)
-      await loadInto(row)
-      setDirty(false)
-      setSaving(false)
-    },
-    [activeId, dirty, loadInto],
-  )
-
-  /** Open a card's blueprint inline, or close the one that is open. */
-  const toggleCardEdit = useCallback((row: TosExamRow) => {
-    setEditingId((prev) => (prev === row.id ? null : row.id))
-  }, [])
-
-  const cancelCardEdit = useCallback(() => {
-    setEditingId(null)
-  }, [])
-
-  /**
-   * Delete a library blueprint outright — archive is the soft path, this is
-   * the hard one. The row's papers and its topics belong to it, so one delete
-   * clears the whole document.
-   *
-   * When the blueprint being deleted is the one open in the editor above, the
-   * debounced writers have to stand down first: a cleared row would eat the
-   * next pending write and squawk a save error for a document that no longer
-   * exists. So the timers are dropped and the editor is parked on the next
-   * exam (or an empty form when none is left) before the delete lands.
-   */
-  const deleteExam = useCallback(
-    async (row: TosExamRow) => {
-      if (
-        !window.confirm(
-          'Delete this blueprint permanently? Its papers and topics are removed with it, and this cannot be undone.',
-        )
-      )
-        return
-      try {
-        if (row.id === activeId) {
-          if (examTimer.current) {
-            window.clearTimeout(examTimer.current)
-            examTimer.current = null
-          }
-          for (const { kind } of SHEET_KINDS) {
-            if (sheetTimer.current[kind]) {
-              window.clearTimeout(sheetTimer.current[kind])
-              sheetTimer.current[kind] = null
-            }
-            if (topicsTimer.current[kind]) {
-              window.clearTimeout(topicsTimer.current[kind])
-              topicsTimer.current[kind] = null
-            }
-          }
-          // Park on the next active exam, or an empty form when none remains.
-          // Not a fresh auto-created row: deleting the last blueprint is a
-          // cleanup, not the setup for a new one.
-          const remaining = examList.filter((r) => r.id !== row.id && r.status !== 'archived')
-          if (remaining.length > 0) {
-            setActiveId(remaining[0].id)
-            await loadInto(remaining[0])
-          } else {
-            setActiveId('')
-            setSheets([blankSheet()])
-            setExam((e) => ({ ...e, code: '', title: '', term: '', preparedBy: '' }))
-            createdThisSession.current = false
-          }
-          setDirty(false)
-          setSaving(false)
-        }
-        await deleteTosExam(row.id)
-        await addActivityLog('tos_exam.deleted', {
-          entity: 'tos_exam',
-          entity_id: row.id,
-          label: [row.code, row.title].filter(Boolean).join(' — ') || 'Table of Specification',
-        })
-        await refreshList()
-      } catch (e) {
-        fail(e, 'Could not delete the blueprint.')
-      }
-    },
-    [activeId, examList, loadInto, refreshList, fail],
-  )
-
-  // The panel's tab decides which half of the list it shows, the same way the
-  // Curriculum page's Active/Archive tabs do.
-  const visibleExams = useMemo(
-    () => examList.filter((r) => (archived ? r.status === 'archived' : r.status !== 'archived')),
-    [examList, archived],
-  )
-
-  // Only one exam is on screen. The schema still stores many per user --
-  // fetchTosExams() orders by updated_at and the page opens the first -- so
-  // nothing is lost by not offering a picker yet.
-
-  // ---- picker options ---------------------------------------------------
-
-  // The picker lists are auxiliary: the blueprint is fully usable without them,
-  // so a failed read degrades to an empty dropdown instead of locking the page
-  // the way a failed exam load does. allSettled keeps one dead table from
-  // taking the other down with it. Only active rows are offered.
+  // On load: read the library once, then release the form. The editor opens on
+  // the draft — restored from localStorage when one was left behind — and
+  // creates nothing: an account with no saved blueprints shows an empty panel
+  // and a blank editor, and no row is born until Save is pressed.
   useEffect(() => {
     let cancelled = false
-    Promise.allSettled([fetchPrograms(), fetchCourses()]).then(([p, c]) => {
-      if (cancelled) return
-      setPrograms(p.status === 'fulfilled' ? p.value.filter(isActive) : [])
-      setCourses(c.status === 'fulfilled' ? c.value.filter(isActive) : [])
-    })
+    ;(async () => {
+      await refreshList()
+      if (!cancelled) setLoading(false)
+    })()
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [refreshList])
 
-  /** The program the exam is currently filed under, or '' when none/unlisted. */
-  const selectedProgramId = useMemo(
-    () => programIdForLabel(programs, exam.code),
-    [programs, exam.code],
-  )
-
-  // Built by the shared helpers so the page and an expanded card offer the same
-  // lists; see utils/tosOptions.ts for why an unmatched saved value is kept.
-  const programOptions = useMemo(
-    () => buildProgramOptions(programs, exam.code),
-    [programs, exam.code],
-  )
-
-  const courseOptions = useMemo(
-    () => buildCourseOptions(courses, selectedProgramId, exam.title),
-    [courses, selectedProgramId, exam.title],
-  )
-
-  const termOptions = useMemo(() => buildTermOptions(exam.term), [exam.term])
-
-  // ---- debounced writes -----------------------------------------------
-
-  // Every setter updates local state immediately and schedules a write, so a
-  // burst of keystrokes in one cell collapses into a single request.
-
-  const afterEdit = useCallback(() => {
-    setSaving(true)
-    // `saving` alone cannot carry the Save button. It is set the moment a
-    // keystroke lands and cleared when the write resolves, so it reads as
-    // "saving" for the whole debounce window whether or not a request is
-    // actually in flight. `dirty` is what the button asks about: is there an
-    // edit that has not reached the database yet.
-    setDirty(true)
-  }, [])
-
-  /**
-   * Throw away edits that have not been saved and re-read the blueprint.
-   *
-   * This is what the old "Reset" button pretended to be. Reloading is not
-   * enough on its own: the pending debounce timer would still fire and write
-   * the discarded state straight back, so every timer is cancelled first.
-   */
-  const discardPending = useCallback(async () => {
-    for (const kind of ['items', 'points'] as const) {
-      const sheetTimerId = sheetTimer.current[kind]
-      if (sheetTimerId) {
-        window.clearTimeout(sheetTimerId)
-        sheetTimer.current[kind] = null
-      }
-      const topicsTimerId = topicsTimer.current[kind]
-      if (topicsTimerId) {
-        window.clearTimeout(topicsTimerId)
-        topicsTimer.current[kind] = null
-      }
-    }
-    if (examTimer.current) {
-      window.clearTimeout(examTimer.current)
-      examTimer.current = null
-    }
-
-    setLoading(true)
-    setError(null)
+  // The draft is mirrored to localStorage on every change, so a refresh or an
+  // accidental tab close costs nothing. Clearing needs no separate step: a
+  // save or a discard resets this state, and the blank draft that follows
+  // overwrites what was stored through this same effect.
+  useEffect(() => {
     try {
-      const rows = await fetchTosExams()
-      if (rows.length === 0) return
-      setActiveId(rows[0].id)
-      await loadInto(rows[0])
-      setDirty(false)
-      setSaving(false)
-      setSavedAt(null)
-    } catch (e) {
-      fail(e, 'Could not reload the blueprint.')
-    } finally {
-      setLoading(false)
+      window.localStorage.setItem(DRAFT_KEY, JSON.stringify({ exam, sheets, activeKind }))
+    } catch {
+      // Storage can be unavailable (private mode, quota). The draft still
+      // works; it just does not survive a refresh.
     }
-  }, [loadInto, fail])
-
-  const patchExam = useCallback(
-    (patch: Partial<TosExam>) => {
-      setExam((prev) => {
-        const next = { ...prev, ...patch }
-        if (examTimer.current) window.clearTimeout(examTimer.current)
-        examTimer.current = window.setTimeout(async () => {
-          if (!activeId) return
-          try {
-            await updateTosExam(activeId, {
-              code: next.code,
-              title: next.title,
-              term: next.term,
-              prepared_by: next.preparedBy,
-              total_hours: num(next.totalHours),
-            })
-            // Debounced, so this fires once per burst of typing rather than per
-            // keystroke. `created` covers the first write of a freshly
-            // auto-created exam, which has no meaningful edit to describe.
-            await addActivityLog(
-              createdThisSession.current ? 'tos_exam.created' : 'tos_exam.updated',
-              {
-                entity: 'tos_exam',
-                entity_id: activeId,
-                label: [next.code, next.title].filter(Boolean).join(' — ') || 'Table of Specification',
-              },
-            )
-            // Only the first save reports a create; every later one is an edit.
-            createdThisSession.current = false
-            reportSaved()
-          } catch (e) {
-            fail(e, 'Could not save the exam details.')
-          }
-        }, SAVE_DEBOUNCE_MS)
-        return next
-      })
-      afterEdit()
-    },
-    [activeId, afterEdit, fail, reportSaved],
-  )
+  }, [exam, sheets, activeKind])
 
   /**
-   * The sheet id and the payload are both read when the timer fires, not when
-   * it is scheduled. An edit made on the multiple choice sheet and then a tab
-   * switch inside the debounce window must still write to the sheet it was made
-   * on, with the value that was last typed.
+   * Save the draft: everything on screen becomes one saved blueprint.
+   *
+   * The top editor is not a database row — nothing here writes as you type.
+   * Save is the single write: the exam row is created with the header as
+   * typed, then every paper the draft carries is created with its topics, in
+   * tab order. When it all lands, the library grows by one card at its bottom
+   * and the editor hands over a fresh blank draft.
+   *
+   * A draft with nothing in it has nothing to file; Save says so and leaves
+   * the form alone rather than stacking an empty card.
+   *
+   * A failure keeps the draft exactly as it stands — nothing is wiped, nothing
+   * is half-filed, the pending marker stays up, and pressing Save again retries
+   * the whole thing. A duplicate header (same program, course, exam type,
+   * semester and school year as a blueprint already filed) is rejected by the
+   * UNIQUE key and explained in plain words by describeTosError: edit that
+   * blueprint's card instead of saving a second one.
    */
-  const patchSheet = useCallback(
-    (kind: SheetKind, patch: Partial<TosSheet>) => {
-      setSheets((prev) => prev.map((s) => (s.kind === kind ? { ...s, ...patch } : s)))
-      if (sheetTimer.current[kind]) window.clearTimeout(sheetTimer.current[kind]!)
-      sheetTimer.current[kind] = window.setTimeout(async () => {
-        const id = sheetIds.current[kind]
-        const target = sheetsRef.current.find((s) => s.kind === kind)
-        if (!id || !target) return
-        try {
-          await updateTosSheet(id, { total: num(target.total) })
-          reportSaved()
-        } catch (e) {
-          fail(e, 'Could not save the blueprint total.')
-        }
-      }, SAVE_DEBOUNCE_MS)
-      afterEdit()
-    },
-    [afterEdit, fail, reportSaved],
-  )
+  const saveNow = useCallback(async () => {
+    if (!ready) return
+    setSaving(true)
+    setError(null)
 
-  /** Topics are replaced wholesale — position is part of their unique key. */
-  const setTopics = useCallback(
-    (kind: SheetKind, next: TosTopic[]) => {
-      setSheets((prev) => prev.map((s) => (s.kind === kind ? { ...s, topics: next } : s)))
-      if (topicsTimer.current[kind]) window.clearTimeout(topicsTimer.current[kind]!)
-      topicsTimer.current[kind] = window.setTimeout(async () => {
-        const id = sheetIds.current[kind]
-        if (!id) return
-        const target = sheetsRef.current.find((s) => s.kind === kind)
-        try {
+    const hasContent =
+      Boolean(exam.code || exam.title || exam.semester || exam.schoolYear) ||
+      sheets.some((s) => s.topics.length > 0)
+
+    if (!hasContent) {
+      setSaving(false)
+      setError('Nothing to save yet — choose a program or course, or add a topic row first.')
+      return
+    }
+
+    // tos_sheets.total is CHECK (total > 0); a paper left at zero would reject
+    // the whole save with a raw database message. Said here, it names the paper.
+    const badTotal = sheets.find((s) => num(s.total) <= 0)
+    if (badTotal) {
+      setSaving(false)
+      setError(
+        `The ${badTotal.label.toLowerCase()} paper needs a total above zero before this blueprint can be saved.`,
+      )
+      return
+    }
+
+    try {
+      const created = await createTosExam(
+        {
+          code: exam.code,
+          title: exam.title,
+          exam_type: exam.examType,
+          // An unselected semester or year is stored as NULL, not '' — the
+          // UNIQUE key covers both columns, and NULLs never equal each other,
+          // so a header-less blueprint never collides with another. `term`
+          // recomposes only from a real selection; '' keeps nothing stale.
+          term: exam.semester || exam.schoolYear ? composeTerm(exam.semester, exam.schoolYear) : '',
+          semester: exam.semester || null,
+          school_year: exam.schoolYear || null,
+          prepared_by: exam.preparedBy,
+          total_hours: num(exam.totalHours),
+        },
+        await currentUserId(),
+      )
+
+      for (const s of sheets) {
+        const createdSheet = await createTosSheet({
+          exam_id: created.id,
+          kind: s.kind,
+          label: s.label,
+          total: num(s.total),
+          position: SHEET_KINDS.findIndex((k) => k.kind === s.kind),
+        })
+        if (s.topics.length > 0) {
           await replaceTosTopics(
-            id,
-            (target?.topics ?? next).map((t) => ({
-              id: t.id,
+            createdSheet.id,
+            s.topics.map((t) => ({
+              // No ids sent: these are fresh rows on a fresh sheet, and
+              // replaceTosTopics numbers positions from the array's order.
               title: t.title,
               slo: t.slo,
               hours: num(t.hours),
               bloom: t.bloom,
             })),
           )
-          reportSaved()
-        } catch (e) {
-          fail(e, 'Could not save the topics.')
         }
-      }, SAVE_DEBOUNCE_MS)
+      }
+
+      // A create is what just happened, unlike the card editors' writes, which
+      // log updates: this blueprint did not exist until this press of Save.
+      await addActivityLog('tos_exam.created', {
+        entity: 'tos_exam',
+        entity_id: created.id,
+        label: [exam.code, exam.title].filter(Boolean).join(' — ') || 'Table of Specification',
+      })
+
+      // Filed. The editor starts the next draft; the library re-reads so the
+      // card is there to prove it.
+      setSheets([blankSheet()])
+      setExam(blankExam())
+      setActiveKind('items')
+      setDirty(false)
+      setSaving(false)
+      setSavedAt(new Date().toLocaleTimeString())
+      refreshListRef.current?.()
+    } catch (e) {
+      fail(e, 'Could not save the blueprint.')
+      setSaving(false)
+    }
+  }, [ready, exam, sheets, fail])
+
+  /**
+   * Throw the draft away and start blank.
+   *
+   * Nothing here was ever in the database, so discarding means the whole
+   * draft — hence the confirm: there is no saved copy to fall back on.
+   */
+  const discardDraft = useCallback(() => {
+    if (!window.confirm('Throw away this draft? Nothing in it has been saved yet.')) return
+    setSheets([blankSheet()])
+    setExam(blankExam())
+    setActiveKind('items')
+    setDirty(false)
+    setSaving(false)
+    setSavedAt(null)
+    setError(null)
+  }, [])
+
+  // ---- draft editing ---------------------------------------------------
+
+  // Every edit updates local state only and raises the pending marker; the
+  // database hears about none of it until Save is pressed.
+
+  const afterEdit = useCallback(() => {
+    setDirty(true)
+  }, [])
+
+  const patchExam = useCallback(
+    (patch: Partial<TosExam>) => {
+      setExam((prev) => ({ ...prev, ...patch }))
       afterEdit()
     },
-    [afterEdit, fail, reportSaved],
+    [afterEdit],
   )
 
-  // Pending writes must not fire after unmount.
-  useEffect(
-    () => () => {
-      if (examTimer.current) window.clearTimeout(examTimer.current)
-      for (const kind of ['items', 'points'] as SheetKind[]) {
-        if (sheetTimer.current[kind]) window.clearTimeout(sheetTimer.current[kind]!)
-        if (topicsTimer.current[kind]) window.clearTimeout(topicsTimer.current[kind]!)
-      }
+  const patchSheet = useCallback(
+    (kind: SheetKind, patch: Partial<TosSheet>) => {
+      setSheets((prev) => prev.map((s) => (s.kind === kind ? { ...s, ...patch } : s)))
+      afterEdit()
     },
-    [],
+    [afterEdit],
   )
 
-  // ---- topic editing --------------------------------------------------
+  const setTopics = useCallback(
+    (kind: SheetKind, next: TosTopic[]) => {
+      setSheets((prev) => prev.map((s) => (s.kind === kind ? { ...s, topics: next } : s)))
+      afterEdit()
+    },
+    [afterEdit],
+  )
 
   // These all act on the visible sheet, so they pass activeKind straight
   // through to setTopics rather than each re-deriving which sheet they mean.
@@ -851,76 +508,124 @@ export default function TOS() {
     [activeKind, sheet.topics, setTopics],
   )
 
-  // ---- switching papers -----------------------------------------------
+  // ---- switching papers ------------------------------------------------
 
   /**
-   * The performance sheet is created the first time it is opened rather than
-   * on first visit, so an account that only ever writes multiple choice exams
-   * never grows a second row. The create is immediate, not debounced, which
-   * makes creatingKind a real guard: UNIQUE (exam_id, kind) rejects the second
-   * insert, so rapid toggling must not fire two.
+   * The performance sheet joins the draft the first time its tab is opened —
+   * locally, like every draft edit. It reaches the database when Save files
+   * the whole blueprint, so an account that only ever writes multiple choice
+   * exams never grows a second sheet row either.
    */
-  const [creatingKind, setCreatingKind] = useState<SheetKind | null>(null)
-
-  const switchTo = useCallback(
-    async (kind: SheetKind) => {
-      if (kind === activeKind) return
-      const from = activeKind
-      setActiveKind(kind)
-
-      if (sheetIds.current[kind] || sheetsRef.current.some((s) => s.kind === kind)) return
-      if (creatingKind || !activeId) return
-
-      const meta = SHEET_KINDS.find((s) => s.kind === kind)
-      setCreatingKind(kind)
-      try {
-        const created = await createTosSheet({
-          exam_id: activeId,
-          kind,
-          label: meta?.label ?? kind,
-          total: 20,
-          position: SHEET_KINDS.findIndex((s) => s.kind === kind),
-        })
-        sheetIds.current[kind] = created.id
-        setSheets((prev) =>
-          prev.some((s) => s.kind === kind)
-            ? prev
-            : [...prev, { ...newSheet(kind), id: created.id }],
-        )
-        reportSaved()
-      } catch (e) {
-        // Nothing was written, so leave the tab that does exist rather than
-        // showing an empty sheet that will not save.
-        setActiveKind(from)
-        fail(e, 'Could not create that blueprint sheet.')
-      } finally {
-        setCreatingKind(null)
-      }
-    },
-    [activeId, activeKind, creatingKind, fail, reportSaved],
-  )
+  const switchTo = useCallback((kind: SheetKind) => {
+    setActiveKind(kind)
+    setSheets((prev) =>
+      prev.some((s) => s.kind === kind) ? prev : [...prev, newSheet(kind)],
+    )
+  }, [])
 
   /**
- * Export carries the paper on screen, and only that one. The other sheet stays
- * in the database and can be exported by switching to it first.
- */
+   * Export carries the paper on screen, and only that one. The other sheet
+   * stays in the draft and can be exported by switching to it first.
+   */
   const exportExcel = useCallback(async () => {
     try {
       await downloadTosExcel(exam, sheet)
       // An export is the most defensible thing a blueprint page can be asked to
       // do — it is the point where the work leaves the app — so it is recorded
-      // rather than treated as a read.
+      // rather than treated as a read. A draft export has no row to point at
+      // yet, so the entry carries no entity id.
       await addActivityLog('tos_exam.exported', {
         entity: 'tos_exam',
-        // The on-screen TosExam is the form's shape, not the row — it carries no
-        // id. activeId is the row's primary key and the only id available here.
-        entity_id: activeId ?? undefined,
         label: [exam?.code, exam?.title].filter(Boolean).join(' — ') || 'Table of Specification',
       })
     } catch (e) {
       fail(e, 'Could not build the Excel file.')
     }
-  }, [exam, sheet, fail, activeId])
+  }, [exam, sheet, fail])
+
+  /** Archive or restore, then re-read whichever tab is on screen. */
+  const setExamStatus = useCallback(
+    async (id: string, next: 'active' | 'archived') => {
+      const row = examList.find((r) => r.id === id)
+      try {
+        await updateTosExam(id, { status: next })
+        const all = await fetchTosExams('all')
+        setExamList(all)
+        setArchivedCount(all.filter((r) => r.status === 'archived').length)
+        // Archive and restore are separate actions, not one "status changed",
+        // so the log can tell which happened.
+        await addActivityLog(
+          next === 'archived' ? 'tos_exam.archived' : 'tos_exam.restored',
+          {
+            entity: 'tos_exam',
+            entity_id: id,
+            label: [row?.code, row?.title].filter(Boolean).join(' — ') || 'Table of Specification',
+          },
+        )
+      } catch (e) {
+        fail(e, 'Could not change the blueprint status.')
+      }
+    },
+    [examList, fail],
+  )
+
+  /** Open a card's blueprint inline, or close the one that is open. */
+  const toggleCardEdit = useCallback((row: TosExamRow) => {
+    setEditingId((prev) => (prev === row.id ? null : row.id))
+  }, [])
+
+  const cancelCardEdit = useCallback(() => {
+    setEditingId(null)
+  }, [])
+
+  // The panel's tab decides which half of the list it shows, the same way the
+  // Curriculum page's Active/Archive tabs do.
+  const visibleExams = useMemo(
+    () => examList.filter((r) => (archived ? r.status === 'archived' : r.status !== 'archived')),
+    [examList, archived],
+  )
+
+  // ---- picker options ---------------------------------------------------
+
+  // The picker lists are auxiliary: the blueprint is fully usable without them,
+  // so a failed read degrades to an empty dropdown instead of locking the page.
+  // allSettled keeps one dead table from taking the other down with it. Only
+  // active rows are offered.
+  useEffect(() => {
+    let cancelled = false
+    Promise.allSettled([fetchPrograms(), fetchCourses()]).then(([p, c]) => {
+      if (cancelled) return
+      setPrograms(p.status === 'fulfilled' ? p.value.filter(isActive) : [])
+      setCourses(c.status === 'fulfilled' ? c.value.filter(isActive) : [])
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  /** The program the exam is currently filed under, or '' when none/unlisted. */
+  const selectedProgramId = useMemo(
+    () => programIdForLabel(programs, exam.code),
+    [programs, exam.code],
+  )
+
+  // Built by the shared helpers so the page and an expanded card offer the same
+  // lists; see utils/tosOptions.ts for why an unmatched saved value is kept.
+  const programOptions = useMemo(
+    () => buildProgramOptions(programs, exam.code),
+    [programs, exam.code],
+  )
+
+  const courseOptions = useMemo(
+    () => buildCourseOptions(courses, selectedProgramId, exam.title),
+    [courses, selectedProgramId, exam.title],
+  )
+
+  const semesterOptions = useMemo(() => buildSemesterOptions(exam.semester), [exam.semester])
+  const schoolYearOptions = useMemo(() => buildSchoolYearOptions(exam.schoolYear), [
+    exam.schoolYear,
+  ])
+  const examTypeOptions = useMemo(() => buildExamTypeOptions(exam.examType), [exam.examType])
 
   return (
     <div className="syllabus-doc">
@@ -957,11 +662,7 @@ export default function TOS() {
               onChange={(e) => patchExam({ title: e.target.value })}
             >
               <option value="">
-                {courses.length === 0
-                  ? 'No courses available'
-                  : selectedProgramId
-                    ? '- select course -'
-                    : '- select course (all programs) -'}
+                {courses.length === 0 ? 'No courses available' : '- select course -'}
               </option>
               {courseOptions.map((o) => (
                 <option key={o.id} value={o.value}>
@@ -971,41 +672,69 @@ export default function TOS() {
             </select>
           </label>
           <label className="field">
-            {/* Labelled Semester, matching how the options actually read
-                ("1st Semester, 2026-2027") and how the faculty says it. The
-                column and the variable stay `term` — that is the stored name
-                and the exported workbook's own wording. */}
-            <span>Semester</span>
+            <span>Table of Specification for</span>
             <select
               className="input input--sm"
-              value={exam.term}
+              value={exam.examType}
               disabled={!ready}
-              onChange={(e) => patchExam({ term: e.target.value })}
+              onChange={(e) => patchExam({ examType: e.target.value })}
             >
-              <option value="">- select semester -</option>
-              {termOptions.map((t) => (
+              <option value="">- select exam type -</option>
+              {examTypeOptions.map((t) => (
                 <option key={t} value={t}>
                   {t}
                 </option>
               ))}
             </select>
           </label>
+          {/* Semester and School Year sit side by side so the header stays compact. */}
+          <div className="field-row">
+            <label className="field">
+              <span>Semester</span>
+              <select
+                className="input input--sm"
+                value={exam.semester}
+                disabled={!ready}
+                onChange={(e) => patchExam({ semester: e.target.value })}
+              >
+                <option value="">- select semester -</option>
+                {semesterOptions.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>School Year</span>
+              <select
+                className="input input--sm"
+                value={exam.schoolYear}
+                disabled={!ready}
+                onChange={(e) => patchExam({ schoolYear: e.target.value })}
+              >
+                <option value="">- select school year -</option>
+                {schoolYearOptions.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
 
         <div className="tos-savestate" role="status">
           {error ? (
-            <span className="tos-savestate__error">
-              {error}
-              {/* Only when the exam row itself never loaded. The old test was
-                  `ready === false`, and ready already includes `!error` -- so it
-                  fired on *every* failure, appending a database diagnosis to
-                  things like a failed Excel export, which is not one. */}
-              {!loading && !activeId && ' — nothing is being saved. Check the database connection.'}
-            </span>
+            <span className="tos-savestate__error">{error}</span>
           ) : loading ? (
             <span>Loading…</span>
           ) : saving ? (
             <span>Saving…</span>
+          ) : dirty ? (
+            /* The draft's own state, distinct from the last save's timestamp:
+                this says there is work on screen the library does not hold. */
+            <span>Draft — not saved yet</span>
           ) : savedAt ? (
             <span>Saved {savedAt}</span>
           ) : null}
@@ -1038,9 +767,8 @@ export default function TOS() {
         }}
       >
         {SHEET_KINDS.map(({ kind, label }) => {
-          const exists = Boolean(sheetIds.current[kind]) || sheets.some((s) => s.kind === kind)
+          const exists = sheets.some((s) => s.kind === kind)
           const selected = sheet.kind === kind
-          const creating = creatingKind === kind
           return (
             <button
               key={kind}
@@ -1049,34 +777,27 @@ export default function TOS() {
               aria-selected={selected}
               tabIndex={selected ? 0 : -1}
               className={`tos-tab${selected ? ' tos-tab--on' : ''}`}
-              disabled={!ready || creatingKind !== null}
+              disabled={!ready}
               onClick={() => switchTo(kind)}
             >
               {label}
-              {creating ? (
-                <span className="tos-tab__new">…</span>
-              ) : (
-                !exists && <span className="tos-tab__new">new</span>
-              )}
+              {!exists && <span className="tos-tab__new">new</span>}
             </button>
           )
         })}
       </div>
 
-      {/* ---- the blueprint ---- */}
-      {/* Held read-only while a paper is being created: the tab can appear
-          before its row exists, and an edit made in that gap would debounce
-          into a null sheet id and drop silently. */}
+      {/* ---- the draft ---- */}
       <TosSheetGrid
         sheet={sheet}
         header={{
           courseTitle: exam.title,
-          term: exam.term,
+          term: composeTerm(exam.semester, exam.schoolYear),
           // Same line the exported workbook writes at A8.
           title: docTitle(exam.examType, sheet.kind),
         }}
         issues={issues}
-        editable={ready && !creatingKind}
+        editable={ready}
         onPatchSheet={(patch) => patchSheet(activeKind, patch)}
         onPatchTopic={patchTopic}
         onSetBloom={setBloom}
@@ -1086,7 +807,11 @@ export default function TOS() {
         onSave={saveNow}
         saving={saving}
         dirty={dirty}
-        onDiscard={discardPending}
+        onDiscard={discardDraft}
+        // This is not the flush the tooltip defaults to: Save files the whole
+        // draft as one blueprint and starts the next, so the button says so.
+        saveTitle="Save this blueprint into the library and start a blank draft"
+        discardTitle="Throw away this draft — nothing in it has been saved yet"
       />
 
       {/* ---- saved blueprints ----
@@ -1095,7 +820,8 @@ export default function TOS() {
           identical, so "did that save?" had no answer on screen.
 
           It re-reads itself after every save rather than assuming success, so
-          what is listed is what is actually in the database.
+          what is listed is what is actually in the database. Cards file oldest
+          first, so each new blueprint appends at the bottom.
 
           Last on the page, below the blueprint it describes: the editor is the
           thing you came here to use, and the list is a record of what you have
@@ -1125,7 +851,7 @@ export default function TOS() {
               <span>
                 {archived
                   ? 'Archived blueprints stay here — nothing is deleted.'
-                  : 'Name the blueprint above and press Save.'}
+                  : 'Fill in the blueprint above and press Save.'}
               </span>
             </div>
           )}
@@ -1135,12 +861,12 @@ export default function TOS() {
               key={row.id}
               className={`resource-card ${
                 row.status === 'archived' ? 'resource-card--archived' : ''
-              } ${row.id === activeId ? 'resource-card--selected' : ''}`}
+              }`}
             >
               {editingId === row.id ? (
                 /* The whole blueprint, editable in place — its own component
-                   so its writes are scoped to this card rather than to whatever
-                   is open at the top of the page. */
+                   so its writes are scoped to this card. This is the only
+                   editor a saved blueprint has. */
                 <div className="resource-card__edit tos-card__expanded">
                   <div className="tos-card__editorhead">
                     <button
@@ -1155,9 +881,29 @@ export default function TOS() {
                   <TosBlueprintEditor
                     exam={row}
                     onSaved={refreshListRef.current ?? undefined}
+                    onCommitted={async () => {
+                      // Close only once the panel has re-read, so the card
+                      // the editor collapses into shows the database's
+                      // values, not the last snapshot.
+                      await refreshList()
+                      cancelCardEdit()
+                    }}
                     onRenamed={(next) =>
                       setExamList((prev) =>
-                        prev.map((r) => (r.id === row.id ? { ...r, ...next } : r)),
+                        prev.map((r) =>
+                          r.id === row.id
+                            ? {
+                                ...r,
+                                code: next.code,
+                                title: next.title,
+                                exam_type: next.examType,
+                                semester: next.semester,
+                                school_year: next.schoolYear,
+                                term: composeTerm(next.semester, next.schoolYear),
+                                total_hours: next.total_hours,
+                              }
+                            : r,
+                        ),
                       )
                     }
                   />
@@ -1178,7 +924,11 @@ export default function TOS() {
                       <span className="tos-card__label">Course Title:</span>{' '}
                       {row.title || 'No course title yet'}
                     </h4>
-                    <p>{row.term || 'No semester set'}</p>
+                    <p>
+                      {row.semester || row.school_year
+                        ? composeTerm(row.semester ?? '', row.school_year ?? '')
+                        : row.term || 'No semester set'}
+                    </p>
                     {/* The document's own title line, so the card, the
                         blueprint and the exported workbook all name the paper
                         the same way. */}
@@ -1190,10 +940,7 @@ export default function TOS() {
                       <span className={`status-badge status-badge--${row.status}`}>{row.status}</span>
                       {row.code && <span>{row.code}</span>}
                       <span>{row.total_hours} hrs</span>
-                      <span>
-                        {new Date(row.updated_at).toLocaleString()}
-                        {row.id === activeId && dirty ? ' · edited' : ''}
-                      </span>
+                      <span>{new Date(row.updated_at).toLocaleString()}</span>
                     </div>
                   </div>
                   <div className="resource-card__actions">
@@ -1205,30 +952,12 @@ export default function TOS() {
                     >
                       <Icon name="edit" size={13} />
                     </button>
-                    {row.id !== activeId && (
-                      <button
-                        type="button"
-                        className="btn btn--ghost btn--sm"
-                        onClick={() => openExam(row)}
-                      >
-                        Open
-                      </button>
-                    )}
                     <button
                       type="button"
                       className="btn btn--ghost btn--sm"
                       onClick={() => setExamStatus(row.id, row.status === 'archived' ? 'active' : 'archived')}
                     >
                       {row.status === 'archived' ? 'Restore' : 'Archive'}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn--danger btn--sm"
-                      onClick={() => deleteExam(row)}
-                      aria-label={`Delete ${row.code || row.title || 'blueprint'}`}
-                      title="Delete"
-                    >
-                      <Icon name="trash" size={13} />
                     </button>
                   </div>
                 </>

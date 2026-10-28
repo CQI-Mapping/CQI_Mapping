@@ -277,22 +277,20 @@ alignments,
     )
   if (sort) visible.sort(sort)
 
-  // Per-group card numbering for the Program Outcome card style: mirrors the
-  // admin page, where "1." restarts for each CMO category. Computed from the
-  // active/archived list (before the search filter) so numbers stay stable
-  // while searching.
+  // Per-group card numbering for the Program Outcome card style: the count
+  // runs CONTINUOUSLY from 1 across every CMO category — the group order
+  // comes from the sort, and the number is just the card's position in that
+  // walk. This mirrors the Curriculum Mapping document, whose rows run 1…17
+  // over both CMO sections; the prior behavior restarted at 1 per category,
+  // so the manager's flat "PO 5"-style codes showed duplicate numbers.
+  // Computed from the active/archived list (before the search filter) so
+  // numbers stay stable while searching.
   const cardIndex = (() => {
     const idxById = new Map<string, number>()
     if (outcomeCard && groupOf) {
-      const counters = new Map<string, number>()
       const base = items.filter((i) => (archived ? !isActive(i) : isActive(i)))
       if (sort) base.sort(sort)
-      for (const it of base) {
-        const key = groupOf(it)
-        const n = (counters.get(key) ?? 0) + 1
-        counters.set(key, n)
-        idxById.set(it.id, n)
-      }
+      base.forEach((it, n) => idxById.set(it.id, n + 1))
     }
     return (item: T) => idxById.get(item.id) ?? 0
   })()
