@@ -111,6 +111,7 @@ function Profile({ profile, onSaved }: ProfileProps) {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [changingPassword, setChangingPassword] = useState(false)
   const [passwordError, setPasswordError] = useState('')
   const [passwordMessage, setPasswordMessage] = useState('')
@@ -579,19 +580,31 @@ function Profile({ profile, onSaved }: ProfileProps) {
 
               <label className="field">
                 <span>Confirm new password</span>
-                <input
-                  className="input"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  placeholder="Re-enter new password"
-                  value={confirmPassword}
-                  onChange={(e) => {
-                    setConfirmPassword(e.target.value)
-                    if (passwordError) setPasswordError('')
-                    if (passwordMessage) setPasswordMessage('')
-                  }}
-                  disabled={!profile || changingPassword}
-                />
+                <div className="profile-input-wrap">
+                  <input
+                    className="input"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    placeholder="Re-enter new password"
+                    value={confirmPassword}
+                    onChange={(e) => {
+                      setConfirmPassword(e.target.value)
+                      if (passwordError) setPasswordError('')
+                      if (passwordMessage) setPasswordMessage('')
+                    }}
+                    disabled={!profile || changingPassword}
+                  />
+                  <button
+                    type="button"
+                    className="profile-password-toggle"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    aria-label={showConfirmPassword ? 'Hide confirmed password' : 'Show confirmed password'}
+                    title={showConfirmPassword ? 'Hide confirmed password' : 'Show confirmed password'}
+                    tabIndex={-1}
+                  >
+                    <Icon name="eye" size={15} />
+                  </button>
+                </div>
               </label>
 
               <div className="profile-reqs">
