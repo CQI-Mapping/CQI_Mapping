@@ -568,6 +568,11 @@ function Profile({ profile, onSaved }: ProfileProps) {
                 </div>
               </label>
 
+              <p className="profile-note-plain">
+                Your new password must be at least {MIN_PASSWORD_LENGTH} characters long. For better
+                security, use a combination of uppercase and lowercase letters, numbers, and symbols.
+              </p>
+
               <label className="field">
                 <span>Confirm new password</span>
                 <input
