@@ -9,6 +9,7 @@ import Icon from '../components/icons'
 import { updateProfile, addActivityLog, fetchActivityLogs, uploadAvatar } from '../services/database'
 import { supabase } from '../utils/supabaseClient'
 import { loadEmailAvatar, initialsOf } from '../utils/avatar'
+import { friendlyPasswordError } from '../utils/passwordErrors'
 import { ACTION_LABELS } from './admin/ActivityLabels'
 import type { Profile as ProfileType, ActivityLogEntry, UserRole } from '../services/database'
 
@@ -326,7 +327,10 @@ function Profile({ profile, onSaved }: ProfileProps) {
       setPasswordMessage('Password updated successfully.')
       setActivityRefresh((n) => n + 1)
     } catch (err) {
-      setPasswordError('Failed to change password: ' + describe(err))
+      // Known policy rejections read like the form's own language; unknown
+      // ones keep the server's raw text so nothing is misreported.
+      const friendly = friendlyPasswordError(err)
+      setPasswordError(friendly ?? 'Failed to change password: ' + describe(err))
     } finally {
       setChangingPassword(false)
     }

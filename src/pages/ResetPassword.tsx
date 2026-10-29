@@ -8,6 +8,7 @@
 import { useState } from 'react'
 import { supabase } from '../utils/supabaseClient'
 import { addActivityLog } from '../services/database'
+import { friendlyPasswordError } from '../utils/passwordErrors'
 
 /** Consistent error text, same helper Profile uses. */
 function describe(err: unknown): string {
@@ -60,7 +61,8 @@ export default function ResetPassword({ onDone }: ResetPasswordProps) {
       })
       onDone()
     } catch (err) {
-      setError('Could not set the password: ' + describe(err))
+      const friendly = friendlyPasswordError(err)
+      setError(friendly ?? 'Could not set the password: ' + describe(err))
     } finally {
       setBusy(false)
     }
