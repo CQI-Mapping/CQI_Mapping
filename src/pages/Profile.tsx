@@ -117,11 +117,19 @@ function Profile({ profile, onSaved }: ProfileProps) {
 
   const currentPasswordEntered = currentPassword.length > 0
   const passwordLongEnough = password.length >= MIN_PASSWORD_LENGTH
+  // Better-security mix: counting how many of lower/upper digits/symbols the
+  // password touches. All four together light the checklist's advisory chip.
+  const passwordVariety = [
+    /[a-z]/.test(password),
+    /[A-Z]/.test(password),
+    /[0-9]/.test(password),
+    /[^a-zA-Z0-9]/.test(password),
+  ].filter(Boolean).length
   const passwordsMatch = password.length > 0 && password === confirmPassword
   const passwordStrength = !password
     ? 0
     : passwordLongEnough
-      ? 0.45 + 0.55 * Math.min(password.length / 16, 1)
+      ? 0.45 + 0.55 * (0.7 * Math.min(password.length / 16, 1) + 0.3 * (passwordVariety / 4))
       : 0.15
   const canSubmitPassword =
     Boolean(profile) &&
@@ -568,10 +576,6 @@ function Profile({ profile, onSaved }: ProfileProps) {
                 </div>
               </label>
 
-              <p className="profile-note-plain">
-                Your new password must be at least {MIN_PASSWORD_LENGTH} characters long. For better
-                security, use a combination of uppercase and lowercase letters, numbers, and symbols.
-              </p>
 
               <label className="field">
                 <span>Confirm new password</span>
@@ -598,6 +602,10 @@ function Profile({ profile, onSaved }: ProfileProps) {
                 <span className={`profile-req${passwordsMatch ? ' profile-req--ok' : ''}`}>
                   <span className="profile-req__tick"><Icon name="check" size={9} strokeWidth={3.6} /></span>
                   Both fields match
+                </span>
+                <span className={`profile-req${passwordVariety === 4 ? ' profile-req--ok' : ''}`}>
+                  <span className="profile-req__tick"><Icon name="check" size={9} strokeWidth={3.6} /></span>
+                  Uppercase, lowercase, number &amp; symbol
                 </span>
               </div>
 
