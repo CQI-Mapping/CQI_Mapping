@@ -36,7 +36,7 @@ import { rankSemantic, subscribeSemantic, preloadSemantic, type SemanticLoadStat
 import { fuseRanked, toRelative } from '../../utils/poRank'
 import { pickedBefore, recordPick, recordRejection, draftSig } from '../../utils/poMemory'
 import SyllabusReport from '../../components/SyllabusReport'
-import { splitReportPos, buildGroups, outcomeCodeKey, isManagerOutcome, type PoGroup } from '../../utils/report'
+import { splitReportPos, buildGroups, outcomeCodeKey, type PoGroup } from '../../utils/report'
 import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
 import { downloadSyllabusPdf } from '../../utils/syllabusPdf'
 import { reportFileName } from '../../utils/download'
@@ -220,11 +220,13 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
         const { managerPos: mappingPos } = splitReportPos(active)
         const activeCmos = cmos.filter((m) => !m.status || m.status === 'active')
         if (!cancelled) setMappingGroups(buildGroups(mappingPos, activeCmos))
-        // Suggestions use every active manager-created PO, independent of
-        // whether it appears in the Curriculum Mapping reference categories.
-        const managerPos = active.filter(isManagerOutcome)
-        if (!cancelled) setPoSuggestions(managerPos.map(toSuggestion))
-        if (!cancelled) setPoTexts(managerPos.map((p) => {
+        // Suggestions are the Curriculum Mapping outcomes and nothing else —
+        // the same rows the panel beside the form prints, so the chips can
+        // never offer an outcome the faculty member cannot see in the
+        // reference. Manager rows outside the two official CMO categories are
+        // left out on both sides by splitReportPos.
+        if (!cancelled) setPoSuggestions(mappingPos.map(toSuggestion))
+        if (!cancelled) setPoTexts(mappingPos.map((p) => {
           const rec = p as { description?: string | null; cmo_id?: string | null; peo_text?: string | null; sg_text?: string | null }
           const peoTitles = splitCodes(rec.peo_text ?? null).map((c) => peoByCode.get(c.toLowerCase()) ?? '').filter(Boolean)
           const sgDescs = splitCodes(rec.sg_text ?? null).map((c) => sgByCode.get(c.toLowerCase()) ?? '').filter(Boolean)
@@ -484,7 +486,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
       ) : editForm.description.trim().length >= 4 && (
         <div style={{ fontSize: 12, color: '#64748b', margin: '6px 0' }}>
           {poTexts.length === 0
-            ? 'No Program Outcomes yet — create one on the Program Outcomes page first.'
+            ? 'No Curriculum Mapping outcomes yet — add them on the Program Outcomes page first.'
             : 'No close match — try words like design, develop, evaluate, or pick manually above.'}
         </div>
       )}
@@ -631,7 +633,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
           <div className="field" style={{ marginTop: -4 }}>
             <span style={{ fontSize: 12, color: '#64748b' }}>
               {poTexts.length === 0
-                ? 'No Program Outcomes yet — create one on the Program Outcomes page first.'
+                ? 'No Curriculum Mapping outcomes yet — add them on the Program Outcomes page first.'
                 : 'No close match — try words like design, develop, evaluate, or pick manually above.'}
             </span>
           </div>
