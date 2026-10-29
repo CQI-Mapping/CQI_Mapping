@@ -170,6 +170,10 @@ Deno.serve(async (req: Request) => {
       if (!email || !password) {
         return fail('Email and password are required', 400)
       }
+      // Password policy mirrors the client: 8+ characters.
+      if (password.length < 8) {
+        return fail('Password must be at least 8 characters', 400)
+      }
 
       // Program assignment: admins only, and never for admin accounts.
       // The id is verified so a crafted request cannot point at a

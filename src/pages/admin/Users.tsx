@@ -87,6 +87,8 @@ export default function Users() {
     setSuccess('')
     if (!role) { setError('Please select a role for this account.'); return }
     if (!email.trim() || !password.trim()) { setError('Email and password are required.'); return }
+    // Password policy matches the profile card and reset screen: 8+ characters.
+    if (password.length < 8) { setError('Password must be at least 8 characters.'); return }
     // Managers and faculty are program-scoped accounts — the program is
     // required so the dropdown choice can't silently be forgotten.
     if (roleNeedsProgram && !programId) { setError('Choose the program this account belongs to.'); return }
@@ -468,7 +470,7 @@ export default function Users() {
                   </div>
                 </label>
                 <p className="au__cred-note">
-                  At least 6 characters — the new user can change it after signing in, or reset it from the sign-in page themselves.
+                  At least 8 characters — the new user can change it after signing in, or reset it from the sign-in page themselves.
                 </p>
               </div>
             </div>

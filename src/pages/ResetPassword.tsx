@@ -14,8 +14,8 @@ function describe(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
 
-/** Supabase's minimum password length — keep in sync with the project's auth config. */
-export const MIN_PASSWORD_LENGTH = 6
+/** The system's password policy — keep in sync with the auth config and Profile. */
+export const MIN_PASSWORD_LENGTH = 8
 
 interface ResetPasswordProps {
   /** Called once the password is set — App hands the session back to the normal app flow. */
@@ -100,7 +100,7 @@ export default function ResetPassword({ onDone }: ResetPasswordProps) {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   id="new-password"
-                  placeholder="At least 6 characters"
+                  placeholder="At least 8 characters"
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); if (error) setError('') }}
                   autoComplete="new-password"
