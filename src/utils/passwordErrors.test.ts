@@ -22,6 +22,12 @@ describe('friendlyPasswordError', () => {
     ).toBe('That password appears in known data breaches — choose a stronger, unique one.')
   })
 
+  it('translates the reauthentication rejection', () => {
+    expect(friendlyPasswordError(new Error('Reauthentication is required before updating password records'))).toBe(
+      'Sign out and back in once (or use the reset link), then try again — the server wants a fresh sign-in before changing your password.',
+    )
+  })
+
   it('returns null for unknown errors so the raw text survives', () => {
     expect(friendlyPasswordError(new Error('Some unexpected failure'))).toBeNull()
   })

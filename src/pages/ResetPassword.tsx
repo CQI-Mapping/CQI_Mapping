@@ -62,6 +62,7 @@ export default function ResetPassword({ onDone }: ResetPasswordProps) {
       onDone()
     } catch (err) {
       const friendly = friendlyPasswordError(err)
+      console.error('Password update rejected:', describe(err))
       setError(friendly ?? 'Could not set the password: ' + describe(err))
     } finally {
       setBusy(false)

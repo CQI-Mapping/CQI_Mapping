@@ -24,5 +24,10 @@ export function friendlyPasswordError(err: unknown): string | null {
   if (/leaked|breached|haveibeenpwned|weak since/i.test(raw)) {
     return 'That password appears in known data breaches — choose a stronger, unique one.'
   }
+  // "Secure password change"/re-authentication policy: the session must be
+  // a genuinely fresh sign-in before the server accepts a password swap.
+  if (/reauthenticat/i.test(raw)) {
+    return 'Sign out and back in once (or use the reset link), then try again — the server wants a fresh sign-in before changing your password.'
+  }
   return null
 }

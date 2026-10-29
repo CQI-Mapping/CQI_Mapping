@@ -327,9 +327,11 @@ function Profile({ profile, onSaved }: ProfileProps) {
       setPasswordMessage('Password updated successfully.')
       setActivityRefresh((n) => n + 1)
     } catch (err) {
-      // Known policy rejections read like the form's own language; unknown
-      // ones keep the server's raw text so nothing is misreported.
+      // The network layer logs only a bare "400"; keep the server's own
+      // wording in the console so the exact rejection rule is visible
+      // when debugging (it is also translated for the card above).
       const friendly = friendlyPasswordError(err)
+      console.error('Password update rejected:', describe(err))
       setPasswordError(friendly ?? 'Failed to change password: ' + describe(err))
     } finally {
       setChangingPassword(false)
