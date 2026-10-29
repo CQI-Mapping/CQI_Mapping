@@ -517,7 +517,7 @@ function Profile({ profile, onSaved }: ProfileProps) {
                     className="input"
                     type={showCurrentPassword ? 'text' : 'password'}
                     autoComplete="current-password"
-                    placeholder="Enter the password you use today"
+                    placeholder="Enter the Current Password"
                     value={currentPassword}
                     onChange={(e) => {
                       setCurrentPassword(e.target.value)
