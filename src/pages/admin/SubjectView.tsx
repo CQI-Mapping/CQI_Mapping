@@ -3075,7 +3075,7 @@ export default function SubjectView() {
               {rootType === 'curriculum' && (
                 <div className="subject-view__map-filters">
                   <label>
-                    <b>1. Program Outcomes (PO):</b>
+                    <b>1. Curriculum Outcomes:</b>
                     <select
                       className="input input--sm"
                       value={mapPoId}
@@ -3093,7 +3093,7 @@ export default function SubjectView() {
                       className="input input--sm"
                       value={mapCloId}
                       disabled={!mapPoId}
-                      title={!mapPoId ? 'Choose a program outcome first' : undefined}
+                      title={!mapPoId ? 'Choose a curriculum outcome first' : undefined}
                       onChange={(e) => setMapCloId(e.target.value)}
                     >
                       <option value="">— All indicators —</option>
