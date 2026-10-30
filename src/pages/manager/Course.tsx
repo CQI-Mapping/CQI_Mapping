@@ -29,6 +29,9 @@ const instructorLabelOf = (v: Course['instructor_id']) =>
 // Term placement readback, worded exactly like the OBE Curriculum Map's
 // columns ("2nd Year · 1st Sem"), so the card badge and the map agree.
 const ordYear = (n: number) => ['1st', '2nd', '3rd', '4th', '5th', '6th'][n - 1] ?? `${n}th`
+// Year levels offered in the forms — the program runs 1st to 4th year only.
+// (ordYear still labels any stored value above 4 so old data reads correctly.)
+const YEAR_LEVELS = [1, 2, 3, 4]
 const termLabelOf = (c: Pick<Course, 'year_level' | 'semester'>): string => {
   if (c.year_level == null) return ''
   const sem = c.semester === 1 ? '1st Sem' : c.semester === 2 ? '2nd Sem' : c.semester === 3 ? 'Off Sem' : ''
@@ -484,7 +487,7 @@ export default function ManagerCourse({ profile }: CourseProps) {
                   semester: e.target.value ? editForm.semester : '',
                 })}>
                 <option value="">Not placed</option>
-                {[1, 2, 3, 4, 5, 6].map((y) => (
+                {YEAR_LEVELS.map((y) => (
                   <option key={y} value={y}>{ordYear(y)} Year</option>
                 ))}
               </select>
@@ -652,7 +655,7 @@ export default function ManagerCourse({ profile }: CourseProps) {
                       semester: e.target.value ? form.semester : '',
                     })}>
                     <option value="">Not placed</option>
-                    {[1, 2, 3, 4, 5, 6].map((y) => (
+                    {YEAR_LEVELS.map((y) => (
                       <option key={y} value={y}>{ordYear(y)} Year</option>
                     ))}
                   </select>
