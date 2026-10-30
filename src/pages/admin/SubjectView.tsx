@@ -1863,7 +1863,7 @@ export default function SubjectView() {
       zoomGroup.append('line')
         .attr('x1', bx).attr('x2', bx)
         .attr('y1', 28).attr('y2', contentH - 16)
-        .attr('stroke', '#e2e8f0').attr('stroke-width', 1)
+        .attr('stroke', '#94a3b8').attr('stroke-width', 1).attr('vector-effect', 'non-scaling-stroke')
     }
 
     // The Year · Semester header band lives in its own svg — the pinned strip
@@ -1891,7 +1891,7 @@ export default function SubjectView() {
         head.append('line')
           .attr('x1', x - COL_W / 2 + 14).attr('x2', x + COL_W / 2 - 14)
           .attr('y1', RULE_Y).attr('y2', RULE_Y)
-          .attr('stroke', '#e2e8f0').attr('stroke-width', 1)
+          .attr('stroke', '#94a3b8').attr('stroke-width', 1).attr('vector-effect', 'non-scaling-stroke')
       }
       // Vertical separators between the column labels — spanning the strip's
       // full height so they join flush with the grid's top-to-bottom dividers.
@@ -1900,7 +1900,7 @@ export default function SubjectView() {
         head.append('line')
           .attr('x1', bx).attr('x2', bx)
           .attr('y1', 0).attr('y2', HEAD_H)
-          .attr('stroke', '#e2e8f0').attr('stroke-width', 1)
+          .attr('stroke', '#94a3b8').attr('stroke-width', 1).attr('vector-effect', 'non-scaling-stroke')
       }
     }
 
