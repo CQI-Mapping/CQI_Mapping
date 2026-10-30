@@ -216,6 +216,18 @@ const legendDefs: Array<{ kind: NodeKind; label: string; tip: string }> = [
 // raw stored codes, so existing references never break.
 const poCode = (code: string) => String(code || '').replace(/^PG(?=[\s\-–—]?\d)/i, 'PO')
 
+// Curriculum display label: when the code is already inside the title
+// (code "BSIT", title "BSIT 2025-2026") show just "BSIT 2025-2026" instead
+// of the redundant "BSIT — BSIT 2025-2026".
+const curriculumLabel = (c: { code?: string | null; title?: string | null }) => {
+  const code = String(c.code || '').trim()
+  const title = String(c.title || '').trim()
+  if (code && title && !title.toLowerCase().includes(code.toLowerCase())) {
+    return `${code} — ${title}`
+  }
+  return title || code || '—'
+}
+
 // Category order + headings for the connected-details card. Every connected
 // node is bucketed by its kind; categories with nothing attached are hidden, so
 // one list serves all three roots — a PO/PEO tree simply has no curriculum,
@@ -2544,7 +2556,7 @@ export default function SubjectView() {
     : selectedPeo ? `${selectedPeo.code} — ${selectedPeo.title || selectedPeo.code}`
     : selectedSg ? `${selectedSg.code} — ${selectedSg.title || selectedSg.code}`
     : selectedCmo ? `${selectedCmo.code} — ${selectedCmo.title || selectedCmo.code}`
-    : selectedCurriculum ? `${selectedCurriculum.code || selectedCurriculum.title} — ${selectedCurriculum.title}`
+    : selectedCurriculum ? curriculumLabel(selectedCurriculum)
     : selectedProgram ? `${selectedProgram.code} — ${selectedProgram.name || selectedProgram.code}`
     : ''
   // The OBE Curriculum Map reads on its own, so it carries no hint line;
@@ -2974,7 +2986,7 @@ export default function SubjectView() {
                     <>
                       <option value="">— Select a curriculum —</option>
                       {allCurricula.map((r) => (
-                        <option key={r.id} value={r.id}>{r.code || r.title} — {r.title}</option>
+                        <option key={r.id} value={r.id}>{curriculumLabel(r)}</option>
                       ))}
                     </>
                   )}
@@ -3083,7 +3095,7 @@ export default function SubjectView() {
                       }}
                     >
                       {allCurricula.map((r) => (
-                        <option key={r.id} value={r.id}>{r.code || r.title} — {r.title}</option>
+                        <option key={r.id} value={r.id}>{curriculumLabel(r)}</option>
                       ))}
                     </select>
                   </label>
