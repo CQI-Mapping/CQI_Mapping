@@ -268,7 +268,7 @@ export default function SubjectView() {
   const [spinner, setSpinner] = useState(false)
   const [graphError, setGraphError] = useState('')
   const [datasets, setDatasets] = useState<OutcomeDatasets | null>(null)
-  const [containerSize, setContainerSize] = useState({ w: 0, h: 0 })
+  const [containerSize, setContainerSize] = useState({ w: 0, h: 0, bw: 0, bh: 0 })
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set())
   // Curriculum branches open into every subject in that curriculum plus each
   // one's CLO → PO → PEO/SG/CMO sub-tree — easily hundreds of nodes — so they
@@ -1736,6 +1736,11 @@ export default function SubjectView() {
 
     const viewW = containerSize.w || svgEl.clientWidth || 928
     const viewH = containerSize.h || svgEl.clientHeight || 680
+    // The map canvas fills the bordered box around itself, so the box — not
+    // the svg — measures how tall the drawing may go.
+    const boxEl = svgEl.parentElement
+    const boxW = containerSize.bw || boxEl?.clientWidth || viewW
+    const boxHpx = containerSize.bh || boxEl?.clientHeight || viewH
 
     interface MapNode {
       id: string
@@ -1810,6 +1815,15 @@ export default function SubjectView() {
     // column (plus a little breathing room) — nothing sits beside it.
     const totalW = colX(columns[columns.length - 1].key) + COL_W / 2 + 28
 
+    // Tall-canvas height: the drawing fills the box's leftover height (less
+    // the pinned header strip's share of the scale) but never drops below
+    // the rows' natural height, so the Year · Semester columns always run
+    // top to bottom and the dot stacks can center inside them.
+    const mapScale = boxW / totalW
+    const HEAD_H = 44
+    const bodyPx = Math.max(boxHpx - HEAD_H * mapScale, (contentH - 44) * mapScale)
+    const vbH = bodyPx / mapScale
+
     // Filter rule: the chosen PO by normalized record id. A subject stays lit
     // only when it (via its CLOs) names the selected outcome.
     const poKeyById = new Map(map.pos.map((p) => [p.id, normalizeCode(p.code)]))
@@ -1820,6 +1834,14 @@ export default function SubjectView() {
     const nodes: MapNode[] = []
     for (const [key, list] of buckets) {
       const x0 = colX(key)
+      // Each column centers its own dot stack in the tall drawing's usable
+      // band (below the header rule), so a light semester reads mid-column
+      // instead of clinging to the top. The −18 compensates for the
+      // code/title label riding above every dot; a stack taller than the
+      // drawing anchors to the top edge instead.
+      const stackH = (list.length - 1) * ROW_H
+      const y0 =
+        FIRST_ROW_Y + Math.max(0, (28 + vbH - FIRST_ROW_Y - stackH) / 2 - 18) + ROW_H / 2
       list.forEach((s, i) => {
         nodes.push({
           id: `course-${s.courseId}`,
@@ -1830,19 +1852,14 @@ export default function SubjectView() {
           color: yearColor(s.year),
           dim: dimSubject(s),
           x: x0,
-          // Dot centered in its 46px row slot, so the code/title label above
-          // and the clear space below balance instead of the pair riding the
-          // cell's top edge.
-          y: FIRST_ROW_Y + i * ROW_H + ROW_H / 2,
+          y: y0 + i * ROW_H,
           r: 7,
         })
       })
     }
 
     svg
-      .attr('width', viewW)
-      .attr('height', viewH)
-      .attr('viewBox', [-24, 28, totalW, contentH - 44] as unknown as string)
+      .attr('viewBox', [-24, 28, totalW, vbH] as unknown as string)
       // Anchored top-left so a stretched canvas can no longer float the grid
       // with centered empty bands — dividers start at the box's top edge.
       .attr('preserveAspectRatio', 'xMinYMin meet')
@@ -1865,7 +1882,7 @@ export default function SubjectView() {
       const bx = colX(columns[i].key) + COL_W / 2
       zoomGroup.append('line')
         .attr('x1', bx).attr('x2', bx)
-        .attr('y1', 28).attr('y2', contentH - 16)
+        .attr('y1', 28).attr('y2', 28 + vbH)
         .attr('stroke', '#94a3b8').attr('stroke-width', 1).attr('vector-effect', 'non-scaling-stroke')
     }
 
@@ -1873,8 +1890,9 @@ export default function SubjectView() {
     // inside the sticky control package — instead of the scrolling body, so
     // the labels stay on top while the tall grid passes underneath. Same
     // drawing origin (-24) and same viewBox width as the body keep the two
-    // halves aligned column-for-column.
-    const HEAD_H = 44
+    // halves aligned column-for-column. HEAD_H is hoisted beside the
+    // tall-canvas geometry above, so the strip's pixel share and the body's
+    // leftover share both come from the one number.
     if (head) {
       head
         .attr('viewBox', [-24, 0, totalW, HEAD_H] as unknown as string)
@@ -2490,11 +2508,24 @@ export default function SubjectView() {
       setContainerSize((prev) => {
         const w = el.clientWidth
         const h = el.clientHeight
-        return prev.w === w && prev.h === h ? prev : { w, h }
+        // The bordered box (svg's parent) is measured for the curriculum
+        // map: that canvas fills the box instead of hugging a drawing.
+        const box = el.parentElement
+        const bw = box?.clientWidth ?? 0
+        const bh = box?.clientHeight ?? 0
+        return prev.w === w && prev.h === h && prev.bw === bw && prev.bh === bh
+          ? prev
+          : { w, h, bw, bh }
       })
     })
     ro.observe(el)
-    setContainerSize({ w: el.clientWidth, h: el.clientHeight })
+    if (el.parentElement) ro.observe(el.parentElement)
+    setContainerSize({
+      w: el.clientWidth,
+      h: el.clientHeight,
+      bw: el.parentElement?.clientWidth ?? 0,
+      bh: el.parentElement?.clientHeight ?? 0,
+    })
     return () => ro.disconnect()
   }, [showGraph, datasets, isFullscreen])
 
@@ -3118,7 +3149,7 @@ export default function SubjectView() {
               } as Record<string, string>)[rootType] ?? 'Select what to visualize on the left, then press Generate Visualization.'}</p>
             </div>
           ) : (
-            <div className={`subject-view__graph-area${rootType === 'curriculum' ? ' subject-view__graph-area--map' : ''}`}>
+            <div className="subject-view__graph-area">
               {/* OBE Curriculum Map control bar — "1." switches the curriculum
                   the timetable shows, "2." narrows that map to a single
                   program outcome's subjects. The selects and toolbar share a
