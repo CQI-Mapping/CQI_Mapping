@@ -472,6 +472,60 @@ export default function SubjectView() {
     [programs, selectedProgramId],
   )
 
+  // ── Landing default: Generate Map opens onto the OBE Curriculum Map ────────
+  // The page's own point is the map, so as soon as the data is in, the first
+  // program that carries curricula boots its default curriculum full screen —
+  // the dashboard-style view faculty expect when they navigate here. The boot
+  // is polite: it stands down if the visitor has picked any visualization
+  // themselves, and it prefers their program when it qualifies.
+  const mapBootRanRef = useRef(false)
+  useEffect(() => {
+    if (mapBootRanRef.current || loading || !datasets || rootType || programs.length === 0) return
+    const qualifies = (p: { id: string } | undefined) =>
+      p != null &&
+      courses.some((c) => {
+        const pid = typeof c.program_id === 'object' ? c.program_id.id : c.program_id
+        if (pid !== p.id) return false
+        const opt = c.curriculum_id
+        const cid = opt && typeof opt === 'object' ? opt.id : opt
+        return cid != null && datasets.resources.some((r) => r.id === cid)
+      })
+    const userProgram = programs.find((p) => p.id === selectedProgramId)
+    const candidate = qualifies(userProgram) ? userProgram : programs.find(qualifies)
+    if (!candidate) return
+    mapBootRanRef.current = true
+    setSelectedProgramId(candidate.id)
+    for (const c of courses) {
+      const pid = typeof c.program_id === 'object' ? c.program_id.id : c.program_id
+      if (pid !== candidate.id) continue
+      const opt = c.curriculum_id
+      const cid = opt && typeof opt === 'object' ? opt.id : opt
+      if (cid == null || !datasets.resources.some((r) => r.id === cid)) continue
+      setSelectedCurriculumId(cid)
+      setRootType('curriculum')
+      setShowGraph(true)
+      setIsFullscreen(true)
+      break
+    }
+  }, [loading, datasets, rootType, programs, courses, selectedProgramId])
+
+  // While the curriculum root is up, a program switch keeps the map on screen:
+  // the new program's default curriculum replaces the stale pick (which belongs
+  // to the previous program and would render nothing). A program without
+  // curricula stand down the full screen — its empty picker already explains.
+  useEffect(() => {
+    if (rootType !== 'curriculum') return
+    if (allCurricula.length === 0) {
+      setIsFullscreen(false)
+      return
+    }
+    if (selectedCurriculumId && allCurricula.some((r) => r.id === selectedCurriculumId)) return
+    const first = allCurricula[0]
+    setSelectedCurriculumId(first.id)
+    setShowGraph(true)
+    setIsFullscreen(true)
+  }, [rootType, allCurricula, selectedCurriculumId])
+
   // Quick tallies shown in the left panel before View.
   // Subject mode: pre-req / co-req / CLO counts. PO mode: linked CLOs / subjects.
   // PEO mode: aligned POs / subjects reached through those POs.
@@ -2839,7 +2893,7 @@ export default function SubjectView() {
             <span className="sr-only">Select program</span>
             <select className="input input--sm" value={selectedProgramId}
               disabled={programs.length === 0}
-              onChange={(e) => { setSelectedProgramId(e.target.value); setSelectedCourseId(null); setSelectedCurriculumId(null); setShowGraph(false); setNavStack([]) }}>
+              onChange={(e) => { setSelectedProgramId(e.target.value); setSelectedCourseId(null); setSelectedCurriculumId(null); setNavStack([]); if (rootType !== 'curriculum') setShowGraph(false) }}>
               {programs.length === 0 && <option value="">No programs available</option>}
               {programs.map((p) => (
                 <option key={p.id} value={p.id}>{p.name || p.code}</option>
