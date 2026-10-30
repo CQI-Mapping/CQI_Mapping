@@ -210,6 +210,12 @@ const legendDefs: Array<{ kind: NodeKind; label: string; tip: string }> = [
   { kind: 'cmo', label: 'CMO', tip: 'CHED Memorandum Order(s)' },
 ]
 
+// Display-only rewrite for outcome codes still stored as "PG-1" (the old
+// "Program Graduate" wording): they read as "PO-1" on the OBE Curriculum Map.
+// Only the shown text changes — filtering and dim-matching keep comparing the
+// raw stored codes, so existing references never break.
+const poCode = (code: string) => String(code || '').replace(/^PG(?=[\s\-–—]?\d)/i, 'PO')
+
 // Category order + headings for the connected-details card. Every connected
 // node is bucketed by its kind; categories with nothing attached are hidden, so
 // one list serves all three roots — a PO/PEO tree simply has no curriculum,
@@ -1823,7 +1829,7 @@ export default function SubjectView() {
     const poNodes: MapNode[] = map.pos.map((p, i) => ({
       id: `po-${p.id}`,
       kind: 'po',
-      code: p.code,
+      code: poCode(p.code),
       title: p.title,
       poId: p.id,
       color: colorMap.po as string,
@@ -3187,7 +3193,7 @@ export default function SubjectView() {
                     >
                       <option value="">— All outcomes —</option>
                       {mapFilterOptions.pos.map((p) => (
-                        <option key={p.id} value={p.id}>{p.code}</option>
+                        <option key={p.id} value={p.id}>{poCode(p.code)}</option>
                       ))}
                     </select>
                   </label>
