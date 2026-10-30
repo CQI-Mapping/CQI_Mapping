@@ -1889,13 +1889,13 @@ export default function SubjectView() {
           .attr('y1', RULE_Y).attr('y2', RULE_Y)
           .attr('stroke', '#e2e8f0').attr('stroke-width', 1)
       }
-      // Vertical separators between the column labels so each Year · Semester
-      // header reads as its own cell instead of one run-on strip.
+      // Vertical separators between the column labels — spanning the strip's
+      // full height so they join flush with the grid's top-to-bottom dividers.
       for (let i = 0; i < columns.length - 1; i += 1) {
         const bx = colX(columns[i].key) + COL_W / 2
         head.append('line')
           .attr('x1', bx).attr('x2', bx)
-          .attr('y1', 4).attr('y2', HEAD_H - 4)
+          .attr('y1', 0).attr('y2', HEAD_H)
           .attr('stroke', '#e2e8f0').attr('stroke-width', 1)
       }
     }
