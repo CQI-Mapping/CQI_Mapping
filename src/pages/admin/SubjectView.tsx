@@ -3100,14 +3100,6 @@ export default function SubjectView() {
                       ))}
                     </select>
                   </label>
-                  <button
-                    type="button"
-                    className="btn btn--ghost btn--sm"
-                    onClick={() => { setMapPoId(''); setMapCloId(''); resetZoom() }}
-                    title="Clear the filters and reframe the map"
-                  >
-                    ⟳ Reset View
-                  </button>
                 </div>
               )}
               <div className="subject-view__graph-toolbar">
