@@ -2024,11 +2024,12 @@ export default function SubjectView() {
       else if (d.kind === 'subject' && d.courseId) gotoSubjectRoot(d.courseId)
     })
 
-    const zoom = d3.zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.2, 3])
-      .on('zoom', (event) => zoomGroup.attr('transform', event.transform))
-    svg.call(zoom as unknown as d3.ZoomBehavior<SVGSVGElement, unknown>)
-    zoomRef.current = zoom as unknown as d3.ZoomBehavior<SVGSVGElement, unknown>
+    // The OBE Curriculum Map is a fixed Year · Semester timetable meant to be
+    // read through the panel's normal scrolling, so it deliberately carries no
+    // zoom: wheel scrolling stays native (the overlay scrolls instead of
+    // scaling the map), and the toolbar's zoom buttons stay off for this
+    // root. The other graph types keep their d3.zoom behavior.
+    zoomRef.current = null
 
     return () => {
       svg.on('.zoom', null)
@@ -2653,7 +2654,7 @@ export default function SubjectView() {
     : selectedProgram ? `${selectedProgram.code} — ${selectedProgram.name || selectedProgram.code}`
     : ''
   const graphHint = rootType === 'curriculum'
-    ? 'Every subject stands in its Year · Semester column, colored by year (1st purple → last yellow). Lines connect subjects that feed the same program outcome; the right column lists the outcomes themselves. Click a subject or a PGO to view the graph from there. Narrow the picture with the PGO / PI filters, or press Reset View to clear them. Scroll to zoom, drag to pan.'
+    ? 'Every subject stands in its Year · Semester column, colored by year (1st purple → last yellow). Lines connect subjects that feed the same program outcome; the right column lists the outcomes themselves. Click a subject or a PGO to view the graph from there. Narrow the picture with the PGO / PI filters, or press Reset View to clear them. The map moves with normal scrolling — zoom and drag-pan are off on this view.'
     : rootType === 'subject'
     ? 'Click any branch node to see what is connected to it in the panel below. Click a PO, CLO, PEO, goal or memorandum to view the graph from there. Click a pre-req or co-req to jump to that subject. Click a curriculum to open its sibling subjects. Drag nodes to reposition. Scroll to zoom or use the ＋ / − buttons. Use Back to undo a re-root.'
     : rootType === 'po'
