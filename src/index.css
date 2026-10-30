@@ -6378,6 +6378,26 @@ button.reports-panel__more:hover {
   padding-bottom: 8px;
 }
 
+/* Fullscreen map sizing overrides — the tall min-heights above stretch the
+   svg inside a taller-than-drawing box, which floats the divider lines
+   between empty bands (the old centered rest state). The scroller wrap
+   keeps its internal scroll with the pinned header strip, but no longer
+   stretches: a content-height svg means the divider lines truly run the
+   box's top edge to its bottom edge, and short maps stay content-sized
+   instead of padding the frame with empty space. */
+.subject-view__graph-wrap--scroll {
+  flex: 0 0 auto;
+}
+
+.subject-view__graph-wrap--scroll .subject-view__svg {
+  min-height: 0;
+}
+
+.subject-view__right--fullscreen .subject-view__graph-wrap--scroll {
+  min-height: 0;
+  max-height: calc(100vh - var(--hdr-h, 70px) - 150px);
+}
+
 /* Printing the Subject View prints the map and nothing else, the way the bare
    figure reads: no selector console, no toolbar buttons or Back, no hint
    or legend, and not the about card or the syllabus document the page

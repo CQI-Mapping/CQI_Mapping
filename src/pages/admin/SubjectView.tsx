@@ -1840,6 +1840,9 @@ export default function SubjectView() {
       .attr('width', viewW)
       .attr('height', viewH)
       .attr('viewBox', [-24, 28, totalW, contentH - 44] as unknown as string)
+      // Anchored top-left so a stretched canvas can no longer float the grid
+      // with centered empty bands — dividers start at the box's top edge.
+      .attr('preserveAspectRatio', 'xMinYMin meet')
       .attr('style', 'max-width: 100%; height: auto;')
 
     const defs = svg.append('defs')
@@ -1872,6 +1875,7 @@ export default function SubjectView() {
     if (head) {
       head
         .attr('viewBox', [-24, 0, totalW, HEAD_H] as unknown as string)
+        .attr('preserveAspectRatio', 'xMinYMin meet')
         .attr('style', 'display: block; width: 100%; height: auto;')
       for (const col of columns) {
         const x = colX(col.key)
