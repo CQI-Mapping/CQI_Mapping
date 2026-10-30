@@ -16,12 +16,22 @@ import {
   fetchCourses,
   createCourse,
   updateCourse,
+  courseTermColumnsExist,
   addActivityLog,
 } from '../../services/database'
 import type { Program, Resource, Course } from '../../services/database'
 
 const instructorLabelOf = (v: Course['instructor_id']) =>
   v && typeof v === 'object' ? v.full_name || v.email : ''
+
+// Term placement readback, worded exactly like the OBE Curriculum Map's
+// columns ("2nd Year · 1st Sem"), so the card badge and the map agree.
+const ordYear = (n: number) => ['1st', '2nd', '3rd', '4th', '5th', '6th'][n - 1] ?? `${n}th`
+const termLabelOf = (c: Pick<Course, 'year_level' | 'semester'>): string => {
+  if (c.year_level == null) return ''
+  const sem = c.semester === 1 ? '1st Sem' : c.semester === 2 ? '2nd Sem' : c.semester === 3 ? 'Off Sem' : ''
+  return sem ? `${ordYear(c.year_level)} Year · ${sem}` : `${ordYear(c.year_level)} Year`
+}
 
 interface CourseProps {
   profile?: { email?: string | null } | null
@@ -31,6 +41,8 @@ type CourseForm = {
   code: string
   title: string
   curriculum: string
+  yearLevel: string
+  semester: string
   prereq: string
   prereqNA: boolean
   coreq: string
@@ -44,6 +56,8 @@ const blank: CourseForm = {
   code: '',
   title: '',
   curriculum: '',
+  yearLevel: '',
+  semester: '',
   prereq: '',
   prereqNA: false,
   coreq: '',
@@ -175,6 +189,20 @@ export default function ManagerCourse({ profile }: CourseProps) {
   const [query, setQuery] = useState('')
   // List (default) or grid card style — the user decides per browser.
   const [viewMode, setViewMode] = useViewMode('cqi.viewMode.course')
+  // The term selects only render when the database actually carries the
+  // courses.year_level / courses.semester columns — the same probe the
+  // Curriculum Mapping Summary uses before it shows its edit controls. A
+  // database provisioned before migration 003 keeps the form usable without
+  // them, and the map simply reports those subjects as unplaced.
+  const [termColumns, setTermColumns] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    courseTermColumnsExist()
+      .then((ok) => { if (alive) setTermColumns(ok) })
+      .catch(() => { if (alive) setTermColumns(true) })
+    return () => { alive = false }
+  }, [])
 
   const errMsg = (e: unknown) => {
     if (e instanceof Error) return e.message
@@ -272,6 +300,8 @@ export default function ManagerCourse({ profile }: CourseProps) {
     code: f.code.trim().toUpperCase(),
     title: f.title.trim(),
     curriculum_id: f.curriculum || null,
+    year_level: f.yearLevel ? Number(f.yearLevel) : null,
+    semester: f.semester ? Number(f.semester) : null,
     prerequisite: f.prereqNA ? '' : f.prereq.trim(),
     corequisite: f.coreqNA ? '' : f.coreq.trim(),
     credit_lecture: parseInt(f.creditLecture, 10) || 0,
@@ -321,6 +351,8 @@ export default function ManagerCourse({ profile }: CourseProps) {
         code: item.code,
         title: item.title,
         curriculum: relId(item.curriculum_id),
+        yearLevel: item.year_level == null ? '' : String(item.year_level),
+        semester: item.semester == null ? '' : String(item.semester),
         prereq: item.prerequisite || '',
         prereqNA: !item.prerequisite,
         coreq: item.corequisite || '',
@@ -462,6 +494,44 @@ export default function ManagerCourse({ profile }: CourseProps) {
                 ))}
               </select>
             </label>
+            {termColumns ? (
+              <>
+                <label className="field">
+                  <span>Year Level</span>
+                  <select className="input" value={activeForm.yearLevel}
+                    onChange={(e) => setActiveForm({
+                      ...activeForm,
+                      yearLevel: e.target.value,
+                      // Clearing the year has no semester to keep.
+                      semester: e.target.value ? activeForm.semester : '',
+                    })}>
+                    <option value="">Not placed</option>
+                    {[1, 2, 3, 4, 5, 6].map((y) => (
+                      <option key={y} value={y}>{ordYear(y)} Year</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Semester</span>
+                  <select className="input" value={activeForm.semester} disabled={!activeForm.yearLevel}
+                    onChange={(e) => setActiveForm({ ...activeForm, semester: e.target.value })}>
+                    <option value="">Not placed</option>
+                    <option value="1">1st Sem</option>
+                    <option value="2">2nd Sem</option>
+                    <option value="3">Off-sem</option>
+                  </select>
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+                    Places the subject in the OBE Curriculum Map's Year · Semester columns.
+                  </div>
+                </label>
+              </>
+            ) : (
+              <label className="field">
+                <span>Year Level / Semester</span>
+                <input className="input" readOnly disabled
+                  value="Unavailable — the database lacks courses.year_level / courses.semester (migration 003)." />
+              </label>
+            )}
             <label className="field">
               <span>Course Code</span>
               <input className="input" type="text" placeholder="e.g. IT21"
@@ -584,6 +654,7 @@ export default function ManagerCourse({ profile }: CourseProps) {
                       <div className="resource-card__meta">
                         <span className={`status-badge status-badge--${isActive(c) ? 'active' : 'archived'}`}>{isActive(c) ? 'Active' : 'Archived'}</span>
                         <span>{curriculumLabel(c.curriculum_id)}</span>
+                        {termLabelOf(c) && <span title="Term placement — which column the subject stands in on the OBE Curriculum Map">{termLabelOf(c)}</span>}
                         <span>{c.credit_lecture ?? 0} lec / {c.credit_laboratory ?? 0} lab</span>
                         <span>{instructorLabelOf(c.instructor_id)}</span>
                       </div>
@@ -610,6 +681,7 @@ export default function ManagerCourse({ profile }: CourseProps) {
                     <h3 className="program-card__name">{c.title}</h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12.5 }}>
                       <div style={{ display: 'flex', gap: 6 }}><span style={{ fontWeight: 700, color: '#64748b' }}>Curriculum:</span><span style={{ color: '#0f172a' }}>{curriculumLabel(c.curriculum_id)}</span></div>
+                      <div style={{ display: 'flex', gap: 6 }}><span style={{ fontWeight: 700, color: '#64748b' }}>Term:</span><span style={{ color: '#0f172a' }}>{termLabelOf(c) || 'Not placed'}</span></div>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                         <span style={{ fontWeight: 700, color: '#64748b' }}>Instructor:</span>
                         <span style={{ color: '#0f172a' }}>{instructorLabelOf(c.instructor_id)}</span>
