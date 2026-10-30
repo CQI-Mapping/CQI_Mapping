@@ -479,13 +479,14 @@ export default function ManagerCourse({ profile }: CourseProps) {
           <>
             <label className="field" style={{ marginBottom: 0 }}>
               <span>Year Level</span>
-              <select className="input input--sm" title="Year level" value={editForm.yearLevel}
-                onChange={(e) => setEditForm({
-                  ...editForm,
-                  yearLevel: e.target.value,
-                  // Clearing the year has no semester to keep.
-                  semester: e.target.value ? editForm.semester : '',
-                })}>
+                  <select className="input input--sm" title="Year level" value={editForm.yearLevel}
+                    onChange={(e) => setEditForm({
+                      ...editForm,
+                      yearLevel: e.target.value,
+                      // Clearing the year has no semester to keep, and Summer
+                      // is only a 3rd-year term — switching years drops it.
+                      semester: e.target.value && (e.target.value === '3' || editForm.semester !== '3') ? editForm.semester : '',
+                    })}>
                 <option value="">Not placed</option>
                 {YEAR_LEVELS.map((y) => (
                   <option key={y} value={y}>{ordYear(y)} Year</option>
@@ -499,7 +500,8 @@ export default function ManagerCourse({ profile }: CourseProps) {
                 <option value="">Not placed</option>
                 <option value="1">1st Sem</option>
                 <option value="2">2nd Sem</option>
-                <option value="3">Summer</option>
+                {/* Summer is a 3rd-year term only. */}
+                {editForm.yearLevel === '3' && <option value="3">Summer</option>}
               </select>
             </label>
           </>
@@ -651,8 +653,9 @@ export default function ManagerCourse({ profile }: CourseProps) {
                     onChange={(e) => setForm({
                       ...form,
                       yearLevel: e.target.value,
-                      // Clearing the year has no semester to keep.
-                      semester: e.target.value ? form.semester : '',
+                      // Clearing the year has no semester to keep, and Summer
+                      // is only a 3rd-year term — switching years drops it.
+                      semester: e.target.value && (e.target.value === '3' || form.semester !== '3') ? form.semester : '',
                     })}>
                     <option value="">Not placed</option>
                     {YEAR_LEVELS.map((y) => (
@@ -667,7 +670,8 @@ export default function ManagerCourse({ profile }: CourseProps) {
                     <option value="">Not placed</option>
                     <option value="1">1st Sem</option>
                     <option value="2">2nd Sem</option>
-                    <option value="3">Summer</option>
+                    {/* Summer is a 3rd-year term only. */}
+                    {form.yearLevel === '3' && <option value="3">Summer</option>}
                   </select>
                   <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
                     Places the subject in the OBE Curriculum Map's Year · Semester columns.
