@@ -34,7 +34,7 @@ const ordYear = (n: number) => ['1st', '2nd', '3rd', '4th', '5th', '6th'][n - 1]
 const YEAR_LEVELS = [1, 2, 3, 4]
 const termLabelOf = (c: Pick<Course, 'year_level' | 'semester'>): string => {
   if (c.year_level == null) return ''
-  const sem = c.semester === 1 ? '1st Sem' : c.semester === 2 ? '2nd Sem' : c.semester === 3 ? 'Off Sem' : ''
+  const sem = c.semester === 1 ? '1st Sem' : c.semester === 2 ? '2nd Sem' : c.semester === 3 ? 'Summer' : ''
   return sem ? `${ordYear(c.year_level)} Year · ${sem}` : `${ordYear(c.year_level)} Year`
 }
 
@@ -499,7 +499,7 @@ export default function ManagerCourse({ profile }: CourseProps) {
                 <option value="">Not placed</option>
                 <option value="1">1st Sem</option>
                 <option value="2">2nd Sem</option>
-                <option value="3">Off-sem</option>
+                <option value="3">Summer</option>
               </select>
             </label>
           </>
@@ -667,7 +667,7 @@ export default function ManagerCourse({ profile }: CourseProps) {
                     <option value="">Not placed</option>
                     <option value="1">1st Sem</option>
                     <option value="2">2nd Sem</option>
-                    <option value="3">Off-sem</option>
+                    <option value="3">Summer</option>
                   </select>
                   <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
                     Places the subject in the OBE Curriculum Map's Year · Semester columns.

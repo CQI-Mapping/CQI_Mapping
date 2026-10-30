@@ -1734,7 +1734,7 @@ export default function SubjectView() {
 
     const ordinals = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th']
     const ordOf = (n: number) => ordinals[n - 1] ?? `${n}th`
-    const semLabel = (s: number) => (s === 1 ? '1st Sem' : s === 2 ? '2nd Sem' : 'Off Sem')
+    const semLabel = (s: number) => (s === 1 ? '1st Sem' : s === 2 ? '2nd Sem' : 'Summer')
     const maxYear = map.maxYear
     // Sequential year palette, purple → yellow like the OBE maps faculty are
     // used to reading. Unplaced subjects stay neutral gray.
