@@ -6187,8 +6187,8 @@ button.reports-panel__more:hover {
 }
 
 /* OBE Curriculum Map filters (curriculum root's default view):
-   "1. PO", "2. PI" and Reset View in one row above the canvas, stacked
-   into a column on narrow panels like the reference dashboard. */
+   "1. Curriculum", "2. Program Outcomes (PO)" in one row above the canvass,
+   stacked into a column on narrow panels like the reference dashboard. */
 .subject-view__map-filters {
   display: flex;
   flex-wrap: wrap;
@@ -6312,6 +6312,19 @@ button.reports-panel__more:hover {
   display: block;
 }
 
+/* Pinned Year · Semester header strip for the OBE Curriculum Map: its own
+   svg rides inside the sticky control package, so the column labels stay on
+   top while the tall grid scrolls underneath. The 2px mirrors the body
+   canvas' border so both halves draw at the same scale and the columns line
+   up. */
+.subject-view__map-head {
+  display: block;
+  width: calc(100% - 2px);
+  margin: 0 1px;
+  background: var(--bg, #f6f8fb);
+  padding: 0 0 2px;
+}
+
 /* Fullscreen map overlay — covers the viewport above sidebar/content, but
    starts below the top navbar (--hdr-h) so the navbar stays visible and
    clickable while the map is fullscreen. */
@@ -6403,6 +6416,14 @@ button.reports-panel__more:hover {
     width: 100% !important;
     height: auto !important;
     min-height: 0 !important;
+  }
+
+  /* Printed maps keep their header band; drop the strip's screen sizing so
+     both svgs print at the same 100% width and the columns align. */
+  .subject-view__map-head {
+    width: 100% !important;
+    margin: 0 !important;
+    height: auto !important;
   }
 }
 

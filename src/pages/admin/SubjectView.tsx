@@ -298,6 +298,10 @@ export default function SubjectView() {
   const [dlNotice, setDlNotice] = useState<string | null>(null)
   const [dlError, setDlError] = useState<string | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
+  // Second svg holding the OBE Curriculum Map's Year · Semester header strip,
+  // rendered inside the sticky control package so the column labels stay
+  // pinned while the tall grid scrolls underneath.
+  const mapHeadRef = useRef<SVGSVGElement>(null)
   const dlMenuRef = useRef<HTMLDivElement>(null)
   // Snapshot target for the PDF export: the document root inside the rendered
   // Curriculum Report (the same element the Curriculum Report page snapshots).
@@ -1724,6 +1728,12 @@ export default function SubjectView() {
     svg.on('.zoom', null)
     svg.selectAll('*').remove()
 
+    // The pinned header strip above the grid is its own svg (inside the
+    // sticky control package); clear it for a fresh draw on every render.
+    const headEl = mapHeadRef.current
+    const head = headEl ? d3.select(headEl) : null
+    if (head) head.selectAll('*').remove()
+
     const viewW = containerSize.w || svgEl.clientWidth || 928
     const viewH = containerSize.h || svgEl.clientHeight || 680
 
@@ -1829,7 +1839,7 @@ export default function SubjectView() {
     svg
       .attr('width', viewW)
       .attr('height', viewH)
-      .attr('viewBox', [-24, -16, totalW, contentH] as unknown as string)
+      .attr('viewBox', [-24, 28, totalW, contentH - 44] as unknown as string)
       .attr('style', 'max-width: 100%; height: auto;')
 
     const defs = svg.append('defs')
@@ -1843,22 +1853,32 @@ export default function SubjectView() {
 
     const zoomGroup = svg.append('g')
 
-    // Column headers + hairline rule, like the reference map's year bands.
-    for (const col of columns) {
-      const x = colX(col.key)
-      if (col.label) {
-        zoomGroup.append('text')
-          .attr('x', x).attr('y', RULE_Y - 12)
-          .attr('text-anchor', 'middle')
-          .attr('font-size', '11.5px')
-          .attr('font-weight', '600')
-          .attr('fill', '#94a3b8')
-          .text(col.label)
+    // The Year · Semester header band lives in its own svg — the pinned strip
+    // inside the sticky control package — instead of the scrolling body, so
+    // the labels stay on top while the tall grid passes underneath. Same
+    // drawing origin (-24) and same viewBox width as the body keep the two
+    // halves aligned column-for-column.
+    const HEAD_H = 44
+    if (head) {
+      head
+        .attr('viewBox', [-24, 0, totalW, HEAD_H] as unknown as string)
+        .attr('style', 'display: block; width: 100%; height: auto;')
+      for (const col of columns) {
+        const x = colX(col.key)
+        if (col.label) {
+          head.append('text')
+            .attr('x', x).attr('y', RULE_Y - 12)
+            .attr('text-anchor', 'middle')
+            .attr('font-size', '11.5px')
+            .attr('font-weight', '600')
+            .attr('fill', '#94a3b8')
+            .text(col.label)
+        }
+        head.append('line')
+          .attr('x1', x - COL_W / 2 + 14).attr('x2', x + COL_W / 2 - 14)
+          .attr('y1', RULE_Y).attr('y2', RULE_Y)
+          .attr('stroke', '#e2e8f0').attr('stroke-width', 1)
       }
-      zoomGroup.append('line')
-        .attr('x1', x - COL_W / 2 + 14).attr('x2', x + COL_W / 2 - 14)
-        .attr('y1', RULE_Y).attr('y2', RULE_Y)
-        .attr('stroke', '#e2e8f0').attr('stroke-width', 1)
     }
 
     const nodeGroup = zoomGroup.append('g').attr('stroke', '#fff').attr('stroke-width', 1.5)
@@ -3150,6 +3170,9 @@ export default function SubjectView() {
                   </button>
                 </div>
               </div>
+              {rootType === 'curriculum' && (
+                <svg ref={mapHeadRef} className="subject-view__map-head" viewBox="0 0 10 10" />
+              )}
               </div>
               {graphHint && (
                 <p className="subject-view__graph-hint">{graphHint}{isFullscreen ? ' Press Esc to exit fullscreen.' : ''}</p>
