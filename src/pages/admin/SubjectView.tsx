@@ -1395,11 +1395,10 @@ export default function SubjectView() {
             courseId: c.id,
             code: c.code,
             title: c.title,
-            // Guard: the column only anchors a real program year level (1–12).
-            // A four-digit academic year — the column's older reading — would
-            // otherwise try to span thousands of map columns; such a row stays
-            // off the map entirely.
-            year: c.year_level != null && c.year_level >= 1 && c.year_level <= 12 ? c.year_level : null,
+            // Guard: the map follows the Course page's rule of year levels
+            // 1–4 only — a four-digit academic year or any other stray value
+            // leaves the row off the map entirely.
+            year: c.year_level != null && c.year_level >= 1 && c.year_level <= 4 ? c.year_level : null,
             sem: c.semester ?? null,
             cloIds: subjectClos.map((clo) => clo.id),
             poKeys,
@@ -1736,7 +1735,7 @@ export default function SubjectView() {
     const RULE_Y = 30
     const FIRST_ROW_Y = 58
 
-    const ordinals = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th']
+    const ordinals = ['1st', '2nd', '3rd', '4th']
     const ordOf = (n: number) => ordinals[n - 1] ?? `${n}th`
     const semLabel = (s: number) => (s === 1 ? '1st Sem' : s === 2 ? '2nd Sem' : 'Summer')
     const maxYear = map.maxYear
@@ -1771,16 +1770,20 @@ export default function SubjectView() {
 
     const buckets = new Map<string, typeof map.subjects>()
     for (const col of columns) {
+      // Within a column subjects stack in code order, so the timetable reads
+      // predictably instead of following the records' insert order.
       buckets.set(
         col.key,
-        map.subjects.filter((s) => placedOf(s) === col.key),
+        map.subjects
+          .filter((s) => placedOf(s) === col.key)
+          .sort((a, b) => String(a.code).localeCompare(String(b.code))),
       )
     }
     const rows = Math.max(
       1,
       ...Array.from(buckets.values()).map((list) => list.length),
     )
-    const contentH = FIRST_ROW_Y + rows * ROW_H + 42
+    const contentH = FIRST_ROW_Y + rows * ROW_H + 24
     // Subjects-only grid: the canvas ends with the last Year · Semester
     // column (plus a little breathing room) — nothing sits beside it.
     const totalW = colX(columns[columns.length - 1].key) + COL_W / 2 + 28
