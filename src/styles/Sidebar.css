@@ -7,12 +7,16 @@
 }
 
 /* ---- Top Navbar ---- */
+/* Reserve the navbar's height for the rest of the app — the fullscreen map
+   overlay stops below it so the navbar stays visible on top of the map. */
+:root { --hdr-h: 70px; }
+
 .hdr {
   position: sticky;
   top: 0;
   z-index: 30;
   width: 100%;
-  height: 70px;
+  height: var(--hdr-h);
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -772,6 +776,8 @@
 
 /* ---- Responsive — mobile drawer ---- */
 @media (max-width: 1024px) {
+  :root { --hdr-h: 60px; }
+
   .hdr {
     height: auto;
     min-height: 60px;
