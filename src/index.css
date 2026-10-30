@@ -6402,6 +6402,20 @@ button.reports-panel__more:hover {
   max-height: calc(100vh - var(--hdr-h, 70px) - 150px);
 }
 
+/* Panel view, short map: the right panel stretches to the window's height,
+   so a light curriculum grid finished near the top and left the rest of the
+   white panel empty below it — the dots looked stranded off-center on the
+   canvas. Center the map block in that leftover space instead (the toolbar
+   and filters stay pinned at the top; `margin: auto` only centers when
+   there is free space, so tall maps and fullscreen keep the normal flow). */
+.subject-view__graph-area--map .subject-view__graph-wrap--scroll {
+  margin: auto 0;
+}
+
+.subject-view__right--fullscreen .subject-view__graph-area--map .subject-view__graph-wrap--scroll {
+  margin: 0;
+}
+
 /* Printing the Subject View prints the map and nothing else, the way the bare
    figure reads: no selector console, no toolbar buttons or Back, no hint
    or legend, and not the about card or the syllabus document the page

@@ -3118,7 +3118,7 @@ export default function SubjectView() {
               } as Record<string, string>)[rootType] ?? 'Select what to visualize on the left, then press Generate Visualization.'}</p>
             </div>
           ) : (
-            <div className="subject-view__graph-area">
+            <div className={`subject-view__graph-area${rootType === 'curriculum' ? ' subject-view__graph-area--map' : ''}`}>
               {/* OBE Curriculum Map control bar — "1." switches the curriculum
                   the timetable shows, "2." narrows that map to a single
                   program outcome's subjects. The selects and toolbar share a
