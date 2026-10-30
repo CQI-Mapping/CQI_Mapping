@@ -6391,6 +6391,10 @@ button.reports-panel__more:hover {
 
 .subject-view__graph-wrap--scroll .subject-view__svg {
   min-height: 0;
+  /* No flex growing either: the svg keeps exactly its drawing height, so
+     the divider chain never floats above a stretched empty band — it runs
+     the box's top edge to its bottom edge in both panel and fullscreen. */
+  flex: none;
 }
 
 .subject-view__right--fullscreen .subject-view__graph-wrap--scroll {
