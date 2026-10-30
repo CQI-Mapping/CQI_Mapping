@@ -6412,10 +6412,6 @@ button.reports-panel__more:hover {
   margin: auto 0;
 }
 
-.subject-view__right--fullscreen .subject-view__graph-area--map .subject-view__graph-wrap--scroll {
-  margin: 0;
-}
-
 /* Printing the Subject View prints the map and nothing else, the way the bare
    figure reads: no selector console, no toolbar buttons or Back, no hint
    or legend, and not the about card or the syllabus document the page
