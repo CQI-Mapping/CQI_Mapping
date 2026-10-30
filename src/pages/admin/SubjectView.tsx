@@ -54,7 +54,7 @@ import type {
   ChedMemoOrder,
 } from '../../services/database'
 import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
-import { splitReportPos, buildGroups, isManagerCmCategory } from '../../utils/report'
+import { splitReportPos, buildGroups, isManagerCmCategory, isManagerOutcome } from '../../utils/report'
 import { reportFileName } from '../../utils/download'
 import { downloadSyllabusPdf } from '../../utils/syllabusPdf'
 import Icon from '../../components/icons'
@@ -1406,7 +1406,7 @@ export default function SubjectView() {
           }
         })
       const pos = datasetsRef.pos
-        .filter((p) => isManagerCmCategory(p))
+        .filter((p) => isManagerOutcome(p))
         .sort((a, b) => String(a.code).localeCompare(String(b.code)))
         .map((p) => ({ id: p.id, code: p.code, title: p.title || p.description || p.code }))
       // The grid always spans at least four years — an early-stage curriculum
@@ -1417,26 +1417,17 @@ export default function SubjectView() {
     [courses],
   )
 
-  // Filter vocabularies for the map's two selects. The PGO list carries only
-  // outcomes the curriculum actually feeds; the PI list carries the CLOs of
-  // those subjects that name the chosen PGO (the OBE "performance indicator"
-  // is the subject-level outcome behind the program one — here that is the
-  // CLO-to-PO relation the system already stores).
+  // Filter vocabularies for the map's two selects. Both list ALL of the
+  // manager's Program Outcomes — every PO the manager's Program Outcomes page
+  // holds, whatever its CMO category — not only the feed of this particular
+  // curriculum. Both selects drive the same state, so either picker narrows
+  // the map the same way; picking an outcome that no subject feeds simply
+  // dims the whole grid.
   const mapFilterOptions = useMemo(() => {
-    if (!datasets || rootType !== 'curriculum' || !selectedCurriculum) return { pos: [], clos: [] }
+    if (!datasets || rootType !== 'curriculum' || !selectedCurriculum) return { pos: [] }
     const map = buildCurriculumMapModel(datasets, selectedCurriculum)
-    const poById = new Map(map.pos.map((p) => [p.id, p]))
-    const activeKey = mapPoId ? normalizeCode(poById.get(mapPoId)?.code ?? '') : null
-    const fedKeys = new Set<string>()
-    for (const s of map.subjects) for (const k of s.poKeys) fedKeys.add(k)
-    return {
-      pos: map.pos.filter((p) => fedKeys.has(normalizeCode(p.code))),
-      clos: datasets.clos
-        .filter((clo) => map.subjects.some((s) => s.cloIds.includes(clo.id)))
-        .filter((clo) => !activeKey
-          || extractCodes(clo.title || '', 'PO').map(normalizeCode).includes(activeKey)),
-    }
-  }, [datasets, rootType, selectedCurriculum, mapPoId, buildCurriculumMapModel])
+    return { pos: map.pos }
+  }, [datasets, rootType, selectedCurriculum, buildCurriculumMapModel])
 
   // Unique node counts per kind once a graph is on screen (used in the legend).
   const graphStats = useMemo(() => {
@@ -1791,14 +1782,12 @@ export default function SubjectView() {
     // column (plus a little breathing room) — nothing sits beside it.
     const totalW = colX(columns[columns.length - 1].key) + COL_W / 2 + 28
 
-    // Filter rules: the chosen PO by normalized code, the chosen PI by clo id.
+    // Filter rule: the chosen PO by normalized record id. A subject stays lit
+    // only when it (via its CLOs) names the selected outcome.
     const poKeyById = new Map(map.pos.map((p) => [p.id, normalizeCode(p.code)]))
     const activePoKey = mapPoId ? poKeyById.get(mapPoId) ?? null : null
-    // A subject stays lit when it feeds the selected PO *and* — once a PI is
-    // picked — teaches that specific indicator. Everything else sits dim.
     const dimSubject = (s: typeof map.subjects[number]): boolean =>
-      (activePoKey !== null && !s.poKeys.has(activePoKey)) ||
-      (mapCloId !== '' && !s.cloIds.includes(mapCloId))
+      activePoKey !== null && !s.poKeys.has(activePoKey)
 
     const nodes: MapNode[] = []
     for (const [key, list] of buckets) {
@@ -1934,7 +1923,7 @@ export default function SubjectView() {
       svg.on('.zoom', null)
       zoomRef.current = null
     }
-  }, [containerSize, datasets, selectedCurriculum, mapPoId, mapCloId, buildCurriculumMapModel, gotoSubjectRoot])
+  }, [containerSize, datasets, selectedCurriculum, mapPoId, buildCurriculumMapModel, gotoSubjectRoot])
 
   // Dual-root: subject mode (subject → curriculum / prereq / coreq / CLO → PO
   // → PEO/SG/CMO) or PO mode (PO → CLOs → subjects + PEO/SG/CMO), with the
@@ -3091,14 +3080,12 @@ export default function SubjectView() {
                     <b>2. Program Outcomes (PO):</b>
                     <select
                       className="input input--sm"
-                      value={mapCloId}
-                      disabled={!mapPoId}
-                      title={!mapPoId ? 'Choose a curriculum outcome first' : undefined}
-                      onChange={(e) => setMapCloId(e.target.value)}
+                      value={mapPoId}
+                      onChange={(e) => { setMapPoId(e.target.value); setMapCloId('') }}
                     >
-                      <option value="">— All indicators —</option>
-                      {mapFilterOptions.clos.map((clo) => (
-                        <option key={clo.id} value={clo.id}>{clo.code}</option>
+                      <option value="">— All outcomes —</option>
+                      {mapFilterOptions.pos.map((p) => (
+                        <option key={p.id} value={p.id}>{poCode(p.code)}</option>
                       ))}
                     </select>
                   </label>
