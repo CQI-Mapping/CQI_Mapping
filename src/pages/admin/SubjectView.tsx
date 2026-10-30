@@ -3070,7 +3070,7 @@ export default function SubjectView() {
               {rootType === 'curriculum' && (
                 <div className="subject-view__map-filters">
                   <label>
-                    <b>1. Curriculum Outcomes:</b>
+                    <b>1. Curriculum:</b>
                     <select
                       className="input input--sm"
                       value={mapPoId}
