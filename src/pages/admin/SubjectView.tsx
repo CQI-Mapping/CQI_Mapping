@@ -315,12 +315,13 @@ export default function SubjectView() {
     }
   }, [isFullscreen])
 
-  // Leaving the curriculum root leaves fullscreen with it: the OBE Curriculum
-  // Map is the one map that opens expanded; a subject / PO / PEO tree that a
-  // click re-roots into belongs back in the normal panel.
+  // Every generated graph opens full screen, dashboard-style — the OBE
+  // Curriculum Map, a subject tree, a PO web, all alike. Closing the map
+  // (switching the picker, clearing a selection) stands the overlay down
+  // with it.
   useEffect(() => {
-    if (rootType !== 'curriculum') setIsFullscreen(false)
-  }, [rootType])
+    if (!showGraph) setIsFullscreen(false)
+  }, [showGraph])
 
   // Close the download's format menu on outside click or Escape — the same
   // behaviour the Curriculum Report page's download menu has.
@@ -2562,6 +2563,9 @@ export default function SubjectView() {
     if (rootType === 'curriculum' && !selectedCurriculumId) return
     if (rootType === 'program' && !selectedProgramId) return
     setShowGraph(true)
+    // Every generated graph reads like the reference dashboard: it opens full
+    // screen right away (Esc / Exit fullscreen steps back to the panel).
+    setIsFullscreen(true)
     setGraphError('')
     await loadDatasets()
     // Logged after the data is in hand so the audit RPC never sits in front of
