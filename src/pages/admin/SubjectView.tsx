@@ -1985,7 +1985,7 @@ export default function SubjectView() {
       .text((d) => (d.code.length > 14 ? `${d.code.slice(0, 13)}…` : d.code))
 
     const mapCaption = `${map.subjects.length} subject${map.subjects.length === 1 ? '' : 's'} · `
-      + `${visibleLinks} connection${visibleLinks === 1 ? '' : 's'} · click a subject or PGO to view its graph`
+      + `${visibleLinks} connection${visibleLinks === 1 ? '' : 's'} · click a subject or PO to view its graph`
     zoomGroup.append('text')
       .attr('x', MARGIN_X).attr('y', contentH - 22)
       .attr('font-size', '11px')
@@ -3179,7 +3179,7 @@ export default function SubjectView() {
               {rootType === 'curriculum' && (
                 <div className="subject-view__map-filters">
                   <label>
-                    <b>1. Program Graduate Outcomes (PGO):</b>
+                    <b>1. Program Outcomes (PO):</b>
                     <select
                       className="input input--sm"
                       value={mapPoId}
@@ -3197,7 +3197,7 @@ export default function SubjectView() {
                       className="input input--sm"
                       value={mapCloId}
                       disabled={!mapPoId}
-                      title={!mapPoId ? 'Choose a program graduate outcome first' : undefined}
+                      title={!mapPoId ? 'Choose a program outcome first' : undefined}
                       onChange={(e) => setMapCloId(e.target.value)}
                     >
                       <option value="">— All indicators —</option>

@@ -6187,7 +6187,7 @@ button.reports-panel__more:hover {
 }
 
 /* OBE Curriculum Map filters (curriculum root's default view):
-   "1. PGO", "2. PI" and Reset View in one row above the canvas, stacked
+   "1. PO", "2. PI" and Reset View in one row above the canvas, stacked
    into a column on narrow panels like the reference dashboard. */
 .subject-view__map-filters {
   display: flex;
