@@ -1392,8 +1392,8 @@ export default function SubjectView() {
             title: c.title,
             // Guard: the column only anchors a real program year level (1–12).
             // A four-digit academic year — the column's older reading — would
-            // otherwise try to span thousands of map columns; such a row falls
-            // into the "No term recorded" catch-all instead.
+            // otherwise try to span thousands of map columns; such a row stays
+            // off the map entirely.
             year: c.year_level != null && c.year_level >= 1 && c.year_level <= 12 ? c.year_level : null,
             sem: c.semester ?? null,
             cloIds: subjectClos.map((clo) => clo.id),
@@ -1755,21 +1755,22 @@ export default function SubjectView() {
     type MapColumn = { key: string; label: string }
     const columns: MapColumn[] = []
     for (let y = 1; y <= maxYear; y += 1) {
-      for (let s = 1; s <= 3; s += 1) {
+      // Summer exists as a term only for 3rd year — the other years list just
+      // 1st and 2nd Sem, matching the Course page's year/semester rule.
+      for (const s of (y === 3 ? [1, 2, 3] : [1, 2])) {
         columns.push({ key: `y${y}s${s}`, label: `${ordOf(y)} Year · ${semLabel(s)}` })
       }
     }
-    // Subjects with no recorded term (or an out-of-range semester) share one
-    // trailing catch-all column, then the outcome vocabulary closes the map.
+    // Subjects with no recorded term (or an out-of-range or non-existent term,
+    // like a Summer in another year) are simply not drawn — there is no
+    // catch-all column anymore; the outcome vocabulary closes the map on the
+    // right, header-less.
     const placedOf = (s: { year: number | null; sem: number | null }): string | null => {
       if (!s.year) return null
       const sem = s.sem && s.sem >= 1 && s.sem <= 3 ? s.sem : null
       return sem ? `y${s.year}s${sem}` : null
     }
-    if (map.subjects.some((s) => !placedOf(s))) {
-      columns.push({ key: 'no-term', label: 'No term recorded' })
-    }
-    columns.push({ key: 'pgo', label: 'PGO' })
+    columns.push({ key: 'pgo', label: '' })
 
     const colIndexOf = (key: string) => columns.findIndex((c) => c.key === key)
     const colX = (key: string) => MARGIN_X + colIndexOf(key) * COL_W
@@ -1894,13 +1895,15 @@ export default function SubjectView() {
     // Column headers + hairline rule, like the reference map's year bands.
     for (const col of columns) {
       const x = colX(col.key)
-      zoomGroup.append('text')
-        .attr('x', x).attr('y', RULE_Y - 12)
-        .attr('text-anchor', 'middle')
-        .attr('font-size', '11.5px')
-        .attr('font-weight', '600')
-        .attr('fill', '#94a3b8')
-        .text(col.label)
+      if (col.label) {
+        zoomGroup.append('text')
+          .attr('x', x).attr('y', RULE_Y - 12)
+          .attr('text-anchor', 'middle')
+          .attr('font-size', '11.5px')
+          .attr('font-weight', '600')
+          .attr('fill', '#94a3b8')
+          .text(col.label)
+      }
       zoomGroup.append('line')
         .attr('x1', x - COL_W / 2 + 14).attr('x2', x + COL_W / 2 - 14)
         .attr('y1', RULE_Y).attr('y2', RULE_Y)
