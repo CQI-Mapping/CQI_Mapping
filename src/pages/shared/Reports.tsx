@@ -107,9 +107,17 @@ function currentSemester(today = new Date()): string {
   return today.getMonth() >= 5 && today.getMonth() <= 9 ? '1' : '2'
 }
 
-/** "2026 - 2027" from the starting year the column stores. */
-function ayLabel(v: number | null | undefined): string | null {
-  return v == null ? null : `${v} - ${v + 1}`
+/**
+ * How a course's stored year reads. The courses table now serves the OBE
+ * Curriculum Map's timetable, whose subjects carry a program year level
+ * (1st Year … 6th Year), so a small value reads that way. A four-digit value
+ * keeps the reading this table was originally keyed to — an academic year's
+ * starting year ("2026" displays as "AY 2026 - 2027").
+ */
+function courseYearLabel(v: number | null | undefined): string {
+  if (v == null) return ''
+  if (v < 100) return `${['1st', '2nd', '3rd'][v - 1] ?? `${v}th`} Year`
+  return `AY ${v} - ${v + 1}`
 }
 
 /** Stands in for program assignments the account may not carry yet, the way
@@ -445,7 +453,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
             return {
               code: course.code,
               title: course.title || '—',
-              year: ayLabel(course.year_level) ?? academicYear,
+              year: course.year_level == null ? academicYear : courseYearLabel(course.year_level),
               semester: String(course.semester ?? reportSemester),
               clos: outcomeCount,
               status: statusBadge(roll).label,
@@ -677,7 +685,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
                     <tr>
                       <th>Course Code</th>
                       <th>Course Title</th>
-                      <th className="reports-num">Academic Year</th>
+                      <th className="reports-num">Year Level</th>
                       <th className="reports-num">Semester</th>
                       <th className="reports-num"># of CLOs</th>
                       <th>Mapping Status</th>
@@ -697,7 +705,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
                             <td>{course.code}</td>
                             <td className="reports-course-title">{course.title}</td>
                             <td className="reports-num">
-                              {ayLabel(course.year_level) ?? academicYear}
+                              {course.year_level == null ? academicYear : courseYearLabel(course.year_level)}
                             </td>
                             <td className="reports-num">
                               {course.semester ?? reportSemester}

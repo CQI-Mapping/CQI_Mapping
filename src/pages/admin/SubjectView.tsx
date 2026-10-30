@@ -1390,7 +1390,11 @@ export default function SubjectView() {
             courseId: c.id,
             code: c.code,
             title: c.title,
-            year: c.year_level ?? null,
+            // Guard: the column only anchors a real program year level (1–12).
+            // A four-digit academic year — the column's older reading — would
+            // otherwise try to span thousands of map columns; such a row falls
+            // into the "No term recorded" catch-all instead.
+            year: c.year_level != null && c.year_level >= 1 && c.year_level <= 12 ? c.year_level : null,
             sem: c.semester ?? null,
             cloIds: subjectClos.map((clo) => clo.id),
             poKeys,
