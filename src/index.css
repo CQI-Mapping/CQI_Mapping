@@ -6312,17 +6312,31 @@ button.reports-panel__more:hover {
   display: block;
 }
 
-/* Pinned Year · Semester header strip for the OBE Curriculum Map: its own
-   svg rides inside the sticky control package, so the column labels stay on
-   top while the tall grid scrolls underneath. The 2px mirrors the body
-   canvas' border so both halves draw at the same scale and the columns line
-   up. */
+/* OBE Curriculum Map — header inside the box: the strip svg is the first
+   child of the bordered canvas, sticky at the box's top edge, so the
+   Year · Semester labels stay pinned over the grid while it scrolls. The
+   --scroll modifier turns the canvas into its own vertical scroller — in
+   fullscreen the box fills the overlay below the pinned control bar and
+   scrolls internally (wheel stays native); in the panel it just sizes to
+   its content with the strip sitting at the top edge. */
 .subject-view__map-head {
   display: block;
-  width: calc(100% - 2px);
-  margin: 0 1px;
-  background: var(--bg, #f6f8fb);
-  padding: 0 0 2px;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  width: 100%;
+  height: auto;
+  background: var(--bg-panel, #fff);
+}
+
+.subject-view__graph-wrap--scroll {
+  flex-direction: column;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.subject-view__right--fullscreen .subject-view__graph-wrap--scroll {
+  min-height: 0;
 }
 
 /* Fullscreen map overlay — covers the viewport above sidebar/content, but
@@ -6418,11 +6432,16 @@ button.reports-panel__more:hover {
     min-height: 0 !important;
   }
 
-  /* Printed maps keep their header band; drop the strip's screen sizing so
-     both svgs print at the same 100% width and the columns align. */
+  /* Printed maps keep their header band inside an unbordered flow: un-pin
+     the strip and let both svgs print at the same 100% width so the columns
+     align. */
+  .subject-view__graph-wrap--scroll {
+    overflow: visible;
+  }
+
   .subject-view__map-head {
+    position: static;
     width: 100% !important;
-    margin: 0 !important;
     height: auto !important;
   }
 }

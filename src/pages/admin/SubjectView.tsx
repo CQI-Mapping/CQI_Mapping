@@ -3170,9 +3170,6 @@ export default function SubjectView() {
                   </button>
                 </div>
               </div>
-              {rootType === 'curriculum' && (
-                <svg ref={mapHeadRef} className="subject-view__map-head" viewBox="0 0 10 10" />
-              )}
               </div>
               {graphHint && (
                 <p className="subject-view__graph-hint">{graphHint}{isFullscreen ? ' Press Esc to exit fullscreen.' : ''}</p>
@@ -3192,7 +3189,10 @@ export default function SubjectView() {
                   </span>
                 </div>
               )}
-              <div className="subject-view__graph-wrap">
+              <div className={`subject-view__graph-wrap${rootType === 'curriculum' ? ' subject-view__graph-wrap--scroll' : ''}`}>
+                {rootType === 'curriculum' && (
+                  <svg ref={mapHeadRef} className="subject-view__map-head" viewBox="0 0 10 10" />
+                )}
                 <svg ref={svgRef} className="subject-view__svg" />
               </div>
               <div ref={tooltipRef} className="subject-view__tooltip" />
