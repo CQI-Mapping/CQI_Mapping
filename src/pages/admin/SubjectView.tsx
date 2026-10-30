@@ -3125,18 +3125,18 @@ export default function SubjectView() {
                       ← Back
                     </button>
                   )}
-                  <button type="button" className="btn btn--ghost btn--sm" onClick={collapseAll} title="Collapse all branches except the root">
-                    Collapse
-                  </button>
                   {rootType !== 'curriculum' && (
                     <>
+                      <button type="button" className="btn btn--ghost btn--sm" onClick={collapseAll} title="Collapse all branches except the root">
+                        Collapse
+                      </button>
                       <button type="button" className="btn btn--ghost btn--sm" onClick={() => zoomBy(1.25)} aria-label="Zoom in" title="Zoom in">＋</button>
                       <button type="button" className="btn btn--ghost btn--sm" onClick={() => zoomBy(1 / 1.25)} aria-label="Zoom out" title="Zoom out">−</button>
+                      <button type="button" className="btn btn--ghost btn--sm" onClick={resetZoom} title="Reset zoom and pan">
+                        Reset zoom
+                      </button>
                     </>
                   )}
-                  <button type="button" className="btn btn--ghost btn--sm" onClick={resetZoom} title="Reset zoom and pan">
-                    Reset zoom
-                  </button>
                   <button
                     type="button"
                     className="btn btn--ghost btn--sm"
