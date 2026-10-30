@@ -1853,6 +1853,16 @@ export default function SubjectView() {
 
     const zoomGroup = svg.append('g')
 
+    // Column dividers run top to bottom of the whole map so each Year ·
+    // Semester column stays separated from its neighbors while scrolling.
+    for (let i = 0; i < columns.length - 1; i += 1) {
+      const bx = colX(columns[i].key) + COL_W / 2
+      zoomGroup.append('line')
+        .attr('x1', bx).attr('x2', bx)
+        .attr('y1', 28).attr('y2', contentH - 16)
+        .attr('stroke', '#e2e8f0').attr('stroke-width', 1)
+    }
+
     // The Year · Semester header band lives in its own svg — the pinned strip
     // inside the sticky control package — instead of the scrolling body, so
     // the labels stay on top while the tall grid passes underneath. Same
