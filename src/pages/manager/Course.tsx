@@ -448,91 +448,115 @@ export default function ManagerCourse({ profile }: CourseProps) {
   const renderCourseEdit = () => (
     <div className="resource-card__edit">
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        <input className="input input--sm" type="text" placeholder="Course code (e.g. IT21)"
-          value={editForm.code}
-          onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} required />
-        <input className="input input--sm" type="text" placeholder="Course title"
-          value={editForm.title}
-          onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} required />
+        <label className="field" style={{ marginBottom: 0 }}>
+          <span>Course Code</span>
+          <input className="input input--sm" type="text" placeholder="e.g. IT21"
+            value={editForm.code}
+            onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} required />
+        </label>
+        <label className="field" style={{ marginBottom: 0 }}>
+          <span>Course Title</span>
+          <input className="input input--sm" type="text" placeholder="Course title"
+            value={editForm.title}
+            onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} required />
+        </label>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-        <select className="input input--sm" title="Curriculum" value={editForm.curriculum}
-          onChange={(e) => setEditForm({ ...editForm, curriculum: e.target.value })}>
-          <option value="">No curriculum</option>
-          {curriculums.map((r) => (
-            <option key={r.id} value={r.id}>{r.code || r.title}</option>
-          ))}
-        </select>
+        <label className="field" style={{ marginBottom: 0 }}>
+          <span>Curriculum</span>
+          <select className="input input--sm" title="Curriculum" value={editForm.curriculum}
+            onChange={(e) => setEditForm({ ...editForm, curriculum: e.target.value })}>
+            <option value="">No curriculum</option>
+            {curriculums.map((r) => (
+              <option key={r.id} value={r.id}>{r.code || r.title}</option>
+            ))}
+          </select>
+        </label>
         {termColumns ? (
           <>
-            <select className="input input--sm" title="Year level" value={editForm.yearLevel}
-              onChange={(e) => setEditForm({
-                ...editForm,
-                yearLevel: e.target.value,
-                // Clearing the year has no semester to keep.
-                semester: e.target.value ? editForm.semester : '',
-              })}>
-              <option value="">Not placed</option>
-              {[1, 2, 3, 4, 5, 6].map((y) => (
-                <option key={y} value={y}>{ordYear(y)} Year</option>
-              ))}
-            </select>
-            <select className="input input--sm" title="Semester" value={editForm.semester} disabled={!editForm.yearLevel}
-              onChange={(e) => setEditForm({ ...editForm, semester: e.target.value })}>
-              <option value="">Not placed</option>
-              <option value="1">1st Sem</option>
-              <option value="2">2nd Sem</option>
-              <option value="3">Off-sem</option>
-            </select>
+            <label className="field" style={{ marginBottom: 0 }}>
+              <span>Year Level</span>
+              <select className="input input--sm" title="Year level" value={editForm.yearLevel}
+                onChange={(e) => setEditForm({
+                  ...editForm,
+                  yearLevel: e.target.value,
+                  // Clearing the year has no semester to keep.
+                  semester: e.target.value ? editForm.semester : '',
+                })}>
+                <option value="">Not placed</option>
+                {[1, 2, 3, 4, 5, 6].map((y) => (
+                  <option key={y} value={y}>{ordYear(y)} Year</option>
+                ))}
+              </select>
+            </label>
+            <label className="field" style={{ marginBottom: 0 }}>
+              <span>Semester</span>
+              <select className="input input--sm" title="Semester" value={editForm.semester} disabled={!editForm.yearLevel}
+                onChange={(e) => setEditForm({ ...editForm, semester: e.target.value })}>
+                <option value="">Not placed</option>
+                <option value="1">1st Sem</option>
+                <option value="2">2nd Sem</option>
+                <option value="3">Off-sem</option>
+              </select>
+            </label>
           </>
         ) : (
-          <input className="input input--sm" readOnly disabled
-            title="Term placement is unavailable — the database lacks courses.year_level / courses.semester (migration 003)."
-            value="Year/semester unavailable (migration 003)" />
+          <label className="field" style={{ marginBottom: 0, gridColumn: 'span 2' }}>
+            <span>Year Level / Semester</span>
+            <input className="input input--sm" readOnly disabled
+              title="Term placement is unavailable — the database lacks courses.year_level / courses.semester (migration 003)."
+              value="Year/semester unavailable (migration 003)" />
+          </label>
         )}
       </div>
-      <div className="na-row">
-        <ComboInput
-          value={editForm.prereq}
-          onChange={(v) => setEditForm({ ...editForm, prereq: v })}
-          options={programCourses}
-          placeholder="Type or select prerequisite"
-          disabled={editForm.prereqNA}
-          small
-        />
-        <label className="na-check">
-          <input type="checkbox" checked={editForm.prereqNA}
-            onChange={(e) => setEditForm({ ...editForm, prereqNA: e.target.checked, prereq: e.target.checked ? '' : editForm.prereq })} />
-          <span className="cb-box" aria-hidden="true" />
-          N/A
-        </label>
-      </div>
-      {!editForm.prereqNA && dupTokenCount(editForm.prereq) > 0 && (
-        <div style={{ fontSize: 12, color: '#b45309' }}>
-          Repeated pre-requisites are listed once in the report.
+      <label className="field" style={{ marginBottom: 0 }}>
+        <span>Pre-requisite</span>
+        <div className="na-row">
+          <ComboInput
+            value={editForm.prereq}
+            onChange={(v) => setEditForm({ ...editForm, prereq: v })}
+            options={programCourses}
+            placeholder="Type or select prerequisite"
+            disabled={editForm.prereqNA}
+            small
+          />
+          <label className="na-check">
+            <input type="checkbox" checked={editForm.prereqNA}
+              onChange={(e) => setEditForm({ ...editForm, prereqNA: e.target.checked, prereq: e.target.checked ? '' : editForm.prereq })} />
+            <span className="cb-box" aria-hidden="true" />
+            N/A
+          </label>
         </div>
-      )}
-      <div className="na-row">
-        <ComboInput
-          value={editForm.coreq}
-          onChange={(v) => setEditForm({ ...editForm, coreq: v })}
-          options={programCourses}
-          placeholder="Type or select co-requisite"
-          disabled={editForm.coreqNA}
-          small
-        />
-        <label className="na-check">
-          <input type="checkbox" checked={editForm.coreqNA}
-            onChange={(e) => setEditForm({ ...editForm, coreqNA: e.target.checked, coreq: e.target.checked ? '' : editForm.coreq })} />
-          <span className="cb-box" aria-hidden="true" />
-          N/A
-        </label>
-      </div>
-      {!editForm.coreqNA && dupTokenCount(editForm.coreq) > 0 && (
-        <div style={{ fontSize: 12, color: '#b45309' }}>
-          Repeated co-requisites are listed once in the report.
+        {!editForm.prereqNA && dupTokenCount(editForm.prereq) > 0 && (
+          <div style={{ fontSize: 12, color: '#b45309', marginTop: 4 }}>
+            Repeated pre-requisites are listed once in the report.
+          </div>
+        )}
+      </label>
+      <label className="field" style={{ marginBottom: 0 }}>
+        <span>Co-requisite</span>
+        <div className="na-row">
+          <ComboInput
+            value={editForm.coreq}
+            onChange={(v) => setEditForm({ ...editForm, coreq: v })}
+            options={programCourses}
+            placeholder="Type or select co-requisite"
+            disabled={editForm.coreqNA}
+            small
+          />
+          <label className="na-check">
+            <input type="checkbox" checked={editForm.coreqNA}
+              onChange={(e) => setEditForm({ ...editForm, coreqNA: e.target.checked, coreq: e.target.checked ? '' : editForm.coreq })} />
+            <span className="cb-box" aria-hidden="true" />
+            N/A
+          </label>
         </div>
-      )}
+        {!editForm.coreqNA && dupTokenCount(editForm.coreq) > 0 && (
+          <div style={{ fontSize: 12, color: '#b45309', marginTop: 4 }}>
+            Repeated co-requisites are listed once in the report.
+          </div>
+        )}
+      </label>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
         {creditField('Lecture', 'creditLecture', editForm, setEditForm, true)}
         {creditField('Laboratory', 'creditLaboratory', editForm, setEditForm, true)}
@@ -541,9 +565,12 @@ export default function ManagerCourse({ profile }: CourseProps) {
           <input className="input input--sm" type="number" readOnly value={totalCredits(editForm)} />
         </label>
       </div>
-      <textarea className="input input--sm" rows={2} placeholder="Description"
-        value={editForm.description}
-        onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} />
+      <label className="field" style={{ marginBottom: 0 }}>
+        <span>Description</span>
+        <textarea className="input input--sm" rows={2} placeholder="Optional description"
+          value={editForm.description}
+          onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} />
+      </label>
       <div className="program-card__actions">
         <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>
           {busy ? 'Saving...' : (<><Icon name="check" size={13} /> Save</>)}
