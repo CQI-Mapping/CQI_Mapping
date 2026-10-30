@@ -54,7 +54,7 @@ import type {
   ChedMemoOrder,
 } from '../../services/database'
 import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
-import { splitReportPos, buildGroups, isManagerCmCategory, isManagerOutcome } from '../../utils/report'
+import { splitReportPos, buildGroups, isManagerCmCategory, isManagerOutcome, outcomeCodeKey } from '../../utils/report'
 import { reportFileName } from '../../utils/download'
 import { downloadSyllabusPdf } from '../../utils/syllabusPdf'
 import Icon from '../../components/icons'
@@ -1407,7 +1407,10 @@ export default function SubjectView() {
         })
       const pos = datasetsRef.pos
         .filter((p) => isManagerOutcome(p))
-        .sort((a, b) => String(a.code).localeCompare(String(b.code)))
+        // Numbered arrangement: prefix family first (PO-… before SD-…), then
+        // numeric order inside the family — the dropdown reads PO-1, PO-2,
+        // PO-3 … instead of the alphabetical PO-1, PO-10, PO-11, PO-2.
+        .sort((a, b) => outcomeCodeKey(a.code).localeCompare(outcomeCodeKey(b.code)))
         .map((p) => ({ id: p.id, code: p.code, title: p.title || p.description || p.code }))
       // The grid always spans at least four years — an early-stage curriculum
       // that only lists 1st-year subjects still reads as a full OBE map.
