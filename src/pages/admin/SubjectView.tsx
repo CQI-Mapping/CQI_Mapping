@@ -1381,6 +1381,9 @@ export default function SubjectView() {
   //              dimming on the map.
   //  - cloIds  — the subject's own course learning outcomes. The PI filter
   //              reads them ("which subject teaches this indicator").
+  //  - prereqCodes — the course's comma-separated prerequisites, normalized.
+  //              The renderer connects dots whose codes match, so the map
+  //              shows what unlocks what.
   //  - year / sem — term placement straight from the courses table, so the
   //              columns are the real timetable, not an assumption.
   const buildCurriculumMapModel = useCallback(
@@ -1418,6 +1421,12 @@ export default function SubjectView() {
             sem: c.semester ?? null,
             cloIds: subjectClos.map((clo) => clo.id),
             poKeys,
+            // The course stores prerequisites as one comma-separated string;
+            // normalize each token so "it 10" finds the same dot as "IT10".
+            prereqCodes: String(c.prerequisite || '')
+              .split(',')
+              .map((tok) => normalizeCode(tok))
+              .filter(Boolean),
           }
         })
       const pos = datasetsRef.pos
@@ -1754,6 +1763,7 @@ export default function SubjectView() {
       x: number
       y: number
       r: number
+      prereqCodes?: string[]
     }
 
     const COL_W = 200
@@ -1854,6 +1864,7 @@ export default function SubjectView() {
           x: x0,
           y: y0 + i * ROW_H,
           r: 7,
+          prereqCodes: s.prereqCodes,
         })
       })
     }
@@ -1884,6 +1895,30 @@ export default function SubjectView() {
         .attr('x1', bx).attr('x2', bx)
         .attr('y1', 28).attr('y2', 28 + vbH)
         .attr('stroke', '#94a3b8').attr('stroke-width', 1).attr('vector-effect', 'non-scaling-stroke')
+    }
+
+    // Prerequisite connectors: a dashed amber line runs back from every
+    // subject dot to the dot that unlocks it, drawn under the dots so the
+    // nodes stay crisp above it. Only prerequisites that exist as dots on
+    // this map connect — a code belonging to another curriculum (or a typo)
+    // stays silent. When the PO filter dims a side, its connectors dim with
+    // it so the filtered view never draws loud links to ghost subjects.
+    const dotByCode = new Map<string, MapNode>()
+    for (const n of nodes) dotByCode.set(normalizeCode(n.code), n)
+    for (const n of nodes) {
+      for (const key of n.prereqCodes ?? []) {
+        const target = dotByCode.get(key)
+        if (!target || target.id === n.id) continue
+        const dim = n.dim || target.dim
+        zoomGroup.append('line')
+          .attr('x1', target.x).attr('y1', target.y)
+          .attr('x2', n.x).attr('y2', n.y)
+          .attr('stroke', '#b45309')
+          .attr('stroke-width', 1.25)
+          .attr('stroke-dasharray', '4 4')
+          .attr('stroke-opacity', dim ? 0.15 : 0.6)
+          .attr('vector-effect', 'non-scaling-stroke')
+      }
     }
 
     // The Year · Semester header band lives in its own svg — the pinned strip
