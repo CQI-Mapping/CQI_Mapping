@@ -1897,12 +1897,12 @@ export default function SubjectView() {
         .attr('stroke', '#94a3b8').attr('stroke-width', 1).attr('vector-effect', 'non-scaling-stroke')
     }
 
-    // Prerequisite connectors: a dashed amber line runs back from every
-    // subject dot to the dot that unlocks it, drawn under the dots so the
-    // nodes stay crisp above it. Only prerequisites that exist as dots on
-    // this map connect — a code belonging to another curriculum (or a typo)
-    // stays silent. When the PO filter dims a side, its connectors dim with
-    // it so the filtered view never draws loud links to ghost subjects.
+    // Prerequisite connectors: a solid amber line runs straight back from
+    // every subject dot to the dot that unlocks it, drawn under the dots so
+    // the nodes stay crisp above it. Only prerequisites that exist as dots
+    // on this map connect — a code belonging to another curriculum (or a
+    // typo) stays silent. When the PO filter dims a side, its connectors
+    // dim with it so the filtered view never draws loud links to ghosts.
     const dotByCode = new Map<string, MapNode>()
     for (const n of nodes) dotByCode.set(normalizeCode(n.code), n)
     for (const n of nodes) {
@@ -1915,8 +1915,7 @@ export default function SubjectView() {
           .attr('x2', n.x).attr('y2', n.y)
           .attr('stroke', '#b45309')
           .attr('stroke-width', 1.25)
-          .attr('stroke-dasharray', '4 4')
-          .attr('stroke-opacity', dim ? 0.15 : 0.6)
+          .attr('stroke-opacity', dim ? 0.2 : 0.75)
           .attr('vector-effect', 'non-scaling-stroke')
       }
     }
