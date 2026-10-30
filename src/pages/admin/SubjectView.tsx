@@ -315,6 +315,13 @@ export default function SubjectView() {
     }
   }, [isFullscreen])
 
+  // Leaving the curriculum root leaves fullscreen with it: the OBE Curriculum
+  // Map is the one map that opens expanded; a subject / PO / PEO tree that a
+  // click re-roots into belongs back in the normal panel.
+  useEffect(() => {
+    if (rootType !== 'curriculum') setIsFullscreen(false)
+  }, [rootType])
+
   // Close the download's format menu on outside click or Escape — the same
   // behaviour the Curriculum Report page's download menu has.
   useEffect(() => {
@@ -2985,7 +2992,15 @@ export default function SubjectView() {
                 <span className="sr-only">Select curriculum</span>
                 <select className="input input--sm" value={selectedCurriculumId ?? ''}
                   disabled={allCurricula.length === 0}
-                  onChange={(e) => { setSelectedCurriculumId(e.target.value || null); setShowGraph(Boolean(e.target.value)); setNavStack([]) }}>
+                  onChange={(e) => {
+                    setSelectedCurriculumId(e.target.value || null)
+                    // The OBE Curriculum Map *is* the curriculum's default
+                    // visualization, and it opens full screen right away —
+                    // clearing the pick stands down to the normal panel.
+                    setShowGraph(Boolean(e.target.value))
+                    setIsFullscreen(Boolean(e.target.value))
+                    setNavStack([])
+                  }}>
                   {allCurricula.length === 0 ? (
                     <option value="">No curricula assigned in this program yet</option>
                   ) : (
