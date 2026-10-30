@@ -6336,6 +6336,19 @@ button.reports-panel__more:hover {
   min-height: calc(100vh - 260px);
 }
 
+/* Sticky map controls — in fullscreen the tall map scrolls the overlay, so
+   the filters (OBE Curriculum Map) and the title/buttons toolbar stay pinned
+   at the top while the canvas passes underneath. The pinned bar shares the
+   overlay's own background so the graph never shows through the seam, and
+   the bottom padding gives moving content room to slide under cleanly. */
+.subject-view__right--fullscreen .subject-view__graph-controls {
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  background: var(--bg, #f6f8fb);
+  padding-bottom: 8px;
+}
+
 /* Printing the Subject View prints the map and nothing else, the way the bare
    figure reads: no selector console, no toolbar buttons or Back, no hint
    or legend, and not the about card or the syllabus document the page

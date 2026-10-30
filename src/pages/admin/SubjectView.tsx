@@ -3158,7 +3158,10 @@ export default function SubjectView() {
             <div className="subject-view__graph-area">
               {/* OBE Curriculum Map filters — the curriculum root's default
                   view narrows by outcome, then by the course learning outcome
-                  that carries it as its performance indicator. */}
+                  that carries it as its performance indicator. Filters and
+                  toolbar share a wrapper so the fullscreen overlay can pin
+                  them together as one sticky control bar. */}
+              <div className="subject-view__graph-controls">
               {rootType === 'curriculum' && (
                 <div className="subject-view__map-filters">
                   <label>
@@ -3228,6 +3231,7 @@ export default function SubjectView() {
                     {isFullscreen ? 'Exit fullscreen' : '⤢ Fullscreen'}
                   </button>
                 </div>
+              </div>
               </div>
               <p className="subject-view__graph-hint">{graphHint}{isFullscreen ? ' Press Esc to exit fullscreen.' : ''}</p>
               {rootType !== 'curriculum' && (
