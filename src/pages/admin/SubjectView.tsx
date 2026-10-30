@@ -2653,8 +2653,10 @@ export default function SubjectView() {
     : selectedCurriculum ? `${selectedCurriculum.code || selectedCurriculum.title} — ${selectedCurriculum.title}`
     : selectedProgram ? `${selectedProgram.code} — ${selectedProgram.name || selectedProgram.code}`
     : ''
+  // The OBE Curriculum Map reads on its own, so it carries no hint line;
+  // the other graph types keep their short how-to text.
   const graphHint = rootType === 'curriculum'
-    ? 'Every subject stands in its Year · Semester column, colored by year (1st purple → last yellow). Lines connect subjects that feed the same program outcome; the right column lists the outcomes themselves. Click a subject or a PGO to view the graph from there. Narrow the picture with the PGO / PI filters, or press Reset View to clear them. The map moves with normal scrolling — zoom and drag-pan are off on this view.'
+    ? ''
     : rootType === 'subject'
     ? 'Click any branch node to see what is connected to it in the panel below. Click a PO, CLO, PEO, goal or memorandum to view the graph from there. Click a pre-req or co-req to jump to that subject. Click a curriculum to open its sibling subjects. Drag nodes to reposition. Scroll to zoom or use the ＋ / − buttons. Use Back to undo a re-root.'
     : rootType === 'po'
@@ -3248,7 +3250,9 @@ export default function SubjectView() {
                 </div>
               </div>
               </div>
-              <p className="subject-view__graph-hint">{graphHint}{isFullscreen ? ' Press Esc to exit fullscreen.' : ''}</p>
+              {graphHint && (
+                <p className="subject-view__graph-hint">{graphHint}{isFullscreen ? ' Press Esc to exit fullscreen.' : ''}</p>
+              )}
               {rootType !== 'curriculum' && (
                 <div className="subject-view__legend">
                   {legendDefs.map((l) => {
