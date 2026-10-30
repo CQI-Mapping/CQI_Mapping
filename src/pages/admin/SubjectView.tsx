@@ -3061,11 +3061,11 @@ export default function SubjectView() {
             </div>
           ) : (
             <div className="subject-view__graph-area">
-              {/* OBE Curriculum Map filters — the curriculum root's default
-                  view narrows by outcome, then by the course learning outcome
-                  that carries it as its performance indicator. Filters and
-                  toolbar share a wrapper so the fullscreen overlay can pin
-                  them together as one sticky control bar. */}
+              {/* OBE Curriculum Map control bar — "1." switches the curriculum
+                  the timetable shows, "2." narrows that map to a single
+                  program outcome's subjects. The selects and toolbar share a
+                  wrapper so the fullscreen overlay can pin them together as
+                  one sticky control bar. */}
               <div className="subject-view__graph-controls">
               {rootType === 'curriculum' && (
                 <div className="subject-view__map-filters">
@@ -3073,12 +3073,17 @@ export default function SubjectView() {
                     <b>1. Curriculum:</b>
                     <select
                       className="input input--sm"
-                      value={mapPoId}
-                      onChange={(e) => { setMapPoId(e.target.value); setMapCloId('') }}
+                      value={selectedCurriculumId ?? ''}
+                      onChange={(e) => {
+                        setSelectedCurriculumId(e.target.value || null)
+                        // A fresh curriculum starts unfiltered; the page keeps
+                        // its fullscreen state since the map stays on screen.
+                        setMapPoId('')
+                        setMapCloId('')
+                      }}
                     >
-                      <option value="">— All outcomes —</option>
-                      {mapFilterOptions.pos.map((p) => (
-                        <option key={p.id} value={p.id}>{poCode(p.code)}</option>
+                      {allCurricula.map((r) => (
+                        <option key={r.id} value={r.id}>{r.code || r.title} — {r.title}</option>
                       ))}
                     </select>
                   </label>
