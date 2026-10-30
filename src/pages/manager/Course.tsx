@@ -1,7 +1,9 @@
 // Manager Course page: manages courses linked to a program. Pick a program and
-// curriculum, then create / edit / archive the courses inside it. Courses can
-// reference a prerequisite and corequisite from the same program, and credits
-// are split into lecture + laboratory (total is computed automatically).
+// curriculum, then create / edit / archive the courses inside it. The top panel
+// creates courses; editing expands the course card itself inline (the same
+// card-expanding editor the CLO page uses). Courses can reference a
+// prerequisite and corequisite from the same program, and credits are split
+// into lecture + laboratory (total is computed automatically).
 // Managers cannot delete courses (RLS blocks it too).
 
 import { useState, useEffect, useCallback, useRef } from 'react'
@@ -84,15 +86,20 @@ const dupTokenCount = (v: string) => {
 // Split a comma-separated pre-req/co-req value into trimmed non-empty tokens.
 const listTokens = (s: string) => (s || '').split(',').map((t) => t.trim()).filter(Boolean)
 
+// Credit units clamp to 0–3; the field may stay temporarily empty while typing.
+const clampCredit = (v: string) => (v === '' ? '' : Number(v) > 3 ? '3' : Number(v) < 0 ? '0' : v)
+
 interface ComboInputProps {
   value: string
   onChange: (value: string) => void
   options: { code: string; title: string }[]
   placeholder: string
   disabled?: boolean
+  /** Compact height, used by the inline card editor and other dense forms. */
+  small?: boolean
 }
 
-function ComboInput({ value, onChange, options, placeholder, disabled }: ComboInputProps) {
+function ComboInput({ value, onChange, options, placeholder, disabled, small }: ComboInputProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const ref = useRef<HTMLDivElement>(null)
@@ -134,7 +141,7 @@ function ComboInput({ value, onChange, options, placeholder, disabled }: ComboIn
   return (
     <div className="combo" ref={ref}>
       <input
-        className="input"
+        className={small ? 'input input--sm' : 'input'}
         type="text"
         placeholder={placeholder}
         value={disabled ? '' : value}
@@ -418,22 +425,134 @@ export default function ManagerCourse({ profile }: CourseProps) {
     }
   }
 
-  const editing = editId !== null
-  const activeForm = editing ? editForm : form
-  const setActiveForm = editing ? setEditForm : setForm
-
-  const creditField = (label: string, key: 'creditLecture' | 'creditLaboratory') => (
-    <label className="field">
+  // Credit units (lecture / laboratory) share one clamped numeric input.
+  const creditField = (
+    label: string,
+    key: 'creditLecture' | 'creditLaboratory',
+    f: CourseForm,
+    setF: (next: CourseForm) => void,
+    small = false,
+  ) => (
+    <label className="field" style={small ? { marginBottom: 0 } : undefined}>
       <span>{label}</span>
-      <input className="input" type="number" min={0} max={3} value={activeForm[key]}
-        onChange={(e) => {
-          let v = e.target.value
-          if (Number(v) > 3) v = '3'
-          if (Number(v) < 0) v = '0'
-          setActiveForm({ ...activeForm, [key]: v })
-        }}
+      <input className={small ? 'input input--sm' : 'input'} type="number" min={0} max={3} value={f[key]}
+        onChange={(e) => setF({ ...f, [key]: clampCredit(e.target.value) })}
         onWheel={(e) => (e.target as HTMLInputElement).blur()} />
     </label>
+  )
+
+  // Inline edit form for a single course card — the same card-expanding editor
+  // the CLO page uses: fields stack inside the card and Save/Cancel sit at the
+  // bottom, so editing a course never yanks the manager back to the top form.
+  // Both card styles (list row and grid card) render it directly.
+  const renderCourseEdit = () => (
+    <div className="resource-card__edit">
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <input className="input input--sm" type="text" placeholder="Course code (e.g. IT21)"
+          value={editForm.code}
+          onChange={(e) => setEditForm({ ...editForm, code: e.target.value })} required />
+        <input className="input input--sm" type="text" placeholder="Course title"
+          value={editForm.title}
+          onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} required />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+        <select className="input input--sm" title="Curriculum" value={editForm.curriculum}
+          onChange={(e) => setEditForm({ ...editForm, curriculum: e.target.value })}>
+          <option value="">No curriculum</option>
+          {curriculums.map((r) => (
+            <option key={r.id} value={r.id}>{r.code || r.title}</option>
+          ))}
+        </select>
+        {termColumns ? (
+          <>
+            <select className="input input--sm" title="Year level" value={editForm.yearLevel}
+              onChange={(e) => setEditForm({
+                ...editForm,
+                yearLevel: e.target.value,
+                // Clearing the year has no semester to keep.
+                semester: e.target.value ? editForm.semester : '',
+              })}>
+              <option value="">Not placed</option>
+              {[1, 2, 3, 4, 5, 6].map((y) => (
+                <option key={y} value={y}>{ordYear(y)} Year</option>
+              ))}
+            </select>
+            <select className="input input--sm" title="Semester" value={editForm.semester} disabled={!editForm.yearLevel}
+              onChange={(e) => setEditForm({ ...editForm, semester: e.target.value })}>
+              <option value="">Not placed</option>
+              <option value="1">1st Sem</option>
+              <option value="2">2nd Sem</option>
+              <option value="3">Off-sem</option>
+            </select>
+          </>
+        ) : (
+          <input className="input input--sm" readOnly disabled
+            title="Term placement is unavailable — the database lacks courses.year_level / courses.semester (migration 003)."
+            value="Year/semester unavailable (migration 003)" />
+        )}
+      </div>
+      <div className="na-row">
+        <ComboInput
+          value={editForm.prereq}
+          onChange={(v) => setEditForm({ ...editForm, prereq: v })}
+          options={programCourses}
+          placeholder="Type or select prerequisite"
+          disabled={editForm.prereqNA}
+          small
+        />
+        <label className="na-check">
+          <input type="checkbox" checked={editForm.prereqNA}
+            onChange={(e) => setEditForm({ ...editForm, prereqNA: e.target.checked, prereq: e.target.checked ? '' : editForm.prereq })} />
+          <span className="cb-box" aria-hidden="true" />
+          N/A
+        </label>
+      </div>
+      {!editForm.prereqNA && dupTokenCount(editForm.prereq) > 0 && (
+        <div style={{ fontSize: 12, color: '#b45309' }}>
+          Repeated pre-requisites are listed once in the report.
+        </div>
+      )}
+      <div className="na-row">
+        <ComboInput
+          value={editForm.coreq}
+          onChange={(v) => setEditForm({ ...editForm, coreq: v })}
+          options={programCourses}
+          placeholder="Type or select co-requisite"
+          disabled={editForm.coreqNA}
+          small
+        />
+        <label className="na-check">
+          <input type="checkbox" checked={editForm.coreqNA}
+            onChange={(e) => setEditForm({ ...editForm, coreqNA: e.target.checked, coreq: e.target.checked ? '' : editForm.coreq })} />
+          <span className="cb-box" aria-hidden="true" />
+          N/A
+        </label>
+      </div>
+      {!editForm.coreqNA && dupTokenCount(editForm.coreq) > 0 && (
+        <div style={{ fontSize: 12, color: '#b45309' }}>
+          Repeated co-requisites are listed once in the report.
+        </div>
+      )}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+        {creditField('Lecture', 'creditLecture', editForm, setEditForm, true)}
+        {creditField('Laboratory', 'creditLaboratory', editForm, setEditForm, true)}
+        <label className="field" style={{ marginBottom: 0 }}>
+          <span>Total</span>
+          <input className="input input--sm" type="number" readOnly value={totalCredits(editForm)} />
+        </label>
+      </div>
+      <textarea className="input input--sm" rows={2} placeholder="Description"
+        value={editForm.description}
+        onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} />
+      <div className="program-card__actions">
+        <button className="btn btn--primary btn--sm" onClick={saveEdit} disabled={busy}>
+          {busy ? 'Saving...' : (<><Icon name="check" size={13} /> Save</>)}
+        </button>
+        <button className="btn btn--ghost btn--sm" onClick={cancelEdit} disabled={busy}>
+          Cancel
+        </button>
+      </div>
+    </div>
   )
 
   return (
@@ -473,11 +592,11 @@ export default function ManagerCourse({ profile }: CourseProps) {
       ) : (
         <>
           <form className="panel create-resource" onSubmit={handleCreate} style={{ borderTop: '3px solid #16a34a' }}>
-            <h3>{editing ? `Edit Course — ${editForm.code || 'untitled'}` : 'New Course'}</h3>
+            <h3>New Course</h3>
             <label className="field">
               <span>Program code</span>
               <select className="input" value={programId}
-                onChange={(e) => setProgramId(e.target.value)} required disabled={editing}>
+                onChange={(e) => setProgramId(e.target.value)} required>
                 {programs.length === 0 && <option value="">No programs yet</option>}
                 {programs.map((p) => (
                   <option key={p.id} value={p.id}>{p.name || p.code}</option>
@@ -486,8 +605,8 @@ export default function ManagerCourse({ profile }: CourseProps) {
             </label>
             <label className="field">
               <span>Curriculum</span>
-              <select className="input" value={activeForm.curriculum}
-                onChange={(e) => setActiveForm({ ...activeForm, curriculum: e.target.value })}>
+              <select className="input" value={form.curriculum}
+                onChange={(e) => setForm({ ...form, curriculum: e.target.value })}>
                 <option value="">None</option>
                 {curriculums.map((r) => (
                   <option key={r.id} value={r.id}>{r.code || r.title}</option>
@@ -498,12 +617,12 @@ export default function ManagerCourse({ profile }: CourseProps) {
               <>
                 <label className="field">
                   <span>Year Level</span>
-                  <select className="input" value={activeForm.yearLevel}
-                    onChange={(e) => setActiveForm({
-                      ...activeForm,
+                  <select className="input" value={form.yearLevel}
+                    onChange={(e) => setForm({
+                      ...form,
                       yearLevel: e.target.value,
                       // Clearing the year has no semester to keep.
-                      semester: e.target.value ? activeForm.semester : '',
+                      semester: e.target.value ? form.semester : '',
                     })}>
                     <option value="">Not placed</option>
                     {[1, 2, 3, 4, 5, 6].map((y) => (
@@ -513,8 +632,8 @@ export default function ManagerCourse({ profile }: CourseProps) {
                 </label>
                 <label className="field">
                   <span>Semester</span>
-                  <select className="input" value={activeForm.semester} disabled={!activeForm.yearLevel}
-                    onChange={(e) => setActiveForm({ ...activeForm, semester: e.target.value })}>
+                  <select className="input" value={form.semester} disabled={!form.yearLevel}
+                    onChange={(e) => setForm({ ...form, semester: e.target.value })}>
                     <option value="">Not placed</option>
                     <option value="1">1st Sem</option>
                     <option value="2">2nd Sem</option>
@@ -535,33 +654,33 @@ export default function ManagerCourse({ profile }: CourseProps) {
             <label className="field">
               <span>Course Code</span>
               <input className="input" type="text" placeholder="e.g. IT21"
-                value={activeForm.code}
-                onChange={(e) => setActiveForm({ ...activeForm, code: e.target.value })} required />
+                value={form.code}
+                onChange={(e) => setForm({ ...form, code: e.target.value })} required />
             </label>
             <label className="field">
               <span>Course Title</span>
               <input className="input" type="text" placeholder="Course title"
-                value={activeForm.title}
-                onChange={(e) => setActiveForm({ ...activeForm, title: e.target.value })} required />
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })} required />
             </label>
             <label className="field">
               <span>Pre-requisite</span>
               <div className="na-row">
 <ComboInput
-                  value={activeForm.prereq}
-                  onChange={(v) => setActiveForm({ ...activeForm, prereq: v })}
+                  value={form.prereq}
+                  onChange={(v) => setForm({ ...form, prereq: v })}
                   options={programCourses}
                   placeholder="Type or select prerequisite"
-                  disabled={activeForm.prereqNA}
+                  disabled={form.prereqNA}
                 />
                 <label className="na-check">
-                  <input type="checkbox" checked={activeForm.prereqNA}
-                    onChange={(e) => setActiveForm({ ...activeForm, prereqNA: e.target.checked, prereq: e.target.checked ? '' : activeForm.prereq })} />
+                  <input type="checkbox" checked={form.prereqNA}
+                    onChange={(e) => setForm({ ...form, prereqNA: e.target.checked, prereq: e.target.checked ? '' : form.prereq })} />
                   <span className="cb-box" aria-hidden="true" />
                   N/A
                 </label>
               </div>
-              {!activeForm.prereqNA && dupTokenCount(activeForm.prereq) > 0 && (
+              {!form.prereqNA && dupTokenCount(form.prereq) > 0 && (
                 <div style={{ fontSize: 12, color: '#b45309', marginTop: 4 }}>
                   Repeated pre-requisites are listed once in the report.
                 </div>
@@ -571,20 +690,20 @@ export default function ManagerCourse({ profile }: CourseProps) {
               <span>Co-requisite</span>
               <div className="na-row">
 <ComboInput
-                  value={activeForm.coreq}
-                  onChange={(v) => setActiveForm({ ...activeForm, coreq: v })}
+                  value={form.coreq}
+                  onChange={(v) => setForm({ ...form, coreq: v })}
                   options={programCourses}
                   placeholder="Type or select co-requisite"
-                  disabled={activeForm.coreqNA}
+                  disabled={form.coreqNA}
                 />
                 <label className="na-check">
-                  <input type="checkbox" checked={activeForm.coreqNA}
-                    onChange={(e) => setActiveForm({ ...activeForm, coreqNA: e.target.checked, coreq: e.target.checked ? '' : activeForm.coreq })} />
+                  <input type="checkbox" checked={form.coreqNA}
+                    onChange={(e) => setForm({ ...form, coreqNA: e.target.checked, coreq: e.target.checked ? '' : form.coreq })} />
                   <span className="cb-box" aria-hidden="true" />
                   N/A
                 </label>
               </div>
-              {!activeForm.coreqNA && dupTokenCount(activeForm.coreq) > 0 && (
+              {!form.coreqNA && dupTokenCount(form.coreq) > 0 && (
                 <div style={{ fontSize: 12, color: '#b45309', marginTop: 4 }}>
                   Repeated co-requisites are listed once in the report.
                 </div>
@@ -593,35 +712,24 @@ export default function ManagerCourse({ profile }: CourseProps) {
             <div className="field">
               <span>Credit</span>
               <div className="credit-group">
-                {creditField('Lecture', 'creditLecture')}
-                {creditField('Laboratory', 'creditLaboratory')}
+                {creditField('Lecture', 'creditLecture', form, setForm)}
+                {creditField('Laboratory', 'creditLaboratory', form, setForm)}
                 <label className="field">
                   <span>Total</span>
-                  <input className="input" type="number" readOnly value={totalCredits(activeForm)} />
+                  <input className="input" type="number" readOnly value={totalCredits(form)} />
                 </label>
               </div>
             </div>
             <label className="field">
               <span>Description</span>
               <textarea className="input" rows={3} placeholder="Optional description"
-                value={activeForm.description}
-                onChange={(e) => setActiveForm({ ...activeForm, description: e.target.value })} />
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })} />
             </label>
             <div className="create-resource__submit">
-              {editing ? (
-                <>
-                  <button className="btn btn--primary btn--sm" type="button" onClick={saveEdit} disabled={busy}>
-                    {busy ? 'Saving...' : (<><Icon name="check" size={13} /> Save</>)}
-                  </button>{' '}
-                  <button className="btn btn--ghost btn--sm" type="button" onClick={cancelEdit} disabled={busy}>
-                    Cancel
-                  </button>
-                </>
-              ) : (
-                <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
-                  {busy ? 'Saving...' : (<><Icon name="plus" size={13} /> Add</>)}
-                </button>
-              )}
+              <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
+                {busy ? 'Saving...' : (<><Icon name="plus" size={13} /> Add</>)}
+              </button>
             </div>
           </form>
 
@@ -647,76 +755,88 @@ export default function ManagerCourse({ profile }: CourseProps) {
             ) : viewMode === 'list' ? (
               <div className="resource-list">
                 {visible.map((c) => (
-                  <div key={c.id} className={`resource-card ${isActive(c) ? '' : 'resource-card--archived'}`} onDoubleClick={() => startEdit(c)} title="Double-click to edit">
-                    <div className="resource-card__body">
-                      <h4>{c.code} — {c.title}</h4>
-                      {c.description && <p>{c.description}</p>}
-                      <div className="resource-card__meta">
-                        <span className={`status-badge status-badge--${isActive(c) ? 'active' : 'archived'}`}>{isActive(c) ? 'Active' : 'Archived'}</span>
-                        <span>{curriculumLabel(c.curriculum_id)}</span>
-                        {termLabelOf(c) && <span title="Term placement — which column the subject stands in on the OBE Curriculum Map">{termLabelOf(c)}</span>}
-                        <span>{c.credit_lecture ?? 0} lec / {c.credit_laboratory ?? 0} lab</span>
-                        <span>{instructorLabelOf(c.instructor_id)}</span>
-                      </div>
-                    </div>
-                    <div className="resource-card__actions">
-                      <button className="btn btn--ghost btn--sm" onClick={() => startEdit(c)} disabled={busy || !!editId} aria-label={`Edit ${c.code}`} title="Edit"><Icon name="edit" size={13} /></button>
-                      <button className={`btn btn--sm ${isActive(c) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleToggleStatus(c)} disabled={busy || !!editId} aria-label={isActive(c) ? `Archive ${c.code}` : `Restore ${c.code}`} title={isActive(c) ? 'Archive' : 'Restore'}>
-                        <Icon name={isActive(c) ? 'archive' : 'restore'} size={13} />
-                      </button>
-                    </div>
+                  <div key={c.id} className={`resource-card ${isActive(c) ? '' : 'resource-card--archived'}`}
+                    onDoubleClick={() => { if (!busy && editId === null) startEdit(c) }}
+                    title={editId === c.id ? undefined : 'Double-click to edit'}>
+                    {editId === c.id ? renderCourseEdit() : (
+                      <>
+                        <div className="resource-card__body">
+                          <h4>{c.code} — {c.title}</h4>
+                          {c.description && <p>{c.description}</p>}
+                          <div className="resource-card__meta">
+                            <span className={`status-badge status-badge--${isActive(c) ? 'active' : 'archived'}`}>{isActive(c) ? 'Active' : 'Archived'}</span>
+                            <span>{curriculumLabel(c.curriculum_id)}</span>
+                            {termLabelOf(c) && <span title="Term placement — which column the subject stands in on the OBE Curriculum Map">{termLabelOf(c)}</span>}
+                            <span>{c.credit_lecture ?? 0} lec / {c.credit_laboratory ?? 0} lab</span>
+                            <span>{instructorLabelOf(c.instructor_id)}</span>
+                          </div>
+                        </div>
+                        <div className="resource-card__actions">
+                          <button className="btn btn--ghost btn--sm" onClick={() => startEdit(c)} disabled={busy || !!editId} aria-label={`Edit ${c.code}`} title="Edit"><Icon name="edit" size={13} /></button>
+                          <button className={`btn btn--sm ${isActive(c) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleToggleStatus(c)} disabled={busy || !!editId} aria-label={isActive(c) ? `Archive ${c.code}` : `Restore ${c.code}`} title={isActive(c) ? 'Archive' : 'Restore'}>
+                            <Icon name={isActive(c) ? 'archive' : 'restore'} size={13} />
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
             ) : (
               <div className="program-grid" style={{ marginTop: 14 }}>
                 {visible.map((c) => (
-                  <div key={c.id} className="program-card--2026 card-enter" data-status={isActive(c) ? 'active' : 'archived'} onDoubleClick={() => startEdit(c)} title="Double-click to edit">
-                    <div className="program-card__top">
-                      <span className="program-card__code">{c.code}</span>
-                      <span className={`program-card__status ${isActive(c) ? 'program-card__status--active' : 'program-card__status--archived'}`}>
-                        <span className="program-card__status-dot" />{isActive(c) ? 'Active' : 'Archived'}
-                      </span>
-                    </div>
-                    <h3 className="program-card__name">{c.title}</h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12.5 }}>
-                      <div style={{ display: 'flex', gap: 6 }}><span style={{ fontWeight: 700, color: '#64748b' }}>Curriculum:</span><span style={{ color: '#0f172a' }}>{curriculumLabel(c.curriculum_id)}</span></div>
-                      <div style={{ display: 'flex', gap: 6 }}><span style={{ fontWeight: 700, color: '#64748b' }}>Term:</span><span style={{ color: '#0f172a' }}>{termLabelOf(c) || 'Not placed'}</span></div>
-                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        <span style={{ fontWeight: 700, color: '#64748b' }}>Instructor:</span>
-                        <span style={{ color: '#0f172a' }}>{instructorLabelOf(c.instructor_id)}</span>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        <div style={{ color: '#475569' }}>
-                          <strong style={{ color: '#64748b' }}>Pre-req:</strong>
-                          {listTokens(c.prerequisite).length > 0 ? (
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              {listTokens(c.prerequisite).map((p, i) => (
-                                <span key={i}>{p}</span>
-                              ))}
-                            </div>
-                          ) : <span> N/A</span>}
+                  <div key={c.id} className="program-card--2026 card-enter" data-status={isActive(c) ? 'active' : 'archived'}
+                    onDoubleClick={() => { if (!busy && editId === null) startEdit(c) }}
+                    title={editId === c.id ? undefined : 'Double-click to edit'}>
+                    {editId === c.id ? renderCourseEdit() : (
+                      <>
+                        <div className="program-card__top">
+                          <span className="program-card__code">{c.code}</span>
+                          <span className={`program-card__status ${isActive(c) ? 'program-card__status--active' : 'program-card__status--archived'}`}>
+                            <span className="program-card__status-dot" />{isActive(c) ? 'Active' : 'Archived'}
+                          </span>
                         </div>
-                        <div style={{ color: '#475569' }}>
-                          <strong style={{ color: '#64748b' }}>Co-req:</strong>
-                          {listTokens(c.corequisite).length > 0 ? (
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              {listTokens(c.corequisite).map((p, i) => (
-                                <span key={i}>{p}</span>
-                              ))}
+                        <h3 className="program-card__name">{c.title}</h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12.5 }}>
+                          <div style={{ display: 'flex', gap: 6 }}><span style={{ fontWeight: 700, color: '#64748b' }}>Curriculum:</span><span style={{ color: '#0f172a' }}>{curriculumLabel(c.curriculum_id)}</span></div>
+                          <div style={{ display: 'flex', gap: 6 }}><span style={{ fontWeight: 700, color: '#64748b' }}>Term:</span><span style={{ color: '#0f172a' }}>{termLabelOf(c) || 'Not placed'}</span></div>
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                            <span style={{ fontWeight: 700, color: '#64748b' }}>Instructor:</span>
+                            <span style={{ color: '#0f172a' }}>{instructorLabelOf(c.instructor_id)}</span>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <div style={{ color: '#475569' }}>
+                              <strong style={{ color: '#64748b' }}>Pre-req:</strong>
+                              {listTokens(c.prerequisite).length > 0 ? (
+                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                  {listTokens(c.prerequisite).map((p, i) => (
+                                    <span key={i}>{p}</span>
+                                  ))}
+                                </div>
+                              ) : <span> N/A</span>}
                             </div>
-                          ) : <span> N/A</span>}
+                            <div style={{ color: '#475569' }}>
+                              <strong style={{ color: '#64748b' }}>Co-req:</strong>
+                              {listTokens(c.corequisite).length > 0 ? (
+                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                  {listTokens(c.corequisite).map((p, i) => (
+                                    <span key={i}>{p}</span>
+                                  ))}
+                                </div>
+                              ) : <span> N/A</span>}
+                            </div>
+                          </div>
+                          <div style={{ color: '#475569' }}><strong style={{ color: '#64748b' }}>Credits:</strong> {c.credit_lecture ?? 0} lec / {c.credit_laboratory ?? 0} lab / {c.units ?? 0} total</div>
                         </div>
-                      </div>
-                      <div style={{ color: '#475569' }}><strong style={{ color: '#64748b' }}>Credits:</strong> {c.credit_lecture ?? 0} lec / {c.credit_laboratory ?? 0} lab / {c.units ?? 0} total</div>
-                    </div>
-                    <p className="program-card__desc">{c.description || 'No description.'}</p>
-                    <div className="program-card__actions">
-                      <button className="btn btn--ghost btn--sm" onClick={() => startEdit(c)} disabled={busy || !!editId} aria-label={`Edit ${c.code}`} title="Edit"><Icon name="edit" size={13} /></button>
-                      <button className={`btn btn--sm ${isActive(c) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleToggleStatus(c)} disabled={busy || !!editId} aria-label={isActive(c) ? `Archive ${c.code}` : `Restore ${c.code}`} title={isActive(c) ? 'Archive' : 'Restore'}>
-                        <Icon name={isActive(c) ? 'archive' : 'restore'} size={13} />
-                      </button>
-                    </div>
+                        <p className="program-card__desc">{c.description || 'No description.'}</p>
+                        <div className="program-card__actions">
+                          <button className="btn btn--ghost btn--sm" onClick={() => startEdit(c)} disabled={busy || !!editId} aria-label={`Edit ${c.code}`} title="Edit"><Icon name="edit" size={13} /></button>
+                          <button className={`btn btn--sm ${isActive(c) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleToggleStatus(c)} disabled={busy || !!editId} aria-label={isActive(c) ? `Archive ${c.code}` : `Restore ${c.code}`} title={isActive(c) ? 'Archive' : 'Restore'}>
+                            <Icon name={isActive(c) ? 'archive' : 'restore'} size={13} />
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
