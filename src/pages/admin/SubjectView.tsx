@@ -3088,7 +3088,7 @@ export default function SubjectView() {
                     </select>
                   </label>
                   <label>
-                    <b>2. Performance Indicators (PI):</b>
+                    <b>2. PO:</b>
                     <select
                       className="input input--sm"
                       value={mapCloId}
