@@ -1830,7 +1830,10 @@ export default function SubjectView() {
           color: yearColor(s.year),
           dim: dimSubject(s),
           x: x0,
-          y: FIRST_ROW_Y + i * ROW_H,
+          // Dot centered in its 46px row slot, so the code/title label above
+          // and the clear space below balance instead of the pair riding the
+          // cell's top edge.
+          y: FIRST_ROW_Y + i * ROW_H + ROW_H / 2,
           r: 7,
         })
       })
