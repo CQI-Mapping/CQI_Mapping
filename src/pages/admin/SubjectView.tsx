@@ -2653,7 +2653,7 @@ export default function SubjectView() {
     : selectedProgram ? `${selectedProgram.code} — ${selectedProgram.name || selectedProgram.code}`
     : ''
   const graphHint = rootType === 'curriculum'
-    ? 'Every subject stands in its Year · Semester column, colored by year (1st purple → last yellow). Lines connect subjects that feed the same program outcome; the right column lists the outcomes themselves. Click a subject or a PGO to view the graph from there. Narrow the picture with the PGO / PI filters, or press Reset View to clear them. Scroll to zoom or use the ＋ / − buttons, drag to pan.'
+    ? 'Every subject stands in its Year · Semester column, colored by year (1st purple → last yellow). Lines connect subjects that feed the same program outcome; the right column lists the outcomes themselves. Click a subject or a PGO to view the graph from there. Narrow the picture with the PGO / PI filters, or press Reset View to clear them. Scroll to zoom, drag to pan.'
     : rootType === 'subject'
     ? 'Click any branch node to see what is connected to it in the panel below. Click a PO, CLO, PEO, goal or memorandum to view the graph from there. Click a pre-req or co-req to jump to that subject. Click a curriculum to open its sibling subjects. Drag nodes to reposition. Scroll to zoom or use the ＋ / − buttons. Use Back to undo a re-root.'
     : rootType === 'po'
@@ -3226,8 +3226,12 @@ export default function SubjectView() {
                   <button type="button" className="btn btn--ghost btn--sm" onClick={collapseAll} title="Collapse all branches except the root">
                     Collapse
                   </button>
-                  <button type="button" className="btn btn--ghost btn--sm" onClick={() => zoomBy(1.25)} aria-label="Zoom in" title="Zoom in">＋</button>
-                  <button type="button" className="btn btn--ghost btn--sm" onClick={() => zoomBy(1 / 1.25)} aria-label="Zoom out" title="Zoom out">−</button>
+                  {rootType !== 'curriculum' && (
+                    <>
+                      <button type="button" className="btn btn--ghost btn--sm" onClick={() => zoomBy(1.25)} aria-label="Zoom in" title="Zoom in">＋</button>
+                      <button type="button" className="btn btn--ghost btn--sm" onClick={() => zoomBy(1 / 1.25)} aria-label="Zoom out" title="Zoom out">−</button>
+                    </>
+                  )}
                   <button type="button" className="btn btn--ghost btn--sm" onClick={resetZoom} title="Reset zoom and pan">
                     Reset zoom
                   </button>
