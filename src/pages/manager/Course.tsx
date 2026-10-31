@@ -406,6 +406,28 @@ export default function ManagerCourse({ profile }: CourseProps) {
     clearEdit()
   }
 
+  // Menu-style auto-close for the inline editor: while a course is being
+  // edited, pressing anywhere that is not that course's card (or the key
+  // Escape) cancels the edit, exactly like pressing Cancel. Skipped while a
+  // save is in flight so a slow round-trip can't swallow the open form.
+  useEffect(() => {
+    if (!editId) return
+    const onOutside = (e: MouseEvent) => {
+      if (busy) return
+      if (e.target instanceof Element && e.target.closest('[data-course-edit="open"]')) return
+      cancelEdit()
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !busy) cancelEdit()
+    }
+    document.addEventListener('mousedown', onOutside)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onOutside)
+      document.removeEventListener('keydown', onKey)
+    }
+  })
+
   const handleToggleStatus = async (item: Course) => {
     setError('')
     setMessage('')
@@ -790,6 +812,10 @@ export default function ManagerCourse({ profile }: CourseProps) {
               <div className="resource-list">
                 {visible.map((c) => (
                   <div key={c.id} className={`resource-card ${isActive(c) ? '' : 'resource-card--archived'}`}
+                    // Marks the card whose inline editor is open, so the
+                    // click-outside handler above knows what counts as "the
+                    // course" (presses inside the edit never auto-close it).
+                    data-course-edit={editId === c.id ? 'open' : undefined}
                     onDoubleClick={() => { if (!busy && editId === null) startEdit(c) }}
                     title={editId === c.id ? undefined : 'Double-click to edit'}>
                     {editId === c.id ? renderCourseEdit() : (
@@ -820,6 +846,10 @@ export default function ManagerCourse({ profile }: CourseProps) {
               <div className="program-grid" style={{ marginTop: 14 }}>
                 {visible.map((c) => (
                   <div key={c.id} className="program-card--2026 card-enter" data-status={isActive(c) ? 'active' : 'archived'}
+                    // Same click-outside marker as the list view above: the
+                    // open editor's own card never closes itself, everything
+                    // else on the page dismisses it.
+                    data-course-edit={editId === c.id ? 'open' : undefined}
                     onDoubleClick={() => { if (!busy && editId === null) startEdit(c) }}
                     title={editId === c.id ? undefined : 'Double-click to edit'}>
                     {editId === c.id ? renderCourseEdit() : (
