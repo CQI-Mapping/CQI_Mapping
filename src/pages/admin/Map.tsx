@@ -2156,7 +2156,7 @@ export default function SubjectView() {
         tip.style.opacity = '1'
         tip.style.left = `${event.offsetX + 12}px`
         tip.style.top = `${event.offsetY - 28}px`
-        tip.innerHTML = `<strong>${d.code}</strong><br/>${d.title}<br/><em>Click to show its connected subjects</em>`
+        tip.innerHTML = `<strong>${d.code}</strong><br/>${d.title}<br/><em>Click to show connected subjects</em>`
       })
       .on('mousemove', (event) => {
         tip.style.left = `${event.offsetX + 12}px`
@@ -2166,17 +2166,14 @@ export default function SubjectView() {
         tip.style.opacity = '0'
       })
 
-    // Press a dot: spotlight its prerequisite network AND open that subject's
-    // graph view directly — one press, no double-click needed. The spotlight
-    // state survives the round-trip, so coming back to the map (Back, or
-    // picking the curriculum again) still shows the pressed subject's network
-    // lit until an empty-canvas press clears it.
+    // Press a dot: spotlight it and its prerequisite network (see the
+    // connector block above). Press it again — or anywhere on the empty
+    // canvas — to clear the spotlight. The map no longer navigates away to
+    // a different page/view: pressing only reveals connections.
     node.on('click', (event, d) => {
       event.stopPropagation()
       const id = d.courseId
-      if (!id) return
-      setMapFocusId((cur) => (cur === id ? null : id))
-      gotoSubjectRoot(id)
+      if (id) setMapFocusId((cur) => (cur === id ? null : id))
     })
     svg.on('click.mapfocus', () => setMapFocusId(null))
 
@@ -2192,7 +2189,7 @@ export default function SubjectView() {
       svg.on('click.mapfocus', null)
       zoomRef.current = null
     }
-  }, [containerSize, datasets, selectedCurriculum, mapPoId, buildCurriculumMapModel, gotoSubjectRoot, mapFocusId])
+  }, [containerSize, datasets, selectedCurriculum, mapPoId, buildCurriculumMapModel, mapFocusId])
 
   // Dual-root: subject mode (subject → curriculum / prereq / coreq / CLO → PO
   // → PEO/SG/CMO) or PO mode (PO → CLOs → subjects + PEO/SG/CMO), with the
