@@ -4549,6 +4549,14 @@ textarea.input {
   margin-bottom: 18px;
 }
 
+/* On the dashboards the brief's two panels stop stretching to one shared row
+   height: the summary table and the coverage chart are never equal naturally,
+   so the shorter card used to stretch its border over a chop of dead white
+   under its content. Each ends at its content's edge instead. */
+.map-brief .reports-panels {
+  align-items: start;
+}
+
 .reports-panel {
   margin: 0;
   min-width: 0;
