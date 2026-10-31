@@ -2019,9 +2019,10 @@ export default function SubjectView() {
     // typo) stays silent. When the PO filter dims a side, its connectors
     // dim with it so the filtered view never draws loud links to ghosts.
     //
-    // Press-to-reveal: while a dot is focused (mapFocusId), the wires that
-    // touch it and the dots on their far ends stay lit — one hop only —
-    // and everything else fades to a whisper.
+    // Press-to-reveal: while a dot is focused (mapFocusId), its forward
+    // prerequisite chain — pressed subject through everything it eventually
+    // unlocks, up to the map's last column — stays lit, and every other
+    // connector and dot fades to a whisper.
     const dotByCode = new Map<string, MapNode>()
     for (const n of nodes) dotByCode.set(normalizeCode(n.code), n)
     const prereqLinks: Array<{ from: MapNode; to: MapNode }> = []
@@ -2035,17 +2036,28 @@ export default function SubjectView() {
     const focusNode = mapFocusId
       ? nodes.find((n) => n.courseId === mapFocusId) ?? null
       : null
-    // Spotlight = the pressed subject and the dots directly wired to it: its
-    // prerequisites (what unlocks it) and its direct dependents (the subjects
-    // that list it). One hop only, by choice — the continuing chain is owed
-    // to the wires themselves, not extended: a pressed subject's whole-chain
-    // view can approach "everything on the map", which is not a spotlight.
+    // Spotlight = the pressed subject plus its FORWARD prerequisite chain: the
+    // subjects that unlock it are left out; instead the walk follows only what
+    // the pressed subject (and each subject after it) unlocks, onward through
+    // the semesters until the chain ends at the map's last column. So one
+    // press reads as a path marching ahead — IT10 → IT25 → IT27 → … → its
+    // bottom in 4th year — while the rest of the map fades.
     const focusPeerIds = new Set<string>()
     if (focusNode) {
       focusPeerIds.add(focusNode.id)
+      const unlocks = new Map<string, string[]>()
       for (const { from, to } of prereqLinks) {
-        if (from.id === focusNode.id) focusPeerIds.add(to.id) // the subject unlocks these
-        if (to.id === focusNode.id) focusPeerIds.add(from.id) // these unlock the subject
+        unlocks.set(from.id, [...(unlocks.get(from.id) ?? []), to.id])
+      }
+      const queue = [focusNode.id]
+      while (queue.length > 0) {
+        const current = queue.pop()!
+        for (const next of unlocks.get(current) ?? []) {
+          if (!focusPeerIds.has(next)) {
+            focusPeerIds.add(next)
+            queue.push(next)
+          }
+        }
       }
     }
     const nodeOpacity = (d: MapNode): number => {
@@ -2055,13 +2067,16 @@ export default function SubjectView() {
     }
     for (const { from, to } of prereqLinks) {
       const dim = from.dim || to.dim
-      const focused = focusNode !== null && (from.id === focusNode.id || to.id === focusNode.id)
+      // A wire stays in the chain when BOTH ends are on the forward path —
+      // segments beyond the first hop don't touch the pressed dot directly
+      // but still carry the connection toward the chain's end.
+      const inChain = focusNode !== null && focusPeerIds.has(from.id) && focusPeerIds.has(to.id)
       zoomGroup.append('line')
         .attr('x1', from.x).attr('y1', from.y)
         .attr('x2', to.x).attr('y2', to.y)
         .attr('stroke', '#b45309')
-        .attr('stroke-width', focused ? 2 : 1.25)
-        .attr('stroke-opacity', focusNode ? (focused ? 0.95 : 0.05) : dim ? 0.2 : 0.75)
+        .attr('stroke-width', inChain ? 2 : 1.25)
+        .attr('stroke-opacity', focusNode ? (inChain ? 0.95 : 0.05) : dim ? 0.2 : 0.75)
         .attr('vector-effect', 'non-scaling-stroke')
     }
 
