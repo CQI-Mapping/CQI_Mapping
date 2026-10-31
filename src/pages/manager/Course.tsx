@@ -410,20 +410,55 @@ export default function ManagerCourse({ profile }: CourseProps) {
   // edited, pressing anywhere that is not that course's card (or the key
   // Escape) cancels the edit, exactly like pressing Cancel. Skipped while a
   // save is in flight so a slow round-trip can't swallow the open form.
+  //
+  // Scrolling must never close the editor, so a press only closes when it
+  // released where it started: the press remembers where it landed, and the
+  // release closes only when the pointer barely moved (a real click). A
+  // scrollbar pull, a wheel drag with a stray press, or a text selection
+  // drifting past the card all move too far to count. Presses that land on
+  // the page's own scrollbar gutter are ignored outright, and a press that
+  // started inside the editor keeps the form open even if it releases
+  // outside (dragging text out of the form is not a dismissal).
   useEffect(() => {
     if (!editId) return
-    const onOutside = (e: MouseEvent) => {
+    let pressX: number | null = null
+    let pressY: number | null = null
+    let pressedInside = false
+    let pressedScrollbar = false
+    const inScrollbarGutter = (x: number, y: number) => {
+      const html = document.documentElement
+      const right = window.innerWidth - html.clientWidth
+      const bottom = window.innerHeight - html.clientHeight
+      return (right > 0 && x >= window.innerWidth - right - 2) ||
+        (bottom > 0 && y >= window.innerHeight - bottom - 2)
+    }
+    const onDown = (e: MouseEvent) => {
       if (busy) return
+      pressX = e.clientX
+      pressY = e.clientY
+      pressedInside = e.target instanceof Element &&
+        Boolean(e.target.closest('[data-course-edit="open"]'))
+      pressedScrollbar = inScrollbarGutter(e.clientX, e.clientY)
+    }
+    const onUp = (e: MouseEvent) => {
+      if (busy || pressX === null || pressY === null) return
+      const moved = Math.abs(e.clientX - pressX) + Math.abs(e.clientY - pressY)
+      const inside = pressedInside
+      pressX = pressY = null
+      pressedInside = false
+      if (inside || pressedScrollbar || moved > 4) return
       if (e.target instanceof Element && e.target.closest('[data-course-edit="open"]')) return
       cancelEdit()
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !busy) cancelEdit()
     }
-    document.addEventListener('mousedown', onOutside)
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('mouseup', onUp)
     document.addEventListener('keydown', onKey)
     return () => {
-      document.removeEventListener('mousedown', onOutside)
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('mouseup', onUp)
       document.removeEventListener('keydown', onKey)
     }
   })
