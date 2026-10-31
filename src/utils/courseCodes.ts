@@ -46,7 +46,7 @@ export const uniqueResolvedRefs = (s: string, courses: CodeTitle[]) => {
 }
 
 // ── Credit / contact-hour wording shared by the Curriculum Report (View.tsx)
-// and the Subject Graph's About card (SubjectView.tsx), so both read the same.
+// and the Subject Graph's About card (admin/Map.tsx), so both read the same.
 
 export const SEMESTER_WEEKS = 18
 

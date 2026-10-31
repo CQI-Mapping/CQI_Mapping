@@ -43,7 +43,7 @@ interface SyllabusReportProps {
   rootRef?: Ref<HTMLDivElement>
 
   /** Screen-only extras rendered at the foot of the page, inside its padding
-   * (e.g. SubjectView's download control). Never exported: the PDF snapshot
+   * (e.g. the Map page's download control). Never exported: the PDF snapshot
    * strips .no-print nodes, the Word export rebuilds from data alone. */
   footer?: ReactNode
 

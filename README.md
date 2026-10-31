@@ -36,7 +36,7 @@ The system uses three application roles, each mapped to the people who actually 
 | Framework | React 18 (function components + hooks) |
 | Tests | Vitest 2 — 257 unit tests (`npm test`) |
 | Styling | Plain CSS with CSS custom properties in `src/index.css` |
-| Graph | d3 7 — Subject Graph (`admin/SubjectView.tsx`) |
+| Graph | d3 7 — Subject Graph (`admin/Map.tsx`) |
 | Documents | ExcelJS (TOS workbooks), `docx` (Word syllabus exports), `jspdf` + `html2canvas` (report PDFs), `xlsx` (report workbooks) |
 | Backend / DB | Supabase (Postgres, Auth, RLS, triggers) |
 | Client | `@supabase/supabase-js` |
@@ -114,7 +114,7 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
     ├── components/
     │   ├── Sidebar.tsx               # Dark-glass top navbar, per-role nav + mega dropdown + profile menu
     │   ├── icons.tsx                 # The `Icon` set (name → svg) used across pages
-    │   ├── PageBanner.tsx            # Screen-only banner strip for TOS / View / SubjectView
+    │   ├── PageBanner.tsx            # Screen-only banner strip for TOS / View / Map
     │   ├── TosSheetGrid.tsx          # The on-screen workbook grid (green inputs / gray formulas)
     │   ├── TosBlueprintEditor.tsx    # Inline blueprint editor inside a library card
     │   ├── SyllabusReport.tsx        # Document renderer shared by View / reports / Word export
@@ -138,7 +138,7 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
     │   │   ├── ProgramEducationalObjectives.tsx  # PEOs (via shared EntityCrudPage)
     │   │   ├── ProgramOutcomesAdmin.tsx  # Program Outcomes (via shared EntityCrudPage)
     │   │   ├── CourseLearningOutcomes.tsx  # CLOs (bespoke page: stats + search + tabs)
-    │   │   ├── SubjectView.tsx       # d3 Subject Graph, green-monochrome theme (all roles share it)
+    │   │   ├── Map.tsx               # d3 Subject Graph, green-monochrome theme (all roles share it)
     │   │   ├── View.tsx              # Printable curriculum map / syllabus report
     │   │   ├── ActivityLogs.tsx      # Filterable activity log table (shared with manager)
     │   │   ├── ActivityLabels.ts     # Action string → human-readable label
@@ -475,7 +475,7 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 - Curriculum mapping summary per course (term, CLO counts, mapping status), PO coverage chart, and the outcome/report panels; the same page backs the Subject Graph's sibling reports.
 - Exports: Excel workbook + PDF (`report.ts`, `download.ts`) and Word (`syllabusDocx.ts`) with the letterhead + navy heading styling; document constants (vision/mission wording) live in `utils/report.ts`, not `src/data/`.
 
-### `admin/SubjectView.tsx` (shared by all roles as Subject Graph)
+### `admin/Map.tsx` (shared by all roles as Subject Graph)
 - d3 outcome hierarchy: Subject → Curriculum → Prereq/Coreq → CLO → PO → PEO → SG → CMO. Renders after pressing View.
 - Strict green-monochrome + gray + 1 amber (prereq) theme; legend with per-kind counts + Unresolved badge (`countKinds`); placeholder/loading/empty states; mobile stacks panels and scrolls graph horizontally.
 
