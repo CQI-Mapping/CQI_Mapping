@@ -474,8 +474,8 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 ### `components/MapBrief.tsx` (embedded on all three role dashboards)
 - The program's curriculum at a glance, moved off the Generate Map page: the seven KPI tiles (Total Programs … Unmapped / Incomplete), the Curriculum Mapping Summary table and the PO Coverage Chart. Self-contained — it fetches its own data, opens on the account's program assignment (then BSIT, then first), and re-uses the shared alignment engines (`utils/alignment.ts`, `utils/cloPoMapping.ts`), so its figures always agree with the report's PDF.
 
-### `shared/Reports.tsx` (Generate Map, all roles)
-- Export workspace: program/academic-year banner and the PDF/Word toolbar with footer. The on-screen brief blocks (KPIs, summary, coverage chart) live on the dashboards now (`components/MapBrief.tsx`); the same figures still print inside the export.
+### `shared/Reports.tsx` (no longer routed in the sidebar)
+- The overall report page. Its on-screen brief blocks (KPIs, summary, coverage chart) moved to the dashboards (`components/MapBrief.tsx`), and its "Reports" sidebar entry was removed from all three roles on 2026-11-01, so the page is currently unreachable; the file stays for the export machinery until the route is deleted or restored.
 - Exports: Excel workbook + PDF (`report.ts`, `download.ts`) and Word (`syllabusDocx.ts`) with the letterhead + navy heading styling; document constants (vision/mission wording) live in `utils/report.ts`, not `src/data/`.
 
 ### `admin/Map.tsx` (shared by all roles as Subject Graph)
