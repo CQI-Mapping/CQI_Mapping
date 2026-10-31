@@ -471,8 +471,11 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 - The library panel lists every saved blueprint with Edit (inline full editor), Open, Archive/Restore, and **Delete** (red trash, confirms, cascades papers + topics, writes `tos_exam.deleted` to the audit log). Deleting the blueprint that is open in the editor stands down its pending writers first and parks the editor on the next exam.
 - **Export** builds the faculty workbook with ExcelJS (`utils/tosXlsx.ts`): letterhead, green editable cells + gray formula cells, formulas written live (`=SUM(...)`), `fullCalcOnLoad` so Excel computes on open. Tabs are named as the workbook spells them (`Multiple Choice`, `ProductPerformance-Based`); both papers end at the Create column — no extra grand-total column.
 
+### `components/MapBrief.tsx` (embedded on all three role dashboards)
+- The program's curriculum at a glance, moved off the Generate Map page: the seven KPI tiles (Total Programs … Unmapped / Incomplete), the Curriculum Mapping Summary table and the PO Coverage Chart. Self-contained — it fetches its own data, opens on the account's program assignment (then BSIT, then first), and re-uses the shared alignment engines (`utils/alignment.ts`, `utils/cloPoMapping.ts`), so its figures always agree with the report's PDF.
+
 ### `shared/Reports.tsx` (Generate Map, all roles)
-- Curriculum mapping summary per course (term, CLO counts, mapping status), PO coverage chart, and the outcome/report panels; the same page backs the Subject Graph's sibling reports.
+- Export workspace: program/academic-year banner and the PDF/Word toolbar with footer. The on-screen brief blocks (KPIs, summary, coverage chart) live on the dashboards now (`components/MapBrief.tsx`); the same figures still print inside the export.
 - Exports: Excel workbook + PDF (`report.ts`, `download.ts`) and Word (`syllabusDocx.ts`) with the letterhead + navy heading styling; document constants (vision/mission wording) live in `utils/report.ts`, not `src/data/`.
 
 ### `admin/Map.tsx` (shared by all roles as Subject Graph)
