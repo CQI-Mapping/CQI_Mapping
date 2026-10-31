@@ -62,7 +62,6 @@ import {
 import { buildMappingReport, chartableOutcomes, poLabel } from '../../utils/cloPoMapping'
 import type { PoOutcome } from '../../utils/alignment'
 import { normalizeCode } from '../../utils/courseCodes'
-import PoCoverageBars from '../../components/PoCoverageBars'
 import Icon from '../../components/icons'
 
 interface ReportsProps {
@@ -159,14 +158,6 @@ function Reports({ profile, onNavigate }: ReportsProps) {
    * course without a term displays -- and rides into the PDF title block.
    */
   const [reportSemester] = useState(currentSemester())
-
-  // Where "View All Courses" leads: the courses page each role is actually
-  // allowed into -- the manager's course list, the admin's curriculum, which
-  // is where its programs and their courses live. A faculty reader has no
-  // courses page in their sidebar, so their footer stays inert text rather
-  // than a link that cannot go anywhere.
-  const courseListPage =
-    profile.role === 'manager' ? 'course' : profile.role === 'admin' ? 'curriculum' : null
 
   // The signed-in account's program, read once per render as a scalar so the
   // load callback's identity only moves when the assignment itself does.
@@ -625,130 +616,11 @@ function Reports({ profile, onNavigate }: ReportsProps) {
         </div>
       ) : (
         <>
-          {/* ---- KPI row ----
-              Tiles show the label, figure and
-              qualifier that makes the figure mean something -- a count on its
-              own ("33") invites the reader to assume it is the answer. */}
-          <div className="stat-grid stat-grid--2026 reports-kpis">
-            <KpiCard label="Total Programs" value={programs.length} sub={program.code} />
-            <KpiCard
-              label="Total Courses"
-              value={programCourseList.length}
-              sub={
-                yearsOffered
-                  ? `Across ${yearsOffered} year${yearsOffered === 1 ? '' : 's'}`
-                  : 'Across all academic years'
-              }
-            />
-            <KpiCard
-              label="Total CLO's"
-              value={programClos.length}
-              sub={program ? `${program.code} courses` : 'From all courses'}
-            />
-            <KpiCard
-              label="Total PO's"
-              value={summary.outcomes}
-              sub="Program Outcomes"
-            />
-            <KpiCard
-              label="Total PEO's"
-              value={peos.length}
-              sub="Program Educational Objectives"
-            />
-            <KpiCard
-              label="Mapping Coverage"
-              value={subjectCoverage.total === 0 ? '—' : `${subjectCoverage.percent}%`}
-              sub={`(${subjectCoverage.fully} / ${subjectCoverage.total} subjects)`}
-            />
-            <KpiCard
-              label="Unmapped / Incomplete"
-              value={summary.unaligned + mapping.gaps.length}
-              sub="CLOs / Relationships"
-            />
-          </div>
-
-          {/* ---- panels: two columns, one row ----
-              The arrangement of the report brief: the mapping summary beside
-              the PO coverage chart. The coverage bars, the alignment donut and
-              the mapping gaps panels once filled three more cells here; the
-              brief now stops after the coverage chart. */}
-          <div className="reports-panels">
-            {/* 1 ---- */}
-            <section className="panel reports-panel">
-              <PanelHead title="Curriculum Mapping Summary" />
-              <p className="reports-panel__sub">
-                Term placement and mapping coverage of every course in the program.
-              </p>
-              <div className="table-wrap reports-scroll">
-                <table className="table reports-summary">
-                  <thead>
-                    <tr>
-                      <th>Course Code</th>
-                      <th>Course Title</th>
-                      <th className="reports-num">Year Level</th>
-                      <th className="reports-num">Semester</th>
-                      <th className="reports-num"># of CLOs</th>
-                      <th>Mapping Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {courseOutcomeRows.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="reports-empty">No courses in this program yet.</td>
-                      </tr>
-                    ) : (
-                      courseOutcomeRows.map(({ course, outcomeCount }) => {
-                        const roll = mappedByCourse.get(course.id) ?? { mapped: 0, total: 0 }
-                        const badge = statusBadge(roll)
-                        return (
-                          <tr key={course.id}>
-                            <td>{course.code}</td>
-                            <td className="reports-course-title">{course.title}</td>
-                            <td className="reports-num">
-                              {course.year_level == null ? academicYear : courseYearLabel(course.year_level)}
-                            </td>
-                            <td className="reports-num">
-                              {course.semester ?? reportSemester}
-                            </td>
-                            <td className="reports-num">{outcomeCount}</td>
-                            <td><span className={badge.className}>{badge.label}</span></td>
-                          </tr>
-                        )
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              <PanelFoot
-                left={`${courseOutcomeRows.length} courses`}
-                action="View All Courses"
-                onAction={courseListPage ? () => onNavigate?.(courseListPage) : undefined}
-              />
-            </section>
-
-            {/* 2 ---- */}
-            <section className="panel reports-panel">
-              <PanelHead title="PO Coverage Chart" />
-              <p className="reports-panel__sub">
-                Percentage of CLOs mapped to each Program Outcome.
-              </p>
-              {charted.rows.length === 0 && charted.uncovered === 0 ? (
-                <p className="reports-empty">No program outcomes recorded yet.</p>
-              ) : (
-                <PoCoverageBars
-                  rows={charted.rows.map((r) => ({
-                    code: r.outcome.code,
-                    percent: r.percent,
-                    count: r.cloCount,
-                  }))}
-                  uncovered={charted.uncovered}
-                  hidden={charted.hidden}
-                  totalClos={mapping.totalClos}
-                />
-              )}
-            </section>
-
-          </div>
+          {/* The KPI tiles, Curriculum Mapping Summary and PO Coverage Chart
+              moved to the role dashboards (components/MapBrief.tsx), which
+              compute the same figures through the same alignment helpers.
+              This page keeps the export toolbar and footer — the PDF still
+              prints the KPI tiles, mapping rows and coverage chart below. */}
 
           {/* ---- footer: who produced this and what it is not ---- */}
           <footer className="reports-footer">
@@ -775,7 +647,9 @@ function Reports({ profile, onNavigate }: ReportsProps) {
 
 /**
  * A course's mapping status, from how many of its learning outcomes reach a
- * program outcome.
+ * program outcome. (The badge rendering itself — and the KPI tiles, panels
+ * and footers it drove on screen — moved to components/MapBrief.tsx with the
+ * dashboard brief; this page still feeds the same statuses into its PDF.)
  *
  * "No CLOs" is kept distinct from "Unmapped": a course with no outcomes has
  * nothing to map, which is a different fact from having outcomes and leaving
@@ -790,51 +664,6 @@ function statusBadge({ mapped, total }: { mapped: number; total: number }): {
   if (mapped < total)
     return { label: 'Partially Mapped', className: 'status-badge status-badge--partial' }
   return { label: 'Mapped', className: 'status-badge status-badge--mapped' }
-}
-
-/**
- * A panel's footer line: a count on the left, a "view all" action on the
- * right. The action earns its arrow only where it leads somewhere; without a
- * destination it stays a span, because a control that cannot do anything is
- * worse than the text admitting it.
- */
-function PanelFoot({
-  left,
-  action,
-  onAction,
-}: {
-  left: string
-  action: string
-  onAction?: () => void
-}) {
-  return (
-    <div className="reports-panel__foot">
-      <span>{left}</span>
-      {onAction ? (
-        <button type="button" className="reports-panel__more" onClick={onAction}>
-          {action} →
-        </button>
-      ) : (
-        <span className="reports-panel__more">{action} →</span>
-      )}
-    </div>
-  )
-}
-
-/**
- * A panel's title line. The icon chip that used to sit here is gone: the
- * headings now read as bare titles.
- *
- * The title is the h3 rather than the rule below it: the panel is a section of
- * the report, and the heading is what a screen reader and the print outline
- * both navigate by.
- */
-function PanelHead({ title }: { title: string }) {
-  return (
-    <div className="reports-panel__head">
-      <h3>{title}</h3>
-    </div>
-  )
 }
 
 /**

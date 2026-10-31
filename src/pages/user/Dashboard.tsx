@@ -11,6 +11,7 @@ import type { Profile, Course, CourseLearningOutcomeStandalone } from '../../ser
 import CloViewModal from '../../components/CloViewModal'
 import { useClock } from '../../hooks/useClock'
 import { localISODate, timeGreeting } from '../../utils/clock'
+import MapBrief from '../../components/MapBrief'
 
 interface DashboardProps {
   profile: Profile | null
@@ -148,6 +149,11 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
             </div>
           ))}
       </div>
+
+      {/* The program's curriculum at a glance — the blocks that used to open
+          the Generate Map page (KPI tiles, mapping summary, PO coverage).
+          Faculty have no "View All Courses" page, so that footer is inert. */}
+      <MapBrief profile={profile} onNavigate={onNavigate} />
 
       <div className="dashboard-panels">
         <div className="dashboard-panel">
