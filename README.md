@@ -149,7 +149,7 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
     │   │   ├── Dashboard.tsx         # Manager overview + banner strip + quick actions
     │   │   ├── Users.tsx             # Users directory + add/remove users (`user` role only)
     │   │   ├── Curriculum.tsx        # Create/edit/archive (no delete) + search
-    │   │   ├── ProgramOutcomes.tsx   # Manager-side PO alignment (peo_text)
+    │   │   ├── ProgramOutcomes.tsx   # Manager-side PO alignment; inline add form with a reader leg (all POs, grouped per CMO category)
     │   │   └── Course.tsx            # Wraps AdminCourse with `hideDelete`-style gating (no delete)
     │   └── user/
     │       ├── Dashboard.tsx         # Faculty: Subjects + CLO stats, recent CLOs
