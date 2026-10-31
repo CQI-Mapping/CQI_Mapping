@@ -16,7 +16,7 @@ import type {
   StrategicGoal,
 } from '../services/database'
 import { uniqueResolvedRefs } from '../utils/courseCodes'
-import { SCHOOL, DOC_VISION, DOC_MISSION, poListItem, goalLine, isActive } from '../utils/report'
+import { SCHOOL, DOC_VISION, DOC_MISSION, poListItem, goalLine, syllabusTerm, isActive } from '../utils/report'
 import type { EditableItem, EditableKind, EditState, PoGroup } from '../utils/report'
 import CourseDetails from './CourseDetails'
 
@@ -113,7 +113,7 @@ export default function SyllabusReport({
         ) : (
           <div className="sd-titleblock__course">No courses yet</div>
         )}
-        <div>{SCHOOL.term}</div>
+        <div>{syllabusTerm(selectedCourse)}</div>
       </div>
 
       {/* Vision | Mission | Strategic Goals | PEOs */}

@@ -25,7 +25,7 @@ import type {
   ProgramEducationalObjective,
   StrategicGoal,
 } from '../services/database'
-import { SCHOOL, DOC_VISION, DOC_MISSION, poListItem, goalLine } from './report'
+import { SCHOOL, DOC_VISION, DOC_MISSION, poListItem, goalLine, syllabusTerm } from './report'
 import type { PoGroup } from './report'
 import { uniqueResolvedRefs, courseCreditLabel, courseHoursSentence } from './courseCodes'
 import { saveBlob, reportFileName } from './download'
@@ -160,7 +160,7 @@ export async function downloadSyllabusDocx(
     para(course ? `${course.code} - ${course.title}` : 'No courses yet', {
       bold: true, italics: true, align: CENTER,
     }),
-    para(SCHOOL.term, { bold: true, align: CENTER }),
+    para(syllabusTerm(course), { bold: true, align: CENTER }),
     new Paragraph({ spacing: { after: 120 }, children: [] }),
   )
 

@@ -5,6 +5,7 @@
 
 import type {
   ChedMemoOrder,
+  Course,
   ProgramOutcomeStandalone,
   StrategicGoal,
   ProgramEducationalObjective,
@@ -21,6 +22,29 @@ export const SCHOOL = {
   institute: 'INSTITUTE FOR COMPUTER STUDIES',
   program: 'BACHELOR OF SCIENCE IN INFORMATION TECHNOLOGY',
   term: 'Summer, SY: 2024 - 2025',
+}
+
+/**
+ * The letterhead's term line, derived from the course being reported instead
+ * of the stale institutional constant. The semester word comes from
+ * courses.semester (1st/2nd Semester, Summer) and the school year from the
+ * course's curriculum code ("BSIT 2025-2026" -> "SY: 2025 - 2026"). Whatever
+ * a course does not carry is simply left out — no invented year — and a
+ * course without either half falls back to the constant so legacy documents
+ * without term columns keep their letterhead line.
+ */
+export const syllabusTerm = (course: Course | null): string => {
+  if (!course) return SCHOOL.term
+  const sem = course.semester === 1 ? '1st Semester'
+    : course.semester === 2 ? '2nd Semester'
+    : course.semester === 3 ? 'Summer'
+    : null
+  const curCode = course.curriculum_id && typeof course.curriculum_id === 'object'
+    ? course.curriculum_id.code || ''
+    : ''
+  const sy = curCode.match(/(\d{4})\s*-\s*(\d{4})/)
+  const parts = [sem, sy ? `SY: ${sy[1]} - ${sy[2]}` : null].filter(Boolean)
+  return parts.length > 0 ? parts.join(', ') : SCHOOL.term
 }
 
 export const DOC_VISION =
