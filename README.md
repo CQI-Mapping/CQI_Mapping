@@ -139,7 +139,7 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
     │   │   ├── ProgramOutcomesAdmin.tsx  # Program Outcomes (via shared EntityCrudPage)
     │   │   ├── CourseLearningOutcomes.tsx  # CLOs (bespoke page: stats + search + tabs)
     │   │   ├── Map.tsx               # d3 Subject Graph, green-monochrome theme (all roles share it)
-    │   │   ├── View.tsx              # Printable curriculum map / syllabus report
+    │   │   ├── Syllabus.tsx          # Printable curriculum map / syllabus report
     │   │   ├── ActivityLogs.tsx      # Filterable activity log table (shared with manager)
     │   │   ├── ActivityLabels.ts     # Action string → human-readable label
     │   │   └── curriculum/
@@ -489,7 +489,7 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 ### `manager/Course.tsx`
 - Wraps `admin/Course` with `hideDelete` (create/edit/archive/restore, no delete). Falls through `renderPage` with `profile` prop.
 
-### `admin/View.tsx`
+### `admin/Syllabus.tsx`
 - Printable curriculum map / syllabus report. Displays Vision, Mission, Strategic Goals, PEOs, Program Outcomes, Curriculum Mapping, Course Learning Outcomes, and Course Details in a formatted document layout.
 - Supports inline editing and archiving of Strategic Goals, PEOs, and Program Outcomes via an Edit toggle. Archives write `strategic_goal.archived` / `peo.archived` / `program_outcome.archived` rather than a generic `.updated`.
 - Static syllabus content (vision/mission wording, curriculum mapping, course details) comes from `src/utils/report.ts` (the old `src/data/vcqiSyllabus.ts` was folded into it).

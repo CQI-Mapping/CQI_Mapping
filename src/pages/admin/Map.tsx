@@ -2792,7 +2792,7 @@ export default function SubjectView() {
   // The About area leads with the compact connected-details card for every
   // root, then follows it with the full report document where one exists — the
   // *exact* Curriculum Report document for a subject, through the shared
-  // SyllabusReport component (the same one View.tsx renders), reusing the
+  // SyllabusReport component (the same one Syllabus.tsx renders), reusing the
   // report page's chrome. A PO or a PEO gets only the card.
   // The card follows `inspectedNode`, so it describes whichever branch was last
   // clicked rather than only the root.

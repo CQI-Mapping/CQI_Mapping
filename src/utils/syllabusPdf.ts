@@ -1,4 +1,4 @@
-// PDF export for the Curriculum Report (View.tsx).
+// PDF export for the Curriculum Report (Syllabus.tsx).
 //
 // Why this does not use html2pdf.js: that library rasterises the DOM as one
 // continuous strip and slices the strip into pages, so it has no page-header

@@ -1,4 +1,4 @@
-// Report data shaping shared by the Curriculum Report (View.tsx) and the
+// Report data shaping shared by the Curriculum Report (Syllabus.tsx) and the
 // Subject Graph's About card, which renders the same document. Keeping the
 // grouping/label rules here means the report reads identically wherever it
 // appears.

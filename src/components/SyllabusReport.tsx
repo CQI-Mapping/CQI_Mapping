@@ -1,7 +1,7 @@
 // SyllabusReport: the printable report document — letterhead, title block,
 // Vision/Mission/Strategic Goals/PEO table, Program Outcomes list, Curriculum
 // Mapping matrix, CLO-to-PO table, then Course Details — exactly as it renders
-// on the Curriculum Report page (View.tsx).
+// on the Curriculum Report page (Syllabus.tsx).
 //
 // Extracted so the Subject Graph's About card can show the same document. The
 // inline-edit controls are optional: pass `editMode` + `rowActions` +
