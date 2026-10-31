@@ -832,7 +832,7 @@ export default function ManagerCourse({ profile }: CourseProps) {
                           </div>
                         </div>
                         <div className="resource-card__actions">
-                          <button className="btn btn--ghost btn--sm" onClick={() => startEdit(c)} disabled={busy || !!editId} aria-label={`Edit ${c.code}`} title="Edit"><Icon name="edit" size={13} /></button>
+                          <button className="btn btn--ghost btn--sm" onClick={() => startEdit(c)} disabled={busy} aria-label={`Edit ${c.code}`} title="Edit"><Icon name="edit" size={13} /></button>
                           <button className={`btn btn--sm ${isActive(c) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleToggleStatus(c)} disabled={busy || !!editId} aria-label={isActive(c) ? `Archive ${c.code}` : `Restore ${c.code}`} title={isActive(c) ? 'Archive' : 'Restore'}>
                             <Icon name={isActive(c) ? 'archive' : 'restore'} size={13} />
                           </button>
@@ -894,7 +894,7 @@ export default function ManagerCourse({ profile }: CourseProps) {
                         </div>
                         <p className="program-card__desc">{c.description || 'No description.'}</p>
                         <div className="program-card__actions">
-                          <button className="btn btn--ghost btn--sm" onClick={() => startEdit(c)} disabled={busy || !!editId} aria-label={`Edit ${c.code}`} title="Edit"><Icon name="edit" size={13} /></button>
+                          <button className="btn btn--ghost btn--sm" onClick={() => startEdit(c)} disabled={busy} aria-label={`Edit ${c.code}`} title="Edit"><Icon name="edit" size={13} /></button>
                           <button className={`btn btn--sm ${isActive(c) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleToggleStatus(c)} disabled={busy || !!editId} aria-label={isActive(c) ? `Archive ${c.code}` : `Restore ${c.code}`} title={isActive(c) ? 'Archive' : 'Restore'}>
                             <Icon name={isActive(c) ? 'archive' : 'restore'} size={13} />
                           </button>
