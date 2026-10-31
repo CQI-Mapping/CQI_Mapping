@@ -304,11 +304,17 @@ export default function SubjectView() {
   useEffect(() => {
     setMapPoId('')
     setMapCloId('')
+    setMapFocusId(null)
   }, [rootType, selectedCurriculumId])
   // Graph node the connected-details card describes. null = the root itself.
   // Set on every node click so the card answers "what hangs off *that* branch"
   // and not just the root; cleared whenever the root changes.
   const [inspectedNodeId, setInspectedNodeId] = useState<string | null>(null)
+  // Press-to-reveal on the OBE Curriculum Map: the course id of the pressed
+  // dot. While set, the map spotlights that subject and everything wired to
+  // it by prerequisite connectors — its unlocks and its dependents — and
+  // fades the rest (see the connector block in renderCurriculumMap).
+  const [mapFocusId, setMapFocusId] = useState<string | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [dlOpen, setDlOpen] = useState(false)
   const [dlFormat, setDlFormat] = useState<'pdf' | 'docx'>('pdf')
@@ -2012,21 +2018,47 @@ export default function SubjectView() {
     // on this map connect — a code belonging to another curriculum (or a
     // typo) stays silent. When the PO filter dims a side, its connectors
     // dim with it so the filtered view never draws loud links to ghosts.
+    //
+    // Press-to-reveal: while a dot is focused (mapFocusId), only the wires
+    // touching it stay lit — its prerequisites and the subjects that list it
+    // as theirs — at full strength, and every other connector fades to a
+    // whisper, so the pressed subject's network reads at a glance.
     const dotByCode = new Map<string, MapNode>()
     for (const n of nodes) dotByCode.set(normalizeCode(n.code), n)
+    const prereqLinks: Array<{ from: MapNode; to: MapNode }> = []
     for (const n of nodes) {
       for (const key of n.prereqCodes ?? []) {
         const target = dotByCode.get(key)
         if (!target || target.id === n.id) continue
-        const dim = n.dim || target.dim
-        zoomGroup.append('line')
-          .attr('x1', target.x).attr('y1', target.y)
-          .attr('x2', n.x).attr('y2', n.y)
-          .attr('stroke', '#b45309')
-          .attr('stroke-width', 1.25)
-          .attr('stroke-opacity', dim ? 0.2 : 0.75)
-          .attr('vector-effect', 'non-scaling-stroke')
+        prereqLinks.push({ from: target, to: n })
       }
+    }
+    const focusNode = mapFocusId
+      ? nodes.find((n) => n.courseId === mapFocusId) ?? null
+      : null
+    const focusPeerIds = new Set<string>()
+    if (focusNode) {
+      focusPeerIds.add(focusNode.id)
+      for (const { from, to } of prereqLinks) {
+        if (from.id === focusNode.id) focusPeerIds.add(to.id) // the subject unlocks these
+        if (to.id === focusNode.id) focusPeerIds.add(from.id) // these unlock the subject
+      }
+    }
+    const nodeOpacity = (d: MapNode): number => {
+      if (!focusNode) return d.dim ? 0.22 : 1
+      if (focusPeerIds.has(d.id)) return d.dim ? 0.45 : 1
+      return 0.12
+    }
+    for (const { from, to } of prereqLinks) {
+      const dim = from.dim || to.dim
+      const focused = Boolean(focusNode) && (from.id === focusNode!.id || to.id === focusNode!.id)
+      zoomGroup.append('line')
+        .attr('x1', from.x).attr('y1', from.y)
+        .attr('x2', to.x).attr('y2', to.y)
+        .attr('stroke', '#b45309')
+        .attr('stroke-width', focused ? 2 : 1.25)
+        .attr('stroke-opacity', focusNode ? (focused ? 0.95 : 0.05) : dim ? 0.2 : 0.75)
+        .attr('vector-effect', 'non-scaling-stroke')
     }
 
     // The Year · Semester header band lives in its own svg — the pinned strip
@@ -2078,6 +2110,9 @@ export default function SubjectView() {
           .classed('subject-view__ring--on', (d) => focusedIdRef.current === d.id),
         (update) => update,
       )
+      // The pressed dot wears a ring even without the inspection state, so
+      // "which one did I press" survives simultaneous PO dimming.
+      .attr('stroke', (d) => (d === focusNode ? '#0d9488' : null))
       .attr('fill', 'none')
       .attr('stroke-width', 2.5)
       .attr('r', (d) => d.r + 6)
@@ -2093,7 +2128,7 @@ export default function SubjectView() {
       .attr('cx', (d) => d.x)
       .attr('cy', (d) => d.y)
       .attr('fill', (d) => d.color)
-      .attr('opacity', (d) => (d.dim ? 0.22 : 1))
+      .attr('opacity', nodeOpacity)
       .attr('cursor', 'pointer')
       .attr('filter', 'url(#subject-view-shadow)')
 
@@ -2109,7 +2144,7 @@ export default function SubjectView() {
       .attr('font-size', '10px')
       .attr('font-weight', '700')
       .attr('fill', '#0f172a')
-      .attr('opacity', (d) => (d.dim ? 0.25 : 1))
+      .attr('opacity', (d) => (focusNode ? (focusPeerIds.has(d.id) ? 1 : 0.12) : d.dim ? 0.25 : 1))
       .attr('pointer-events', 'none')
       .attr('paint-order', 'stroke')
       .attr('stroke', 'rgba(255,255,255,0.85)')
@@ -2121,7 +2156,7 @@ export default function SubjectView() {
         tip.style.opacity = '1'
         tip.style.left = `${event.offsetX + 12}px`
         tip.style.top = `${event.offsetY - 28}px`
-        tip.innerHTML = `<strong>${d.code}</strong><br/>${d.title}<br/><em>Click to view as root</em>`
+        tip.innerHTML = `<strong>${d.code}</strong><br/>${d.title}<br/><em>Click to show connected subjects<br/>Double-click to open its graph</em>`
       })
       .on('mousemove', (event) => {
         tip.style.left = `${event.offsetX + 12}px`
@@ -2131,11 +2166,20 @@ export default function SubjectView() {
         tip.style.opacity = '0'
       })
 
+    // Press a dot: spotlight it and its prerequisite network (see the
+    // connector block above). Press it again — or anywhere on the empty
+    // canvas — to clear the spotlight. Double-click keeps the older affordance:
+    // open that subject as the graph root with its full About card.
     node.on('click', (event, d) => {
       event.stopPropagation()
-      setInspectedNodeId(d.id)
+      const id = d.courseId
+      if (id) setMapFocusId((cur) => (cur === id ? null : id))
+    })
+    node.on('dblclick', (event, d) => {
+      event.stopPropagation()
       if (d.courseId) gotoSubjectRoot(d.courseId)
     })
+    svg.on('click.mapfocus', () => setMapFocusId(null))
 
     // The OBE Curriculum Map is a fixed Year · Semester timetable meant to be
     // read through the panel's normal scrolling, so it deliberately carries no
@@ -2146,9 +2190,10 @@ export default function SubjectView() {
 
     return () => {
       svg.on('.zoom', null)
+      svg.on('click.mapfocus', null)
       zoomRef.current = null
     }
-  }, [containerSize, datasets, selectedCurriculum, mapPoId, buildCurriculumMapModel, gotoSubjectRoot])
+  }, [containerSize, datasets, selectedCurriculum, mapPoId, buildCurriculumMapModel, gotoSubjectRoot, mapFocusId])
 
   // Dual-root: subject mode (subject → curriculum / prereq / coreq / CLO → PO
   // → PEO/SG/CMO) or PO mode (PO → CLOs → subjects + PEO/SG/CMO), with the
