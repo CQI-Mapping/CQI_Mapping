@@ -3,7 +3,7 @@
 // the program-outcomes string is stored in the `title` column.
 // Owned by the `user` role — the admin no longer has this page.
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useEntityCrud } from '../admin/curriculum/useEntityCrud.js'
 import { useViewMode } from '../../hooks/useViewMode'
 import ViewModeToggle from '../../components/ViewModeToggle'
@@ -422,6 +422,22 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   // display the bare code.
   const courseTitleByCode = (code: string) => courses.find((c) => c.code === code)?.title || ''
 
+  // Course list filters for the create form: Year and Semester sit on top of
+  // the Course (Subject Code) picker and narrow its dropdown to the term the
+  // faculty member is writing CLOs for. They only trim the list — never
+  // invalidate an already-chosen course — and the course record itself still
+  // owns where it sits on the Year · Semester map.
+  const [courseYear, setCourseYear] = useState('')
+  const [courseSem, setCourseSem] = useState('')
+  const filteredCourses = useMemo(() => {
+    if (courseYear === '' && courseSem === '') return courses
+    return courses.filter(
+      (c) =>
+        (courseYear === '' || String(c.year_level ?? '') === courseYear)
+        && (courseSem === '' || String(c.semester ?? '') === courseSem),
+    )
+  }, [courses, courseYear, courseSem])
+
   // Shared edit form used by both grid and list card styles. Wrapped in
   // .resource-card__edit so the fields stack: the list card is a flex ROW
   // (body + actions side by side), and without the wrapper the edit fields
@@ -542,6 +558,31 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
         <div className="clo-layout__pair">
       <form className="panel create-resource" onSubmit={submit} style={{ borderTop: '3px solid #16a34a' }}>
         <h3>New Course Learning Outcome</h3>
+        {/* Year · Semester filters on top: two compact picks that narrow the
+            Course dropdown below. "All years" / "All semesters" reset them;
+            an already-chosen course is never invalidated by a change here. */}
+        <div className="clo-form-filters">
+          <label className="field">
+            <span>Year</span>
+            <select className="input input--sm" value={courseYear}
+              onChange={(e) => setCourseYear(e.target.value)}>
+              <option value="">All years</option>
+              {[1, 2, 3, 4].map((y) => (
+                <option key={y} value={y}>{['1st', '2nd', '3rd', '4th'][y - 1]} Year</option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>Semester</span>
+            <select className="input input--sm" value={courseSem}
+              onChange={(e) => setCourseSem(e.target.value)}>
+              <option value="">All semesters</option>
+              <option value="1">1st Sem</option>
+              <option value="2">2nd Sem</option>
+              <option value="3">Summer</option>
+            </select>
+          </label>
+        </div>
         <label className="field">
           <span>Course (Subject Code)</span>
           {/* Once a subject is chosen the picker collapses to a read-only
@@ -559,10 +600,16 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             <select className="input input--sm" value={form.course}
               onChange={(e) => setForm({ ...form, course: e.target.value })} required>
               <option value="">Select course</option>
-              {courses.map((c) => (
+              {filteredCourses.map((c) => (
                 <option key={c.id} value={c.code}>{c.code} — {c.title}</option>
               ))}
-              {courses.length === 0 && <option value="" disabled>No courses available — create one in Course page first</option>}
+              {filteredCourses.length === 0 && (
+                <option value="" disabled>
+                  {courseYear || courseSem
+                    ? 'No courses in this Year · Semester — change the filters or create the course in Course page first'
+                    : 'No courses available — create one in Course page first'}
+                </option>
+              )}
             </select>
           )}
         </label>

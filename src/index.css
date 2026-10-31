@@ -5413,6 +5413,20 @@ button.reports-panel__more:hover {
   color: #94a3b8;
 }
 
+/* Year · Semester course filters on the New Course Learning Outcome form:
+   a compact side-by-side pair above the Course (Subject Code) dropdown,
+   reading as one controls row above the fields. */
+.clo-form-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.clo-form-filters .field {
+  margin-bottom: 0;
+}
+
 .clo-layout__ref-group {
   margin-bottom: 12px;
 }
