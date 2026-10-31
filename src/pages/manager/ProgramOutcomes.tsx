@@ -35,10 +35,10 @@ export default function ProgramOutcomes() {
   const [sgSuggestions, setSgSuggestions] = useState<SuggestionOption[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  // The reader beside the add form: the FULL program-outcome run — the
-  // admin's and the manager's rows together, the same set the dashboard's
-  // Total PO's tile reads — grouped per CMO category and numbered
-  // continuously the way the syllabus document prints it.
+  // The reader beside the add form: the manager's own active program
+  // outcomes — the same rows the page's list shows — grouped per CMO
+  // category and numbered continuously the way the syllabus document
+  // prints it.
   const [readerGroups, setReaderGroups] = useState<PoGroup[]>([])
 
   useEffect(() => {
@@ -50,8 +50,8 @@ export default function ProgramOutcomes() {
           fetchProgramEducationalObjectives(),
           fetchStrategicGoals(),
           fetchChedMemoOrders(),
-          // The read side: every Program Outcome regardless of author, so the
-          // reader shows the full run while the manager writes their own.
+          // The read side: the manager's own rows — the list below the form
+          // is manager-authored only, and the reader mirrors it.
           fetchProgramOutcomesStandalone(),
         ])
         const referencedCmos = new Set(pos.map((p) => p.cmo_id).filter(Boolean) as string[])
@@ -65,13 +65,14 @@ export default function ProgramOutcomes() {
         }))
 
         if (!cancelled) {
-          // Reader build: active rows of every author, code order (PO-1…PO-4
-          // before SD-1…SD-13, numeric within each family), grouped per CMO
-          // category — cmoLabel reads manager rows' category from the
-          // description column and admin rows' off their CMO linkage.
-          const activeAll = allPos.filter((p) => !p.status || p.status === 'active')
-          activeAll.sort((a, b) => outcomeCodeKey(a.code).localeCompare(outcomeCodeKey(b.code)))
-          setReaderGroups(buildGroups(activeAll, cmosAll))
+          // Reader build: the manager's own active rows only, code order
+          // (PO-1… before SD-…, numeric within each family), grouped per CMO
+          // category — manager rows carry it in the description column.
+          const activeManager = allPos.filter(
+            (p) => p.source === 'manager' && (!p.status || p.status === 'active'),
+          )
+          activeManager.sort((a, b) => outcomeCodeKey(a.code).localeCompare(outcomeCodeKey(b.code)))
+          setReaderGroups(buildGroups(activeManager, cmosAll))
           setCmoOptions([...fixedOptions, ...cmoOpts])
           setPeoSuggestions(peos.filter((p) => p.status === 'active').map(toSuggestion))
           setSgSuggestions(sgs.filter((s) => s.status === 'active').map(toSgSuggestion))
@@ -91,9 +92,9 @@ export default function ProgramOutcomes() {
   if (loading) return <p>Loading program outcomes...</p>
 
   // The reader leg beside the New Program Outcome form (the CLO page's pair
-  // layout): every Program Outcome as one numbered run per CMO category —
-  // no panel title, the category headings speak for themselves, same as the
-  // CLO form's reference.
+  // layout): the manager's own active POs as one numbered run per CMO
+  // category — no panel title, the category headings speak for themselves,
+  // same as the CLO form's reference.
   const readerRef = (
     <aside className="panel clo-layout__ref" aria-label="Program Outcomes reference">
       <div className="clo-layout__ref-scroll">
