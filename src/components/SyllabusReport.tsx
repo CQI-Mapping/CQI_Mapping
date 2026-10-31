@@ -1,7 +1,7 @@
 // SyllabusReport: the printable report document — letterhead, title block,
 // Vision/Mission/Strategic Goals/PEO table, Program Outcomes list, Curriculum
 // Mapping matrix, CLO-to-PO table, then Course Details — exactly as it renders
-// on the Curriculum Report page (View.tsx).
+// on the Curriculum Report page (Syllabus.tsx).
 //
 // Extracted so the Subject Graph's About card can show the same document. The
 // inline-edit controls are optional: pass `editMode` + `rowActions` +
@@ -16,7 +16,7 @@ import type {
   StrategicGoal,
 } from '../services/database'
 import { uniqueResolvedRefs } from '../utils/courseCodes'
-import { SCHOOL, DOC_VISION, DOC_MISSION, poListItem, goalLine, isActive } from '../utils/report'
+import { SCHOOL, DOC_VISION, DOC_MISSION, poListItem, goalLine, syllabusTerm, isActive } from '../utils/report'
 import type { EditableItem, EditableKind, EditState, PoGroup } from '../utils/report'
 import CourseDetails from './CourseDetails'
 
@@ -43,7 +43,7 @@ interface SyllabusReportProps {
   rootRef?: Ref<HTMLDivElement>
 
   /** Screen-only extras rendered at the foot of the page, inside its padding
-   * (e.g. SubjectView's download control). Never exported: the PDF snapshot
+   * (e.g. the Map page's download control). Never exported: the PDF snapshot
    * strips .no-print nodes, the Word export rebuilds from data alone. */
   footer?: ReactNode
 
@@ -113,7 +113,7 @@ export default function SyllabusReport({
         ) : (
           <div className="sd-titleblock__course">No courses yet</div>
         )}
-        <div>{SCHOOL.term}</div>
+        <div>{syllabusTerm(selectedCourse)}</div>
       </div>
 
       {/* Vision | Mission | Strategic Goals | PEOs */}

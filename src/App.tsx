@@ -50,9 +50,9 @@ import AdminProgramOutcomesAdmin from './pages/admin/ProgramOutcomesAdmin'
 import UserCourseLearningOutcomes from './pages/user/CourseLearningOutcomes'
 import AdminUsers from './pages/admin/Users'
 import AdminProgram from './pages/admin/Program'
-import AdminSubjectView from './pages/admin/SubjectView'
-import AdminView from './pages/admin/View'
-import Reports from './pages/shared/Reports'
+import AdminSubjectView from './pages/admin/Map'
+import AdminView from './pages/admin/Syllabus'
+
 import UserTOS from './pages/user/TOS'
 import { supabase } from './utils/supabaseClient'
 import { ensureProfile, syncDemoRole, addActivityLog } from './services/database'
@@ -71,7 +71,6 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'curriculum', label: 'Curriculum' },
     { id: 'subject-view', label: 'Generate Map' },
     { id: 'view', label: 'Curriculum Report' },
-    { id: 'reports', label: 'Reports' },
     { id: 'users', label: 'Users & Accounts' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
@@ -87,7 +86,6 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'course', label: 'Course' },
     { id: 'subject-view', label: 'Generate Map' },
     { id: 'view', label: 'View Syllabus' },
-    { id: 'reports', label: 'Reports' },
     { id: 'users', label: 'Users' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
@@ -97,7 +95,6 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'clo', label: 'Course Learning Outcomes' },
     { id: 'subject-view', label: 'Generate Map' },
     { id: 'tos', label: 'Generate TOS' },
-    { id: 'reports', label: 'Reports' },
     { id: 'profile', label: 'Profile' },
   ],
 }
@@ -119,7 +116,6 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     curriculum: ManagerCurriculum,
     'subject-view': AdminSubjectView,
     view: AdminView,
-    reports: Reports,
     'strategic-goals': AdminStrategicGoals,
     'ched-memo': AdminChedMemoOrders,
     users: AdminUsers,
@@ -137,7 +133,6 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     'program-outcomes': ManagerProgramOutcomes,
     'subject-view': AdminSubjectView,
     view: AdminView,
-    reports: Reports,
     users: ManagerUsers,
     'activity-logs': ManagerActivityLogs,
     profile: Profile,
@@ -146,7 +141,6 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     dashboard: UserDashboard,
     clo: UserCourseLearningOutcomes,
     'subject-view': AdminSubjectView,
-    reports: Reports,
     tos: UserTOS,
     profile: Profile,
   },
@@ -439,7 +433,6 @@ function App() {
       // 'view' item, so the gating above never routes them here.)
       return <Page userEmail={profile?.email} title={role === 'manager' ? 'View Syllabus' : undefined} />
     }
-    if (page === 'reports') return <Page profile={profile} onNavigate={navigate} />
     // The log page filters by role, and which roles it may offer depends on
     // the viewer: RLS hides admin-authored rows from managers (migration 003),
     // so offering them an Admins filter would only ever yield an empty table.

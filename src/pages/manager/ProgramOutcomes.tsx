@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import EntityCrudPage, { type AlignmentOption, type AlignmentField } from '../admin/curriculum/EntityCrudPage.js'
-import { outcomeCodeKey } from '../../utils/report'
+import { outcomeCodeKey, buildGroups, type PoGroup } from '../../utils/report'
 import {
   fetchProgramOutcomesStandalone,
   createProgramOutcomeStandalone,
@@ -35,18 +35,27 @@ export default function ProgramOutcomes() {
   const [sgSuggestions, setSgSuggestions] = useState<SuggestionOption[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // The reader beside the add form: the manager's own active program
+  // outcomes — the same rows the page's list shows — grouped per CMO
+  // category and numbered continuously the way the syllabus document
+  // prints it.
+  const [readerGroups, setReaderGroups] = useState<PoGroup[]>([])
 
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
-        const [pos, peos, sgs] = await Promise.all([
+        const [pos, peos, sgs, cmosAll, allPos] = await Promise.all([
           fetchProgramOutcomesStandalone('manager'),
           fetchProgramEducationalObjectives(),
           fetchStrategicGoals(),
+          fetchChedMemoOrders(),
+          // The read side: the manager's own rows — the list below the form
+          // is manager-authored only, and the reader mirrors it.
+          fetchProgramOutcomesStandalone(),
         ])
         const referencedCmos = new Set(pos.map((p) => p.cmo_id).filter(Boolean) as string[])
-        const cmos = (await fetchChedMemoOrders()).filter(
+        const cmos = cmosAll.filter(
           (c) => c.status === 'active' || referencedCmos.has(c.id),
         )
         const fixedOptions: AlignmentOption[] = FIXED_OPTIONS.map((v) => ({ value: v, cmo_id: null }))
@@ -56,6 +65,14 @@ export default function ProgramOutcomes() {
         }))
 
         if (!cancelled) {
+          // Reader build: the manager's own active rows only, code order
+          // (PO-1… before SD-…, numeric within each family), grouped per CMO
+          // category — manager rows carry it in the description column.
+          const activeManager = allPos.filter(
+            (p) => p.source === 'manager' && (!p.status || p.status === 'active'),
+          )
+          activeManager.sort((a, b) => outcomeCodeKey(a.code).localeCompare(outcomeCodeKey(b.code)))
+          setReaderGroups(buildGroups(activeManager, cmosAll))
           setCmoOptions([...fixedOptions, ...cmoOpts])
           setPeoSuggestions(peos.filter((p) => p.status === 'active').map(toSuggestion))
           setSgSuggestions(sgs.filter((s) => s.status === 'active').map(toSgSuggestion))
@@ -73,6 +90,35 @@ export default function ProgramOutcomes() {
 
   if (error) return <p className="msg msg--error">{error}</p>
   if (loading) return <p>Loading program outcomes...</p>
+
+  // The reader leg beside the New Program Outcome form (the CLO page's pair
+  // layout): the manager's own active POs as one numbered run per CMO
+  // category — no panel title, the category headings speak for themselves,
+  // same as the CLO form's reference.
+  const readerRef = (
+    <aside className="panel clo-layout__ref" aria-label="Program Outcomes reference">
+      <div className="clo-layout__ref-scroll">
+        {readerGroups.length === 0 ? (
+          <p className="clo-layout__ref-empty">No Program Outcomes yet — the first one added opens the run here.</p>
+        ) : (
+          readerGroups.map((group, gi) => {
+            const rowBase = readerGroups.slice(0, gi).reduce((n, prior) => n + prior.items.length, 0)
+            return (
+              <div key={group.heading} className="clo-layout__ref-group">
+                <p className="clo-layout__ref-head">{group.heading}</p>
+                {group.items.map((p, i) => (
+                  <div key={p.id} className="clo-layout__ref-row">
+                    <span className="clo-layout__ref-num">{rowBase + i + 1}.</span>
+                    <span>{p.code ? `${p.code} — ` : ''}{(p.title || '').replace(/\.$/, '')}</span>
+                  </div>
+                ))}
+              </div>
+            )
+          })
+        )}
+      </div>
+    </aside>
+  )
 
   const alignments: AlignmentField[] = [
     { label: 'CMO Alignment', relationField: 'cmo_id', textField: 'description', options: cmoOptions },
@@ -107,6 +153,7 @@ export default function ProgramOutcomes() {
       tableAlignments={[alignments[1], alignments[2]]}
       inlineForm
       stackedAlignments={[alignments[0]]}
+      formRef={readerRef}
       outcomeCard
       groupOf={(i) => ((i.description || '').trim() || 'UNCATEGORIZED')}
       sort={(a, b) => {

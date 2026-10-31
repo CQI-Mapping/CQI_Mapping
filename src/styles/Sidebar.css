@@ -7,12 +7,16 @@
 }
 
 /* ---- Top Navbar ---- */
+/* Reserve the navbar's height for the rest of the app — the fullscreen map
+   overlay stops below it so the navbar stays visible on top of the map. */
+:root { --hdr-h: 70px; }
+
 .hdr {
   position: sticky;
   top: 0;
   z-index: 30;
   width: 100%;
-  height: 70px;
+  height: var(--hdr-h);
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -93,14 +97,9 @@
   height: 34px;
   flex-shrink: 0;
   object-fit: contain;
+  filter: drop-shadow(0 2px 3px rgba(6, 20, 12, 0.18));
   user-select: none;
   -webkit-user-drag: none;
-  /* Login's brand choreography in miniature: slides in as the chrome
-     lands, then drifts on a slow float while the shadow breathes
-     between neutral and the CQI green. */
-  animation:
-    hdr-brand-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.25s both,
-    hdr-brand-float 8s ease-in-out 0.85s infinite;
 }
 
 /* Admin's neutral fallback mark while they are not bounded to a
@@ -119,49 +118,6 @@
   font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.03em;
-  /* The admin's chip rides the same choreography so both brand marks
-     — whichever role is signed in — move as one system. */
-  animation:
-    hdr-brand-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.25s both,
-    hdr-brand-float 8s ease-in-out 0.85s infinite;
-}
-
-/* One-time entrance from the left: a brand mark "arriving" reads more
-   native to a top nav than a scale-up. */
-@keyframes hdr-brand-in {
-  from {
-    opacity: 0;
-    transform: translateX(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-/* The idle drift: amplitude kept small (3px on a 34px mark — the
-   8px/86px ratio of the login seal) so it reads as buoyancy, not
-   wobble. Breathing shadow rides the same keyframes to keep the two
-   motions in phase. */
-@keyframes hdr-brand-float {
-  0%,
-  100% {
-    transform: translateY(0);
-    filter: drop-shadow(0 2px 3px rgba(6, 20, 12, 0.18));
-  }
-  50% {
-    transform: translateY(-3px);
-    filter: drop-shadow(0 5px 9px rgba(34, 197, 94, 0.38));
-  }
-}
-
-/* The permanent top bar must not move for users who say it shouldn't. */
-@media (prefers-reduced-motion: reduce) {
-  .hdr__mark-img,
-  .hdr__mark--temp {
-    animation: none;
-    filter: drop-shadow(0 2px 3px rgba(6, 20, 12, 0.18));
-  }
 }
 
 /* ---- Nav — Awwwards pill group (centered, snug) ---- */
@@ -820,6 +776,8 @@
 
 /* ---- Responsive — mobile drawer ---- */
 @media (max-width: 1024px) {
+  :root { --hdr-h: 60px; }
+
   .hdr {
     height: auto;
     min-height: 60px;

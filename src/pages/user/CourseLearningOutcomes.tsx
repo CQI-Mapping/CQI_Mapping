@@ -3,7 +3,7 @@
 // the program-outcomes string is stored in the `title` column.
 // Owned by the `user` role — the admin no longer has this page.
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useEntityCrud } from '../admin/curriculum/useEntityCrud.js'
 import { useViewMode } from '../../hooks/useViewMode'
 import ViewModeToggle from '../../components/ViewModeToggle'
@@ -32,11 +32,11 @@ import type {
 } from '../../services/database'
 import SuggestionInput, { type SuggestionOption } from '../../components/SuggestionInput'
 import { rankClosestPos, type PoText, type RankedPo } from '../../utils/poMatch'
-import { rankSemantic, subscribeSemantic, preloadSemantic, type SemanticLoadState } from '../../utils/poSemantic'
+import { rankSemantic, preloadSemantic } from '../../utils/poSemantic'
 import { fuseRanked, toRelative } from '../../utils/poRank'
 import { pickedBefore, recordPick, recordRejection, draftSig } from '../../utils/poMemory'
 import SyllabusReport from '../../components/SyllabusReport'
-import { splitReportPos, buildGroups, outcomeCodeKey, isManagerOutcome, type PoGroup } from '../../utils/report'
+import { splitReportPos, buildGroups, outcomeCodeKey, type PoGroup } from '../../utils/report'
 import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
 import { downloadSyllabusPdf } from '../../utils/syllabusPdf'
 import { reportFileName } from '../../utils/download'
@@ -105,8 +105,6 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   // Null = model not loaded / failed — the keyword-only floor keeps suggesting.
   const [createSemantic, setCreateSemantic] = useState<RankedPo[] | null>(null)
   const [editSemantic, setEditSemantic] = useState<RankedPo[] | null>(null)
-  // Model download progress for the "enhancing accuracy" strip line.
-  const [semStatus, setSemStatus] = useState<SemanticLoadState>({ status: 'idle', progress: 0 })
 
   const autoResize = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return
@@ -220,11 +218,13 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
         const { managerPos: mappingPos } = splitReportPos(active)
         const activeCmos = cmos.filter((m) => !m.status || m.status === 'active')
         if (!cancelled) setMappingGroups(buildGroups(mappingPos, activeCmos))
-        // Suggestions use every active manager-created PO, independent of
-        // whether it appears in the Curriculum Mapping reference categories.
-        const managerPos = active.filter(isManagerOutcome)
-        if (!cancelled) setPoSuggestions(managerPos.map(toSuggestion))
-        if (!cancelled) setPoTexts(managerPos.map((p) => {
+        // Suggestions are the Curriculum Mapping outcomes and nothing else —
+        // the same rows the panel beside the form prints, so the chips can
+        // never offer an outcome the faculty member cannot see in the
+        // reference. Manager rows outside the two official CMO categories are
+        // left out on both sides by splitReportPos.
+        if (!cancelled) setPoSuggestions(mappingPos.map(toSuggestion))
+        if (!cancelled) setPoTexts(mappingPos.map((p) => {
           const rec = p as { description?: string | null; cmo_id?: string | null; peo_text?: string | null; sg_text?: string | null }
           const peoTitles = splitCodes(rec.peo_text ?? null).map((c) => peoByCode.get(c.toLowerCase()) ?? '').filter(Boolean)
           const sgDescs = splitCodes(rec.sg_text ?? null).map((c) => sgByCode.get(c.toLowerCase()) ?? '').filter(Boolean)
@@ -359,11 +359,11 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
 
   // Warm the semantic model in the background once the page settles, so by
   // the time faculty type a description the premium re-rank is already live.
-  // First visit shows the download %; later visits load from browser cache.
+  // The model loads silently — no progress banner, faculty just see the
+  // suggestions improve.
   useEffect(() => {
-    const unsub = subscribeSemantic(setSemStatus)
     const t = setTimeout(() => preloadSemantic(), 1200)
-    return () => { unsub(); clearTimeout(t) }
+    return () => clearTimeout(t)
   }, [])
 
   // Debounced semantic re-rank for the create-form description.
@@ -422,6 +422,22 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   // display the bare code.
   const courseTitleByCode = (code: string) => courses.find((c) => c.code === code)?.title || ''
 
+  // Course list filters for the create form: Year and Semester sit on top of
+  // the Course (Subject Code) picker and narrow its dropdown to the term the
+  // faculty member is writing CLOs for. They only trim the list — never
+  // invalidate an already-chosen course — and the course record itself still
+  // owns where it sits on the Year · Semester map.
+  const [courseYear, setCourseYear] = useState('')
+  const [courseSem, setCourseSem] = useState('')
+  const filteredCourses = useMemo(() => {
+    if (courseYear === '' && courseSem === '') return courses
+    return courses.filter(
+      (c) =>
+        (courseYear === '' || String(c.year_level ?? '') === courseYear)
+        && (courseSem === '' || String(c.semester ?? '') === courseSem),
+    )
+  }, [courses, courseYear, courseSem])
+
   // Shared edit form used by both grid and list card styles. Wrapped in
   // .resource-card__edit so the fields stack: the list card is a flex ROW
   // (body + actions side by side), and without the wrapper the edit fields
@@ -451,11 +467,6 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
       </div>
       <textarea className="input input--sm" rows={2} ref={autoResize} value={editForm.description} onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} placeholder="Description" />
       <SuggestionInput value={editForm.programOutcomes} onChange={(v) => setEditForm({ ...editForm, programOutcomes: v })} options={poSuggestions} placeholder="Type to search POs" />
-      {semStatus.status === 'loading' && (
-        <span style={{ fontSize: 12, color: '#15803d' }}>
-          Enhancing accuracy — loading AI model… {semStatus.progress}%
-        </span>
-      )}
       {editDisplay.length > 0 ? (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '6px 0' }}>
           <span style={{ fontSize: 12, color: '#64748b', width: '100%' }}>
@@ -484,7 +495,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
       ) : editForm.description.trim().length >= 4 && (
         <div style={{ fontSize: 12, color: '#64748b', margin: '6px 0' }}>
           {poTexts.length === 0
-            ? 'No Program Outcomes yet — create one on the Program Outcomes page first.'
+            ? 'No Curriculum Mapping outcomes yet — add them on the Program Outcomes page first.'
             : 'No close match — try words like design, develop, evaluate, or pick manually above.'}
         </div>
       )}
@@ -547,6 +558,31 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
         <div className="clo-layout__pair">
       <form className="panel create-resource" onSubmit={submit} style={{ borderTop: '3px solid #16a34a' }}>
         <h3>New Course Learning Outcome</h3>
+        {/* Year · Semester filters on top: two compact picks that narrow the
+            Course dropdown below. "All years" / "All semesters" reset them;
+            an already-chosen course is never invalidated by a change here. */}
+        <div className="clo-form-filters">
+          <label className="field">
+            <span>Year</span>
+            <select className="input input--sm" value={courseYear}
+              onChange={(e) => setCourseYear(e.target.value)}>
+              <option value="">All years</option>
+              {[1, 2, 3, 4].map((y) => (
+                <option key={y} value={y}>{['1st', '2nd', '3rd', '4th'][y - 1]} Year</option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>Semester</span>
+            <select className="input input--sm" value={courseSem}
+              onChange={(e) => setCourseSem(e.target.value)}>
+              <option value="">All semesters</option>
+              <option value="1">1st Sem</option>
+              <option value="2">2nd Sem</option>
+              <option value="3">Summer</option>
+            </select>
+          </label>
+        </div>
         <label className="field">
           <span>Course (Subject Code)</span>
           {/* Once a subject is chosen the picker collapses to a read-only
@@ -564,10 +600,16 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             <select className="input input--sm" value={form.course}
               onChange={(e) => setForm({ ...form, course: e.target.value })} required>
               <option value="">Select course</option>
-              {courses.map((c) => (
+              {filteredCourses.map((c) => (
                 <option key={c.id} value={c.code}>{c.code} — {c.title}</option>
               ))}
-              {courses.length === 0 && <option value="" disabled>No courses available — create one in Course page first</option>}
+              {filteredCourses.length === 0 && (
+                <option value="" disabled>
+                  {courseYear || courseSem
+                    ? 'No courses in this Year · Semester — change the filters or create the course in Course page first'
+                    : 'No courses available — create one in Course page first'}
+                </option>
+              )}
             </select>
           )}
         </label>
@@ -591,13 +633,6 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             placeholder="Type to search POs"
           />
         </label>
-        {semStatus.status === 'loading' && (
-          <div className="field" style={{ marginTop: -4 }}>
-            <span style={{ fontSize: 12, color: '#15803d' }}>
-              Enhancing accuracy — loading AI model… {semStatus.progress}%
-            </span>
-          </div>
-        )}
         {createDisplay.length > 0 ? (
           <div className="field" style={{ marginTop: -4 }}>
             <span style={{ fontSize: 12, color: '#64748b' }}>
@@ -631,7 +666,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
           <div className="field" style={{ marginTop: -4 }}>
             <span style={{ fontSize: 12, color: '#64748b' }}>
               {poTexts.length === 0
-                ? 'No Program Outcomes yet — create one on the Program Outcomes page first.'
+                ? 'No Curriculum Mapping outcomes yet — add them on the Program Outcomes page first.'
                 : 'No close match — try words like design, develop, evaluate, or pick manually above.'}
             </span>
           </div>

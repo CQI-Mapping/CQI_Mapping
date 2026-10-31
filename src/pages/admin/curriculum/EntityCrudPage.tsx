@@ -4,6 +4,7 @@
 // seed source, and labels as config — the shared JSX below is reused.
 
 import { useState, useEffect, useCallback } from 'react'
+import type { ReactNode } from 'react'
 import { useEntityCrud } from './useEntityCrud.js'
 import { useViewMode } from '../../../hooks/useViewMode.js'
 import ViewModeToggle from '../../../components/ViewModeToggle.js'
@@ -52,6 +53,11 @@ interface EntityCrudPageProps<T extends { id: string }> {
   alignments?: AlignmentField[]
   tableAlignments?: AlignmentField[]
   inlineForm?: boolean
+  // Optional reader column beside the create form (the CLO page's pair
+  // layout): the caller's JSX renders in the right 320px column and the
+  // row's height comes from the form alone, so the two read as one joined
+  // block. Absent prop = the plain single-column form, exactly as before.
+  formRef?: ReactNode
   stackedAlignments?: AlignmentField[]
   showTitle?: boolean
   titleField?: string
@@ -97,6 +103,7 @@ export default function EntityCrudPage<T extends { id: string }>({
 alignments,
   tableAlignments,
   inlineForm = false,
+  formRef,
   stackedAlignments = [],
   showTitle = true,
   titleField = 'title',
@@ -388,6 +395,12 @@ alignments,
       {error && <p className="msg msg--error" role="alert">{error}</p>}
       {message && <p className="msg msg--success" role="status">{message}</p>}
 
+      {/* Reader pair (formRef): the create form and the caller's reader panel
+          become one joined block — the row's height comes from the form, and
+          the reader is exactly as tall beside it (the CLO page's layout).
+          No prop, no change: every other entity page keeps the plain form. */}
+      {formRef && (
+        <div className="clo-layout__pair">
       <form className="panel create-resource" onSubmit={submit} style={{ borderTop: '3px solid #16a34a' }}>
         <h3>New {title}</h3>
         {titleMultiline ? (
@@ -478,6 +491,9 @@ alignments,
           <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>{busy ? 'Saving...' : (<><Icon name="plus" size={13} /> Add</>)}</button>
         </div>
       </form>
+      {formRef}
+        </div>
+      )}
 
       {loading ? (
         <div className="program-grid" style={{ marginTop: 8 }}>

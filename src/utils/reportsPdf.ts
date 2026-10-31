@@ -590,7 +590,7 @@ export function renderReportsPdf(doc: PdfDoc, model: ReportsPdfModel): void {
   w.sub('Term placement and mapping coverage of every course in the program.')
   const widths = [26, 56, 24, 16, 14, CONTENT_W - 136]
   const aligns: Align[] = ['left', 'left', 'left', 'left', 'right', 'left']
-  w.tableHeader(['Course Code', 'Course Title', 'Academic Year', 'Sem', '#CLOs', 'Mapping Status'], widths, aligns, true)
+  w.tableHeader(['Course Code', 'Course Title', 'Year Level', 'Sem', '#CLOs', 'Mapping Status'], widths, aligns, true)
   if (model.mapping.rows.length === 0) {
     w.empty('No courses in this program yet.')
   } else {

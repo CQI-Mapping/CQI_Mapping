@@ -9,6 +9,7 @@ import Icon from '../components/icons'
 import { updateProfile, addActivityLog, fetchActivityLogs, uploadAvatar } from '../services/database'
 import { supabase } from '../utils/supabaseClient'
 import { loadEmailAvatar, initialsOf } from '../utils/avatar'
+import { friendlyPasswordError } from '../utils/passwordErrors'
 import { ACTION_LABELS } from './admin/ActivityLabels'
 import type { Profile as ProfileType, ActivityLogEntry, UserRole } from '../services/database'
 
@@ -17,8 +18,8 @@ interface ProfileProps {
   onSaved: (profile: ProfileType) => void
 }
 
-/** Supabase's minimum password length — keep in sync with auth config. */
-const MIN_PASSWORD_LENGTH = 6
+/** The system's password policy — keep in sync with the auth config and ResetPassword. */
+const MIN_PASSWORD_LENGTH = 8
 
 /** Same cap the concept mockup stamped on the name field. */
 const NAME_MAX_LENGTH = 80
@@ -106,21 +107,38 @@ function Profile({ profile, onSaved }: ProfileProps) {
   const canSave = Boolean(profile) && dirty && fullName.trim().length > 0
 
   // Passwords stay in component state only (never in sessionStorage).
+  const [currentPassword, setCurrentPassword] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [changingPassword, setChangingPassword] = useState(false)
   const [passwordError, setPasswordError] = useState('')
   const [passwordMessage, setPasswordMessage] = useState('')
 
+  const currentPasswordEntered = currentPassword.length > 0
   const passwordLongEnough = password.length >= MIN_PASSWORD_LENGTH
+  // Better-security mix: counting how many of lower/upper digits/symbols the
+  // password touches. All four together light the checklist's advisory chip.
+  const passwordVariety = [
+    /[a-z]/.test(password),
+    /[A-Z]/.test(password),
+    /[0-9]/.test(password),
+    /[^a-zA-Z0-9]/.test(password),
+  ].filter(Boolean).length
   const passwordsMatch = password.length > 0 && password === confirmPassword
   const passwordStrength = !password
     ? 0
     : passwordLongEnough
-      ? 0.45 + 0.55 * Math.min(password.length / 16, 1)
+      ? 0.45 + 0.55 * (0.7 * Math.min(password.length / 16, 1) + 0.3 * (passwordVariety / 4))
       : 0.15
-  const canSubmitPassword = Boolean(profile) && !changingPassword && passwordLongEnough && passwordsMatch
+  const canSubmitPassword =
+    Boolean(profile) &&
+    !changingPassword &&
+    currentPasswordEntered &&
+    passwordLongEnough &&
+    passwordsMatch
 
   // The user's own recent audit entries drive two views: the hero's "Active"
   // chip and the timeline card. Twelve entries keep the trail's column as
@@ -263,11 +281,17 @@ function Profile({ profile, onSaved }: ProfileProps) {
   }
 
   // Update password in Supabase auth for the signed-in user and write to audit trail.
+  // Like a real system, the current password must be re-entered and verified
+  // before the swap is allowed — the form never changes a password blind.
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!profile) return
     setPasswordError('')
     setPasswordMessage('')
+    if (!currentPasswordEntered) {
+      setPasswordError('Re-enter your current password so we know it is really you.')
+      return
+    }
     if (!passwordLongEnough) {
       setPasswordError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`)
       return
@@ -278,6 +302,18 @@ function Profile({ profile, onSaved }: ProfileProps) {
     }
     setChangingPassword(true)
     try {
+      // The current password is proven by signing in with it — a wrong secret
+      // fails the check and nothing is touched. On success Supabase simply
+      // refreshes the live session, so the user stays signed in.
+      const { data: { user } } = await supabase!.auth.getUser()
+      const { error: verifyError } = await supabase!.auth.signInWithPassword({
+        email: user?.email ?? profile.email,
+        password: currentPassword,
+      })
+      if (verifyError) {
+        setPasswordError('Your current password is incorrect — the password was not changed.')
+        return
+      }
       const { error: updateError } = await supabase!.auth.updateUser({ password })
       if (updateError) throw updateError
       await addActivityLog('profile.password_changed', {
@@ -285,12 +321,18 @@ function Profile({ profile, onSaved }: ProfileProps) {
         entity_id: profile.id,
         label: profile.full_name || profile.email,
       })
+      setCurrentPassword('')
       setPassword('')
       setConfirmPassword('')
       setPasswordMessage('Password updated successfully.')
       setActivityRefresh((n) => n + 1)
     } catch (err) {
-      setPasswordError('Failed to change password: ' + describe(err))
+      // The network layer logs only a bare "400"; keep the server's own
+      // wording in the console so the exact rejection rule is visible
+      // when debugging (it is also translated for the card above).
+      const friendly = friendlyPasswordError(err)
+      console.error('Password update rejected:', describe(err))
+      setPasswordError(friendly ?? 'Failed to change password: ' + describe(err))
     } finally {
       setChangingPassword(false)
     }
@@ -479,10 +521,39 @@ function Profile({ profile, onSaved }: ProfileProps) {
           <section className="panel profile-card card-enter" aria-label="Change password">
             <div className="profile-card__head">
               <h3><Icon name="lock" size={15} />Change Password</h3>
-              <span className="profile-card__hint">account privacy &amp; security</span>
+              <span className="profile-card__hint">Account Privacy &amp; Security</span>
             </div>
 
             <form onSubmit={handlePasswordChange} noValidate>
+              <label className="field">
+                <span>Current password</span>
+                <div className="profile-input-wrap">
+                  <input
+                    className="input"
+                    type={showCurrentPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    placeholder="Enter the Current Password"
+                    value={currentPassword}
+                    onChange={(e) => {
+                      setCurrentPassword(e.target.value)
+                      if (passwordError) setPasswordError('')
+                      if (passwordMessage) setPasswordMessage('')
+                    }}
+                    disabled={!profile || changingPassword}
+                  />
+                  <button
+                    type="button"
+                    className="profile-password-toggle"
+                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                    aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'}
+                    title={showCurrentPassword ? 'Hide current password' : 'Show current password'}
+                    tabIndex={-1}
+                  >
+                    <Icon name="eye" size={15} />
+                  </button>
+                </div>
+              </label>
+
               <label className="field">
                 <span>New password</span>
                 <div className="profile-input-wrap">
@@ -512,21 +583,34 @@ function Profile({ profile, onSaved }: ProfileProps) {
                 </div>
               </label>
 
+
               <label className="field">
                 <span>Confirm new password</span>
-                <input
-                  className="input"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  placeholder="Re-enter new password"
-                  value={confirmPassword}
-                  onChange={(e) => {
-                    setConfirmPassword(e.target.value)
-                    if (passwordError) setPasswordError('')
-                    if (passwordMessage) setPasswordMessage('')
-                  }}
-                  disabled={!profile || changingPassword}
-                />
+                <div className="profile-input-wrap">
+                  <input
+                    className="input"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    placeholder="Re-enter new password"
+                    value={confirmPassword}
+                    onChange={(e) => {
+                      setConfirmPassword(e.target.value)
+                      if (passwordError) setPasswordError('')
+                      if (passwordMessage) setPasswordMessage('')
+                    }}
+                    disabled={!profile || changingPassword}
+                  />
+                  <button
+                    type="button"
+                    className="profile-password-toggle"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    aria-label={showConfirmPassword ? 'Hide confirmed password' : 'Show confirmed password'}
+                    title={showConfirmPassword ? 'Hide confirmed password' : 'Show confirmed password'}
+                    tabIndex={-1}
+                  >
+                    <Icon name="eye" size={15} />
+                  </button>
+                </div>
               </label>
 
               <div className="profile-reqs">
@@ -537,6 +621,10 @@ function Profile({ profile, onSaved }: ProfileProps) {
                 <span className={`profile-req${passwordsMatch ? ' profile-req--ok' : ''}`}>
                   <span className="profile-req__tick"><Icon name="check" size={9} strokeWidth={3.6} /></span>
                   Both fields match
+                </span>
+                <span className={`profile-req${passwordVariety === 4 ? ' profile-req--ok' : ''}`}>
+                  <span className="profile-req__tick"><Icon name="check" size={9} strokeWidth={3.6} /></span>
+                  Uppercase, lowercase, number &amp; symbol
                 </span>
               </div>
 
@@ -566,7 +654,7 @@ function Profile({ profile, onSaved }: ProfileProps) {
 
             <p className="profile-security-foot">
               <Icon name="shield" size={15} />
-              Your current session stays signed in, and this update is logged to your activity trail.
+              Your current password is verified before any change, your session stays signed in, and the update is logged to your activity trail.
             </p>
           </section>
 

@@ -36,7 +36,7 @@ The system uses three application roles, each mapped to the people who actually 
 | Framework | React 18 (function components + hooks) |
 | Tests | Vitest 2 — 257 unit tests (`npm test`) |
 | Styling | Plain CSS with CSS custom properties in `src/index.css` |
-| Graph | d3 7 — Subject Graph (`admin/SubjectView.tsx`) |
+| Graph | d3 7 — Subject Graph (`admin/Map.tsx`) |
 | Documents | ExcelJS (TOS workbooks), `docx` (Word syllabus exports), `jspdf` + `html2canvas` (report PDFs), `xlsx` (report workbooks) |
 | Backend / DB | Supabase (Postgres, Auth, RLS, triggers) |
 | Client | `@supabase/supabase-js` |
@@ -114,7 +114,7 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
     ├── components/
     │   ├── Sidebar.tsx               # Dark-glass top navbar, per-role nav + mega dropdown + profile menu
     │   ├── icons.tsx                 # The `Icon` set (name → svg) used across pages
-    │   ├── PageBanner.tsx            # Screen-only banner strip for TOS / View / SubjectView
+    │   ├── PageBanner.tsx            # Screen-only banner strip for TOS / View / Map
     │   ├── TosSheetGrid.tsx          # The on-screen workbook grid (green inputs / gray formulas)
     │   ├── TosBlueprintEditor.tsx    # Inline blueprint editor inside a library card
     │   ├── SyllabusReport.tsx        # Document renderer shared by View / reports / Word export
@@ -138,8 +138,8 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
     │   │   ├── ProgramEducationalObjectives.tsx  # PEOs (via shared EntityCrudPage)
     │   │   ├── ProgramOutcomesAdmin.tsx  # Program Outcomes (via shared EntityCrudPage)
     │   │   ├── CourseLearningOutcomes.tsx  # CLOs (bespoke page: stats + search + tabs)
-    │   │   ├── SubjectView.tsx       # d3 Subject Graph, green-monochrome theme (all roles share it)
-    │   │   ├── View.tsx              # Printable curriculum map / syllabus report
+    │   │   ├── Map.tsx               # d3 Subject Graph, green-monochrome theme (all roles share it)
+    │   │   ├── Syllabus.tsx          # Printable curriculum map / syllabus report
     │   │   ├── ActivityLogs.tsx      # Filterable activity log table (shared with manager)
     │   │   ├── ActivityLabels.ts     # Action string → human-readable label
     │   │   └── curriculum/
@@ -149,7 +149,7 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
     │   │   ├── Dashboard.tsx         # Manager overview + banner strip + quick actions
     │   │   ├── Users.tsx             # Users directory + add/remove users (`user` role only)
     │   │   ├── Curriculum.tsx        # Create/edit/archive (no delete) + search
-    │   │   ├── ProgramOutcomes.tsx   # Manager-side PO alignment (peo_text)
+    │   │   ├── ProgramOutcomes.tsx   # Manager-side PO alignment; inline add form with a reader leg (all POs, grouped per CMO category)
     │   │   └── Course.tsx            # Wraps AdminCourse with `hideDelete`-style gating (no delete)
     │   └── user/
     │       ├── Dashboard.tsx         # Faculty: Subjects + CLO stats, recent CLOs
@@ -471,13 +471,22 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 - The library panel lists every saved blueprint with Edit (inline full editor), Open, Archive/Restore, and **Delete** (red trash, confirms, cascades papers + topics, writes `tos_exam.deleted` to the audit log). Deleting the blueprint that is open in the editor stands down its pending writers first and parks the editor on the next exam.
 - **Export** builds the faculty workbook with ExcelJS (`utils/tosXlsx.ts`): letterhead, green editable cells + gray formula cells, formulas written live (`=SUM(...)`), `fullCalcOnLoad` so Excel computes on open. Tabs are named as the workbook spells them (`Multiple Choice`, `ProductPerformance-Based`); both papers end at the Create column — no extra grand-total column.
 
-### `shared/Reports.tsx` (Generate Map, all roles)
-- Curriculum mapping summary per course (term, CLO counts, mapping status), PO coverage chart, and the outcome/report panels; the same page backs the Subject Graph's sibling reports.
+### `components/MapBrief.tsx` (embedded on all three role dashboards)
+- The program's curriculum at a glance, moved off the Generate Map page: the seven KPI tiles (Total Programs … Unmapped / Incomplete), the Curriculum Mapping Summary table and the PO Coverage Chart. Self-contained — it fetches its own data, opens on the account's program assignment (then BSIT, then first), and re-uses the shared alignment engines (`utils/alignment.ts`, `utils/cloPoMapping.ts`), so its figures always agree with the report's PDF.
+
+### `components/MapPreview.tsx` (slotted inside MapBrief on all three role dashboards)
+- The live OBE Curriculum Map as a dashboard block (added 2026-11-01): the Year·Semester columns (Summer only in 3rd year), the Viridis year palette, the amber prerequisite connectors and the press-to-reveal spotlight (a press lights the pressed dot's forward prerequisite chain to its end; press again or press the empty canvas to clear). Self-fetched like MapBrief and forked deliberately from `Map.tsx`'s `renderCurriculumMap` — geometry and palette are copies; the page-specific machinery (PO/PI filters, zoom, inspection card, floating tooltip) stays there.
+- Since 2026-11-01 it sits **between MapBrief's KPI tiles and its two panels** (figures → map → summary + coverage chart): MapBrief grew a `children` slot rendered after the tile row, and the dashboards pass the preview through it instead of stacking it below.
+- Curriculum pick mirrors Generate Map's landing boot: a program qualifies when one of its courses carries a curriculum in Resources → viewer's program, else BSIT, else the first that qualifies; the first anchored course's curriculum is drawn. Footer's "Open Generate Map →" routes every role to Subject Graph (`subject-view`).
+
+### `shared/Reports.tsx` (no longer routed in the sidebar)
+- The overall report page. Its on-screen brief blocks (KPIs, summary, coverage chart) moved to the dashboards (`components/MapBrief.tsx`), and its "Reports" sidebar entry was removed from all three roles on 2026-11-01, so the page is currently unreachable; the file stays for the export machinery until the route is deleted or restored.
 - Exports: Excel workbook + PDF (`report.ts`, `download.ts`) and Word (`syllabusDocx.ts`) with the letterhead + navy heading styling; document constants (vision/mission wording) live in `utils/report.ts`, not `src/data/`.
 
-### `admin/SubjectView.tsx` (shared by all roles as Subject Graph)
+### `admin/Map.tsx` (shared by all roles as Subject Graph)
 - d3 outcome hierarchy: Subject → Curriculum → Prereq/Coreq → CLO → PO → PEO → SG → CMO. Renders after pressing View.
 - Strict green-monochrome + gray + 1 amber (prereq) theme; legend with per-kind counts + Unresolved badge (`countKinds`); placeholder/loading/empty states; mobile stacks panels and scrolls graph horizontally.
+- Live auto-update: watches every table the map reads (`MAP_TABLES`) with Supabase realtime change events, refetches on tab focus/visibility, and polls quietly every 45s as a backup — manager/user edits to subjects, CLOs, POs, PEOs, SGs, CMOs or curricula appear on the open map without a manual reload (realtime events need Realtime replication enabled on those tables in the Supabase dashboard; focus + polling cover it otherwise).
 
 ### `manager/Users.tsx`
 - Users directory (table with role badges) + add/remove users (`user` role only, never self). Role changes are admin-only (via SQL).
@@ -488,7 +497,7 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 ### `manager/Course.tsx`
 - Wraps `admin/Course` with `hideDelete` (create/edit/archive/restore, no delete). Falls through `renderPage` with `profile` prop.
 
-### `admin/View.tsx`
+### `admin/Syllabus.tsx`
 - Printable curriculum map / syllabus report. Displays Vision, Mission, Strategic Goals, PEOs, Program Outcomes, Curriculum Mapping, Course Learning Outcomes, and Course Details in a formatted document layout.
 - Supports inline editing and archiving of Strategic Goals, PEOs, and Program Outcomes via an Edit toggle. Archives write `strategic_goal.archived` / `peo.archived` / `program_outcome.archived` rather than a generic `.updated`.
 - Static syllabus content (vision/mission wording, curriculum mapping, course details) comes from `src/utils/report.ts` (the old `src/data/vcqiSyllabus.ts` was folded into it).

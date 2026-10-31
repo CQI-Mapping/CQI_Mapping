@@ -54,7 +54,7 @@ import type {
   ChedMemoOrder,
 } from '../../services/database'
 import { normalizeCode, cloMatchesSubject } from '../../utils/courseCodes'
-import { splitReportPos, buildGroups, isManagerCmCategory } from '../../utils/report'
+import { splitReportPos, buildGroups, isManagerCmCategory, isManagerOutcome, outcomeCodeKey } from '../../utils/report'
 import { reportFileName } from '../../utils/download'
 import { downloadSyllabusPdf } from '../../utils/syllabusPdf'
 import Icon from '../../components/icons'
@@ -62,6 +62,24 @@ import SyllabusReport from '../../components/SyllabusReport'
 import OutcomeDetailsCard from '../../components/OutcomeDetailsCard'
 import PageBanner from '../../components/PageBanner'
 import type { ConnectedGroup, ConnectedItem } from '../../components/OutcomeDetailsCard'
+import { supabase } from '../../utils/supabaseClient'
+
+// Every table the OBE Curriculum Map reads (admin/Map.tsx). A manager/user
+// edit to any of these must reach the open map without a manual reload, so
+// the auto-update block subscribes realtime change events for each name.
+const MAP_TABLES = [
+  'courses',                        // subjects: year/sem columns, prereq codes
+  'programs',                       // program switcher above the map
+  'resources',                      // curricula (the "BSIT 2025-2026" switcher)
+  'course_learning_outcomes',       // CLOs that give subjects their PO keys
+  'admin_course_learning_outcomes', // standalone CLO nodes
+  'program_outcomes',               // legacy manager POs
+  'admin_program_outcomes',         // standalone POs (the PO filter)
+  'program_educational_objectives', // PEO nodes
+  'strategic_goals',                // SG nodes
+  'ched_memorandum_orders',         // CMO nodes
+] as const
+
 
 type NodeKind =
   | 'curriculum'
@@ -210,6 +228,24 @@ const legendDefs: Array<{ kind: NodeKind; label: string; tip: string }> = [
   { kind: 'cmo', label: 'CMO', tip: 'CHED Memorandum Order(s)' },
 ]
 
+// Display-only rewrite for outcome codes still stored as "PG-1" (the old
+// "Program Graduate" wording): they read as "PO-1" on the OBE Curriculum Map.
+// Only the shown text changes — filtering and dim-matching keep comparing the
+// raw stored codes, so existing references never break.
+const poCode = (code: string) => String(code || '').replace(/^PG(?=[\s\-–—]?\d)/i, 'PO')
+
+// Curriculum display label: when the code is already inside the title
+// (code "BSIT", title "BSIT 2025-2026") show just "BSIT 2025-2026" instead
+// of the redundant "BSIT — BSIT 2025-2026".
+const curriculumLabel = (c: { code?: string | null; title?: string | null }) => {
+  const code = String(c.code || '').trim()
+  const title = String(c.title || '').trim()
+  if (code && title && !title.toLowerCase().includes(code.toLowerCase())) {
+    return `${code} — ${title}`
+  }
+  return title || code || '—'
+}
+
 // Category order + headings for the connected-details card. Every connected
 // node is bucketed by its kind; categories with nothing attached are hidden, so
 // one list serves all three roots — a PO/PEO tree simply has no curriculum,
@@ -250,7 +286,7 @@ export default function SubjectView() {
   const [spinner, setSpinner] = useState(false)
   const [graphError, setGraphError] = useState('')
   const [datasets, setDatasets] = useState<OutcomeDatasets | null>(null)
-  const [containerSize, setContainerSize] = useState({ w: 0, h: 0 })
+  const [containerSize, setContainerSize] = useState({ w: 0, h: 0, bw: 0, bh: 0 })
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set())
   // Curriculum branches open into every subject in that curriculum plus each
   // one's CLO → PO → PEO/SG/CMO sub-tree — easily hundreds of nodes — so they
@@ -258,10 +294,27 @@ export default function SubjectView() {
   // absent means open: here a node is closed until it appears in this set.
   const [openCurriculumIds, setOpenCurriculumIds] = useState<Set<string>>(() => new Set())
   const [navStack, setNavStack] = useState<NavEntry[]>([])
+  // ── OBE Curriculum Map filters (the curriculum root's default view) ────────
+  // The map shows every subject at once — these narrow it: a PGO keeps only
+  // that outcome's constellation, a PI (the course learning outcome carrying
+  // it) then lights just the subjects that teach it.
+  const [mapPoId, setMapPoId] = useState('')
+  const [mapCloId, setMapCloId] = useState('')
+  // Leaving the map (or switching curriculum) drops both filters with it.
+  useEffect(() => {
+    setMapPoId('')
+    setMapCloId('')
+    setMapFocusId(null)
+  }, [rootType, selectedCurriculumId])
   // Graph node the connected-details card describes. null = the root itself.
   // Set on every node click so the card answers "what hangs off *that* branch"
   // and not just the root; cleared whenever the root changes.
   const [inspectedNodeId, setInspectedNodeId] = useState<string | null>(null)
+  // Press-to-reveal on the OBE Curriculum Map: the course id of the pressed
+  // dot. While set, the map spotlights that subject and everything wired to
+  // it by prerequisite connectors — its unlocks and its dependents — and
+  // fades the rest (see the connector block in renderCurriculumMap).
+  const [mapFocusId, setMapFocusId] = useState<string | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [dlOpen, setDlOpen] = useState(false)
   const [dlFormat, setDlFormat] = useState<'pdf' | 'docx'>('pdf')
@@ -269,6 +322,10 @@ export default function SubjectView() {
   const [dlNotice, setDlNotice] = useState<string | null>(null)
   const [dlError, setDlError] = useState<string | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
+  // Second svg holding the OBE Curriculum Map's Year · Semester header strip,
+  // rendered inside the sticky control package so the column labels stay
+  // pinned while the tall grid scrolls underneath.
+  const mapHeadRef = useRef<SVGSVGElement>(null)
   const dlMenuRef = useRef<HTMLDivElement>(null)
   // Snapshot target for the PDF export: the document root inside the rendered
   // Curriculum Report (the same element the Curriculum Report page snapshots).
@@ -303,6 +360,14 @@ export default function SubjectView() {
       document.body.style.overflow = prev
     }
   }, [isFullscreen])
+
+  // Every generated graph opens full screen, dashboard-style — the OBE
+  // Curriculum Map, a subject tree, a PO web, all alike. Closing the map
+  // (switching the picker, clearing a selection) stands the overlay down
+  // with it.
+  useEffect(() => {
+    if (!showGraph) setIsFullscreen(false)
+  }, [showGraph])
 
   // Close the download's format menu on outside click or Escape — the same
   // behaviour the Curriculum Report page's download menu has.
@@ -453,6 +518,60 @@ export default function SubjectView() {
     () => programs.find((p) => p.id === selectedProgramId) ?? null,
     [programs, selectedProgramId],
   )
+
+  // ── Landing default: Generate Map opens onto the OBE Curriculum Map ────────
+  // The page's own point is the map, so as soon as the data is in, the first
+  // program that carries curricula boots its default curriculum full screen —
+  // the dashboard-style view faculty expect when they navigate here. The boot
+  // is polite: it stands down if the visitor has picked any visualization
+  // themselves, and it prefers their program when it qualifies.
+  const mapBootRanRef = useRef(false)
+  useEffect(() => {
+    if (mapBootRanRef.current || loading || !datasets || rootType || programs.length === 0) return
+    const qualifies = (p: { id: string } | undefined) =>
+      p != null &&
+      courses.some((c) => {
+        const pid = typeof c.program_id === 'object' ? c.program_id.id : c.program_id
+        if (pid !== p.id) return false
+        const opt = c.curriculum_id
+        const cid = opt && typeof opt === 'object' ? opt.id : opt
+        return cid != null && datasets.resources.some((r) => r.id === cid)
+      })
+    const userProgram = programs.find((p) => p.id === selectedProgramId)
+    const candidate = qualifies(userProgram) ? userProgram : programs.find(qualifies)
+    if (!candidate) return
+    mapBootRanRef.current = true
+    setSelectedProgramId(candidate.id)
+    for (const c of courses) {
+      const pid = typeof c.program_id === 'object' ? c.program_id.id : c.program_id
+      if (pid !== candidate.id) continue
+      const opt = c.curriculum_id
+      const cid = opt && typeof opt === 'object' ? opt.id : opt
+      if (cid == null || !datasets.resources.some((r) => r.id === cid)) continue
+      setSelectedCurriculumId(cid)
+      setRootType('curriculum')
+      setShowGraph(true)
+      setIsFullscreen(true)
+      break
+    }
+  }, [loading, datasets, rootType, programs, courses, selectedProgramId])
+
+  // While the curriculum root is up, a program switch keeps the map on screen:
+  // the new program's default curriculum replaces the stale pick (which belongs
+  // to the previous program and would render nothing). A program without
+  // curricula stand down the full screen — its empty picker already explains.
+  useEffect(() => {
+    if (rootType !== 'curriculum') return
+    if (allCurricula.length === 0) {
+      setIsFullscreen(false)
+      return
+    }
+    if (selectedCurriculumId && allCurricula.some((r) => r.id === selectedCurriculumId)) return
+    const first = allCurricula[0]
+    setSelectedCurriculumId(first.id)
+    setShowGraph(true)
+    setIsFullscreen(true)
+  }, [rootType, allCurricula, selectedCurriculumId])
 
   // Quick tallies shown in the left panel before View.
   // Subject mode: pre-req / co-req / CLO counts. PO mode: linked CLOs / subjects.
@@ -640,6 +759,97 @@ export default function SubjectView() {
     loadDatasets(false, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // ── Auto-update: the map follows the database ─────────────────────────────
+  // Managers and users edit subjects, CLOs, POs, PEOs, SGs, CMOs, curricula
+  // from other pages (often another device entirely); this page refetches on
+  // its own so nobody has to press the reload button on the map. Three
+  // triggers feed one debounced refresh:
+  //   (1) Supabase realtime change events on every table the map reads —
+  //       instant, but only when Realtime replication is enabled for those
+  //       tables in the Supabase dashboard;
+  //   (2) tab focus / visibility — catches up after the tab sat idle;
+  //   (3) a 45s polling beat — the safety net when (1) is unavailable.
+  const lastRefreshAt = useRef(Date.now())
+  const refreshTimer = useRef<number | undefined>(undefined)
+
+  const refreshMapData = useCallback(async () => {
+    lastRefreshAt.current = Date.now()
+    try {
+      // Same payload as the mount preload (programs · courses · manager POs)
+      // minus the loading UI — a background refresh shows no spinner, and the
+      // already-chosen program/collection keeps its selection.
+      const [p, c, pos] = await Promise.all([fetchPrograms(), fetchCourses(), fetchProgramOutcomesStandalone()])
+      const sorted = [...p].sort((a, b) =>
+        String(a.name || a.code).localeCompare(String(b.name || b.code)))
+      setPrograms(sorted)
+      setCourses(c.filter(isActive).sort((a, b) => String(a.code).localeCompare(String(b.code))))
+      setPoList(sortPos(pos.filter((p) => isActive(p) && isManagerCmCategory(p))))
+      setSelectedProgramId((cur) => cur ?? sorted[0]?.id ?? cur)
+    } catch {
+      // A network blip or a stale auth token: keep what's on screen — the
+      // next trigger retries. Never blank a working map over one bad round.
+    }
+    await loadDatasets(true, true)
+  }, [loadDatasets])
+
+  // Event handlers outlive renders, so they dial the latest refresh logic
+  // through this ref instead of closing over it — that keeps the realtime
+  // subscription from being torn down and rebuilt on every render.
+  const refreshRef = useRef(refreshMapData)
+  useEffect(() => { refreshRef.current = refreshMapData })
+
+  const scheduleRefresh = useCallback(() => {
+    window.clearTimeout(refreshTimer.current)
+    // Debounce: one manager save can fire several table events (a course and
+    // its CLOs, a PO and its mappings) — refresh once, 800ms after the burst.
+    refreshTimer.current = window.setTimeout(() => {
+      if (document.visibilityState === 'hidden') return
+      void refreshRef.current()
+    }, 800)
+  }, [])
+
+  // (1) Realtime: one channel watching every table the map reads.
+  useEffect(() => {
+    if (!supabase) return
+    const channel = supabase.channel('obe-map-live')
+    for (const table of MAP_TABLES) {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table }, scheduleRefresh)
+    }
+    channel.subscribe()
+    return () => {
+      window.clearTimeout(refreshTimer.current)
+      void supabase?.removeChannel(channel)
+    }
+  }, [scheduleRefresh])
+
+  // (2) Focus / visibility: refetch when the tab comes back, unless realtime
+  // ticked within the last 5 seconds (then nothing can be stale).
+  useEffect(() => {
+    const ping = () => {
+      if (document.visibilityState !== 'visible') return
+      if (Date.now() - lastRefreshAt.current < 5000) return
+      scheduleRefresh()
+    }
+    window.addEventListener('focus', ping)
+    document.addEventListener('visibilitychange', ping)
+    return () => {
+      window.removeEventListener('focus', ping)
+      document.removeEventListener('visibilitychange', ping)
+    }
+  }, [scheduleRefresh])
+
+  // (3) Polling safety net: quietly refetches while the map is open whenever
+  // realtime hasn't delivered anything lately (replication not enabled, or an
+  // interrupted socket). Hidden tabs skip the beat.
+  useEffect(() => {
+    const beat = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return
+      if (Date.now() - lastRefreshAt.current < 40000) return // a refresh just ran
+      scheduleRefresh()
+    }, 45000)
+    return () => window.clearInterval(beat)
+  }, [scheduleRefresh])
 
   // ── Shared PO downstream leaves (PEO / SG / CMO) ──────────────────────────
   // Extracted so both Subject-rooted and PO-rooted builders stay identical.
@@ -1279,6 +1489,88 @@ export default function SubjectView() {
     [courses, buildCourseClos],
   )
 
+  // ── OBE Curriculum Map model (the curriculum root's default view) ──────────
+  // One entry per subject of the curriculum, plus the manager-aligned PO
+  // vocabulary behind them. Each subject records:
+  //  - poKeys  — every program outcome its CLOs name. Drives the PO filter's
+  //              dimming on the map.
+  //  - cloIds  — the subject's own course learning outcomes. The PI filter
+  //              reads them ("which subject teaches this indicator").
+  //  - prereqCodes — the course's comma-separated prerequisites, normalized.
+  //              The renderer connects dots whose codes match, so the map
+  //              shows what unlocks what.
+  //  - year / sem — term placement straight from the courses table, so the
+  //              columns are the real timetable, not an assumption.
+  const buildCurriculumMapModel = useCallback(
+    (datasetsRef: OutcomeDatasets, curRec: Resource) => {
+      const subjects = courses
+        .filter((c) => {
+          const opt = c.curriculum_id
+          const cid = opt && typeof opt === 'object' ? opt.id : opt
+          return cid != null && cid === curRec.id
+        })
+        .sort((a, b) => String(a.code).localeCompare(String(b.code)))
+        .map((c) => {
+          const courseKey = normalizeCode(c.code)
+          const subjectClos = datasetsRef.clos.filter((clo) =>
+            cloMatchesSubject(clo.course || '', courseKey)
+          )
+          const poKeys = new Set<string>()
+          for (const clo of subjectClos) {
+            for (const tok of extractCodes(clo.title || '', 'PO')) {
+              const key = normalizeCode(tok)
+              const anchored = datasetsRef.pos
+                .filter((p) => isManagerCmCategory(p))
+                .some((p) => normalizeCode(p.code) === key)
+              if (anchored) poKeys.add(key)
+            }
+          }
+          return {
+            courseId: c.id,
+            code: c.code,
+            title: c.title,
+            // Guard: the map follows the Course page's rule of year levels
+            // 1–4 only — a four-digit academic year or any other stray value
+            // leaves the row off the map entirely.
+            year: c.year_level != null && c.year_level >= 1 && c.year_level <= 4 ? c.year_level : null,
+            sem: c.semester ?? null,
+            cloIds: subjectClos.map((clo) => clo.id),
+            poKeys,
+            // The course stores prerequisites as one comma-separated string;
+            // normalize each token so "it 10" finds the same dot as "IT10".
+            prereqCodes: String(c.prerequisite || '')
+              .split(',')
+              .map((tok) => normalizeCode(tok))
+              .filter(Boolean),
+          }
+        })
+      const pos = datasetsRef.pos
+        .filter((p) => isManagerOutcome(p))
+        // Numbered arrangement: prefix family first (PO-… before SD-…), then
+        // numeric order inside the family — the dropdown reads PO-1, PO-2,
+        // PO-3 … instead of the alphabetical PO-1, PO-10, PO-11, PO-2.
+        .sort((a, b) => outcomeCodeKey(a.code).localeCompare(outcomeCodeKey(b.code)))
+        .map((p) => ({ id: p.id, code: p.code, title: p.title || p.description || p.code }))
+      // The grid always spans at least four years — an early-stage curriculum
+      // that only lists 1st-year subjects still reads as a full OBE map.
+      const maxYear = Math.max(4, ...subjects.map((s) => s.year ?? 1))
+      return { subjects, pos, maxYear }
+    },
+    [courses],
+  )
+
+  // Filter vocabularies for the map's two selects. Both list ALL of the
+  // manager's Program Outcomes — every PO the manager's Program Outcomes page
+  // holds, whatever its CMO category — not only the feed of this particular
+  // curriculum. Both selects drive the same state, so either picker narrows
+  // the map the same way; picking an outcome that no subject feeds simply
+  // dims the whole grid.
+  const mapFilterOptions = useMemo(() => {
+    if (!datasets || rootType !== 'curriculum' || !selectedCurriculum) return { pos: [] }
+    const map = buildCurriculumMapModel(datasets, selectedCurriculum)
+    return { pos: map.pos }
+  }, [datasets, rootType, selectedCurriculum, buildCurriculumMapModel])
+
   // Unique node counts per kind once a graph is on screen (used in the legend).
   const graphStats = useMemo(() => {
     if (!datasets) return null
@@ -1437,6 +1729,14 @@ export default function SubjectView() {
     }
   }, [])
 
+  // Zoom in / out buttons drive the same d3.zoom transform as the mouse
+  // wheel, so they share its 0.2×–3× scaleExtent clamps automatically.
+  const zoomBy = useCallback((factor: number) => {
+    if (svgRef.current && zoomRef.current) {
+      d3.select(svgRef.current).call(zoomRef.current.scaleBy, factor)
+    }
+  }, [])
+
   const handleRefresh = async () => {
     if ((rootType === 'subject' && !selectedCourse)
       || (rootType === 'clo' && !selectedClo)
@@ -1537,6 +1837,379 @@ export default function SubjectView() {
   }, [navStack])
 
   // ── D3 force simulation — Observable-style (width 928 / height 680) ───────
+  // ── Render the OBE Curriculum Map (the curriculum root's default) ──────────
+  // A fixed timetable layout, deliberately not force-driven: subjects-only —
+  // every subject stands in its "Year · Semester" column, colored by year
+  // (purple → yellow). The PO / PI selects above the canvas narrow the
+  // picture; Reset View clears them and reframes.
+  const renderCurriculumMap = useCallback(() => {
+    const svgEl = svgRef.current
+    const tip = tooltipRef.current
+    if (!svgEl || !tip || !datasets || !selectedCurriculum) return () => {}
+    const map = buildCurriculumMapModel(datasets, selectedCurriculum)
+
+    const svg = d3.select(svgEl)
+    svg.on('.zoom', null)
+    svg.selectAll('*').remove()
+
+    // The pinned header strip above the grid is its own svg (inside the
+    // sticky control package); clear it for a fresh draw on every render.
+    const headEl = mapHeadRef.current
+    const head = headEl ? d3.select(headEl) : null
+    if (head) head.selectAll('*').remove()
+
+    const viewW = containerSize.w || svgEl.clientWidth || 928
+    const viewH = containerSize.h || svgEl.clientHeight || 680
+    // The map canvas fills the bordered box around itself, so the box — not
+    // the svg — measures how tall the drawing may go.
+    const boxEl = svgEl.parentElement
+    const boxW = containerSize.bw || boxEl?.clientWidth || viewW
+    const boxHpx = containerSize.bh || boxEl?.clientHeight || viewH
+
+    interface MapNode {
+      id: string
+      kind: 'subject' | 'po'
+      code: string
+      title: string
+      courseId?: string
+      poId?: string
+      color: string
+      dim: boolean
+      x: number
+      y: number
+      r: number
+      prereqCodes?: string[]
+    }
+
+    const COL_W = 200
+    const ROW_H = 46
+    const MARGIN_X = 70
+    const RULE_Y = 30
+    const FIRST_ROW_Y = 58
+
+    const ordinals = ['1st', '2nd', '3rd', '4th']
+    const ordOf = (n: number) => ordinals[n - 1] ?? `${n}th`
+    const semLabel = (s: number) => (s === 1 ? '1st Sem' : s === 2 ? '2nd Sem' : 'Summer')
+    const maxYear = map.maxYear
+    // Sequential year palette, purple → yellow like the OBE maps faculty are
+    // used to reading. Unplaced subjects stay neutral gray.
+    const yearColor = (year: number | null): string => {
+      if (!year) return '#94a3b8'
+      const t = maxYear <= 1 ? 0.5 : (year - 1) / (maxYear - 1)
+      return d3.interpolateViridis(t)
+    }
+
+    type MapColumn = { key: string; label: string }
+    const columns: MapColumn[] = []
+    for (let y = 1; y <= maxYear; y += 1) {
+      // Summer exists as a term only for 3rd year — the other years list just
+      // 1st and 2nd Sem, matching the Course page's year/semester rule.
+      for (const s of (y === 3 ? [1, 2, 3] : [1, 2])) {
+        columns.push({ key: `y${y}s${s}`, label: `${ordOf(y)} Year · ${semLabel(s)}` })
+      }
+    }
+    // Subjects with no recorded term (or an out-of-range or non-existent term,
+    // like a Summer in another year) are simply not drawn — there is no
+    // catch-all column.
+    const placedOf = (s: { year: number | null; sem: number | null }): string | null => {
+      if (!s.year) return null
+      const sem = s.sem && s.sem >= 1 && s.sem <= 3 ? s.sem : null
+      return sem ? `y${s.year}s${sem}` : null
+    }
+
+    const colIndexOf = (key: string) => columns.findIndex((c) => c.key === key)
+    const colX = (key: string) => MARGIN_X + colIndexOf(key) * COL_W
+
+    const buckets = new Map<string, typeof map.subjects>()
+    for (const col of columns) {
+      // Within a column subjects stack in code order, so the timetable reads
+      // predictably instead of following the records' insert order.
+      buckets.set(
+        col.key,
+        map.subjects
+          .filter((s) => placedOf(s) === col.key)
+          .sort((a, b) => String(a.code).localeCompare(String(b.code))),
+      )
+    }
+    const rows = Math.max(
+      1,
+      ...Array.from(buckets.values()).map((list) => list.length),
+    )
+    const contentH = FIRST_ROW_Y + rows * ROW_H + 24
+    // Subjects-only grid: the canvas ends with the last Year · Semester
+    // column (plus a little breathing room) — nothing sits beside it.
+    const totalW = colX(columns[columns.length - 1].key) + COL_W / 2 + 28
+
+    // Tall-canvas height: the drawing fills the box's leftover height (less
+    // the pinned header strip's share of the scale) but never drops below
+    // the rows' natural height, so the Year · Semester columns always run
+    // top to bottom and the dot stacks can center inside them.
+    const mapScale = boxW / totalW
+    const HEAD_H = 44
+    const bodyPx = Math.max(boxHpx - HEAD_H * mapScale, (contentH - 44) * mapScale)
+    const vbH = bodyPx / mapScale
+
+    // Filter rule: the chosen PO by normalized record id. A subject stays lit
+    // only when it (via its CLOs) names the selected outcome.
+    const poKeyById = new Map(map.pos.map((p) => [p.id, normalizeCode(p.code)]))
+    const activePoKey = mapPoId ? poKeyById.get(mapPoId) ?? null : null
+    const dimSubject = (s: typeof map.subjects[number]): boolean =>
+      activePoKey !== null && !s.poKeys.has(activePoKey)
+
+    const nodes: MapNode[] = []
+    for (const [key, list] of buckets) {
+      const x0 = colX(key)
+      // Each column centers its own dot stack in the tall drawing's usable
+      // band (below the header rule), so a light semester reads mid-column
+      // instead of clinging to the top. The −18 compensates for the
+      // code/title label riding above every dot; a stack taller than the
+      // drawing anchors to the top edge instead.
+      const stackH = (list.length - 1) * ROW_H
+      const y0 =
+        FIRST_ROW_Y + Math.max(0, (28 + vbH - FIRST_ROW_Y - stackH) / 2 - 18) + ROW_H / 2
+      list.forEach((s, i) => {
+        nodes.push({
+          id: `course-${s.courseId}`,
+          kind: 'subject',
+          code: s.code,
+          title: s.title,
+          courseId: s.courseId,
+          color: yearColor(s.year),
+          dim: dimSubject(s),
+          x: x0,
+          y: y0 + i * ROW_H,
+          r: 7,
+          prereqCodes: s.prereqCodes,
+        })
+      })
+    }
+
+    svg
+      .attr('viewBox', [-24, 28, totalW, vbH] as unknown as string)
+      // Anchored top-left so a stretched canvas can no longer float the grid
+      // with centered empty bands — dividers start at the box's top edge.
+      .attr('preserveAspectRatio', 'xMinYMin meet')
+      .attr('style', 'max-width: 100%; height: auto;')
+
+    const defs = svg.append('defs')
+    defs.append('filter')
+      .attr('id', 'subject-view-shadow')
+      .attr('x', '-60%').attr('y', '-60%')
+      .attr('width', '220%').attr('height', '220%')
+      .append('feDropShadow')
+      .attr('dx', 0).attr('dy', 2).attr('stdDeviation', 2.5)
+      .attr('flood-color', 'rgba(15, 23, 42, 0.28)')
+
+    const zoomGroup = svg.append('g')
+
+    // Column dividers run top to bottom of the whole map so each Year ·
+    // Semester column stays separated from its neighbors while scrolling.
+    for (let i = 0; i < columns.length - 1; i += 1) {
+      const bx = colX(columns[i].key) + COL_W / 2
+      zoomGroup.append('line')
+        .attr('x1', bx).attr('x2', bx)
+        .attr('y1', 28).attr('y2', 28 + vbH)
+        .attr('stroke', '#94a3b8').attr('stroke-width', 1).attr('vector-effect', 'non-scaling-stroke')
+    }
+
+    // Prerequisite connectors: a solid amber line runs straight back from
+    // every subject dot to the dot that unlocks it, drawn under the dots so
+    // the nodes stay crisp above it. Only prerequisites that exist as dots
+    // on this map connect — a code belonging to another curriculum (or a
+    // typo) stays silent. When the PO filter dims a side, its connectors
+    // dim with it so the filtered view never draws loud links to ghosts.
+    //
+    // Press-to-reveal: while a dot is focused (mapFocusId), its forward
+    // prerequisite chain — pressed subject through everything it eventually
+    // unlocks, up to the map's last column — stays lit, and every other
+    // connector and dot fades to a whisper.
+    const dotByCode = new Map<string, MapNode>()
+    for (const n of nodes) dotByCode.set(normalizeCode(n.code), n)
+    const prereqLinks: Array<{ from: MapNode; to: MapNode }> = []
+    for (const n of nodes) {
+      for (const key of n.prereqCodes ?? []) {
+        const target = dotByCode.get(key)
+        if (!target || target.id === n.id) continue
+        prereqLinks.push({ from: target, to: n })
+      }
+    }
+    const focusNode = mapFocusId
+      ? nodes.find((n) => n.courseId === mapFocusId) ?? null
+      : null
+    // Spotlight = the pressed subject plus its FORWARD prerequisite chain: the
+    // subjects that unlock it are left out; instead the walk follows only what
+    // the pressed subject (and each subject after it) unlocks, onward through
+    // the semesters until the chain ends at the map's last column. So one
+    // press reads as a path marching ahead — IT10 → IT25 → IT27 → … → its
+    // bottom in 4th year — while the rest of the map fades.
+    const focusPeerIds = new Set<string>()
+    if (focusNode) {
+      focusPeerIds.add(focusNode.id)
+      const unlocks = new Map<string, string[]>()
+      for (const { from, to } of prereqLinks) {
+        unlocks.set(from.id, [...(unlocks.get(from.id) ?? []), to.id])
+      }
+      const queue = [focusNode.id]
+      while (queue.length > 0) {
+        const current = queue.pop()!
+        for (const next of unlocks.get(current) ?? []) {
+          if (!focusPeerIds.has(next)) {
+            focusPeerIds.add(next)
+            queue.push(next)
+          }
+        }
+      }
+    }
+    const nodeOpacity = (d: MapNode): number => {
+      if (!focusNode) return d.dim ? 0.22 : 1
+      if (focusPeerIds.has(d.id)) return d.dim ? 0.45 : 1
+      return 0.12
+    }
+    for (const { from, to } of prereqLinks) {
+      const dim = from.dim || to.dim
+      // A wire stays in the chain when BOTH ends are on the forward path —
+      // segments beyond the first hop don't touch the pressed dot directly
+      // but still carry the connection toward the chain's end.
+      const inChain = focusNode !== null && focusPeerIds.has(from.id) && focusPeerIds.has(to.id)
+      zoomGroup.append('line')
+        .attr('x1', from.x).attr('y1', from.y)
+        .attr('x2', to.x).attr('y2', to.y)
+        .attr('stroke', '#b45309')
+        .attr('stroke-width', inChain ? 2 : 1.25)
+        .attr('stroke-opacity', focusNode ? (inChain ? 0.95 : 0.05) : dim ? 0.2 : 0.75)
+        .attr('vector-effect', 'non-scaling-stroke')
+    }
+
+    // The Year · Semester header band lives in its own svg — the pinned strip
+    // inside the sticky control package — instead of the scrolling body, so
+    // the labels stay on top while the tall grid passes underneath. Same
+    // drawing origin (-24) and same viewBox width as the body keep the two
+    // halves aligned column-for-column. HEAD_H is hoisted beside the
+    // tall-canvas geometry above, so the strip's pixel share and the body's
+    // leftover share both come from the one number.
+    if (head) {
+      head
+        .attr('viewBox', [-24, 0, totalW, HEAD_H] as unknown as string)
+        .attr('preserveAspectRatio', 'xMinYMin meet')
+        .attr('style', 'display: block; width: 100%; height: auto;')
+      for (const col of columns) {
+        const x = colX(col.key)
+        if (col.label) {
+          head.append('text')
+            .attr('x', x).attr('y', RULE_Y - 12)
+            .attr('text-anchor', 'middle')
+            .attr('font-size', '11.5px')
+            .attr('font-weight', '600')
+            .attr('fill', '#94a3b8')
+            .text(col.label)
+        }
+        head.append('line')
+          .attr('x1', x - COL_W / 2 + 14).attr('x2', x + COL_W / 2 - 14)
+          .attr('y1', RULE_Y).attr('y2', RULE_Y)
+          .attr('stroke', '#94a3b8').attr('stroke-width', 1).attr('vector-effect', 'non-scaling-stroke')
+      }
+      // Vertical separators between the column labels — spanning the strip's
+      // full height so they join flush with the grid's top-to-bottom dividers.
+      for (let i = 0; i < columns.length - 1; i += 1) {
+        const bx = colX(columns[i].key) + COL_W / 2
+        head.append('line')
+          .attr('x1', bx).attr('x2', bx)
+          .attr('y1', 0).attr('y2', HEAD_H)
+          .attr('stroke', '#94a3b8').attr('stroke-width', 1).attr('vector-effect', 'non-scaling-stroke')
+      }
+    }
+
+    const nodeGroup = zoomGroup.append('g').attr('stroke', '#fff').attr('stroke-width', 1.5)
+    const checkedRing = nodeGroup
+      .selectAll<SVGCircleElement, MapNode>('circle.subject-view__ring')
+      .data(nodes, (d) => d.id)
+      .join(
+        (enter) => enter.append('circle')
+          .attr('class', 'subject-view__ring')
+          .classed('subject-view__ring--on', (d) => focusedIdRef.current === d.id),
+        (update) => update,
+      )
+      // The pressed dot wears a ring even without the inspection state, so
+      // "which one did I press" survives simultaneous PO dimming.
+      .attr('stroke', (d) => (d === focusNode ? '#0d9488' : null))
+      .attr('fill', 'none')
+      .attr('stroke-width', 2.5)
+      .attr('r', (d) => d.r + 6)
+      .attr('pointer-events', 'none')
+      .attr('cx', (d) => d.x)
+      .attr('cy', (d) => d.y)
+
+    const node = nodeGroup
+      .selectAll<SVGCircleElement, MapNode>('circle:not(.subject-view__ring)')
+      .data(nodes, (d) => d.id)
+      .join((enter) => enter.append('circle').attr('class', 'subject-view__node'), (update) => update)
+      .attr('r', (d) => d.r)
+      .attr('cx', (d) => d.x)
+      .attr('cy', (d) => d.y)
+      .attr('fill', (d) => d.color)
+      .attr('opacity', nodeOpacity)
+      .attr('cursor', 'pointer')
+      .attr('filter', 'url(#subject-view-shadow)')
+
+    node.append('title').text((d) => `${d.code} — ${d.title}`)
+
+    const label = zoomGroup.append('g')
+      .selectAll<SVGTextElement, MapNode>('text')
+      .data(nodes, (d) => d.id)
+      .join('text')
+      .attr('x', (d) => d.x)
+      .attr('y', (d) => d.y - 13)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', '10px')
+      .attr('font-weight', '700')
+      .attr('fill', '#0f172a')
+      .attr('opacity', (d) => (focusNode ? (focusPeerIds.has(d.id) ? 1 : 0.12) : d.dim ? 0.25 : 1))
+      .attr('pointer-events', 'none')
+      .attr('paint-order', 'stroke')
+      .attr('stroke', 'rgba(255,255,255,0.85)')
+      .attr('stroke-width', '3')
+      .text((d) => (d.code.length > 14 ? `${d.code.slice(0, 13)}…` : d.code))
+
+    node
+      .on('mouseenter', (event, d) => {
+        tip.style.opacity = '1'
+        tip.style.left = `${event.offsetX + 12}px`
+        tip.style.top = `${event.offsetY - 28}px`
+        tip.innerHTML = `<strong>${d.code}</strong><br/>${d.title}<br/><em>Click to show connected subjects</em>`
+      })
+      .on('mousemove', (event) => {
+        tip.style.left = `${event.offsetX + 12}px`
+        tip.style.top = `${event.offsetY - 28}px`
+      })
+      .on('mouseleave', () => {
+        tip.style.opacity = '0'
+      })
+
+    // Press a dot: spotlight it and its prerequisite network (see the
+    // connector block above). Press it again — or anywhere on the empty
+    // canvas — to clear the spotlight. The map no longer navigates away to
+    // a different page/view: pressing only reveals connections.
+    node.on('click', (event, d) => {
+      event.stopPropagation()
+      const id = d.courseId
+      if (id) setMapFocusId((cur) => (cur === id ? null : id))
+    })
+    svg.on('click.mapfocus', () => setMapFocusId(null))
+
+    // The OBE Curriculum Map is a fixed Year · Semester timetable meant to be
+    // read through the panel's normal scrolling, so it deliberately carries no
+    // zoom: wheel scrolling stays native (the overlay scrolls instead of
+    // scaling the map), and the toolbar's zoom buttons stay off for this
+    // root. The other graph types keep their d3.zoom behavior.
+    zoomRef.current = null
+
+    return () => {
+      svg.on('.zoom', null)
+      svg.on('click.mapfocus', null)
+      zoomRef.current = null
+    }
+  }, [containerSize, datasets, selectedCurriculum, mapPoId, buildCurriculumMapModel, mapFocusId])
+
   // Dual-root: subject mode (subject → curriculum / prereq / coreq / CLO → PO
   // → PEO/SG/CMO) or PO mode (PO → CLOs → subjects + PEO/SG/CMO), with the
   // existing collapse/expand and zoom behavior preserved.
@@ -1547,6 +2220,12 @@ export default function SubjectView() {
     if (rootType === 'subject' && !selectedCourse) return () => {}
     if (rootType === 'po' && !selectedPo) return () => {}
     if (rootType === 'peo' && !selectedPeo) return () => {}
+    if (rootType === 'curriculum' && selectedCurriculum) {
+      // The curriculum root's default visualization is the OBE Curriculum
+      // Map — a real year·semester timetable layout, drawn by the dedicated
+      // renderer above instead of this force tree.
+      return renderCurriculumMap()
+    }
 
     const svg = d3.select(svgEl)
     svg.on('.zoom', null)
@@ -1999,7 +2678,7 @@ export default function SubjectView() {
       svg.on('.zoom', null)
       zoomRef.current = null
     }
-  }, [rootType, selectedCourse, selectedClo, selectedPo, selectedPeo, selectedSg, selectedCmo, selectedCurriculum, selectedProgram, datasets, containerSize, collapsedIds, isNodeCollapsed, toggleNode, buildGraphModel, buildCloGraphModel, buildPoGraphModel, buildPeoGraphModel, buildSgGraphModel, buildCmoGraphModel, buildCurriculumGraphModel, buildProgramGraphModel, courses, selectedCourseId, gotoPoRoot, gotoSubjectRoot, gotoPeoRoot, gotoCloRoot, gotoSgRoot, gotoCmoRoot])
+  }, [rootType, selectedCourse, selectedClo, selectedPo, selectedPeo, selectedSg, selectedCmo, selectedCurriculum, selectedProgram, datasets, containerSize, collapsedIds, isNodeCollapsed, toggleNode, buildGraphModel, buildCloGraphModel, buildPoGraphModel, buildPeoGraphModel, buildSgGraphModel, buildCmoGraphModel, buildCurriculumGraphModel, buildProgramGraphModel, courses, selectedCourseId, gotoPoRoot, gotoSubjectRoot, gotoPeoRoot, gotoCloRoot, gotoSgRoot, gotoCmoRoot, renderCurriculumMap])
 
   // The node the connected-details card is describing: an inspected branch when
   // the user has picked one, otherwise the root. Falls back to the root so there
@@ -2032,11 +2711,24 @@ export default function SubjectView() {
       setContainerSize((prev) => {
         const w = el.clientWidth
         const h = el.clientHeight
-        return prev.w === w && prev.h === h ? prev : { w, h }
+        // The bordered box (svg's parent) is measured for the curriculum
+        // map: that canvas fills the box instead of hugging a drawing.
+        const box = el.parentElement
+        const bw = box?.clientWidth ?? 0
+        const bh = box?.clientHeight ?? 0
+        return prev.w === w && prev.h === h && prev.bw === bw && prev.bh === bh
+          ? prev
+          : { w, h, bw, bh }
       })
     })
     ro.observe(el)
-    setContainerSize({ w: el.clientWidth, h: el.clientHeight })
+    if (el.parentElement) ro.observe(el.parentElement)
+    setContainerSize({
+      w: el.clientWidth,
+      h: el.clientHeight,
+      bw: el.parentElement?.clientWidth ?? 0,
+      bh: el.parentElement?.clientHeight ?? 0,
+    })
     return () => ro.disconnect()
   }, [showGraph, datasets, isFullscreen])
 
@@ -2070,6 +2762,9 @@ export default function SubjectView() {
     if (rootType === 'curriculum' && !selectedCurriculumId) return
     if (rootType === 'program' && !selectedProgramId) return
     setShowGraph(true)
+    // Every generated graph reads like the reference dashboard: it opens full
+    // screen right away (Esc / Exit fullscreen steps back to the panel).
+    setIsFullscreen(true)
     setGraphError('')
     await loadDatasets()
     // Logged after the data is in hand so the audit RPC never sits in front of
@@ -2141,19 +2836,23 @@ export default function SubjectView() {
     : selectedPeo ? `${selectedPeo.code} — ${selectedPeo.title || selectedPeo.code}`
     : selectedSg ? `${selectedSg.code} — ${selectedSg.title || selectedSg.code}`
     : selectedCmo ? `${selectedCmo.code} — ${selectedCmo.title || selectedCmo.code}`
-    : selectedCurriculum ? `${selectedCurriculum.code || selectedCurriculum.title} — ${selectedCurriculum.title}`
+    : selectedCurriculum ? curriculumLabel(selectedCurriculum)
     : selectedProgram ? `${selectedProgram.code} — ${selectedProgram.name || selectedProgram.code}`
     : ''
-  const graphHint = rootType === 'subject'
-    ? 'Click any branch node to see what is connected to it in the panel below. Click a PO, CLO, PEO, goal or memorandum to view the graph from there. Click a pre-req or co-req to jump to that subject. Click a curriculum to open its sibling subjects. Drag nodes to reposition. Scroll to zoom. Use Back to undo a re-root.'
+  // The OBE Curriculum Map reads on its own, so it carries no hint line;
+  // the other graph types keep their short how-to text.
+  const graphHint = rootType === 'curriculum'
+    ? ''
+    : rootType === 'subject'
+    ? 'Click any branch node to see what is connected to it in the panel below. Click a PO, CLO, PEO, goal or memorandum to view the graph from there. Click a pre-req or co-req to jump to that subject. Click a curriculum to open its sibling subjects. Drag nodes to reposition. Scroll to zoom or use the ＋ / − buttons. Use Back to undo a re-root.'
     : rootType === 'po'
-      ? 'Click any branch node to see what is connected to it in the panel below. Click a subject to view the graph from that subject. Click a PO to switch PO root. Drag nodes to reposition. Scroll to zoom. Use Back to undo a re-root.'
-      : 'Click any branch node to see what is connected to it in the panel below. Click a PO to view the graph from that PO. Click a CLO, PEO, strategic goal or CHED memorandum to re-root the graph there. Drag nodes to reposition. Scroll to zoom. Use Back to undo a re-root.'
+      ? 'Click any branch node to see what is connected to it in the panel below. Click a subject to view the graph from that subject. Click a PO to switch PO root. Drag nodes to reposition. Scroll to zoom or use the ＋ / − buttons. Use Back to undo a re-root.'
+      : 'Click any branch node to see what is connected to it in the panel below. Click a PO to view the graph from that PO. Click a CLO, PEO, strategic goal or CHED memorandum to re-root the graph there. Drag nodes to reposition. Scroll to zoom or use the ＋ / − buttons. Use Back to undo a re-root.'
 
   // The About area leads with the compact connected-details card for every
   // root, then follows it with the full report document where one exists — the
   // *exact* Curriculum Report document for a subject, through the shared
-  // SyllabusReport component (the same one View.tsx renders), reusing the
+  // SyllabusReport component (the same one Syllabus.tsx renders), reusing the
   // report page's chrome. A PO or a PEO gets only the card.
   // The card follows `inspectedNode`, so it describes whichever branch was last
   // clicked rather than only the root.
@@ -2379,17 +3078,17 @@ export default function SubjectView() {
               onChange={(e) => { setRootType(e.target.value as RootType | ''); setShowGraph(false); setNavStack([]); setGraphError('') }}
             >
               <option value="">--- select to Visualize ---</option>
+              <option value="curriculum">Curriculum</option>
               <option value="subject">Subject</option>
               <option value="po">PO — Program Outcome</option>
               <option value="peo">PEO — Program Educational Objective</option>
               {/* Hidden roots — never offered here. They stay in the DOM so
                   the select keeps a valid value when one of them is active,
                   which only happens by clicking a node inside an open graph
-                  (PO, CLO, PEO, SG and CMO nodes all re-root on click). */}
+                  (CLO, SG, CMO and Program nodes all re-root on click). */}
               <option value="clo" hidden>Course Learning Outcomes</option>
               <option value="sg" hidden>Strategic Goals</option>
               <option value="cmo" hidden>CHED Memorandum Orders</option>
-              <option value="curriculum" hidden>Curriculum</option>
               <option value="program" hidden>Program</option>
             </select>
           </label>
@@ -2399,7 +3098,7 @@ export default function SubjectView() {
             <span className="sr-only">Select program</span>
             <select className="input input--sm" value={selectedProgramId}
               disabled={programs.length === 0}
-              onChange={(e) => { setSelectedProgramId(e.target.value); setSelectedCourseId(null); setSelectedCurriculumId(null); setShowGraph(false); setNavStack([]) }}>
+              onChange={(e) => { setSelectedProgramId(e.target.value); setSelectedCourseId(null); setSelectedCurriculumId(null); setNavStack([]); if (rootType !== 'curriculum') setShowGraph(false) }}>
               {programs.length === 0 && <option value="">No programs available</option>}
               {programs.map((p) => (
                 <option key={p.id} value={p.id}>{p.name || p.code}</option>
@@ -2552,14 +3251,22 @@ export default function SubjectView() {
                 <span className="sr-only">Select curriculum</span>
                 <select className="input input--sm" value={selectedCurriculumId ?? ''}
                   disabled={allCurricula.length === 0}
-                  onChange={(e) => { setSelectedCurriculumId(e.target.value || null); setShowGraph(false); setNavStack([]) }}>
+                  onChange={(e) => {
+                    setSelectedCurriculumId(e.target.value || null)
+                    // The OBE Curriculum Map *is* the curriculum's default
+                    // visualization, and it opens full screen right away —
+                    // clearing the pick stands down to the normal panel.
+                    setShowGraph(Boolean(e.target.value))
+                    setIsFullscreen(Boolean(e.target.value))
+                    setNavStack([])
+                  }}>
                   {allCurricula.length === 0 ? (
                     <option value="">No curricula assigned in this program yet</option>
                   ) : (
                     <>
                       <option value="">— Select a curriculum —</option>
                       {allCurricula.map((r) => (
-                        <option key={r.id} value={r.id}>{r.code || r.title} — {r.title}</option>
+                        <option key={r.id} value={r.id}>{curriculumLabel(r)}</option>
                       ))}
                     </>
                   )}
@@ -2620,8 +3327,8 @@ export default function SubjectView() {
                     <path d="M8 7l2.5 9M16 7l-3.5 9M6 6h12" />
                   </svg>
                 </div>
-                <h4>Visualization for a subject, PO, or PEO</h4>
-                <p>Choose <strong>Subject</strong>, <strong>PO</strong>, or <strong>PEO</strong> on the left, pick a code, then press <strong>Generate Visualization</strong>. Once a map is open, clicking any PO, CLO, PEO, strategic goal, or CHED memorandum re-roots the branch right there — wherever you click becomes where the graph starts. Clicking a subject jumps back to that subject; clicking a curriculum opens its sibling subjects.</p>
+                <h4>Visualization for a subject, PO, PEO, or curriculum</h4>
+                <p>Choose <strong>Subject</strong>, <strong>PO</strong>, <strong>PEO</strong>, or <strong>Curriculum</strong> on the left, pick a code, then press <strong>Generate Visualization</strong>. Once a map is open, clicking any PO, CLO, PEO, strategic goal, or CHED memorandum re-roots the branch right there — wherever you click becomes where the graph starts. Clicking a subject jumps back to that subject; clicking a curriculum opens its sibling subjects.</p>
               </div>
             </div>
           ) : graphError ? (
@@ -2646,6 +3353,47 @@ export default function SubjectView() {
             </div>
           ) : (
             <div className="subject-view__graph-area">
+              {/* OBE Curriculum Map control bar — "1." switches the curriculum
+                  the timetable shows, "2." narrows that map to a single
+                  program outcome's subjects. The selects and toolbar share a
+                  wrapper so the fullscreen overlay can pin them together as
+                  one sticky control bar. */}
+              <div className="subject-view__graph-controls">
+              {rootType === 'curriculum' && (
+                <div className="subject-view__map-filters">
+                  <label>
+                    <b>1. Curriculum:</b>
+                    <select
+                      className="input input--sm"
+                      value={selectedCurriculumId ?? ''}
+                      onChange={(e) => {
+                        setSelectedCurriculumId(e.target.value || null)
+                        // A fresh curriculum starts unfiltered; the page keeps
+                        // its fullscreen state since the map stays on screen.
+                        setMapPoId('')
+                        setMapCloId('')
+                      }}
+                    >
+                      {allCurricula.map((r) => (
+                        <option key={r.id} value={r.id}>{curriculumLabel(r)}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <b>2. Program Outcomes (PO):</b>
+                    <select
+                      className="input input--sm"
+                      value={mapPoId}
+                      onChange={(e) => { setMapPoId(e.target.value); setMapCloId('') }}
+                    >
+                      <option value="">— All outcomes —</option>
+                      {mapFilterOptions.pos.map((p) => (
+                        <option key={p.id} value={p.id}>{poCode(p.code)}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              )}
               <div className="subject-view__graph-toolbar">
                 <h3 className="subject-view__graph-title">{graphTitle}</h3>
                 <div className="subject-view__graph-actions">
@@ -2659,12 +3407,18 @@ export default function SubjectView() {
                       ← Back
                     </button>
                   )}
-                  <button type="button" className="btn btn--ghost btn--sm" onClick={collapseAll} title="Collapse all branches except the root">
-                    Collapse
-                  </button>
-                  <button type="button" className="btn btn--ghost btn--sm" onClick={resetZoom} title="Reset zoom and pan">
-                    Reset zoom
-                  </button>
+                  {rootType !== 'curriculum' && (
+                    <>
+                      <button type="button" className="btn btn--ghost btn--sm" onClick={collapseAll} title="Collapse all branches except the root">
+                        Collapse
+                      </button>
+                      <button type="button" className="btn btn--ghost btn--sm" onClick={() => zoomBy(1.25)} aria-label="Zoom in" title="Zoom in">＋</button>
+                      <button type="button" className="btn btn--ghost btn--sm" onClick={() => zoomBy(1 / 1.25)} aria-label="Zoom out" title="Zoom out">−</button>
+                      <button type="button" className="btn btn--ghost btn--sm" onClick={resetZoom} title="Reset zoom and pan">
+                        Reset zoom
+                      </button>
+                    </>
+                  )}
                   <button
                     type="button"
                     className="btn btn--ghost btn--sm"
@@ -2676,21 +3430,29 @@ export default function SubjectView() {
                   </button>
                 </div>
               </div>
-              <p className="subject-view__graph-hint">{graphHint}{isFullscreen ? ' Press Esc to exit fullscreen.' : ''}</p>
-              <div className="subject-view__legend">
-                {legendDefs.map((l) => {
-                  const n = graphStats?.counts[l.kind] ?? 0
-                  return (
-                    <span key={l.kind} title={l.tip}>
-                      <span className={`subject-view__dot ${dotClass(l.kind)}`} /> {l.label} <em className="subject-view__legend-count">{n}</em>
-                    </span>
-                  )
-                })}
-                <span className={graphStats && graphStats.unresolved > 0 ? '' : 'subject-view__legend--muted'} title="References that could not be resolved">
-                  <span className="subject-view__dot subject-view__dot--placeholder" /> Unresolved <em className="subject-view__legend-count">{graphStats?.unresolved ?? 0}</em>
-                </span>
               </div>
-              <div className="subject-view__graph-wrap">
+              {graphHint && (
+                <p className="subject-view__graph-hint">{graphHint}{isFullscreen ? ' Press Esc to exit fullscreen.' : ''}</p>
+              )}
+              {rootType !== 'curriculum' && (
+                <div className="subject-view__legend">
+                  {legendDefs.map((l) => {
+                    const n = graphStats?.counts[l.kind] ?? 0
+                    return (
+                      <span key={l.kind} title={l.tip}>
+                        <span className={`subject-view__dot ${dotClass(l.kind)}`} /> {l.label} <em className="subject-view__legend-count">{n}</em>
+                      </span>
+                    )
+                  })}
+                  <span className={graphStats && graphStats.unresolved > 0 ? '' : 'subject-view__legend--muted'} title="References that could not be resolved">
+                    <span className="subject-view__dot subject-view__dot--placeholder" /> Unresolved <em className="subject-view__legend-count">{graphStats?.unresolved ?? 0}</em>
+                  </span>
+                </div>
+              )}
+              <div className={`subject-view__graph-wrap${rootType === 'curriculum' ? ' subject-view__graph-wrap--scroll' : ''}`}>
+                {rootType === 'curriculum' && (
+                  <svg ref={mapHeadRef} className="subject-view__map-head" viewBox="0 0 10 10" />
+                )}
                 <svg ref={svgRef} className="subject-view__svg" />
               </div>
               <div ref={tooltipRef} className="subject-view__tooltip" />

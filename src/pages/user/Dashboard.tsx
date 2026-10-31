@@ -11,25 +11,17 @@ import type { Profile, Course, CourseLearningOutcomeStandalone } from '../../ser
 import CloViewModal from '../../components/CloViewModal'
 import { useClock } from '../../hooks/useClock'
 import { localISODate, timeGreeting } from '../../utils/clock'
+import MapBrief from '../../components/MapBrief'
+import MapPreview from '../../components/MapPreview'
 
 interface DashboardProps {
   profile: Profile | null
   onNavigate?: (page: string) => void
 }
 
-interface StatCard {
-  label: string
-  value: string
-  accent: string
-  icon: string
-  sub: string
-  target: string
-}
-
 function Dashboard({ profile, onNavigate }: DashboardProps) {
   const [courses, setCourses] = useState<Course[]>([])
   const [clos, setClos] = useState<CourseLearningOutcomeStandalone[]>([])
-  const [loaded, setLoaded] = useState(false)
   const [viewItem, setViewItem] = useState<CourseLearningOutcomeStandalone | null>(null)
 
   useEffect(() => {
@@ -42,16 +34,8 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
         }
       })
       .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoaded(true)
-      })
     return () => { cancelled = true }
   }, [])
-
-  const stats: StatCard[] = [
-    { label: 'Subjects', value: String(courses.length), accent: '#16a34a', icon: 'course', sub: 'Available subjects', target: 'subject-view' },
-    { label: 'Course Outcomes', value: String(clos.length), accent: '#15803d', icon: 'clo', sub: 'CLOs per course', target: 'clo' },
-  ]
 
   // Recent outcomes, BY SUBJECT: one row per subject that has CLO activity —
   // ordered by the subject's newest CLO, capped at 5. Faculty scan subjects,
@@ -119,35 +103,16 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
         </time>
       </section>
 
-      <div className="stat-grid stat-grid--2026" aria-busy={!loaded}>
-        {!loaded
-          ? ['stat-1', 'stat-2'].map((label) => (
-            <div className="stat-card stat-card--2026 stat-card--skeleton card-enter" key={label} aria-hidden="true">
-              <span className="stat-card__label">Loading</span>
-              <span className="stat-card__value">—</span>
-              <span className="stat-card__sub">Loading</span>
-            </div>
-          ))
-          : stats.map((s) => (
-            <div
-              className="stat-card stat-card--2026 stat-card--link card-enter"
-              key={s.label}
-              role="button"
-              tabIndex={0}
-              onClick={() => go(s.target)}
-              onKeyDown={(e) => activate(e, () => go(s.target))}
-              aria-label={`Open ${s.label}`}
-            >
-              <div className="stat-card__accent" style={{ background: s.accent }} />
-              <div className="stat-card__icon" style={{ background: s.accent, color: '#fff' }}>
-                <StatIcon type={s.icon} />
-              </div>
-              <span className="stat-card__label">{s.label}</span>
-              <span className="stat-card__value">{s.value}</span>
-              <span className="stat-card__sub">{s.sub}</span>
-            </div>
-          ))}
-      </div>
+      {/* The program's curriculum at a glance … with the live OBE Curriculum
+          Map slotted between its KPI tiles and its two panels: figures first,
+          then the Year·Semester map with amber prerequisite wires and the
+          press-to-trace spotlight, then summary + coverage chart. Faculty
+          have no "View All Courses" page, so that footer is inert. */}
+      <MapBrief profile={profile} onNavigate={onNavigate}>
+        {/* Picks its curriculum the same way Generate Map's landing boot
+            does — the viewer's program, else BSIT, else the first. */}
+        <MapPreview profile={profile} onNavigate={onNavigate} />
+      </MapBrief>
 
       <div className="dashboard-panels">
         <div className="dashboard-panel">
@@ -219,20 +184,6 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
       {viewItem && <CloViewModal item={viewItem} onClose={() => setViewItem(null)} />}
     </div>
   )
-}
-
-function StatIcon({ type }: { type: string }) {
-  const common = { width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
-  switch (type) {
-    case 'course':
-      return <svg {...common}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /><circle cx="12" cy="9" r="1.5" /></svg>
-    case 'po':
-      return <svg {...common}><path d="M3 3v18h18" /><path d="M7 16l3-3 3 3 5-8" /></svg>
-    case 'clo':
-      return <svg {...common}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>
-    default:
-      return null
-  }
 }
 
 export default Dashboard

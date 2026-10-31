@@ -45,15 +45,27 @@ export async function gravatarUrl(email: string | null | undefined, size = 256):
  * off-DOM <img> — no 404 flash, no flash-of-missing-picture), else null
  * when there is no email or no Gravatar account behind it. Digits itself
  * resolve quickly; the caller's initials tile shows until it lands.
+ *
+ * Probes are remembered per page load: App's shell and the Profile page
+ * both ask for the same email's picture, and without the cache each
+ * re-mount re-ran the request — red "404" noise in the console ten times
+ * over. Failures are cached too: a Gravatar miss stays a miss for the
+ * session (nothing here can create one mid-session).
  */
+const avatarProbes = new Map<string, Promise<string | null>>()
+
 export async function loadEmailAvatar(email: string | null | undefined, size = 256): Promise<string | null> {
   const url = await gravatarUrl(email, size)
   if (!url) return null
   if (typeof Image === 'undefined') return null // non-DOM test environment
-  return await new Promise<string | null>((resolve) => {
-    const probe = new window.Image()
-    probe.onload = () => resolve(url)
-    probe.onerror = () => resolve(null)
-    probe.src = url
+  const cached = avatarProbes.get(url)
+  if (cached) return cached
+  const probe = new Promise<string | null>((resolve) => {
+    const img = new window.Image()
+    img.onload = () => resolve(url)
+    img.onerror = () => resolve(null)
+    img.src = url
   })
+  avatarProbes.set(url, probe)
+  return probe
 }
