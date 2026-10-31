@@ -14,6 +14,7 @@
 // both read utils/alignment.ts and utils/cloPoMapping.ts, so the engines stay
 // single-source even though the rendering forks.
 import { useState, useEffect, useMemo } from 'react'
+import type { ReactNode } from 'react'
 import {
   fetchPrograms,
   fetchCourses,
@@ -50,6 +51,10 @@ interface MapBriefProps {
       where "View All Courses" leads, the program assignment opens it there. */
   profile: { role?: UserRole; program_id?: string | null } | null
   onNavigate?: (page: string) => void
+  /** Blocks slotted between the KPI tiles and the two panels — currently the
+      dashboard's OBE Curriculum Map (components/MapPreview.tsx), so the
+      figures above and the picture below read as one continuous brief. */
+  children?: ReactNode
 }
 
 /** Stands in for program assignments the account may not carry yet, the way
@@ -155,7 +160,7 @@ function KpiCard({
   )
 }
 
-function MapBrief({ profile, onNavigate }: MapBriefProps) {
+function MapBrief({ profile, onNavigate, children }: MapBriefProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [programs, setPrograms] = useState<Program[]>([])
@@ -315,6 +320,9 @@ function MapBrief({ profile, onNavigate }: MapBriefProps) {
               sub="CLOs / Relationships"
             />
           </div>
+
+          {/* ---- slotted children between the tiles and the panels ---- */}
+          {children}
 
           {/* ---- panels: two columns, one row ---- */}
           <div className="reports-panels">

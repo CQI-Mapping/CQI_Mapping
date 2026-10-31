@@ -4700,6 +4700,12 @@ button.reports-panel__more:hover {
 
 /* ---- dashboard map preview (components/MapPreview.tsx) ---- */
 
+/* Slotted between MapBrief's KPI row and its panel row: the KPI row carries
+   its own 14px bottom margin, so the slot's spacing repeats it below. */
+.map-preview {
+  margin: 0 0 14px;
+}
+
 .map-preview__scroll {
   overflow-x: auto;
   /* A hair more than the header strip's rule width so the rounded corners

@@ -474,8 +474,9 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 ### `components/MapBrief.tsx` (embedded on all three role dashboards)
 - The program's curriculum at a glance, moved off the Generate Map page: the seven KPI tiles (Total Programs … Unmapped / Incomplete), the Curriculum Mapping Summary table and the PO Coverage Chart. Self-contained — it fetches its own data, opens on the account's program assignment (then BSIT, then first), and re-uses the shared alignment engines (`utils/alignment.ts`, `utils/cloPoMapping.ts`), so its figures always agree with the report's PDF.
 
-### `components/MapPreview.tsx` (embedded on all three role dashboards, under MapBrief)
+### `components/MapPreview.tsx` (slotted inside MapBrief on all three role dashboards)
 - The live OBE Curriculum Map as a dashboard block (added 2026-11-01): the Year·Semester columns (Summer only in 3rd year), the Viridis year palette, the amber prerequisite connectors and the press-to-reveal spotlight (a press lights the pressed dot's forward prerequisite chain to its end; press again or press the empty canvas to clear). Self-fetched like MapBrief and forked deliberately from `Map.tsx`'s `renderCurriculumMap` — geometry and palette are copies; the page-specific machinery (PO/PI filters, zoom, inspection card, floating tooltip) stays there.
+- Since 2026-11-01 it sits **between MapBrief's KPI tiles and its two panels** (figures → map → summary + coverage chart): MapBrief grew a `children` slot rendered after the tile row, and the dashboards pass the preview through it instead of stacking it below.
 - Curriculum pick mirrors Generate Map's landing boot: a program qualifies when one of its courses carries a curriculum in Resources → viewer's program, else BSIT, else the first that qualifies; the first anchored course's curriculum is drawn. Footer's "Open Generate Map →" routes every role to Subject Graph (`subject-view`).
 
 ### `shared/Reports.tsx` (no longer routed in the sidebar)

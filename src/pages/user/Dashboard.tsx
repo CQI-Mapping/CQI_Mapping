@@ -103,18 +103,16 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
         </time>
       </section>
 
-      {/* The program's curriculum at a glance — the blocks that used to open
-          the Generate Map page (KPI tiles, mapping summary, PO coverage).
-          Faculty have no "View All Courses" page, so that footer is inert.
-          (The two link tiles that used to sit here — Subjects and Course
-          Outcomes — duplicated this block's Total Courses / Total CLO's.) */}
-      <MapBrief profile={profile} onNavigate={onNavigate} />
-
-      {/* The live OBE Curriculum Map itself — Year·Semester columns, the year
-          palette, amber prerequisite wires and the press-to-trace spotlight.
-          Picks its curriculum the same way Generate Map's landing boot does,
-          beneath the brief so the figures and the picture read together. */}
-      <MapPreview profile={profile} onNavigate={onNavigate} />
+      {/* The program's curriculum at a glance … with the live OBE Curriculum
+          Map slotted between its KPI tiles and its two panels: figures first,
+          then the Year·Semester map with amber prerequisite wires and the
+          press-to-trace spotlight, then summary + coverage chart. Faculty
+          have no "View All Courses" page, so that footer is inert. */}
+      <MapBrief profile={profile} onNavigate={onNavigate}>
+        {/* Picks its curriculum the same way Generate Map's landing boot
+            does — the viewer's program, else BSIT, else the first. */}
+        <MapPreview profile={profile} onNavigate={onNavigate} />
+      </MapBrief>
 
       <div className="dashboard-panels">
         <div className="dashboard-panel">
