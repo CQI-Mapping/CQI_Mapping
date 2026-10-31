@@ -478,6 +478,7 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 ### `admin/Map.tsx` (shared by all roles as Subject Graph)
 - d3 outcome hierarchy: Subject → Curriculum → Prereq/Coreq → CLO → PO → PEO → SG → CMO. Renders after pressing View.
 - Strict green-monochrome + gray + 1 amber (prereq) theme; legend with per-kind counts + Unresolved badge (`countKinds`); placeholder/loading/empty states; mobile stacks panels and scrolls graph horizontally.
+- Live auto-update: watches every table the map reads (`MAP_TABLES`) with Supabase realtime change events, refetches on tab focus/visibility, and polls quietly every 45s as a backup — manager/user edits to subjects, CLOs, POs, PEOs, SGs, CMOs or curricula appear on the open map without a manual reload (realtime events need Realtime replication enabled on those tables in the Supabase dashboard; focus + polling cover it otherwise).
 
 ### `manager/Users.tsx`
 - Users directory (table with role badges) + add/remove users (`user` role only, never self). Role changes are admin-only (via SQL).

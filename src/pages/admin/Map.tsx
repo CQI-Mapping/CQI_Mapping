@@ -62,6 +62,24 @@ import SyllabusReport from '../../components/SyllabusReport'
 import OutcomeDetailsCard from '../../components/OutcomeDetailsCard'
 import PageBanner from '../../components/PageBanner'
 import type { ConnectedGroup, ConnectedItem } from '../../components/OutcomeDetailsCard'
+import { supabase } from '../../utils/supabaseClient'
+
+// Every table the OBE Curriculum Map reads (admin/Map.tsx). A manager/user
+// edit to any of these must reach the open map without a manual reload, so
+// the auto-update block subscribes realtime change events for each name.
+const MAP_TABLES = [
+  'courses',                        // subjects: year/sem columns, prereq codes
+  'programs',                       // program switcher above the map
+  'resources',                      // curricula (the "BSIT 2025-2026" switcher)
+  'course_learning_outcomes',       // CLOs that give subjects their PO keys
+  'admin_course_learning_outcomes', // standalone CLO nodes
+  'program_outcomes',               // legacy manager POs
+  'admin_program_outcomes',         // standalone POs (the PO filter)
+  'program_educational_objectives', // PEO nodes
+  'strategic_goals',                // SG nodes
+  'ched_memorandum_orders',         // CMO nodes
+] as const
+
 
 type NodeKind =
   | 'curriculum'
@@ -735,6 +753,97 @@ export default function SubjectView() {
     loadDatasets(false, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // ── Auto-update: the map follows the database ─────────────────────────────
+  // Managers and users edit subjects, CLOs, POs, PEOs, SGs, CMOs, curricula
+  // from other pages (often another device entirely); this page refetches on
+  // its own so nobody has to press the reload button on the map. Three
+  // triggers feed one debounced refresh:
+  //   (1) Supabase realtime change events on every table the map reads —
+  //       instant, but only when Realtime replication is enabled for those
+  //       tables in the Supabase dashboard;
+  //   (2) tab focus / visibility — catches up after the tab sat idle;
+  //   (3) a 45s polling beat — the safety net when (1) is unavailable.
+  const lastRefreshAt = useRef(Date.now())
+  const refreshTimer = useRef<number | undefined>(undefined)
+
+  const refreshMapData = useCallback(async () => {
+    lastRefreshAt.current = Date.now()
+    try {
+      // Same payload as the mount preload (programs · courses · manager POs)
+      // minus the loading UI — a background refresh shows no spinner, and the
+      // already-chosen program/collection keeps its selection.
+      const [p, c, pos] = await Promise.all([fetchPrograms(), fetchCourses(), fetchProgramOutcomesStandalone()])
+      const sorted = [...p].sort((a, b) =>
+        String(a.name || a.code).localeCompare(String(b.name || b.code)))
+      setPrograms(sorted)
+      setCourses(c.filter(isActive).sort((a, b) => String(a.code).localeCompare(String(b.code))))
+      setPoList(sortPos(pos.filter((p) => isActive(p) && isManagerCmCategory(p))))
+      setSelectedProgramId((cur) => cur ?? sorted[0]?.id ?? cur)
+    } catch {
+      // A network blip or a stale auth token: keep what's on screen — the
+      // next trigger retries. Never blank a working map over one bad round.
+    }
+    await loadDatasets(true, true)
+  }, [loadDatasets])
+
+  // Event handlers outlive renders, so they dial the latest refresh logic
+  // through this ref instead of closing over it — that keeps the realtime
+  // subscription from being torn down and rebuilt on every render.
+  const refreshRef = useRef(refreshMapData)
+  useEffect(() => { refreshRef.current = refreshMapData })
+
+  const scheduleRefresh = useCallback(() => {
+    window.clearTimeout(refreshTimer.current)
+    // Debounce: one manager save can fire several table events (a course and
+    // its CLOs, a PO and its mappings) — refresh once, 800ms after the burst.
+    refreshTimer.current = window.setTimeout(() => {
+      if (document.visibilityState === 'hidden') return
+      void refreshRef.current()
+    }, 800)
+  }, [])
+
+  // (1) Realtime: one channel watching every table the map reads.
+  useEffect(() => {
+    if (!supabase) return
+    const channel = supabase.channel('obe-map-live')
+    for (const table of MAP_TABLES) {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table }, scheduleRefresh)
+    }
+    channel.subscribe()
+    return () => {
+      window.clearTimeout(refreshTimer.current)
+      void supabase?.removeChannel(channel)
+    }
+  }, [scheduleRefresh])
+
+  // (2) Focus / visibility: refetch when the tab comes back, unless realtime
+  // ticked within the last 5 seconds (then nothing can be stale).
+  useEffect(() => {
+    const ping = () => {
+      if (document.visibilityState !== 'visible') return
+      if (Date.now() - lastRefreshAt.current < 5000) return
+      scheduleRefresh()
+    }
+    window.addEventListener('focus', ping)
+    document.addEventListener('visibilitychange', ping)
+    return () => {
+      window.removeEventListener('focus', ping)
+      document.removeEventListener('visibilitychange', ping)
+    }
+  }, [scheduleRefresh])
+
+  // (3) Polling safety net: quietly refetches while the map is open whenever
+  // realtime hasn't delivered anything lately (replication not enabled, or an
+  // interrupted socket). Hidden tabs skip the beat.
+  useEffect(() => {
+    const beat = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return
+      if (Date.now() - lastRefreshAt.current < 40000) return // a refresh just ran
+      scheduleRefresh()
+    }, 45000)
+    return () => window.clearInterval(beat)
+  }, [scheduleRefresh])
 
   // ── Shared PO downstream leaves (PEO / SG / CMO) ──────────────────────────
   // Extracted so both Subject-rooted and PO-rooted builders stay identical.
