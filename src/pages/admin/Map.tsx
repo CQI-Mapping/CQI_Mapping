@@ -2156,7 +2156,7 @@ export default function SubjectView() {
         tip.style.opacity = '1'
         tip.style.left = `${event.offsetX + 12}px`
         tip.style.top = `${event.offsetY - 28}px`
-        tip.innerHTML = `<strong>${d.code}</strong><br/>${d.title}<br/><em>Click to show connected subjects<br/>Double-click to open its graph</em>`
+        tip.innerHTML = `<strong>${d.code}</strong><br/>${d.title}<br/><em>Click to show its connected subjects</em>`
       })
       .on('mousemove', (event) => {
         tip.style.left = `${event.offsetX + 12}px`
@@ -2166,18 +2166,17 @@ export default function SubjectView() {
         tip.style.opacity = '0'
       })
 
-    // Press a dot: spotlight it and its prerequisite network (see the
-    // connector block above). Press it again — or anywhere on the empty
-    // canvas — to clear the spotlight. Double-click keeps the older affordance:
-    // open that subject as the graph root with its full About card.
+    // Press a dot: spotlight its prerequisite network AND open that subject's
+    // graph view directly — one press, no double-click needed. The spotlight
+    // state survives the round-trip, so coming back to the map (Back, or
+    // picking the curriculum again) still shows the pressed subject's network
+    // lit until an empty-canvas press clears it.
     node.on('click', (event, d) => {
       event.stopPropagation()
       const id = d.courseId
-      if (id) setMapFocusId((cur) => (cur === id ? null : id))
-    })
-    node.on('dblclick', (event, d) => {
-      event.stopPropagation()
-      if (d.courseId) gotoSubjectRoot(d.courseId)
+      if (!id) return
+      setMapFocusId((cur) => (cur === id ? null : id))
+      gotoSubjectRoot(id)
     })
     svg.on('click.mapfocus', () => setMapFocusId(null))
 
