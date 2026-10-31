@@ -12,6 +12,7 @@ import type { Profile, ActivityLogEntry } from '../../services/database'
 import { useClock } from '../../hooks/useClock'
 import { localISODate, timeGreeting } from '../../utils/clock'
 import MapBrief from '../../components/MapBrief'
+import MapPreview from '../../components/MapPreview'
 
 interface DashboardProps {
   profile: Profile | null
@@ -103,6 +104,12 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
       {/* The program's curriculum at a glance — the blocks that used to open
           the Generate Map page (KPI tiles, mapping summary, PO coverage). */}
       <MapBrief profile={profile} onNavigate={onNavigate} />
+
+      {/* The live OBE Curriculum Map itself — Year·Semester columns, the year
+          palette, amber prerequisite wires and the press-to-trace spotlight.
+          Picks its curriculum the same way Generate Map's landing boot does,
+          beneath the brief so the figures and the picture read together. */}
+      <MapPreview profile={profile} onNavigate={onNavigate} />
 
       <div className="dashboard-panels">
         <div className="dashboard-panel">

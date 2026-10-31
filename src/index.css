@@ -4698,6 +4698,22 @@ button.reports-panel__more:hover {
   z-index: 1;
 }
 
+/* ---- dashboard map preview (components/MapPreview.tsx) ---- */
+
+.map-preview__scroll {
+  overflow-x: auto;
+  /* A hair more than the header strip's rule width so the rounded corners
+     never clip the outermost column separators. */
+  padding-bottom: 2px;
+}
+
+/* The two svgs (header strip + tall body) scale at width: 100% of this inner
+   wrapper; the min-width keeps the columns readable and introduces the
+   horizontal scroll on narrow panels instead of shrinking the dots away. */
+.map-preview__inner {
+  min-width: 1240px;
+}
+
 /* ---- badges ---- */
 
 .status-badge {
