@@ -1,5 +1,11 @@
 import { useState, useEffect } from 'react'
 import {
+  fetchAllProfiles,
+  fetchStrategicGoals,
+  fetchProgramEducationalObjectives,
+  fetchProgramOutcomesStandalone,
+  fetchCourseLearningOutcomesStandalone,
+  fetchChedMemoOrders,
   fetchActivityLogs,
 } from '../../services/database'
 import type { Profile, ActivityLogEntry } from '../../services/database'
@@ -14,16 +20,30 @@ interface DashboardProps {
 }
 
 function Dashboard({ profile, onNavigate }: DashboardProps) {
+  const [stats, setStats] = useState<Array<{ label: string; value: number | null; accent: string; icon: string; sub: string }>>([])
   const [recent, setRecent] = useState<ActivityLogEntry[]>([])
+  const loading = stats.length === 0
 
   useEffect(() => {
     let cancelled = false
-    // The dashboard's own figures live in the brief below (MapBrief's KPI
-    // tiles, the map and the summary panels) — the individual counter
-    // tiles that used to duplicate them are gone.
-    fetchActivityLogs()
-      .then((logs) => { if (!cancelled) setRecent(logs.slice(0, 5)) })
+    const counters = [
+      { label: 'Users', icon: 'users', sub: 'Registered profiles', accent: '#64748b', load: () => fetchAllProfiles() },
+      { label: 'Strategic Goals', icon: 'goals', sub: 'Institutional goals', accent: '#4d7c0f', load: () => fetchStrategicGoals() },
+      { label: 'Program Educational Objectives', icon: 'peo', sub: 'Graduate PEOs', accent: '#4d7c0f', load: () => fetchProgramEducationalObjectives() },
+      { label: 'Program Outcomes', icon: 'po', sub: 'Program outcomes mapping', accent: '#15803d', load: () => fetchProgramOutcomesStandalone() },
+      { label: 'Course Learning Outcomes', icon: 'clo', sub: 'CLOs per course', accent: '#15803d', load: () => fetchCourseLearningOutcomesStandalone() },
+      { label: 'CHED Memo Orders', icon: 'ched', sub: 'CHED policies', accent: '#4d7c0f', load: () => fetchChedMemoOrders() },
+    ]
+    Promise.all(counters.map(async (c) => {
+      try {
+        return { label: c.label, value: (await c.load()).length, accent: c.accent, icon: c.icon, sub: c.sub }
+      } catch {
+        return { label: c.label, value: 0, accent: c.accent, icon: c.icon, sub: c.sub }
+      }
+    }))
+      .then((rows) => { if (!cancelled) setStats(rows) })
       .catch(() => {})
+    fetchActivityLogs().then((logs) => { if (!cancelled) setRecent(logs.slice(0, 5)) }).catch(() => {})
     return () => { cancelled = true }
   }, [])
 
@@ -57,6 +77,29 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
           <span>{clock.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</span>
         </time>
       </section>
+
+      <div className="stat-grid stat-grid--2026" aria-busy={loading}>
+
+        {loading
+          ? ['stat-1', 'stat-2', 'stat-3', 'stat-4', 'stat-5', 'stat-6'].map((label) => (
+            <div className="stat-card stat-card--2026 stat-card--skeleton card-enter" key={label} aria-hidden="true">
+              <span className="stat-card__label">Loading</span>
+              <span className="stat-card__value">—</span>
+              <span className="stat-card__sub">Loading</span>
+            </div>
+          ))
+          : stats.map((s) => (
+          <div className="stat-card stat-card--2026 card-enter" key={s.label}>
+            <div className="stat-card__accent" style={{ background: s.accent }} />
+            <div className="stat-card__icon" style={{ background: s.accent, color: '#fff' }}>
+              <StatIcon type={s.icon} />
+            </div>
+            <span className="stat-card__label">{s.label}</span>
+            <span className="stat-card__value">{s.value ?? '—'}</span>
+            <span className="stat-card__sub">{s.sub}</span>
+          </div>
+        ))}
+      </div>
 
       {/* The program's curriculum at a glance — the blocks that used to open
           the Generate Map page … with the live OBE Curriculum Map slotted
@@ -130,6 +173,26 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
       </div>
     </div>
   )
+}
+
+function StatIcon({ type }: { type: string }) {
+  const common = { width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+  switch (type) {
+    case 'users':
+      return <svg {...common}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    case 'goals':
+      return <svg {...common}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+    case 'peo':
+      return <svg {...common}><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></svg>
+    case 'po':
+      return <svg {...common}><path d="M3 3v18h18"/><path d="M7 16l3-3 3 3 5-8"/></svg>
+    case 'clo':
+      return <svg {...common}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+    case 'ched':
+      return <svg {...common}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+    default:
+      return null
+  }
 }
 
 export default Dashboard
