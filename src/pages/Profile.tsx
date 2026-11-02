@@ -116,6 +116,7 @@ function Profile({ profile, onSaved }: ProfileProps) {
   const [changingPassword, setChangingPassword] = useState(false)
   const [passwordError, setPasswordError] = useState('')
   const [passwordMessage, setPasswordMessage] = useState('')
+  const [passwordWarning, setPasswordWarning] = useState('')
 
   const currentPasswordEntered = currentPassword.length > 0
   const passwordLongEnough = password.length >= MIN_PASSWORD_LENGTH
@@ -288,6 +289,7 @@ function Profile({ profile, onSaved }: ProfileProps) {
     if (!profile) return
     setPasswordError('')
     setPasswordMessage('')
+    setPasswordWarning('')
     if (!currentPasswordEntered) {
       setPasswordError('Re-enter your current password so we know it is really you.')
       return
@@ -316,15 +318,20 @@ function Profile({ profile, onSaved }: ProfileProps) {
       }
       const { error: updateError } = await supabase!.auth.updateUser({ password })
       if (updateError) throw updateError
-      await addActivityLog('profile.password_changed', {
-        entity: 'profile',
-        entity_id: profile.id,
-        label: profile.full_name || profile.email,
-      })
       setCurrentPassword('')
       setPassword('')
       setConfirmPassword('')
       setPasswordMessage('Password updated successfully.')
+      try {
+        await addActivityLog('profile.password_changed', {
+          entity: 'profile',
+          entity_id: profile.id,
+          label: profile.full_name || profile.email,
+        })
+      } catch (err) {
+        console.error('Password changed, but activity logging failed:', describe(err))
+        setPasswordWarning('Your password changed, but we could not record it in your activity trail.')
+      }
       setActivityRefresh((n) => n + 1)
     } catch (err) {
       // The network layer logs only a bare "400"; keep the server's own
@@ -640,6 +647,12 @@ function Profile({ profile, onSaved }: ProfileProps) {
                 </div>
               )}
 
+              {passwordWarning && (
+                <p className="profile-note profile-note--warn" role="status">
+                  <Icon name="warning" size={14} />
+                  {passwordWarning}
+                </p>
+              )}
               {passwordError && <p className="msg msg--error" role="alert">{passwordError}</p>}
               {passwordMessage && <p className="msg msg--success" role="status">{passwordMessage}</p>}
 
