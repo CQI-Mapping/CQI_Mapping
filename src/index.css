@@ -1932,9 +1932,10 @@ code {
   text-transform: none;
 }
 
+/* One column now — the section holds only the role cards. */
 .au__who {
   display: grid;
-  grid-template-columns: 2fr 6fr;
+  grid-template-columns: 1fr;
   gap: 18px;
   margin-top: 12px;
 }
@@ -2062,10 +2063,11 @@ code {
   color: var(--primary);
 }
 
-/* Credentials: email with its icon, password with its toggle. */
+/* Credentials: only the email with its icon; the password is generated
+   server-side and sent to the new user as a one-time set-password link. */
 .au__creds {
   display: grid;
-  grid-template-columns: 3fr 2fr;
+  grid-template-columns: 1fr;
   gap: 14px;
   margin-top: 12px;
 }
@@ -2112,16 +2114,7 @@ code {
   color: var(--text-muted);
 }
 
-@media (max-width: 860px) {
-  .au__who {
-    grid-template-columns: 1fr;
-  }
-}
-
 @media (max-width: 720px) {
-  .au__creds {
-    grid-template-columns: 1fr;
-  }
   .role-cards {
     grid-template-columns: 1fr;
   }

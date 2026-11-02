@@ -3,6 +3,12 @@
 // display name, and the archive/restore cycle. Archiving is the app's soft
 // delete: the account stays restorable, sign-in is refused while archived,
 // and only archived rows can be hard-deleted.
+//
+// The add form collects only the email (plus the role, and for the
+// manager/faculty roles the program they scope): the Edge Function
+// generates a random password nobody sees and emails the new user a
+// one-time link to set their own — the same invite flow the manager's
+// Add Faculty form uses. Names get filled in on the user's Profile page.
 
 import { useState, useEffect } from 'react'
 import Icon from '../../components/icons'
@@ -24,14 +30,12 @@ const NAME_MAX_LENGTH = 80
 const NICKNAME_MAX_LENGTH = 40
 
 export default function Users() {
-  // Draft persists email + name across page navigation. The password is
-  // deliberately kept in memory-only state and never written to storage.
-  const [draft, setDraft, clearDraft] = useDraft('cqi.draft.Users', { email: '', fullName: '' })
-  const { email, fullName } = draft
+  // Draft persists the email across page navigation. No password state:
+  // the Edge Function generates one server-side (nobody sees it) and
+  // emails the new user a one-time link to set their own.
+  const [draft, setDraft, clearDraft] = useDraft('cqi.draft.Users', { email: '' })
+  const { email } = draft
   const setEmail = (v: string) => setDraft((d) => ({ ...d, email: v }))
-  const setFullName = (v: string) => setDraft((d) => ({ ...d, fullName: v }))
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
   // Role starts unselected: the placeholder option forces a conscious
   // pick (Manager/Admin/Faculty) instead of a silent default.
   const [role, setRole] = useState<UserRole | ''>('')
@@ -86,16 +90,18 @@ export default function Users() {
     setError('')
     setSuccess('')
     if (!role) { setError('Please select a role for this account.'); return }
-    if (!email.trim() || !password.trim()) { setError('Email and password are required.'); return }
-    // Password policy matches the profile card and reset screen: 8+ characters.
-    if (password.length < 8) { setError('Password must be at least 8 characters.'); return }
+    if (!email.trim()) { setError('Email is required.'); return }
     // Managers and faculty are program-scoped accounts — the program is
     // required so the dropdown choice can't silently be forgotten.
     if (roleNeedsProgram && !programId) { setError('Choose the program this account belongs to.'); return }
     setBusy(true)
     try {
       const createdEmail = email.trim()
-      const created = await adminCreateUser(createdEmail, password, fullName.trim(), role, programId || null)
+      // Empty password/name by design: the Edge Function generates a random
+      // password the inviter never sees and emails a one-time set-password
+      // link; the name is left blank until the user fills it in on their
+      // Profile page.
+      const created = await adminCreateUser(createdEmail, '', '', role, programId || null)
       await addActivityLog('user.created', {
         entity: 'user',
         entity_id: created?.id,
@@ -108,11 +114,10 @@ export default function Users() {
         : `${ROLE_LABELS[role]} ${createdEmail} has been added to the system.`
       setSuccess(
         created.welcomeEmailSent
-          ? `${base} A welcome email was sent to ${createdEmail}.`
-          : `${base} No welcome email was sent (email service not set up) — please tell them their login directly.`,
+          ? `${base} A welcome email was sent to ${createdEmail} with a one-time link to set their password.`
+          : `${base} No welcome email was sent (email service not set up) — please tell them to use "Forgot password" on the sign-in page to choose one.`,
       )
       clearDraft()
-      setPassword('')
       // The next creation is a fresh conscious pick: role and program reset
       // with the credentials so an earlier assignment can't be reused.
       setRole('')
@@ -361,11 +366,6 @@ export default function Users() {
             <div>
               <div className="au__section-title"><span className="au__step">1</span>Who is this person</div>
               <div className="au__who">
-                <label className="field">
-                  <span>Full name</span>
-                  <input className="input" type="text" placeholder="Juan Dela Cruz" value={fullName}
-                    onChange={(e) => setFullName(e.target.value)} />
-                </label>
                 <div className="field">
                   <span>Role</span>
                   <div className="role-cards" role="group" aria-label="Role">
@@ -457,27 +457,16 @@ export default function Users() {
                       onChange={(e) => setEmail(e.target.value)} />
                   </div>
                 </label>
-                <label className="field">
-                  <span>Password</span>
-                  <div className="password-wrapper">
-                    <input className="input" type={showPassword ? 'text' : 'password'}
-                      placeholder="••••••••" value={password} required
-                      onChange={(e) => setPassword(e.target.value)} />
-                    <button type="button" className="password-toggle" onClick={() => setShowPassword(!showPassword)}
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}>
-                      {showPassword ? 'Hide' : 'Show'}
-                    </button>
-                  </div>
-                </label>
                 <p className="au__cred-note">
-                  At least 8 characters — the new user can change it after signing in, or reset it from the sign-in page themselves.
+                  Only the email is needed. The new user gets an email with a one-time link to set
+                  their password, and can fill in their name on their Profile page.
                 </p>
               </div>
             </div>
           </div>
 
           <div className="au__foot">
-            <p>A welcome email is sent when the mail service is configured — otherwise share the password directly.</p>
+            <p>A welcome email with a one-time set-password link is sent when the mail service is configured — otherwise the new user can use "Forgot password" on the sign-in page.</p>
             <button className="btn btn--primary" type="submit" disabled={busy}>
               {busy ? 'Creating...' : (<><Icon name="plus" size={13} /> Create User</>)}
             </button>
