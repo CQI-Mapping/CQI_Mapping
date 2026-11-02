@@ -87,7 +87,7 @@ function Users() {
   return (
     <div className="users">
       <div className="page-heading">
-        <h2>Users</h2>
+        <h2>Users &amp; Accounts</h2>
         <p>Faculty directory. You can add faculty accounts; role changes and removal are admin-only.</p>
       </div>
 
