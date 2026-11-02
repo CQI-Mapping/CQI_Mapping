@@ -10,7 +10,7 @@
 
 import { useState, useEffect } from 'react'
 import Icon from '../../components/icons'
-import { adminCreateUser, addActivityLog, fetchAllProfiles } from '../../services/database'
+import { adminCreateUser, adminResendInvite, addActivityLog, fetchAllProfiles } from '../../services/database'
 import { isActive } from '../../utils/report'
 import { supabase } from '../../utils/supabaseClient'
 import type { Profile } from '../../services/database'
@@ -23,6 +23,30 @@ function Users() {
   const [email, setEmail] = useState('')
   const [busy, setBusy] = useState(false)
   const [creatorName, setCreatorName] = useState('')
+  // Re-invite a faculty member whose one-time set-password email never
+  // arrived or was lost — one click, one fresh link. The Edge Function
+  // re-checks that the caller is a manager and the target is faculty.
+  const [resendBusyId, setResendBusyId] = useState('')
+
+  const handleResendInvite = async (userId: string, email: string) => {
+    if (!window.confirm(`Send ${email} a fresh one-time sign-in link?`)) return
+    setError('')
+    setSuccess('')
+    setResendBusyId(userId)
+    try {
+      const res = await adminResendInvite(userId)
+      setSuccess(
+        res.inviteSent
+          ? `A fresh sign-in email was sent to ${email}.`
+          : `No email could be sent right now (service limits or the address) — have ${email} use "Forgot password" on the sign-in page.`,
+      )
+      await addActivityLog('user.invite_resent', { entity: 'user', entity_id: userId, label: email })
+    } catch (e) {
+      setError('Failed to resend the invite: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setResendBusyId('')
+    }
+  }
 
   const load = async () => {
     setLoading(true)
@@ -127,6 +151,7 @@ function Users() {
                 <th>Email</th>
                 <th>Role</th>
                 <th>Joined</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -138,6 +163,16 @@ function Users() {
                     <span className={`role-badge role-badge--${u.role}`}>{u.role}</span>
                   </td>
                   <td>{new Date(u.created_at).toLocaleDateString()}</td>
+                  <td>
+                    <button
+                      className="btn btn--ghost btn--sm"
+                      disabled={resendBusyId === u.id}
+                      onClick={() => handleResendInvite(u.id, u.email)}
+                      title="Lost the invite? Emails them a fresh one-time link to set their password"
+                    >
+                      {resendBusyId === u.id ? 'Sending...' : (<><Icon name="mail" size={13} /> Resend invite</>)}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
