@@ -398,9 +398,11 @@ alignments,
       {/* Reader pair (formRef): the create form and the caller's reader panel
           become one joined block — the row's height comes from the form, and
           the reader is exactly as tall beside it (the CLO page's layout).
-          No prop, no change: every other entity page keeps the plain form. */}
-      {formRef && (
-        <div className="clo-layout__pair">
+          The wrapper always carries the form (solo without a reader), so the
+          add form never depends on a caller passing formRef — a regression
+          once rendered it only inside the reader pair and silently dropped
+          the add form from every page without one (PEO / SG / CMO). */}
+      <div className={formRef ? 'clo-layout__pair' : 'clo-layout__pair clo-layout__pair--solo'}>
       <form className="panel create-resource" onSubmit={submit} style={{ borderTop: '3px solid #16a34a' }}>
         <h3>New {title}</h3>
         {titleMultiline ? (
@@ -492,8 +494,7 @@ alignments,
         </div>
       </form>
       {formRef}
-        </div>
-      )}
+      </div>
 
       {loading ? (
         <div className="program-grid" style={{ marginTop: 8 }}>
