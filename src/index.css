@@ -1811,6 +1811,34 @@ code {
   align-items: center;
 }
 
+/* Manager "Add Faculty" — email-only invite row: no password or name is
+   collected (the Edge Function generates the password and emails a one-time
+   set-password link), so the email spans wide and the button sits at end. */
+.create-user__row--email-only {
+  grid-template-columns: 3fr auto;
+}
+
+/* The explanatory line under the invite row, mirroring the admin card's
+   .au__hint pill (dashed border, mail icon, muted text). */
+.create-user__hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 10px 13px;
+  border-radius: 12px;
+  background: var(--bg-soft);
+  border: 1px dashed var(--border-strong);
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.create-user__hint svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--primary);
+}
+
 /* The Program select joins the Email/Password/Name/Role row when the
    chosen role is manager or faculty. */
 .create-user__row--with-program {

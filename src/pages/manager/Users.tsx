@@ -2,6 +2,11 @@
 // Managers may create 'user' (faculty) accounts only — the admin-users Edge
 // Function forces the role to 'user' for manager callers. Role changes and
 // removal stay admin-only.
+//
+// Add Faculty collects just the email: the Edge Function generates the
+// account password server-side and emails the faculty member a one-time
+// "set your password" link, so the person adding the account never handles
+// a password and the new faculty sets their own.
 
 import { useState, useEffect } from 'react'
 import Icon from '../../components/icons'
@@ -16,9 +21,6 @@ function Users() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [fullName, setFullName] = useState('')
   const [busy, setBusy] = useState(false)
   const [creatorName, setCreatorName] = useState('')
 
@@ -53,11 +55,15 @@ function Users() {
     e.preventDefault()
     setError('')
     setSuccess('')
-    if (!email.trim() || !password.trim()) { setError('Email and password are required.'); return }
+    if (!email.trim()) { setError('Email is required.'); return }
     setBusy(true)
     try {
       const createdEmail = email.trim()
-      const created = await adminCreateUser(createdEmail, password, fullName.trim(), 'user')
+      // Empty password/name by design: the Edge Function generates a random
+      // password the inviter never sees and emails a one-time set-password
+      // link; the name is left blank until the faculty member fills it in
+      // on their Profile page.
+      const created = await adminCreateUser(createdEmail, '', '', 'user')
       await addActivityLog('user.created', {
         entity: 'user',
         entity_id: created?.id,
@@ -68,12 +74,10 @@ function Users() {
         : `Faculty ${createdEmail} has been added to the system.`
       setSuccess(
         created.welcomeEmailSent
-          ? `${base} A welcome email was sent to ${createdEmail}.`
-          : `${base} No welcome email was sent (email service not set up) — please tell them their login directly.`,
+          ? `${base} A welcome email was sent to ${createdEmail} with a one-time link to set their password.`
+          : `${base} No welcome email was sent (email service not set up) — please tell them to use "Forgot password" on the sign-in page to choose one.`,
       )
       setEmail('')
-      setPassword('')
-      setFullName('')
       load()
     } catch (e) {
       setError('Failed to create faculty: ' + (e instanceof Error ? e.message : String(e)))
@@ -93,33 +97,21 @@ function Users() {
       <div className="panel create-user" style={{ borderTop: '3px solid #16a34a' }}>
         <h3>Add Faculty</h3>
         <form onSubmit={handleSubmit}>
-          <div className="create-user__row">
+          <div className="create-user__row create-user__row--email-only">
             <label className="field">
               <span>Email</span>
               <input className="input" type="email" placeholder="faculty@example.com" value={email} required
                 onChange={(e) => setEmail(e.target.value)} />
             </label>
-            <label className="field">
-              <span>Password</span>
-              <div className="password-wrapper">
-                <input className="input" type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••" value={password} required
-                  onChange={(e) => setPassword(e.target.value)} />
-                <button type="button" className="password-toggle" onClick={() => setShowPassword(!showPassword)}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}>
-                  {showPassword ? 'Hide' : 'Show'}
-                </button>
-              </div>
-            </label>
-            <label className="field">
-              <span>Full name</span>
-              <input className="input" type="text" placeholder="Juan Dela Cruz" value={fullName}
-                onChange={(e) => setFullName(e.target.value)} />
-            </label>
             <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
               {busy ? 'Creating...' : (<><Icon name="plus" size={13} /> Create Faculty</>)}
             </button>
           </div>
+          <p className="create-user__hint">
+            <Icon name="mail" size={14} />
+            Only an email is needed. The faculty member gets an email with a one-time link to
+            set their password, and can fill in their name on their Profile page.
+          </p>
         </form>
       </div>
 

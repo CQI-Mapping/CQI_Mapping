@@ -15,9 +15,15 @@
 //             Delete stays admin-only.
 //
 // Welcome email: after a successful create, the new user is emailed at their
-// address ("your account was created by <inviter name>"). Sending uses Resend
-// and is skipped gracefully when the secrets below are unset — account
-// creation still succeeds, and the response reports welcomeEmailSent:false.
+// address ("your account was created by <inviter name>"). When no password
+// was supplied — the manager's Add Faculty form only asks for an email —
+// a strong random password is generated here (nobody sees it) and the email
+// carries a one-time "set your password" link (an auth recovery link against
+// the freshly created account), so the user picks their own password on the
+// app's reset screen before signing in. Sending uses Resend and is skipped
+// gracefully when the secrets below are unset — account creation still
+// succeeds, and the response reports welcomeEmailSent:false. A user who never
+// got (or lost) the email simply uses "Forgot password" on the sign-in page.
 //
 //   npx supabase secrets set RESEND_API_KEY=re_... WELCOME_FROM_EMAIL="CQI Monitoring <accounts@your-domain>" APP_URL=https://your-app-url
 //
@@ -27,7 +33,7 @@
 //   npx supabase functions deploy admin-users
 //
 // Request bodies:
-//   { action: 'create', email, password, fullName?, role, programId? } -> { id, email, welcomeEmailSent }
+//   { action: 'create', email, password?, fullName?, role, programId? } -> { id, email, welcomeEmailSent }
 //   { action: 'delete', userId }                                       -> { ok: true }
 //
 // programId is accepted from admins only, and only for manager/user
@@ -54,17 +60,34 @@ function fail(message: string, status: number): Response {
   return json({ error: message }, status)
 }
 
+// Cryptographically random password for invite-flow creations. The value is
+// never returned to the caller or logged — the generated account's password
+// is "whatever nobody knows"; the user sets their own via the emailed
+// recovery link. The 55-char alphabet avoids look-alike characters; the
+// byte→char mapping carries a negligible modulo bias, inconsequential for a
+// one-time password that the user immediately replaces by their own.
+function generatePassword(length = 24): string {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'
+  const bytes = crypto.getRandomValues(new Uint8Array(length))
+  let out = ''
+  for (let i = 0; i < length; i++) out += alphabet[bytes[i] % alphabet.length]
+  return out
+}
+
 // Sends the "your account was created by <inviter>" welcome email via Resend.
 // Returns true only when Resend accepted it (and logs the Resend message id
 // so the delivery can be traced in the Resend dashboard). Never throws:
 // missing secrets or send failures resolve false so account creation is
-// never blocked. (The password is intentionally NOT included — the inviter
-// shares it directly, or the user uses password recovery.)
+// never blocked. (When the inviter did not choose a password, `setupLink`
+// carries the one-time set-your-password link and the email leads with it;
+// otherwise the inviter shares the chosen password directly.)
 async function sendWelcomeEmail(args: {
   to: string
   name: string
   role: string
   inviterName: string
+  setupLink?: string
+  passwordGenerated?: boolean
 }): Promise<boolean> {
   const resendKey = Deno.env.get('RESEND_API_KEY') || ''
   const fromEmail = Deno.env.get('WELCOME_FROM_EMAIL') || ''
@@ -76,6 +99,28 @@ async function sendWelcomeEmail(args: {
       : args.role === 'manager'
         ? 'Program Head'
         : 'Faculty'
+  const bodyLines = args.setupLink
+    ? `Role: ${roleLabel}\n` +
+      `Sign-in email: ${args.to}\n` +
+      (appUrl ? `Sign-in page: ${appUrl}\n` : '') +
+      `\nTo set your password and sign in, open this one-time link:\n` +
+      `${args.setupLink}\n\n` +
+      `The link can be used once. If it has expired or doesn't work, use ` +
+      `"Forgot password" on the sign-in page instead.\n\n`
+    : args.passwordGenerated
+      ? // Rare fallback: the password was generated here but the one-time
+        // link couldn't be built, so there is no password anyone can hand
+        // over — recovery is the way in.
+        `Role: ${roleLabel}\n` +
+        `Sign-in email: ${args.to}\n` +
+        (appUrl ? `Sign-in page: ${appUrl}\n` : '') +
+        `To choose your password, use "Forgot password" on the sign-in ` +
+        `page (you'll get an email to finish signing in).\n\n`
+      : `Role: ${roleLabel}\n` +
+        `Sign-in email: ${args.to}\n` +
+        (appUrl ? `Sign-in page: ${appUrl}\n` : '') +
+        `Ask ${args.inviterName} for your password, or use password recovery ` +
+        `on the sign-in page.\n\n`
   try {
     const emailResp = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -91,10 +136,7 @@ async function sendWelcomeEmail(args: {
           `Hello ${args.name || args.to},\n\n` +
           `An account has been created for you on the CQI Monitoring System ` +
           `(NBSC · Institute of Computer Studies) by ${args.inviterName}.\n\n` +
-          `Role: ${roleLabel}\n` +
-          `Sign-in email: ${args.to}\n` +
-          (appUrl ? `Sign-in page: ${appUrl}\n` : '') +
-          `Ask ${args.inviterName} for your password, or use password recovery on the sign-in page.\n\n` +
+          bodyLines +
           `— CQI Monitoring System`,
       }),
     })
@@ -157,7 +199,6 @@ Deno.serve(async (req: Request) => {
 
     if (body?.action === 'create') {
       const email = typeof body.email === 'string' ? body.email.trim() : ''
-      const password = typeof body.password === 'string' ? body.password : ''
       const fullName = typeof body.fullName === 'string' ? body.fullName.trim() : ''
       // Managers can only create faculty — force the role so a crafted
       // request can never mint an admin or manager account.
@@ -167,10 +208,19 @@ Deno.serve(async (req: Request) => {
           ? body.role
           : 'user'
 
-      if (!email || !password) {
-        return fail('Email and password are required', 400)
+      if (!email) {
+        return fail('Email is required', 400)
       }
-      // Password policy mirrors the client: 8+ characters.
+
+      // The password is optional: the inviter-chosen one (admin flow) or a
+      // generated random one (invite flow where the new user sets their own
+      // password through the emailed one-time link). Either way the account
+      // exists with a real password, so it can sign in immediately.
+      let password = typeof body.password === 'string' ? body.password : ''
+      const passwordGenerated = !password
+      if (passwordGenerated) password = generatePassword()
+      // Password policy mirrors the client: 8+ characters (generated ones
+      // always satisfy it).
       if (password.length < 8) {
         return fail('Password must be at least 8 characters', 400)
       }
@@ -206,12 +256,35 @@ Deno.serve(async (req: Request) => {
         .eq('id', created.user.id)
       if (updateError) throw updateError
 
-      // Welcome email to the new user, naming who added them.
+      // Welcome email to the new user, naming who added them. When the
+      // password was generated here (invite flow), mint a one-time recovery
+      // link against the fresh account and lead the email with it, so the
+      // user sets their own password. generateLink never sends mail itself;
+      // a failure (rare) degrades to the shared-password wording and the
+      // user falls back to Forgot password on the sign-in page.
+      let setupLink: string | undefined
+      if (passwordGenerated) {
+        try {
+          const appUrl = Deno.env.get('APP_URL') || ''
+          const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+            type: 'recovery',
+            email,
+            ...(appUrl ? { options: { redirectTo: appUrl } } : {}),
+          })
+          if (linkError) throw linkError
+          setupLink = linkData?.properties?.actionLink || undefined
+        } catch (err) {
+          console.error('generateLink failed (falling back to recovery-note email):', err)
+        }
+      }
+
       const welcomeEmailSent = await sendWelcomeEmail({
         to: email,
         name: fullName,
         role,
         inviterName,
+        setupLink,
+        passwordGenerated,
       })
 
       return json({ id: created.user.id, email: created.user.email, welcomeEmailSent })

@@ -350,7 +350,7 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 | `syncDemoRole()` | Restore the caller's expected role (demo accounts) or bootstrap the first admin | any signed-in user |
 | `fetchAllProfiles()` | List all users | admins/managers |
 | `updateUserRole(profileId, role)` | Change a user's role | admins |
-| `adminCreateUser(email, password, fullName, role)` | Create an auth user via Supabase admin API | admins (needs service role key) |
+| `adminCreateUser(email, password?, fullName?, role)` | Create an auth user via the `admin-users` Edge Function; with no password one is generated and a one-time set-password link is emailed to the user | admins/managers (managers can only create faculty) |
 | `fetchResources()` | List resources with creator name (embedded join) | all signed-in users |
 | `createResource(title, description, userId)` | Insert a resource | admins/managers |
 | `updateResource(id, updates)` | Edit title/description/status | admins/managers |
@@ -570,7 +570,7 @@ New role-restricted feature, end to end. Example: a `reports` table that admins 
 - **`.env` is gitignored** — commit `.env.example`, not `.env`.
 - **Audit log** is client-inserted; treat it as an activity trail, not a tamper-proof record.
 - **Never promote via email-derived rules.** In this starter, role is assigned explicitly (admin updates it). Do not derive access from email domains or department fields — that is fragile and error-prone (see the instructor-ui repo discussion).
-- **Password policy** — Supabase defaults apply; `adminCreateUser` uses `email_confirm: true` so created users can sign in immediately (development convenience).
+- **Password policy** — Supabase defaults apply; `adminCreateUser` uses `email_confirm: true` so created users can sign in immediately (development convenience). With no password given, the Edge Function generates one and emails the user a one-time set-password link (recovery link) — the inviting admin never sees or shares a password.
 - **Log an action only when it happened.** `useEntityCrud` handlers return early when there is no row to act on and skip the audit write in that case. Copy the pattern when adding handlers — an audit entry for a mutation that did not occur is worse than a missing one, because it looks like evidence.
 - **Archive/restore are not updates.** Give them their own action names (`<entity>.archived` / `<entity>.restored`) so the log can distinguish removing a record from renaming one. `EntityCrudPage` derives these from `updateAction`.
 
