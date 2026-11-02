@@ -124,6 +124,57 @@ async function sendBuiltInRecoveryEmail(to: string, appUrl: string): Promise<boo
   }
 }
 
+// Mints a fresh one-time recovery (set-your-password) link via GoTrue's
+// admin REST endpoint. Raw fetch on purpose: the raw response's
+// `properties.action_link` is snake_case (supabase-js's typed surface gives
+// actionLink, but reading it through the JS client inside this function
+// kept coming back undefined in practice — the raw contract is what we can
+// verify, so the raw contract is what we code against). Both the apikey and
+// Authorization headers are sent: the admin API 401s on either alone.
+//
+// SIDE EFFECT (verified on the live project): the admin generate_link for
+// type 'recovery' also dispatches the BUILT-IN recovery email as part of
+// minting — so a branded email built on this link is accompanied by
+// Supabase's own plain-text one. Treat minting as a send in itself.
+//
+// Falls back to the configured Site URL when the passed redirectTo is
+// refused. Returns '' when nothing could be minted (caller degrades).
+async function mintRecoveryLink(email: string, redirectTo: string): Promise<string> {
+  const url = Deno.env.get('SUPABASE_URL') || ''
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+  if (!url || !serviceKey) return ''
+  const call = async (redirect: string | null): Promise<Response> =>
+    await fetch(`${url}/auth/v1/admin/generate_link`, {
+      method: 'POST',
+      headers: {
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(
+        redirect
+          ? { type: 'recovery', email, redirect_to: redirect }
+          : { type: 'recovery', email },
+      ),
+    })
+  try {
+    let resp = redirectTo ? await call(redirectTo) : await call(null)
+    if (!resp.ok && redirectTo) resp = await call(null)
+    if (!resp.ok) {
+      console.error('generate_link failed:', resp.status, await resp.text())
+      return ''
+    }
+    const data = await resp.json().catch(() => null)
+    const link: string | undefined = (data as { properties?: { action_link?: string } })
+      ?.properties?.action_link
+    if (!link) console.error('generate_link: no action_link in response')
+    return link || ''
+  } catch (err) {
+    console.error('generate_link error:', err)
+    return ''
+  }
+}
+
 // Escapes user-controlled text (names, emails) for safe interpolation into
 // the HTML email — plain innerText replacement, no entities beyond the five
 // meaningful ones.
@@ -426,24 +477,13 @@ Deno.serve(async (req: Request) => {
         const resendConfigured =
           !!Deno.env.get('RESEND_API_KEY') && !!Deno.env.get('WELCOME_FROM_EMAIL')
         if (resendConfigured) {
-          let setupLink: string | undefined
-          try {
-            const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
-              type: 'recovery',
-              email,
-              ...(appUrl ? { options: { redirectTo: appUrl } } : {}),
-            })
-            if (linkError) throw linkError
-            setupLink = linkData?.properties?.actionLink || undefined
-          } catch (err) {
-            console.error('generateLink failed (falling back to recovery-note email):', err)
-          }
+          const setupLink = await mintRecoveryLink(email, appUrl)
           welcomeEmailSent = await sendWelcomeEmail({
             to: email,
             name: fullName,
             role,
             inviterName,
-            setupLink,
+            setupLink: setupLink || undefined,
             passwordGenerated,
           })
           if (!welcomeEmailSent) {
@@ -488,25 +528,14 @@ Deno.serve(async (req: Request) => {
         return fail('This account is archived — restore it before re-inviting', 400)
       }
 
-      let resendLink: string | undefined
-      try {
-        const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
-          type: 'recovery',
-          email: target.email,
-          ...(appUrl ? { options: { redirectTo: appUrl } } : {}),
-        })
-        if (linkError) throw linkError
-        resendLink = linkData?.properties?.actionLink || undefined
-      } catch (err) {
-        console.error('resend generateLink failed:', err)
-      }
+      const resendLink = await mintRecoveryLink(target.email, appUrl)
 
       let inviteSent = await sendWelcomeEmail({
         to: target.email,
         name: target.full_name || '',
         role: target.role || 'user',
         inviterName,
-        setupLink: resendLink,
+        setupLink: resendLink || undefined,
         passwordGenerated: true,
         resend: true,
       })
