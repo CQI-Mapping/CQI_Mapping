@@ -13,7 +13,7 @@
 import { useState, useEffect } from 'react'
 import Icon from '../../components/icons'
 import { useDraft } from '../../hooks/useDraft'
-import { adminCreateUser, adminDeleteUser, addActivityLog, fetchAllProfilesWithProgram, fetchPrograms, profileProgramOf, updateProfile, updateUserProgram, updateUserRole, updateUserStatus } from '../../services/database'
+import { adminCreateUser, adminDeleteUser, adminResendInvite, addActivityLog, fetchAllProfilesWithProgram, fetchPrograms, profileProgramOf, updateProfile, updateUserProgram, updateUserRole, updateUserStatus } from '../../services/database'
 import { isActive } from '../../utils/report'
 import { supabase } from '../../utils/supabaseClient'
 import type { ProfileWithProgram, Program, UserRole } from '../../services/database'
@@ -53,6 +53,8 @@ export default function Users() {
   // The row's program select shares the busy pattern with the one above.
   const [programBusyId, setProgramBusyId] = useState('')
   const [deleteBusyId, setDeleteBusyId] = useState('')
+  // Re-invite: batches a fresh one-time sign-in email (lost invite helper).
+  const [resendBusyId, setResendBusyId] = useState('')
   // Archive tab: the parked accounts, listed separately so the directory
   // stays a roster of people who can actually sign in.
   const [archived, setArchived] = useState(false)
@@ -245,6 +247,30 @@ export default function Users() {
       setError('Failed to restore user: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
       setStatusBusyId('')
+    }
+  }
+
+  // Re-invite: when a new account's invite email never arrived (or was
+  // lost), this emails them a fresh one-time link to set their password —
+  // branded via Resend when it accepts the send, otherwise through
+  // Supabase's built-in mailer. Ask before spending an email slot.
+  const handleResendInvite = async (userId: string, email: string) => {
+    if (!window.confirm(`Send ${email} a fresh one-time sign-in link?`)) return
+    setError('')
+    setSuccess('')
+    setResendBusyId(userId)
+    try {
+      const res = await adminResendInvite(userId)
+      setSuccess(
+        res.inviteSent
+          ? `A fresh sign-in email was sent to ${email}.`
+          : `No email could be sent right now (service limits or the address) — have ${email} use "Forgot password" on the sign-in page.`,
+      )
+      await addActivityLog('user.invite_resent', { entity: 'user', entity_id: userId, label: email })
+    } catch (e) {
+      setError('Failed to resend the invite: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setResendBusyId('')
     }
   }
 
@@ -584,6 +610,14 @@ export default function Users() {
                               title="Fix their name & nickname — the same fields their Profile page shows"
                             >
                               Edit
+                            </button>
+                            <button
+                              className="btn btn--ghost btn--sm"
+                              disabled={resendBusyId === u.id}
+                              onClick={() => handleResendInvite(u.id, u.email)}
+                              title="Lost the invite? Emails them a fresh one-time link to set their password"
+                            >
+                              {resendBusyId === u.id ? 'Sending...' : (<><Icon name="mail" size={13} /> Resend invite</>)}
                             </button>
                             <button
                               className="btn btn--ghost btn--sm"

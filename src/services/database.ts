@@ -404,6 +404,21 @@ export async function adminDeleteUser(userId: string): Promise<void> {
   await invokeAdminUsers({ action: 'delete', userId })
 }
 
+/** Emails an existing user a fresh one-time sign-in link (re-invite).
+ *  Admins may re-invite anyone but themselves; managers only faculty.
+ *  `inviteSent` is false when neither Resend nor the built-in mailer
+ *  accepted the send — the UI then points the user at Forgot password. */
+export async function adminResendInvite(userId: string): Promise<{
+  ok?: boolean
+  email?: string
+  inviteSent?: boolean
+}> {
+  return (await invokeAdminUsers({
+    action: 'resend',
+    userId,
+  })) as { ok?: boolean; email?: string; inviteSent?: boolean }
+}
+
 // ---------- Resources (curriculum records) ----------
 
 export async function fetchResources(): Promise<Resource[]> {

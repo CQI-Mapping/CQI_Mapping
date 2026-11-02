@@ -38,7 +38,8 @@
 //
 // Request bodies:
 //   { action: 'create', email, password?, fullName?, role, programId? } -> { id, email, welcomeEmailSent }
-//   { action: 'delete', userId }                                       -> { ok: true }
+//   { action: 'resend', userId } -> { ok, email, inviteSent }  (fresh one-time sign-in email)
+//   { action: 'delete', userId }                                -> { ok: true }
 //
 // programId is accepted from admins only, and only for manager/user
 // roles — it must exist in the programs table (verified here), and is
@@ -137,6 +138,7 @@ async function sendWelcomeEmail(args: {
   inviterName: string
   setupLink?: string
   passwordGenerated?: boolean
+  resend?: boolean
 }): Promise<boolean> {
   const resendKey = Deno.env.get('RESEND_API_KEY') || ''
   const fromEmail = Deno.env.get('WELCOME_FROM_EMAIL') || ''
@@ -148,6 +150,16 @@ async function sendWelcomeEmail(args: {
       : args.role === 'manager'
         ? 'Program Head'
         : 'Faculty'
+  // A fresh invitation re-send: different subject/intro so the recipient
+  // isn't left wondering why their account is "created" yet again.
+  const intro = args.resend
+    ? `Here is a new one-time sign-in link for your CQI Monitoring System ` +
+      `(NBSC · Institute of Computer Studies) account, sent by ${args.inviterName}.`
+    : `An account has been created for you on the CQI Monitoring System ` +
+      `(NBSC · Institute of Computer Studies) by ${args.inviterName}.`
+  const subject = args.resend
+    ? 'Your CQI Monitoring sign-in link'
+    : 'Your CQI Monitoring account was created'
   const bodyLines = args.setupLink
     ? `Role: ${roleLabel}\n` +
       `Sign-in email: ${args.to}\n` +
@@ -180,11 +192,10 @@ async function sendWelcomeEmail(args: {
       body: JSON.stringify({
         from: fromEmail,
         to: args.to,
-        subject: 'Your CQI Monitoring account was created',
+        subject,
         text:
           `Hello ${args.name || args.to},\n\n` +
-          `An account has been created for you on the CQI Monitoring System ` +
-          `(NBSC · Institute of Computer Studies) by ${args.inviterName}.\n\n` +
+          intro + `\n\n` +
           bodyLines +
           `— CQI Monitoring System`,
       }),
@@ -245,6 +256,8 @@ Deno.serve(async (req: Request) => {
 
     // 3. Dispatch the action.
     const body = await req.json().catch(() => null)
+    // Where emailed sign-in links land (and the email's "Sign-in page" line).
+    const appUrl = Deno.env.get('APP_URL') || ''
 
     if (body?.action === 'create') {
       const email = typeof body.email === 'string' ? body.email.trim() : ''
@@ -316,7 +329,6 @@ Deno.serve(async (req: Request) => {
       //   * neither works -> welcomeEmailSent:false and the UI tells the
       //     inviter to point the user at Forgot password on the sign-in page.
       let welcomeEmailSent = false
-      const appUrl = Deno.env.get('APP_URL') || ''
       if (passwordGenerated) {
         const resendConfigured =
           !!Deno.env.get('RESEND_API_KEY') && !!Deno.env.get('WELCOME_FROM_EMAIL')
@@ -357,6 +369,59 @@ Deno.serve(async (req: Request) => {
       }
 
       return json({ id: created.user.id, email: created.user.email, welcomeEmailSent })
+    }
+
+    if (body?.action === 'resend') {
+      // Re-invite an existing account: mint a fresh one-time link and email
+      // it (branded via Resend when configured, falling back to Supabase's
+      // built-in mailer). Admins may re-invite any account but their own;
+      // managers only their faculty.
+      const userId = typeof body.userId === 'string' ? body.userId : ''
+      if (!userId) return fail('userId is required', 400)
+      if (userId === callerId) {
+        return fail('You already know how to sign in — use Forgot password if you lost it', 400)
+      }
+      const { data: target, error: targetError } = await admin
+        .from('profiles')
+        .select('id, role, email, full_name, status')
+        .eq('id', userId)
+        .maybeSingle()
+      if (targetError) throw targetError
+      if (!target) return fail('Unknown account', 404)
+      if (!isAdmin && target.role !== 'user') {
+        return fail('Forbidden: managers may only re-invite faculty accounts', 403)
+      }
+      if (target.status === 'archived') {
+        return fail('This account is archived — restore it before re-inviting', 400)
+      }
+
+      let resendLink: string | undefined
+      try {
+        const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+          type: 'recovery',
+          email: target.email,
+          ...(appUrl ? { options: { redirectTo: appUrl } } : {}),
+        })
+        if (linkError) throw linkError
+        resendLink = linkData?.properties?.actionLink || undefined
+      } catch (err) {
+        console.error('resend generateLink failed:', err)
+      }
+
+      let inviteSent = await sendWelcomeEmail({
+        to: target.email,
+        name: target.full_name || '',
+        role: target.role || 'user',
+        inviterName,
+        setupLink: resendLink,
+        passwordGenerated: true,
+        resend: true,
+      })
+      if (!inviteSent) {
+        inviteSent = await sendBuiltInRecoveryEmail(target.email, appUrl)
+      }
+
+      return json({ ok: true, email: target.email, inviteSent })
     }
 
     if (body?.action === 'delete') {
