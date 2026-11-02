@@ -5386,6 +5386,13 @@ button.reports-panel__more:hover {
   align-items: start;
 }
 
+/* Solo wrapper: the same row without the reader column — the plain
+   single-column form, exactly how pages without a formRef (PEO, Strategic
+   Goal, CMO) have always rendered it. Block keeps the form full width. */
+.clo-layout__pair--solo {
+  display: block;
+}
+
 .clo-layout__ref {
   position: absolute;
   top: 0;
