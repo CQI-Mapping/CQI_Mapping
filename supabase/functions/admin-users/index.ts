@@ -124,6 +124,98 @@ async function sendBuiltInRecoveryEmail(to: string, appUrl: string): Promise<boo
   }
 }
 
+// Escapes user-controlled text (names, emails) for safe interpolation into
+// the HTML email — plain innerText replacement, no entities beyond the five
+// meaningful ones.
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+// Builds the branded card-style HTML email (inline styles only — email
+// clients strip <style> blocks). Mirrors the plain-text twin above: a card
+// with the greeting, the role, a highlighted sign-in-email box, the
+// one-time set-password button and the NBSC footer. Green theme matches
+// the app (16a34a); background stays light so Gmail's light/dark themes
+// and Outlook render it safely.
+function buildEmailHtml(args: {
+  to: string
+  name: string
+  role: string
+  inviterName: string
+  appUrl: string
+  setupLink?: string
+  passwordGenerated?: boolean
+  resend?: boolean
+}): string {
+  const name = escapeHtml(args.name || 'there')
+  const to = escapeHtml(args.to)
+  const inviter = escapeHtml(args.inviterName)
+  const roleLabel =
+    args.role === 'admin' ? 'Administrator' : args.role === 'manager' ? 'Program Head' : 'Faculty'
+  const escapedRole = escapeHtml(roleLabel)
+
+  // Greeting + intro sentence differ between the first invite and a re-send.
+  const title = args.resend ? 'Your CQI Monitoring sign-in link' : 'Welcome to CQI Monitoring'
+  const intro = args.resend
+    ? `Here is a new one-time sign-in link for your account, sent by <b>${inviter}</b>. If your previous link expired or never arrived, use this one.`
+    : `An account has been created for you as a <b>${escapedRole}</b> on the CQI Monitoring System by ${inviter}.`
+
+  let actionBlock: string
+  if (args.setupLink) {
+    const link = escapeHtml(args.setupLink)
+    actionBlock =
+      `<p style="margin:0 0 16px; font-size:15px; color:#374151;">` +
+      `To set your password and sign in, click the button below.</p>\n` +
+      `<a href="${link}" style="display:inline-block; background:#16a34a; color:#ffffff; ` +
+      `font-size:15px; font-weight:600; padding:12px 24px; border-radius:10px; ` +
+      `text-decoration:none;">Set Password &amp; Sign In</a>\n` +
+      `<p style="margin:14px 0 0; font-size:12.5px; color:#6b7280; line-height:1.5;">` +
+      `This link can be used once. If it has expired or doesn't work, use ` +
+      `"Forgot password" on the sign-in page instead.</p>`
+  } else if (args.passwordGenerated) {
+    // Rare fallback: the password was generated server-side but no link
+    // could be built — recovery is the only way in.
+    actionBlock =
+      `<p style="margin:0 0 16px; font-size:15px; color:#374151;">` +
+      `To choose your password, use <b>"Forgot password"</b> on the sign-in ` +
+      `page — you'll receive an email to finish signing in.</p>\n` +
+      (args.appUrl
+        ? `<a href="${escapeHtml(args.appUrl)}" style="display:inline-block; background:#16a34a; color:#ffffff; font-size:15px; font-weight:600; padding:12px 24px; border-radius:10px; text-decoration:none;">Go to Sign-In</a>`
+        : '')
+  } else {
+    // Inviter chose the password themselves (admin flow).
+    actionBlock =
+      `<p style="margin:0 0 16px; font-size:15px; color:#374151;">` +
+      `Ask ${inviter} for your password, or use password recovery on the ` +
+      `sign-in page.</p>\n` +
+      (args.appUrl
+        ? `<a href="${escapeHtml(args.appUrl)}" style="display:inline-block; background:#16a34a; color:#ffffff; font-size:15px; font-weight:600; padding:12px 24px; border-radius:10px; text-decoration:none;">Access Portal</a>`
+        : '')
+  }
+
+  return (
+    `<div style="font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif; background:#f4f6f4; padding:24px 12px;">\n` +
+    `<div style="max-width:560px; margin:0 auto; background:#ffffff; border:1px solid #dbe5db; border-radius:16px; padding:32px;">\n` +
+    `<h1 style="margin:0 0 16px; font-size:22px; color:#111827;">${title}</h1>\n` +
+    `<p style="margin:0 0 12px; font-size:15px; color:#111827;">Hello <b>${name}</b>,</p>\n` +
+    `<p style="margin:0 0 20px; font-size:15px; color:#374151; line-height:1.6;">${intro}</p>\n` +
+    `<div style="background:#f1f5f1; border:1px solid #dbe5db; border-radius:10px; padding:14px 18px; margin:0 0 20px;">\n` +
+    `<div style="font-size:13px; color:#6b7280; margin:0 0 4px;"><b>Sign-in Email:</b></div>\n` +
+    `<span style="font-size:16px; color:#16a34a; font-weight:600;">${to}</span>\n` +
+    `</div>\n` +
+    actionBlock + `\n` +
+    `<hr style="border:none; border-top:1px solid #e5e7eb; margin:26px 0 18px;" />\n` +
+    `<p style="margin:0; text-align:center; font-size:12.5px; color:#6b7280;">` +
+    `Northern Bukidnon State College &middot; Institute of Computer Studies</p>\n` +
+    `</div>\n</div>`
+  )
+}
+
 // Sends the "your account was created by <inviter>" welcome email via Resend.
 // Returns true only when Resend accepted it (and logs the Resend message id
 // so the delivery can be traced in the Resend dashboard). Never throws:
@@ -159,7 +251,7 @@ async function sendWelcomeEmail(args: {
       `(NBSC · Institute of Computer Studies) by ${args.inviterName}.`
   const subject = args.resend
     ? 'Your CQI Monitoring sign-in link'
-    : 'Your CQI Monitoring account was created'
+    : 'Welcome to CQI Monitoring'
   const bodyLines = args.setupLink
     ? `Role: ${roleLabel}\n` +
       `Sign-in email: ${args.to}\n` +
@@ -198,6 +290,7 @@ async function sendWelcomeEmail(args: {
           intro + `\n\n` +
           bodyLines +
           `— CQI Monitoring System`,
+        html: buildEmailHtml(args),
       }),
     })
     if (!emailResp.ok) {
