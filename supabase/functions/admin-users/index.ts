@@ -341,6 +341,16 @@ Deno.serve(async (req: Request) => {
             setupLink,
             passwordGenerated,
           })
+          if (!welcomeEmailSent) {
+            // Resend rejected the send (wrong recipient for the sandbox
+            // sender until a domain is verified, expired key, outage...).
+            // Fall back to Supabase's built-in mailer so the faculty member
+            // still receives the one-time set-password email rather than
+            // nothing — branded delivery comes back on its own once Resend
+            // accepts the sender/recipient pair.
+            console.error('resend send rejected — falling back to built-in mailer')
+            welcomeEmailSent = await sendBuiltInRecoveryEmail(email, appUrl)
+          }
         } else {
           welcomeEmailSent = await sendBuiltInRecoveryEmail(email, appUrl)
         }
