@@ -17,13 +17,17 @@
 // Welcome email: after a successful create, the new user is emailed at their
 // address ("your account was created by <inviter name>"). When no password
 // was supplied — the manager's Add Faculty form only asks for an email —
-// a strong random password is generated here (nobody sees it) and the email
-// carries a one-time "set your password" link (an auth recovery link against
-// the freshly created account), so the user picks their own password on the
-// app's reset screen before signing in. Sending uses Resend and is skipped
-// gracefully when the secrets below are unset — account creation still
-// succeeds, and the response reports welcomeEmailSent:false. A user who never
-// got (or lost) the email simply uses "Forgot password" on the sign-in page.
+// a strong random password is generated here (nobody sees it) and the user
+// is emailed a way to set their own password before signing in:
+//   * Resend secrets configured  -> custom-branded welcome email with a
+//     one-time "set your password" link (an auth recovery link minted here).
+//   * otherwise (the default)    -> Supabase's built-in mailer sends its
+//     recovery email for the fresh account; its template already carries
+//     the working link, so no third-party service is involved. Built-in
+//     sending is rate-limited (~2 emails/hour) by Supabase's shared mailer.
+//   * neither is available / send failures -> creation still succeeds and
+//     the response reports welcomeEmailSent:false; the user falls back to
+//     "Forgot password" on the sign-in page.
 //
 //   npx supabase secrets set RESEND_API_KEY=re_... WELCOME_FROM_EMAIL="CQI Monitoring <accounts@your-domain>" APP_URL=https://your-app-url
 //
@@ -72,6 +76,51 @@ function generatePassword(length = 24): string {
   let out = ''
   for (let i = 0; i < length; i++) out += alphabet[bytes[i] % alphabet.length]
   return out
+}
+
+// Sends Supabase's BUILT-IN recovery email for an existing account — the
+// no-third-party path. GoTrue's own mailer renders the default "Reset
+// Password" template whose {{ .ConfirmationURL }} is the one-time link the
+// user opens to set their password (the app's PASSWORD_RECOVERY flow takes
+// over from there, same as Forgot-password). `redirect_to` points the link
+// at the app; if it is rejected (not in the project's redirect allow-list)
+// the send retries without it so GoTrue falls back to the configured Site
+// URL. Returns true only when the mailer accepted the send; never throws.
+// Beware: the built-in mailer is limited to ~2 sends/hour per project.
+async function sendBuiltInRecoveryEmail(to: string, appUrl: string): Promise<boolean> {
+  const url = Deno.env.get('SUPABASE_URL') || ''
+  const anon = Deno.env.get('SUPABASE_ANON_KEY') || ''
+  if (!url || !anon) return false
+  const post = async (redirectTo: string | null): Promise<Response> =>
+    await fetch(
+      redirectTo
+        ? `${url}/auth/v1/recover?redirect_to=${encodeURIComponent(redirectTo)}`
+        : `${url}/auth/v1/recover`,
+      {
+        method: 'POST',
+        headers: {
+          apikey: anon,
+          Authorization: `Bearer ${anon}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: to }),
+      },
+    )
+  try {
+    // Prefer landing the link on the app; on rejection, delete redirect and
+    // retry so the email still goes out (points at the Site URL).
+    let resp = appUrl ? await post(appUrl) : await post(null)
+    if (!resp.ok && appUrl) resp = await post(null)
+    if (!resp.ok) {
+      console.error('built-in recovery email failed:', resp.status, await resp.text())
+      return false
+    }
+    console.log('built-in recovery email accepted for:', to)
+    return true
+  } catch (err) {
+    console.error('built-in recovery email error:', err)
+    return false
+  }
 }
 
 // Sends the "your account was created by <inviter>" welcome email via Resend.
@@ -257,35 +306,45 @@ Deno.serve(async (req: Request) => {
       if (updateError) throw updateError
 
       // Welcome email to the new user, naming who added them. When the
-      // password was generated here (invite flow), mint a one-time recovery
-      // link against the fresh account and lead the email with it, so the
-      // user sets their own password. generateLink never sends mail itself;
-      // a failure (rare) degrades to the shared-password wording and the
-      // user falls back to Forgot password on the sign-in page.
-      let setupLink: string | undefined
+      // password was generated here (invite flow), the user is emailed a way
+      // to set their own password:
+      //   * Resend configured -> custom-branded email led by a minted
+      //     one-time recovery link (generateLink never sends mail itself;
+      //     its failure just degrades the wording inside the email).
+      //   * otherwise -> Supabase's built-in mailer recovery email; the
+      //     default template already contains the one-time set-password link.
+      //   * neither works -> welcomeEmailSent:false and the UI tells the
+      //     inviter to point the user at Forgot password on the sign-in page.
+      let welcomeEmailSent = false
+      const appUrl = Deno.env.get('APP_URL') || ''
       if (passwordGenerated) {
-        try {
-          const appUrl = Deno.env.get('APP_URL') || ''
-          const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
-            type: 'recovery',
-            email,
-            ...(appUrl ? { options: { redirectTo: appUrl } } : {}),
+        const resendConfigured =
+          !!Deno.env.get('RESEND_API_KEY') && !!Deno.env.get('WELCOME_FROM_EMAIL')
+        if (resendConfigured) {
+          let setupLink: string | undefined
+          try {
+            const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+              type: 'recovery',
+              email,
+              ...(appUrl ? { options: { redirectTo: appUrl } } : {}),
+            })
+            if (linkError) throw linkError
+            setupLink = linkData?.properties?.actionLink || undefined
+          } catch (err) {
+            console.error('generateLink failed (falling back to recovery-note email):', err)
+          }
+          welcomeEmailSent = await sendWelcomeEmail({
+            to: email,
+            name: fullName,
+            role,
+            inviterName,
+            setupLink,
+            passwordGenerated,
           })
-          if (linkError) throw linkError
-          setupLink = linkData?.properties?.actionLink || undefined
-        } catch (err) {
-          console.error('generateLink failed (falling back to recovery-note email):', err)
+        } else {
+          welcomeEmailSent = await sendBuiltInRecoveryEmail(email, appUrl)
         }
       }
-
-      const welcomeEmailSent = await sendWelcomeEmail({
-        to: email,
-        name: fullName,
-        role,
-        inviterName,
-        setupLink,
-        passwordGenerated,
-      })
 
       return json({ id: created.user.id, email: created.user.email, welcomeEmailSent })
     }
