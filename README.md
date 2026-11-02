@@ -350,6 +350,8 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 | `syncDemoRole()` | Restore the caller's expected role (demo accounts) or bootstrap the first admin | any signed-in user |
 | `fetchAllProfiles()` | List all users | admins/managers |
 | `updateUserRole(profileId, role)` | Change a user's role | admins |
+| `updateUserStatus(profileId, status)` | Archive/restore an account (soft delete) | admins; managers (faculty rows only — migration 012) |
+| `adminResendInvite(userId)` | Re-email a fresh one-time sign-in link via the `admin-users` Edge Function | admins/managers (managers can only re-invite faculty) |
 | `adminCreateUser(email, password?, fullName?, role)` | Create an auth user via the `admin-users` Edge Function; with no password one is generated and a one-time set-password link is emailed to the user | admins/managers (managers can only create faculty) |
 | `fetchResources()` | List resources with creator name (embedded join) | all signed-in users |
 | `createResource(title, description, userId)` | Insert a resource | admins/managers |

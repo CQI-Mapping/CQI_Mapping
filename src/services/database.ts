@@ -309,7 +309,9 @@ export async function updateUserProgram(profileId: string, programId: string | n
  * restorable, nothing is ever lost, and the only thing an archived account
  * loses is sign-in — Login refuses it while the status reads archived. The
  * direct-update pattern matches updateUserRole: admins own these columns
- * under RLS, so a manager can never park or revive an account.
+ * under RLS, and since migration 012 managers share the right for
+ * 'user'-role rows only (the guard trigger rejects any other column change
+ * from a manager).
  */
 export async function updateUserStatus(
   profileId: string,

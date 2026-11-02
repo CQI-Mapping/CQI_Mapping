@@ -10,7 +10,7 @@
 
 import { useState, useEffect } from 'react'
 import Icon from '../../components/icons'
-import { adminCreateUser, adminResendInvite, addActivityLog, fetchAllProfiles } from '../../services/database'
+import { adminCreateUser, adminResendInvite, addActivityLog, fetchAllProfiles, updateUserStatus } from '../../services/database'
 import { isActive } from '../../utils/report'
 import { supabase } from '../../utils/supabaseClient'
 import type { Profile } from '../../services/database'
@@ -43,6 +43,29 @@ function Users() {
       await addActivityLog('user.invite_resent', { entity: 'user', entity_id: userId, label: email })
     } catch (e) {
       setError('Failed to resend the invite: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setResendBusyId('')
+    }
+  }
+
+  // Archive (soft-delete) a faculty account: the same reversible pattern the
+  // admin page uses. Migration 012 scopes this RLS-right to 'user'-role rows
+  // only, and the guard trigger rejects anything beyond a status change —
+  // so the UI can rely on the server refusing manager-name/role edits. The
+  // row drops out of this directory (archived rows are hidden here); the
+  // admin's Archive tab restores it.
+  const handleArchive = async (userId: string, email: string) => {
+    if (!window.confirm(`Archive user ${email}? They cannot sign in until an administrator restores the account.`)) return
+    setError('')
+    setSuccess('')
+    setResendBusyId(userId)
+    try {
+      await updateUserStatus(userId, 'archived')
+      setSuccess(`Account ${email} archived. Only the administrator can restore it.`)
+      await addActivityLog('user.archived', { entity: 'user', entity_id: userId, label: email })
+      load()
+    } catch (e) {
+      setError('Failed to archive user: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
       setResendBusyId('')
     }
@@ -112,7 +135,7 @@ function Users() {
     <div className="users">
       <div className="page-heading">
         <h2>Users &amp; Accounts</h2>
-        <p>Faculty directory. You can add faculty accounts; role changes and removal are admin-only.</p>
+        <p>Faculty directory. You can add faculty accounts, resend their invite, or archive them; role changes and removal are admin-only.</p>
       </div>
 
       {error && <p className="msg msg--error" role="alert">{error}</p>}
@@ -164,14 +187,26 @@ function Users() {
                   </td>
                   <td>{new Date(u.created_at).toLocaleDateString()}</td>
                   <td>
-                    <button
-                      className="btn btn--ghost btn--sm"
-                      disabled={resendBusyId === u.id}
-                      onClick={() => handleResendInvite(u.id, u.email)}
-                      title="Lost the invite? Emails them a fresh one-time link to set their password"
-                    >
-                      {resendBusyId === u.id ? 'Sending...' : (<><Icon name="mail" size={13} /> Resend invite</>)}
-                    </button>
+                    {u.role === 'user' && (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          className="btn btn--ghost btn--sm"
+                          disabled={resendBusyId === u.id}
+                          onClick={() => handleResendInvite(u.id, u.email)}
+                          title="Lost the invite? Emails them a fresh one-time link to set their password"
+                        >
+                          {resendBusyId === u.id ? 'Sending...' : (<><Icon name="mail" size={13} /> Resend invite</>)}
+                        </button>
+                        <button
+                          className="btn btn--ghost btn--sm"
+                          disabled={resendBusyId === u.id}
+                          onClick={() => handleArchive(u.id, u.email)}
+                          title="Soft delete — they cannot sign in until an administrator restores them"
+                        >
+                          {resendBusyId === u.id ? 'Archiving...' : 'Archive'}
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}
