@@ -27,7 +27,7 @@ import {
 } from '../services/database'
 import { supabase } from '../utils/supabaseClient'
 import { loadEmailAvatar, initialsOf } from '../utils/avatar'
-import { formatDayTime, timeAgo } from '../utils/time'
+import { formatDayTime } from '../utils/time'
 import { ACTION_LABELS } from './admin/ActivityLabels'
 import type { Profile as ProfileType, ActivityLogEntry, Program, UserRole } from '../services/database'
 
@@ -186,26 +186,6 @@ function Profile({ profile, onSaved, onNavigate }: ProfileProps) {
     setEditing(true)
   }
 
-  // Focus lands on the name field when editing begins — except when the
-  // completion nudge's "Add a nickname" is what opened the editor.
-  const nameInputRef = useRef<HTMLInputElement>(null)
-  const nickInputRef = useRef<HTMLInputElement>(null)
-  const [focusNickname, setFocusNickname] = useState(false)
-  useEffect(() => {
-    if (!editing) return
-    if (focusNickname) {
-      nickInputRef.current?.focus()
-      setFocusNickname(false)
-    } else {
-      nameInputRef.current?.focus()
-    }
-  }, [editing, focusNickname])
-
-  const startEditingNickname = () => {
-    setFocusNickname(true)
-    startEditing()
-  }
-
   const cancelEditing = () => {
     setFullName(savedName)
     setNickname(savedNickname)
@@ -251,14 +231,6 @@ function Profile({ profile, onSaved, onNavigate }: ProfileProps) {
 
   // ----- Personal audit trail -----
 
-  // A slow minute-tick keeps the relative stamps ("2h ago") and the active
-  // window honest while the page sits open — nothing is re-fetched.
-  const [now, setNow] = useState(() => new Date())
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 60_000)
-    return () => clearInterval(t)
-  }, [])
-
   // The user's own recent audit entries drive two views: the header's
   // "active" dot and the timeline card. Twelve entries keep the trail tidy;
   // a fetch failure is shown as its own state rather than being disguised
@@ -268,7 +240,7 @@ function Profile({ profile, onSaved, onNavigate }: ProfileProps) {
   const [activityRefresh, setActivityRefresh] = useState(0)
   const latestEntry = logs[0] ?? null
   const activeRecently = Boolean(
-    latestEntry && now.getTime() - new Date(latestEntry.created_at).getTime() < ACTIVE_WINDOW_MS,
+    latestEntry && Date.now() - new Date(latestEntry.created_at).getTime() < ACTIVE_WINDOW_MS,
   )
 
   useEffect(() => {
@@ -345,15 +317,6 @@ function Profile({ profile, onSaved, onNavigate }: ProfileProps) {
   const avatarSrc = profile?.avatar_url ?? emailAvatar
   const isArchived = profile?.status === 'archived'
 
-  // Progressive profiling (the 2026 pattern): the editable surface is photo
-  // · name · nickname, and name is required — so the meter tracks the two
-  // optional touches. Any real picture counts (upload or Gravatar); the
-  // initials tile is the fallback the meter nudges away from. The strip
-  // never renders at 100% — nothing nags a finished profile.
-  const hasPicture = Boolean(avatarSrc)
-  const hasNickname = Boolean(profile?.nickname)
-  const completionPct = Math.round(((Number(hasPicture) + Number(hasNickname)) / 2) * 100)
-
   return (
     <div className="programs-page profile">
       {/* Identity header — light and airy. The role's tint still shows as
@@ -388,15 +351,12 @@ function Profile({ profile, onSaved, onNavigate }: ProfileProps) {
                   ? `Member since ${new Date(profile.created_at).toLocaleDateString()}`
                   : 'Member since —'}
               </span>
-              <span
-                className="pr-meta"
-                title={latestEntry ? `Last activity — ${formatDayTime(latestEntry.created_at)}` : 'Last activity'}
-              >
+              <span className="pr-meta" title="Last activity">
                 <span
                   className={`pr-meta__dot${activeRecently ? '' : ' pr-meta__dot--idle'}`}
                   aria-hidden="true"
                 />
-                {latestEntry ? timeAgo(latestEntry.created_at, now) : 'No activity yet'}
+                {latestEntry ? formatDayTime(latestEntry.created_at) : 'No activity yet'}
               </span>
             </div>
           </div>
@@ -430,32 +390,6 @@ function Profile({ profile, onSaved, onNavigate }: ProfileProps) {
                 : 'What others see across reports & audit logs'}
             </span>
           </div>
-
-          {/* Completion nudge — hidden while editing (the fields are right
-              there) and once everything is filled in. */}
-          {!editing && completionPct < 100 && (
-            <div className="pr-progress" role="status">
-              <span className="pr-progress__bar" aria-hidden="true">
-                <span className="pr-progress__fill" style={{ width: `${completionPct}%` }} />
-              </span>
-              <span className="pr-progress__label">Profile {completionPct}% complete</span>
-              {!hasNickname && (
-                <button type="button" className="pf-link" onClick={startEditingNickname}>
-                  Add a nickname →
-                </button>
-              )}
-              {!hasPicture && (
-                <button
-                  type="button"
-                  className="pf-link"
-                  onClick={handleAvatarPick}
-                  disabled={!profile || avatarBusy}
-                >
-                  Upload a photo →
-                </button>
-              )}
-            </div>
-          )}
 
           {/* Picture row — explicit controls, no hover-only affordance. */}
           <div className="pr-photo">
@@ -509,12 +443,12 @@ function Profile({ profile, onSaved, onNavigate }: ProfileProps) {
               {editing ? (
                 <input
                   id="pr-name-input"
-                  ref={nameInputRef}
                   className="input"
                   type="text"
                   value={fullName}
                   maxLength={NAME_MAX_LENGTH}
                   onChange={(e) => setFullName(e.target.value)}
+                  autoFocus
                 />
               ) : (
                 <p className="pr-value">
@@ -528,7 +462,6 @@ function Profile({ profile, onSaved, onNavigate }: ProfileProps) {
               {editing ? (
                 <input
                   id="pr-nick-input"
-                  ref={nickInputRef}
                   className="input"
                   type="text"
                   value={nickname}
@@ -698,9 +631,7 @@ function Profile({ profile, onSaved, onNavigate }: ProfileProps) {
                       {categoryLabel(category)}
                     </span>
                   </div>
-                  <div className="pr-tl-time" title={formatDayTime(entry.created_at)}>
-                    {timeAgo(entry.created_at, now)}
-                  </div>
+                  <div className="pr-tl-time">{formatDayTime(entry.created_at)}</div>
                 </li>
               )
             })}
