@@ -4,6 +4,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
+import ErrorBoundary from './components/ErrorBoundary'
 import { supabaseConfigured } from './utils/supabaseClient'
 import './index.css'
 
@@ -27,9 +28,13 @@ if (!supabaseConfigured) {
   )
 } else {
   // StrictMode double-invokes effects in development to surface bugs.
+  // ErrorBoundary sits above the app: a render crash anywhere in the tree
+  // lands on a readable fallback instead of a blank tab.
   root.render(
     <React.StrictMode>
-      <App />
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
     </React.StrictMode>
   )
 }
