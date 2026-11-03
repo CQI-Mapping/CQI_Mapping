@@ -237,37 +237,34 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
                   </svg>
                 </button>
                 {ddOpen && (
-                  <>
-                    <button type="button" className="hdr__dd-overlay" onClick={() => setDdOpen(false)} aria-label="Close academics menu" tabIndex={-1} />
-                    <div className="hdr__dd-menu" role="menu">
-                      <div className="hdr__dd-grid" role="none">
-                        {academics.map(({ id, label }) => (
-                          <button
-                            key={id}
-                            type="button"
-                            role="menuitem"
-                            className={`hdr__dd-item ${activePage === id ? 'hdr__dd-item--active' : ''}`}
-                            onClick={() => navigate(id)}
-                          >
-                            <span className="hdr__dd-iconWrap">
-                              <Icon d={ICONS[id] || ICONS.dashboard} className="hdr__dd-icon" />
-                            </span>
-                            <span className="hdr__dd-text">
-                              <span className="hdr__dd-label">{label}</span>
-                              <span className="hdr__dd-desc">{ACADEMICS_META[id]?.desc ?? ''}</span>
-                            </span>
-                            <svg className="hdr__dd-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                              <path d="M9 18l6-6-6-6" />
-                            </svg>
-                          </button>
-                        ))}
-                      </div>
-                      <div className="hdr__dd-foot">
-                        <span>Quick access to all academic records</span>
-                        <span className="hdr__dd-foot-hint">Press Esc to close</span>
-                      </div>
+                  <div className="hdr__dd-menu" role="menu">
+                    <div className="hdr__dd-grid" role="none">
+                      {academics.map(({ id, label }) => (
+                        <button
+                          key={id}
+                          type="button"
+                          role="menuitem"
+                          className={`hdr__dd-item ${activePage === id ? 'hdr__dd-item--active' : ''}`}
+                          onClick={() => navigate(id)}
+                        >
+                          <span className="hdr__dd-iconWrap">
+                            <Icon d={ICONS[id] || ICONS.dashboard} className="hdr__dd-icon" />
+                          </span>
+                          <span className="hdr__dd-text">
+                            <span className="hdr__dd-label">{label}</span>
+                            <span className="hdr__dd-desc">{ACADEMICS_META[id]?.desc ?? ''}</span>
+                          </span>
+                          <svg className="hdr__dd-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M9 18l6-6-6-6" />
+                          </svg>
+                        </button>
+                      ))}
                     </div>
-                  </>
+                    <div className="hdr__dd-foot">
+                      <span>Quick access to all academic records</span>
+                      <span className="hdr__dd-foot-hint">Press Esc to close</span>
+                    </div>
+                  </div>
                 )}
               </div>
             )}
@@ -322,57 +319,54 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
                 </svg>
               </button>
               {profileOpen && (
-                <>
-                  <button type="button" className="hdr__profile-overlay" onClick={() => setProfileOpen(false)} aria-label="Close profile menu" tabIndex={-1} />
-                  <div className="hdr__profile-menu" role="menu">
-                    <div className="hdr__profile-head">
-                      <div className="hdr__profile-avatarLg">
-                        {profileAvatar ? <img src={profileAvatar} alt="" className="hdr__avatar-img" /> : avatarInitials}
-                      </div>
-                      <div className="hdr__profile-info">
-                        <span className="hdr__profile-name">{displayName}</span>
-                        <span className="hdr__profile-sub">{displayEmail}</span>
-                      </div>
-                      <span className="hdr__profile-badge">{role}</span>
+                <div className="hdr__profile-menu" role="menu">
+                  <div className="hdr__profile-head">
+                    <div className="hdr__profile-avatarLg">
+                      {profileAvatar ? <img src={profileAvatar} alt="" className="hdr__avatar-img" /> : avatarInitials}
                     </div>
-                    <div className="hdr__profile-list" role="none">
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className={`hdr__profile-item ${activePage === 'profile' ? 'hdr__profile-item--active' : ''}`}
-                        onClick={() => navigate('profile')}
-                      >
-                        <Icon d={ICONS.profile} className="hdr__profile-icon" />
-                        <span>My Profile</span>
-                        <svg className="hdr__profile-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <path d="M9 18l6-6-6-6" />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className={`hdr__profile-item ${activePage === 'security' ? 'hdr__profile-item--active' : ''}`}
-                        onClick={() => navigate('security')}
-                      >
-                        <Icon d={ICONS.security} className="hdr__profile-icon" />
-                        <span>Security &amp; Privacy</span>
-                        <svg className="hdr__profile-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <path d="M9 18l6-6-6-6" />
-                        </svg>
-                      </button>
-                      <div className="hdr__profile-sep" role="separator" />
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="hdr__profile-item hdr__profile-item--danger"
-                        onClick={onLogout}
-                      >
-                        <Icon d={LOGOUT_ICON} className="hdr__profile-icon" />
-                        <span>Logout</span>
-                      </button>
+                    <div className="hdr__profile-info">
+                      <span className="hdr__profile-name">{displayName}</span>
+                      <span className="hdr__profile-sub">{displayEmail}</span>
                     </div>
+                    <span className="hdr__profile-badge">{role}</span>
                   </div>
-                </>
+                  <div className="hdr__profile-list" role="none">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={`hdr__profile-item ${activePage === 'profile' ? 'hdr__profile-item--active' : ''}`}
+                      onClick={() => navigate('profile')}
+                    >
+                      <Icon d={ICONS.profile} className="hdr__profile-icon" />
+                      <span>My Profile</span>
+                      <svg className="hdr__profile-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M9 18l6-6-6-6" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={`hdr__profile-item ${activePage === 'security' ? 'hdr__profile-item--active' : ''}`}
+                      onClick={() => navigate('security')}
+                    >
+                      <Icon d={ICONS.security} className="hdr__profile-icon" />
+                      <span>Security &amp; Privacy</span>
+                      <svg className="hdr__profile-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M9 18l6-6-6-6" />
+                      </svg>
+                    </button>
+                    <div className="hdr__profile-sep" role="separator" />
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="hdr__profile-item hdr__profile-item--danger"
+                      onClick={onLogout}
+                    >
+                      <Icon d={LOGOUT_ICON} className="hdr__profile-icon" />
+                      <span>Logout</span>
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           </div>
