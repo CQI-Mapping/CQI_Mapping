@@ -1,0 +1,37 @@
+# CI: verify every push and pull request — types, tests, build. The suite
+# runs on plain Node 22 with no Supabase secrets: the unit tests are pure
+# logic (they never touch the network), and the Vite build only needs the
+# bundler. A red run here means a regression landed; the app itself points
+# at the live project via .env, which stays local and uncommitted.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    name: types · tests · build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          # package-lock.json pins the tree; platform-specific bundler
+          # bindings (rolldown / rollup) resolve as optional transitive
+          # deps, so the same lockfile installs cleanly on Linux.
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build

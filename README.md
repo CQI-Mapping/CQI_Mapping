@@ -113,7 +113,9 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
     ├── vite-env.d.ts         # Vite environment variable types
     ├── components/
     │   ├── Sidebar.tsx               # Dark-glass top navbar, per-role nav + mega dropdown + profile menu
+    │   ├── ErrorBoundary.tsx         # App-root crash guard: readable fallback page + stack in <details>
     │   ├── icons.tsx                 # The `Icon` set (name → svg) used across pages
+    │   ├── ConfirmDialog.tsx         # Accessible destructive-action confirm (Profile & Security uses it)
     │   ├── PageBanner.tsx            # Screen-only banner strip for TOS / View / Map
     │   ├── TosSheetGrid.tsx          # The on-screen workbook grid (green inputs / gray formulas)
     │   ├── TosBlueprintEditor.tsx    # Inline blueprint editor inside a library card
@@ -125,8 +127,11 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
     │   ├── SuggestionInput.tsx       # PO-suggestion combobox on the CLO page
     │   └── ViewModeToggle.tsx        # List/grid toggle, as on Curriculum pages
     ├── pages/
-    │   ├── Login.tsx         # Sign in (login only, no create-account tab)
+    │   ├── Login.tsx         # Sign in (email/password + school-scoped Google) + forgot-password form
     │   ├── Profile.tsx       # View/edit own profile (shared by all roles)
+    │   ├── SecurityPrivacy.tsx  # Password change, sessions, audit trail, privacy controls
+    │   ├── ResetPassword.tsx    # Set-a-new-password screen (recovery-link sessions) + success card
+    │   ├── ResetLinkExpired.tsx # Expired/used recovery link — screen 5 of the reset redesign
     │   ├── shared/
     │   │   └── Reports.tsx   # Generate Map (all roles): mapping summary, PO coverage, exports
     │   ├── admin/
@@ -235,6 +240,14 @@ Open the printed local URL (usually `http://localhost:5173`) and sign in.
    This step is the server-side version of the school-accounts-only rule: it enforces *back at the auth layer*, not just in the UI, that only official `@nbsc.edu.ph` Google accounts can sign in. Because it lives in a dashboard setting rather than a repo file, document it per project.
 
 On first Google sign-in the `handle_new_user` trigger creates the profile automatically from the Google metadata — full name and profile photo arrive pre-filled; the role starts as `user (faculty)` and must be assigned by an admin, exactly like password sign-ups. Every Google sign-in writes the same `auth.login` audit row the password path writes.
+
+### 7. Align the password minimum to 8 (auth config)
+
+Every password form in this app requires **8 characters** (`src/utils/passwordPolicy.ts`), but a fresh Supabase project still accepts **6** server-side — so a 7-character password sent by anything other than our forms (a direct API call) would slip through the policy split. Close it in the dashboard:
+
+**Supabase Dashboard → Authentication → Policies → "Minimum password length" → `8`** (in older dashboard layouts this lives under **Settings → Authentication / Providers**, as "Minimum password length").
+
+It is a project setting, not a schema file, so per database it's a one-time toggle. Already-set accounts aren't affected — only new/changed passwords are checked.
 
 ---
 
@@ -443,6 +456,13 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 - Every attempt is written to `activity_logs` via the `record_login_event` RPC (`auth.login` on success, `auth.login_failed` on failure), with the failure reason (`invalid_credentials` / `service_unreachable`) kept in `details.reason`.
 - Respects `prefers-reduced-motion`; mobile padding at 360px.
 
+### `ResetPassword.tsx` & `ResetLinkExpired.tsx`
+The rest of the password-reset journey (mockup: `design/profile-reset-redesign.html`, screens 3–5):
+- `ResetPassword` is the **set-a-new-password screen**: a `PASSWORD_RECOVERY` auth event swaps the whole app shell for it (App.tsx), and it writes the same `profile.password_changed` audit row the retired profile card used to write. Its submit endures an audit-write failure (logged, never thrown) so a completed change can't lie about itself.
+- On success the flow ends with the **"Password updated" card** (animated check, `login-check`) and a 5-second countdown; the recovery session — which was only ever valid for choosing a new password — is signed out, so the sign-in that follows genuinely comes from the fresh password. The countdown and the button both land on the sign-in page (`onDone`).
+- An **expired or already-used link** never reaches that page: Supabase's verify endpoint bounces it back to the app with `error_description="Email link is invalid or has expired"`, App reads it once (`src/utils/oauthErrors.ts`), scrubs the URL, and renders **`ResetLinkExpired`** — "nothing was changed, your current password still works", with **"Send me a new link"** jumping straight into Login's forgot-password form (email typed by the user; the bounce carries no address).
+- Other auth bounces (OAuth cancellations, sign-ups-disabled refusals) arrive at Login as a pre-remixed one-line notice via the same module — expiry is matched **before** `access_denied` because a dead recovery link packs both markers, and sign-up-disabled before cancellation for the same reason. Covered by `oauthErrors.test.ts`.
+
 ### `admin/Dashboard.tsx`
 - Banner strip with the composed campus-entrance artwork (`banner-bg.jpg`) + greeting; skeleton stat cards with per-item error fallback (`0`, never stuck), `aria-busy` grid.
 - Stats: Users, Strategic Goals, PEOs, Program Outcomes, CLOs, CHED Memo Orders.
@@ -585,7 +605,7 @@ New role-restricted feature, end to end. Example: a `reports` table that admins 
 - **`.env` is gitignored** — commit `.env.example`, not `.env`.
 - **Audit log** is client-inserted; treat it as an activity trail, not a tamper-proof record.
 - **Never promote via email-derived rules.** In this starter, role is assigned explicitly (admin updates it). Do not derive access from email domains or department fields — that is fragile and error-prone (see the instructor-ui repo discussion).
-- **Password policy** — Supabase defaults apply; `adminCreateUser` uses `email_confirm: true` so created users can sign in immediately (development convenience). With no password given, the Edge Function generates one (nobody sees it) and the user is emailed a one-time set-password link: Supabase's built-in mailer by default (rate-limited ~2/hour), or a custom-branded Resend email when `RESEND_API_KEY`/`WELCOME_FROM_EMAIL` secrets are set. No password is ever shared with the inviter.
+- **Password policy** — client-side every form requires 8 characters and mirrors it in the strength meter (`src/utils/passwordPolicy.ts`); align the project's **Minimum password length** to 8 in the dashboard (setup step 7) so a direct API call can't sneak in a 6–7-character password. `adminCreateUser` uses `email_confirm: true` so created users can sign in immediately (development convenience). With no password given, the Edge Function generates one (nobody sees it) and the user is emailed a one-time set-password link: Supabase's built-in mailer by default (rate-limited ~2/hour), or a custom-branded Resend email when `RESEND_API_KEY`/`WELCOME_FROM_EMAIL` secrets are set. No password is ever shared with the inviter.
 - **Log an action only when it happened.** `useEntityCrud` handlers return early when there is no row to act on and skip the audit write in that case. Copy the pattern when adding handlers — an audit entry for a mutation that did not occur is worse than a missing one, because it looks like evidence.
 - **Archive/restore are not updates.** Give them their own action names (`<entity>.archived` / `<entity>.restored`) so the log can distinguish removing a record from renaming one. `EntityCrudPage` derives these from `updateAction`.
 
@@ -616,6 +636,19 @@ New role-restricted feature, end to end. Example: a `reports` table that admins 
 | Changes to `supabase-schema.sql` have no effect | The SQL file is only the source of truth — you must re-run it (or the relevant DDL) in the Supabase SQL Editor. |
 | Port already in use on `npm run dev` | Vite picks another port automatically, or kill the process holding the port. |
 | Stale data after edits | Data is fetched on page load; navigate away and back (or refresh). No realtime subscriptions are set up. |
+
+---
+
+## 12. Continuous Integration
+
+`.github/workflows/ci.yml` runs on **every push and pull request** on a GitHub-hosted Ubuntu runner — no secrets, no Supabase connection needed:
+
+1. `npm ci` — installs the pinned tree (`package-lock.json`); the platform-specific rolldown/rollup bindings resolve as optional transitive dependencies, so one lockfile installs cleanly on Windows (dev) and Linux (CI).
+2. `npx tsc --noEmit` — the typecheck gate.
+3. `npm test` — the `vitest` suite (pure logic, 300+ tests).
+4. `npm run build` — the production bundle.
+
+A red match here means a regression landed; fixing it precedes any new feature work. The workflow never runs migrations against the database — schema changes stay manual by design (see §6).
 
 ---
 
