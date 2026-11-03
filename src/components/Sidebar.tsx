@@ -61,6 +61,7 @@ const ICONS: Record<string, string> = {
   analytics: 'path M3 3v18h18|rect 7 12 3 6 1|rect 12 7 3 11 1|rect 17 10 3 8 1',
   'activity-logs': 'path M3 12a9 9 0 1 0 3-6.7L3 8|path M3 3v5h5|path M12 7v5l4 2',
   profile: 'circle 12 8 4|path M4 21c0-4.418 3.582-7 8-7s8 2.582 8 7',
+  security: 'path M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z',
 }
 
 const LOGOUT_ICON = 'path M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4|polyline 16 17 21 12 16 7|line 21 12 9 12'
@@ -97,13 +98,15 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
   const navRef = useRef<HTMLDivElement>(null)
   const leaveTimer = useRef<number | null>(null)
 
-  // Separate dashboard, academics, and other items — profile is handled in avatar dropdown
+  // Separate dashboard, academics, and other items — profile and security live
+  // in the avatar dropdown
   const academics = navItems.filter((n) => ACADEMICS_IDS.has(n.id))
   const hasAcademics = academics.length >= 2
   const dashboardItem = navItems.find((n) => n.id === 'dashboard')
+  const inProfileMenu = (n: { id: string }) => n.id === 'profile' || n.id === 'security'
   const otherItems = hasAcademics
-    ? navItems.filter((n) => n.id !== 'dashboard' && !ACADEMICS_IDS.has(n.id) && n.id !== 'profile')
-    : navItems.filter((n) => n.id !== 'dashboard' && n.id !== 'profile')
+    ? navItems.filter((n) => n.id !== 'dashboard' && !ACADEMICS_IDS.has(n.id) && !inProfileMenu(n))
+    : navItems.filter((n) => n.id !== 'dashboard' && !inProfileMenu(n))
 
   const isAcademicsActive = academics.some((n) => n.id === activePage)
   const displayName = (profileName ?? '').trim() || `${role.charAt(0).toUpperCase() + role.slice(1)} User`
@@ -301,7 +304,7 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
             <div className="hdr__profile" ref={profileRef}>
               <button
                 type="button"
-                className={`hdr__profileBtn ${profileOpen ? 'hdr__profileBtn--open' : ''} ${activePage === 'profile' ? 'hdr__profileBtn--active' : ''}`}
+                className={`hdr__profileBtn ${profileOpen ? 'hdr__profileBtn--open' : ''} ${activePage === 'profile' || activePage === 'security' ? 'hdr__profileBtn--active' : ''}`}
                 onClick={() => {
                   setProfileOpen((v) => !v)
                   if (!profileOpen) setDdOpen(false)
@@ -341,6 +344,18 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
                       >
                         <Icon d={ICONS.profile} className="hdr__profile-icon" />
                         <span>My Profile</span>
+                        <svg className="hdr__profile-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M9 18l6-6-6-6" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={`hdr__profile-item ${activePage === 'security' ? 'hdr__profile-item--active' : ''}`}
+                        onClick={() => navigate('security')}
+                      >
+                        <Icon d={ICONS.security} className="hdr__profile-icon" />
+                        <span>Security &amp; Privacy</span>
                         <svg className="hdr__profile-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                           <path d="M9 18l6-6-6-6" />
                         </svg>

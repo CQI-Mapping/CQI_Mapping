@@ -1,25 +1,37 @@
-// Profile page: identity summary, display-name editor, and a
-// peek at the user's own audit trail. Layout mirrors the interactive concept in
-// design/profile-redesign.html: a role-tinted hero avatar, an identity card with
-// fact tiles, a two-column body, and a personal activity timeline.
+// Profile page: the account's identity record.
+//
+// Built to the Profile & Security spec: one "Profile information" card where
+// only the picture, full name and nickname are editable (through an explicit
+// Edit profile → Save changes / Cancel cycle), while email, department,
+// program, designation, role and account status display read-only. Password
+// and session control live on the Security & Privacy page; a personal
+// activity trail closes the page.
+//
+// Backend authorization note: the read-only fields are enforced server-side
+// by the profiles_edit_guard trigger (migrations/013) — the UI simply never
+// renders editors for them.
 
 import { useEffect, useRef, useState } from 'react'
 import { useDraft } from '../hooks/useDraft'
 import Icon from '../components/icons'
-import { updateProfile, addActivityLog, fetchActivityLogs, uploadAvatar } from '../services/database'
+import {
+  updateProfile,
+  addActivityLog,
+  fetchActivityLogs,
+  uploadAvatar,
+  fetchPrograms,
+} from '../services/database'
 import { supabase } from '../utils/supabaseClient'
 import { loadEmailAvatar, initialsOf } from '../utils/avatar'
-import { friendlyPasswordError } from '../utils/passwordErrors'
+import { formatDayTime } from '../utils/time'
 import { ACTION_LABELS } from './admin/ActivityLabels'
-import type { Profile as ProfileType, ActivityLogEntry, UserRole } from '../services/database'
+import type { Profile as ProfileType, ActivityLogEntry, Program, UserRole } from '../services/database'
 
 interface ProfileProps {
   profile: ProfileType | null
   onSaved: (profile: ProfileType) => void
+  onNavigate?: (page: string) => void
 }
-
-/** The system's password policy — keep in sync with the auth config and ResetPassword. */
-const MIN_PASSWORD_LENGTH = 8
 
 /** Same cap the concept mockup stamped on the name field. */
 const NAME_MAX_LENGTH = 80
@@ -48,18 +60,6 @@ function describe(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
 
-/** 'Today · 9:14 AM', 'Yesterday · …', or a calendar date — matches the mockup. */
-function formatDayTime(iso: string): string {
-  const d = new Date(iso)
-  const now = new Date()
-  const localDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
-  const diffDays = Math.round((localDay(now) - localDay(d)) / 86400000)
-  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-  if (diffDays <= 0) return `Today · ${time}`
-  if (diffDays === 1) return `Yesterday · ${time}`
-  return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} · ${time}`
-}
-
 /** The action's entity family — the string before the first dot. */
 function categoryOf(action: string): string {
   return action.split('.')[0] ?? ''
@@ -81,70 +81,155 @@ function categoryTone(category: string): string {
   return 'misc'
 }
 
-function Profile({ profile, onSaved }: ProfileProps) {
-  // Draft survives page navigation; cleared on successful save and on Discard.
+function Profile({ profile, onSaved, onNavigate }: ProfileProps) {
+  const role: UserRole = profile?.role ?? 'user'
+  const savedName = profile?.full_name ?? ''
+  const savedNickname = profile?.nickname ?? ''
+  const savedDepartment = profile?.department ?? null
+  const savedDesignation = profile?.designation ?? null
+
+  // Draft survives page navigation; cleared on successful save and on Cancel.
   const [draft, setDraft] = useDraft('cqi.draft.Profile', {
-    fullName: profile?.full_name || '',
-    nickname: profile?.nickname ?? '',
+    fullName: savedName,
+    nickname: savedNickname,
   })
   const { fullName, nickname } = draft
   const setFullName = (v: string) => setDraft((d) => ({ ...d, fullName: v }))
   const setNickname = (v: string) => setDraft((d) => ({ ...d, nickname: v }))
+
+  const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
-  const role: UserRole = profile?.role ?? 'user'
-  const savedName = profile?.full_name ?? ''
   const displayName = savedName || profile?.email || ''
-  const savedNickname = profile?.nickname ?? ''
 
   // Nickname is casual and optional: trimmed, never empty-string in the DB.
   const nicknameNormalized = nickname.trim()
-  const nameDirty = fullName.trim() !== savedName
-  const nicknameDirty = nicknameNormalized !== savedNickname
-  const dirty = nameDirty || nicknameDirty
-  const canSave = Boolean(profile) && dirty && fullName.trim().length > 0
+  const dirty = fullName.trim() !== savedName || nicknameNormalized !== savedNickname
+  const canSave = Boolean(profile) && fullName.trim().length > 0
 
-  // Passwords stay in component state only (never in sessionStorage).
-  const [currentPassword, setCurrentPassword] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [changingPassword, setChangingPassword] = useState(false)
-  const [passwordError, setPasswordError] = useState('')
-  const [passwordMessage, setPasswordMessage] = useState('')
-  const [passwordWarning, setPasswordWarning] = useState('')
+  // ----- Profile picture (always editable, inside the fields card) -----
 
-  const currentPasswordEntered = currentPassword.length > 0
-  const passwordLongEnough = password.length >= MIN_PASSWORD_LENGTH
-  // Better-security mix: counting how many of lower/upper digits/symbols the
-  // password touches. All four together light the checklist's advisory chip.
-  const passwordVariety = [
-    /[a-z]/.test(password),
-    /[A-Z]/.test(password),
-    /[0-9]/.test(password),
-    /[^a-zA-Z0-9]/.test(password),
-  ].filter(Boolean).length
-  const passwordsMatch = password.length > 0 && password === confirmPassword
-  const passwordStrength = !password
-    ? 0
-    : passwordLongEnough
-      ? 0.45 + 0.55 * (0.7 * Math.min(password.length / 16, 1) + 0.3 * (passwordVariety / 4))
-      : 0.15
-  const canSubmitPassword =
-    Boolean(profile) &&
-    !changingPassword &&
-    currentPasswordEntered &&
-    passwordLongEnough &&
-    passwordsMatch
+  const [avatarBusy, setAvatarBusy] = useState(false)
+  const [avatarError, setAvatarError] = useState('')
+  const avatarInputRef = useRef<HTMLInputElement>(null)
+  const avatarBusyRef = useRef(false)
+  const handleAvatarPick = () => {
+    if (avatarBusyRef.current) return
+    avatarInputRef.current?.click()
+  }
+
+  // Upload to the caller's own folder in the public bucket, then stamp the
+  // URL onto the profile row in one flow. The hidden input is re-armed after
+  // every change so picking the same file again still fires an event.
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !profile) return
+    setAvatarError('')
+    setAvatarBusy(true)
+    avatarBusyRef.current = true
+    try {
+      const url = await uploadAvatar(profile.id, file)
+      const updated = await updateProfile(profile.id, { avatar_url: url })
+      await addActivityLog('profile.avatar_changed', {
+        entity: 'profile',
+        entity_id: updated.id,
+        label: updated.full_name || updated.email,
+      })
+      onSaved(updated)
+      setActivityRefresh((n) => n + 1)
+    } catch (err) {
+      setAvatarError(describe(err))
+    } finally {
+      setAvatarBusy(false)
+      avatarBusyRef.current = false
+    }
+  }
+
+  // Clear the picture (the identity falls back to Gravatar/initials). The
+  // upload stays in the bucket, harmless and overwritten by the next pick.
+  const [removingAvatar, setRemovingAvatar] = useState(false)
+  const handleAvatarRemove = async () => {
+    if (!profile?.avatar_url || avatarBusy) return
+    setAvatarError('')
+    setRemovingAvatar(true)
+    try {
+      const updated = await updateProfile(profile.id, { avatar_url: null })
+      await addActivityLog('profile.avatar_removed', {
+        entity: 'profile',
+        entity_id: updated.id,
+        label: updated.full_name || updated.email,
+      })
+      onSaved(updated)
+      setActivityRefresh((n) => n + 1)
+    } catch (err) {
+      setAvatarError(describe(err))
+    } finally {
+      setRemovingAvatar(false)
+    }
+  }
+
+  // ----- Save / cancel the display-name editor -----
+
+  const startEditing = () => {
+    setError('')
+    setMessage('')
+    setEditing(true)
+  }
+
+  const cancelEditing = () => {
+    setFullName(savedName)
+    setNickname(savedNickname)
+    setError('')
+    setMessage('')
+    setEditing(false)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!profile) return
+    if (!fullName.trim()) {
+      setError('Full name is required.')
+      return
+    }
+    setError('')
+    setMessage('')
+    setSaving(true)
+    try {
+      const updated = await updateProfile(profile.id, {
+        full_name: fullName.trim(),
+        nickname: nicknameNormalized || null,
+      })
+      await addActivityLog('profile.updated', {
+        entity: 'profile',
+        entity_id: updated.id,
+        label: updated.full_name || updated.email,
+      })
+      onSaved(updated)
+      setDraft({
+        fullName: updated.full_name || '',
+        nickname: updated.nickname ?? '',
+      })
+      setMessage('Profile saved.')
+      setEditing(false)
+      setActivityRefresh((n) => n + 1)
+    } catch (err) {
+      setError('Failed to save profile: ' + describe(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // ----- Personal audit trail -----
 
   // The user's own recent audit entries drive two views: the hero's "Active"
   // chip and the timeline card. Twelve entries keep the trail's column as
-  // tall as its neighbour; a fetch failure is not worth a page error.
+  // tall as its neighbour; a fetch failure is shown as its own state rather
+  // than being disguised as an empty trail.
   const [logs, setLogs] = useState<ActivityLogEntry[]>([])
+  const [logsError, setLogsError] = useState(false)
   const [activityRefresh, setActivityRefresh] = useState(0)
   const latestEntry = logs[0] ?? null
   const activeRecently = Boolean(
@@ -159,12 +244,31 @@ function Profile({ profile, onSaved }: ProfileProps) {
         if (!cancelled) setLogs(entries)
       })
       .catch(() => {
-        // The log is nice-to-have here; an empty trail reads fine.
+        if (!cancelled) setLogsError(true)
       })
     return () => {
       cancelled = true
     }
   }, [profile?.email, activityRefresh])
+
+  // Program name: the assignment lives on the profile row; the readable
+  // label comes from the programs table (tolerant — an unknown/missing
+  // assignment simply reads "Not assigned").
+  const [programs, setPrograms] = useState<Program[]>([])
+  useEffect(() => {
+    let cancelled = false
+    fetchPrograms()
+      .then((rows) => {
+        if (!cancelled) setPrograms(rows)
+      })
+      .catch(() => {
+        // A failed lookup degrades to "Not assigned"; not worth a page error.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  const program = programs.find((p) => p.id === profile?.program_id) ?? null
 
   // Ownership of the email is a fact of the auth user, not the profile row;
   // confirm quietly so "Verified" only renders when it is actually true.
@@ -204,146 +308,7 @@ function Profile({ profile, onSaved }: ProfileProps) {
     }
   }, [profile?.email])
   const avatarSrc = profile?.avatar_url ?? emailAvatar
-
-  // Save the edited name, log it, and push the updated profile up to App.tsx.
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!profile) return
-    if (!fullName.trim()) {
-      setError('Full name is required.')
-      return
-    }
-    setError('')
-    setMessage('')
-    setSaving(true)
-    try {
-      const updated = await updateProfile(profile.id, {
-        full_name: fullName.trim(),
-        nickname: nicknameNormalized || null,
-      })
-      await addActivityLog('profile.updated', {
-        entity: 'profile',
-        entity_id: updated.id,
-        label: updated.full_name || updated.email,
-      })
-      onSaved(updated)
-      setDraft({
-        fullName: updated.full_name || '',
-        nickname: updated.nickname ?? '',
-      })
-      setMessage('Profile saved.')
-      setActivityRefresh((n) => n + 1)
-    } catch (err) {
-      setError('Failed to save profile: ' + describe(err))
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  // Set name and nickname back to the saved values, wiping half-typed edits.
-  const handleDiscard = () => {
-    setError('')
-    setMessage('')
-    setDraft({ fullName: savedName, nickname: savedNickname })
-  }
-
-  // ----- Profile picture -----
-
-  const [avatarBusy, setAvatarBusy] = useState(false)
-  const [avatarError, setAvatarError] = useState('')
-  const avatarInputRef = useRef<HTMLInputElement>(null)
-
-  const handleAvatarPick = () => avatarInputRef.current?.click()
-
-  // Upload to the caller's own folder in the public bucket, then stamp the
-  // URL onto the profile row in one flow. The hidden input is re-armed after
-  // every change so picking the same file again still fires an event.
-  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file || !profile) return
-    setAvatarError('')
-    setAvatarBusy(true)
-    try {
-      const url = await uploadAvatar(profile.id, file)
-      const updated = await updateProfile(profile.id, { avatar_url: url })
-      await addActivityLog('profile.avatar_changed', {
-        entity: 'profile',
-        entity_id: updated.id,
-        label: updated.full_name || updated.email,
-      })
-      onSaved(updated)
-      setActivityRefresh((n) => n + 1)
-    } catch (err) {
-      setAvatarError(describe(err))
-    } finally {
-      setAvatarBusy(false)
-    }
-  }
-
-  // Update password in Supabase auth for the signed-in user and write to audit trail.
-  // Like a real system, the current password must be re-entered and verified
-  // before the swap is allowed — the form never changes a password blind.
-  const handlePasswordChange = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!profile) return
-    setPasswordError('')
-    setPasswordMessage('')
-    setPasswordWarning('')
-    if (!currentPasswordEntered) {
-      setPasswordError('Re-enter your current password so we know it is really you.')
-      return
-    }
-    if (!passwordLongEnough) {
-      setPasswordError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`)
-      return
-    }
-    if (!passwordsMatch) {
-      setPasswordError('Passwords do not match.')
-      return
-    }
-    setChangingPassword(true)
-    try {
-      // The current password is proven by signing in with it — a wrong secret
-      // fails the check and nothing is touched. On success Supabase simply
-      // refreshes the live session, so the user stays signed in.
-      const { data: { user } } = await supabase!.auth.getUser()
-      const { error: verifyError } = await supabase!.auth.signInWithPassword({
-        email: user?.email ?? profile.email,
-        password: currentPassword,
-      })
-      if (verifyError) {
-        setPasswordError('Your current password is incorrect — the password was not changed.')
-        return
-      }
-      const { error: updateError } = await supabase!.auth.updateUser({ password })
-      if (updateError) throw updateError
-      setCurrentPassword('')
-      setPassword('')
-      setConfirmPassword('')
-      setPasswordMessage('Password updated successfully.')
-      try {
-        await addActivityLog('profile.password_changed', {
-          entity: 'profile',
-          entity_id: profile.id,
-          label: profile.full_name || profile.email,
-        })
-      } catch (err) {
-        console.error('Password changed, but activity logging failed:', describe(err))
-        setPasswordWarning('Your password changed, but we could not record it in your activity trail.')
-      }
-      setActivityRefresh((n) => n + 1)
-    } catch (err) {
-      // The network layer logs only a bare "400"; keep the server's own
-      // wording in the console so the exact rejection rule is visible
-      // when debugging (it is also translated for the card above).
-      const friendly = friendlyPasswordError(err)
-      console.error('Password update rejected:', describe(err))
-      setPasswordError(friendly ?? 'Failed to change password: ' + describe(err))
-    } finally {
-      setChangingPassword(false)
-    }
-  }
+  const isArchived = profile?.status === 'archived'
 
   return (
     <div className="programs-page profile">
@@ -385,103 +350,89 @@ function Profile({ profile, onSaved }: ProfileProps) {
         </div>
       </header>
 
-      <div className="profile-grid">
-        {/* LEFT: identity + display name editor */}
-        <div className="profile-col">
-          <section className="panel profile-card card-enter profile-identity" aria-label="Account identity">
-            <div className="profile-identity__main">
+      {/* Profile information — the spec's field list. Editable: picture, full
+          name, nickname. Everything else is rendered as plain text all the
+          time, never as a disabled input, so nothing looks editable that
+          isn't (and the server refuses those columns anyway). */}
+      <section className="panel profile-card card-enter pf-card" aria-label="Profile information">
+        <div className="profile-card__head">
+          <h3><Icon name="user" size={15} />Profile information</h3>
+          {!editing ? (
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              onClick={startEditing}
+              disabled={!profile}
+              title="Changes your picture, full name and nickname only"
+            >
+              Edit profile
+            </button>
+          ) : (
+            <span className="profile-card__hint" role="status">
+              Editing name &amp; picture only — academic fields are managed by the administrator
+            </span>
+          )}
+        </div>
+
+        {/* Picture row — explicit controls, no hover-only affordance. */}
+        <div className="pf-identity">
+          {avatarSrc ? (
+            <img className="pf-identity__img" src={avatarSrc} alt="" />
+          ) : (
+            <div className="pf-identity__img" aria-hidden="true">{initialsOf(displayName)}</div>
+          )}
+          <div className="pf-identity__tools">
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              onClick={handleAvatarPick}
+              disabled={!profile || avatarBusy}
+            >
+              {avatarBusy ? 'Uploading…' : 'Change photo'}
+            </button>
+            {profile?.avatar_url && (
               <button
                 type="button"
-                className="profile-identity__avatar-btn"
-                onClick={handleAvatarPick}
-                disabled={!profile || avatarBusy}
-                aria-label="Change profile picture"
-                title={profile?.avatar_url ? 'Change your uploaded picture' : 'Your Gravatar photo, or initials when none — click to upload your own'}
+                className="pf-link"
+                onClick={handleAvatarRemove}
+                disabled={!profile || removingAvatar}
               >
-                <div className="profile-identity__avatar" aria-hidden="true">
-                  {avatarSrc ? (
-                    <img className="profile-avatar__img" src={avatarSrc} alt="" />
-                  ) : (
-                    initialsOf(displayName)
-                  )}
-                  <span className="profile-identity__avatar-overlay">
-                    {avatarBusy ? 'Uploading…' : 'Change'}
-                  </span>
-                </div>
+                {removingAvatar ? 'Removing…' : 'Remove photo'}
               </button>
-              <input
-                ref={avatarInputRef}
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                hidden
-                onChange={handleAvatarChange}
-              />
-              <div className="profile-identity__who">
-                <div className="profile-identity__name">{profile ? displayName : '—'}</div>
-                <div className="profile-identity__meta">
-                  <Icon name="mail" size={13} />
-                  <span>{profile?.email ?? '—'}</span>
-                  {profile?.nickname && (
-                    <span className="profile-identity__handle" title="Known casually as">
-                      "{profile.nickname}"
-                    </span>
-                  )}
-                  {emailVerified && (
-                    <span className="profile-verified" title="Email ownership was confirmed at sign-up">
-                      <Icon name="check" size={9} strokeWidth={3.4} />
-                      Verified
-                    </span>
-                  )}
-                </div>
-              </div>
-              <span className={`role-badge role-badge--${profile?.role}`}>{ROLE_LABELS[role]}</span>
-            </div>
-            {avatarError && <p className="msg msg--error" role="alert">{avatarError}</p>}
+            )}
+            <span className="pf-identity__hint">PNG · JPG · WebP · under 2 MB — falls back to your Gravatar or initials</span>
+          </div>
+          {avatarError && <p className="msg msg--error" role="alert">{avatarError}</p>}
+        </div>
+        <input
+          ref={avatarInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          hidden
+          onChange={handleAvatarChange}
+        />
 
-            <div className="profile-facts-grid">
-              <div className="profile-tile">
-                <span className="profile-tile__k">
-                  <Icon name="shield" size={11} />
-                  Role capabilities
-                </span>
-                <span className="profile-tile__v">
-                  {CAPABILITIES[role].title}
-                  <small>{CAPABILITIES[role].sub}</small>
-                </span>
-              </div>
-              <div className="profile-tile">
-                <span className="profile-tile__k">
-                  <Icon name="clock" size={11} />
-                  Last activity
-                </span>
-                <span className="profile-tile__v">
-                  {latestEntry ? ACTION_LABELS[latestEntry.action] ?? latestEntry.action : 'No activity yet'}
-                  <small>{latestEntry ? formatDayTime(latestEntry.created_at) : '—'}</small>
-                </span>
-              </div>
-            </div>
-          </section>
-
-          <form className="panel profile-card card-enter" aria-label="Display name" onSubmit={handleSubmit}>
-            <div className="profile-card__head">
-              <h3><Icon name="user" size={15} />Display name</h3>
-              <span className="profile-card__hint">shown across reports &amp; audit logs</span>
-            </div>
-
-            <label className="field">
-              <span>Full name</span>
+        <div className="pf-fields">
+          <div className="pf-field pf-field--wide">
+            <span className="pf-field__k">Full name</span>
+            {editing ? (
               <input
                 className="input"
                 type="text"
                 value={fullName}
                 maxLength={NAME_MAX_LENGTH}
                 onChange={(e) => setFullName(e.target.value)}
-                disabled={!profile}
+                autoFocus
               />
-            </label>
+            ) : (
+              <span className="pf-field__v">{profile ? (savedName || '—') : '—'}</span>
+            )}
+            <small className="pf-field__note">shown across reports &amp; audit logs</small>
+          </div>
 
-            <label className="field">
-              <span>Nickname</span>
+          <div className="pf-field pf-field--wide">
+            <span className="pf-field__k">Nickname</span>
+            {editing ? (
               <input
                 className="input"
                 type="text"
@@ -490,220 +441,158 @@ function Profile({ profile, onSaved }: ProfileProps) {
                 placeholder='what friends call you — e.g. "Bebot"'
                 autoComplete="off"
                 onChange={(e) => setNickname(e.target.value)}
-                disabled={!profile}
               />
-            </label>
+            ) : (
+              <span className="pf-field__v">
+                {savedNickname ? <>
+                  <span className="pf-nick">"{savedNickname}"</span>
+                </> : <span className="pf-field__v-muted">Not set</span>}
+              </span>
+            )}
+            <small className="pf-field__note">optional · casual · shown in quotes</small>
+          </div>
 
-            {profile && dirty && !fullName.trim() && (
-              <p className="profile-note profile-note--warn" role="status">
-                <Icon name="warning" size={14} />
-                Full name is required to save.
-              </p>
-            )}
-            {profile && dirty && fullName.trim() && (
-              <p className="profile-note" role="status">
-                <Icon name="warning" size={14} />
-                Unsaved changes — reports keep showing{' '}
-                <b>{savedName || 'the current name'}</b> until you save.
-              </p>
-            )}
+          <div className="pf-field">
+            <span className="pf-field__k">
+              <Icon name="mail" size={11} /> Email address
+            </span>
+            <span className="pf-field__v pf-field__v--wrapped">
+              {profile?.email ?? '—'}
+              {emailVerified && (
+                <span className="profile-verified" title="Email ownership was confirmed at sign-up">
+                  <Icon name="check" size={9} strokeWidth={3.4} />
+                  Verified
+                </span>
+              )}
+            </span>
+            <small className="pf-field__note">managed by your administrator</small>
+          </div>
+
+          <div className="pf-field">
+            <span className="pf-field__k">
+              <Icon name="book" size={11} /> Academic department
+            </span>
+            <span className="pf-field__v">{savedDepartment ? savedDepartment : <span className="pf-field__v-muted">Not set</span>}</span>
+            <small className="pf-field__note">read-only · set by your administrator</small>
+          </div>
+
+          <div className="pf-field">
+            <span className="pf-field__k">
+              <Icon name="cap" size={11} /> Academic program
+            </span>
+            <span className="pf-field__v">{program ? `${program.code} — ${program.name}` : <span className="pf-field__v-muted">Not assigned</span>}</span>
+            <small className="pf-field__note">read-only · set by your administrator</small>
+          </div>
+
+          <div className="pf-field">
+            <span className="pf-field__k">
+              <Icon name="doc" size={11} /> Position / designation
+            </span>
+            <span className="pf-field__v">{savedDesignation ? savedDesignation : <span className="pf-field__v-muted">Not set</span>}</span>
+            <small className="pf-field__note">read-only · set by your administrator</small>
+          </div>
+
+          <div className="pf-field">
+            <span className="pf-field__k">
+              <Icon name="shield" size={11} /> Assigned system role
+            </span>
+            <span className="pf-field__v pf-field__v--stack">
+              <span className={`role-badge role-badge--${profile?.role}`}>{ROLE_LABELS[role]}</span>
+              <small className="pf-field__note">{CAPABILITIES[role].title} · {CAPABILITIES[role].sub}</small>
+            </span>
+            <small className="pf-field__note">assigned by an administrator</small>
+          </div>
+
+          <div className="pf-field">
+            <span className="pf-field__k">
+              <Icon name="checkCircle" size={11} /> Account status
+            </span>
+            <span className="pf-field__v pf-field__v--stack">
+              <span className={`status-pill status-pill--${isArchived ? 'archived' : 'active'}`}>
+                <span className="status-pill__dot" aria-hidden="true" />
+                {isArchived ? 'Archived' : 'Active'}
+              </span>
+            </span>
+            <small className="pf-field__note">{isArchived ? 'signing in is disabled; contact an administrator' : 'signing in and access are enabled'}</small>
+          </div>
+        </div>
+
+        {(message || error || (editing && dirty)) && (
+          <div className="pf-notes">
             {message && <p className="msg msg--success" role="status">{message}</p>}
             {error && <p className="msg msg--error" role="alert">{error}</p>}
-
-            <div className="profile-card__actions">
-              {dirty && (
-                <button className="btn btn--ghost" type="button" onClick={handleDiscard} disabled={saving}>
-                  Discard
-                </button>
-              )}
-              <button className="btn btn--primary" type="submit" disabled={!canSave || saving}>
-                {!profile ? 'Loading…' : dirty ? (saving ? 'Saving...' : 'Save changes') : 'Saved ✓'}
-              </button>
-            </div>
-          </form>
-        </div>
-
-        {/* RIGHT: password & privacy + recent activity */}
-        <div className="profile-col">
-          <section className="panel profile-card card-enter" aria-label="Change password">
-            <div className="profile-card__head">
-              <h3><Icon name="lock" size={15} />Change Password</h3>
-              <span className="profile-card__hint">Account Privacy &amp; Security</span>
-            </div>
-
-            <form onSubmit={handlePasswordChange} noValidate>
-              <label className="field">
-                <span>Current password</span>
-                <div className="profile-input-wrap">
-                  <input
-                    className="input"
-                    type={showCurrentPassword ? 'text' : 'password'}
-                    autoComplete="current-password"
-                    placeholder="Enter the Current Password"
-                    value={currentPassword}
-                    onChange={(e) => {
-                      setCurrentPassword(e.target.value)
-                      if (passwordError) setPasswordError('')
-                      if (passwordMessage) setPasswordMessage('')
-                    }}
-                    disabled={!profile || changingPassword}
-                  />
-                  <button
-                    type="button"
-                    className="profile-password-toggle"
-                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                    aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'}
-                    title={showCurrentPassword ? 'Hide current password' : 'Show current password'}
-                    tabIndex={-1}
-                  >
-                    <Icon name="eye" size={15} />
-                  </button>
-                </div>
-              </label>
-
-              <label className="field">
-                <span>New password</span>
-                <div className="profile-input-wrap">
-                  <input
-                    className="input"
-                    type={showPassword ? 'text' : 'password'}
-                    autoComplete="new-password"
-                    placeholder="Enter new password"
-                    value={password}
-                    onChange={(e) => {
-                      setPassword(e.target.value)
-                      if (passwordError) setPasswordError('')
-                      if (passwordMessage) setPasswordMessage('')
-                    }}
-                    disabled={!profile || changingPassword}
-                  />
-                  <button
-                    type="button"
-                    className="profile-password-toggle"
-                    onClick={() => setShowPassword(!showPassword)}
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    title={showPassword ? 'Hide password' : 'Show password'}
-                    tabIndex={-1}
-                  >
-                    <Icon name="eye" size={15} />
-                  </button>
-                </div>
-              </label>
-
-
-              <label className="field">
-                <span>Confirm new password</span>
-                <div className="profile-input-wrap">
-                  <input
-                    className="input"
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    autoComplete="new-password"
-                    placeholder="Re-enter new password"
-                    value={confirmPassword}
-                    onChange={(e) => {
-                      setConfirmPassword(e.target.value)
-                      if (passwordError) setPasswordError('')
-                      if (passwordMessage) setPasswordMessage('')
-                    }}
-                    disabled={!profile || changingPassword}
-                  />
-                  <button
-                    type="button"
-                    className="profile-password-toggle"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    aria-label={showConfirmPassword ? 'Hide confirmed password' : 'Show confirmed password'}
-                    title={showConfirmPassword ? 'Hide confirmed password' : 'Show confirmed password'}
-                    tabIndex={-1}
-                  >
-                    <Icon name="eye" size={15} />
-                  </button>
-                </div>
-              </label>
-
-              <div className="profile-reqs">
-                <span className={`profile-req${passwordLongEnough ? ' profile-req--ok' : ''}`}>
-                  <span className="profile-req__tick"><Icon name="check" size={9} strokeWidth={3.6} /></span>
-                  At least {MIN_PASSWORD_LENGTH} characters
-                </span>
-                <span className={`profile-req${passwordsMatch ? ' profile-req--ok' : ''}`}>
-                  <span className="profile-req__tick"><Icon name="check" size={9} strokeWidth={3.6} /></span>
-                  Both fields match
-                </span>
-                <span className={`profile-req${passwordVariety === 4 ? ' profile-req--ok' : ''}`}>
-                  <span className="profile-req__tick"><Icon name="check" size={9} strokeWidth={3.6} /></span>
-                  Uppercase, lowercase, number &amp; symbol
-                </span>
-              </div>
-
-              {password && (
-                <div className="profile-strength">
-                  <div className="profile-strength__bar" aria-hidden="true">
-                    <div className="profile-strength__fill" style={{ width: `${passwordStrength * 100}%` }} />
-                  </div>
-                  <div className="profile-strength__labels">
-                    <span>Weak</span>
-                    <span>Strong</span>
-                  </div>
-                </div>
-              )}
-
-              {passwordWarning && (
-                <p className="profile-note profile-note--warn" role="status">
-                  <Icon name="warning" size={14} />
-                  {passwordWarning}
-                </p>
-              )}
-              {passwordError && <p className="msg msg--error" role="alert">{passwordError}</p>}
-              {passwordMessage && <p className="msg msg--success" role="status">{passwordMessage}</p>}
-
-              <button
-                className="btn btn--primary profile-security-btn"
-                type="submit"
-                disabled={!canSubmitPassword}
-              >
-                {changingPassword ? 'Updating password…' : 'Update Password'}
-              </button>
-            </form>
-
-            <p className="profile-security-foot">
-              <Icon name="shield" size={15} />
-              Your current password is verified before any change, your session stays signed in, and the update is logged to your activity trail.
-            </p>
-          </section>
-
-          <section className="panel profile-card card-enter profile-card--fill" aria-label="Recent activity">
-            <div className="profile-card__head">
-              <h3><Icon name="clock" size={15} />Recent activity</h3>
-              <span className="profile-card__hint">your audit trail</span>
-            </div>
-
-            {logs.length > 0 ? (
-              <ul className="profile-timeline">
-                {logs.map((entry) => {
-                  const category = categoryOf(entry.action)
-                  return (
-                    <li key={entry.id}>
-                      <div className="pt-action">
-                        {ACTION_LABELS[entry.action] ?? entry.action}
-                        <span className={`pt-pill pt-pill--${categoryTone(category)}`}>
-                          {categoryLabel(category)}
-                        </span>
-                      </div>
-                      <div className="pt-time">{formatDayTime(entry.created_at)}</div>
-                    </li>
-                  )
-                })}
-              </ul>
-            ) : (
-              <div className="profile-empty">
-                <Icon name="clock" size={20} />
-                <p>No activity recorded yet</p>
-                <span>Actions you take across the system will appear here as they happen.</span>
-              </div>
+            {editing && dirty && !message && (
+              <p className="profile-note" role="status">
+                <Icon name="warning" size={14} />
+                Unsaved changes — reports keep showing <b>{savedName || 'the current name'}</b> until you save.
+              </p>
             )}
-          </section>
+          </div>
+        )}
+
+        {editing && (
+          <div className="pf-actions">
+            <button
+              className="btn btn--ghost"
+              type="button"
+              onClick={cancelEditing}
+              disabled={saving}
+            >
+              Cancel
+            </button>
+            <button
+              className="btn btn--primary"
+              type="button"
+              onClick={handleSubmit}
+              disabled={!canSave || saving}
+            >
+              {!profile ? 'Loading…' : saving ? 'Saving changes…' : 'Save changes'}
+            </button>
+          </div>
+        )}
+      </section>
+
+      <section className="panel profile-card card-enter profile-card--fill" aria-label="Recent activity">
+        <div className="profile-card__head">
+          <h3><Icon name="clock" size={15} />Recent activity</h3>
+          <div className="pf-head-tools">
+            {onNavigate && (
+              <button type="button" className="pf-link" onClick={() => onNavigate('security')}>
+                Security &amp; privacy →
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+
+        {logsError && (
+          <p className="msg msg--error" role="alert">Couldn't load your activity trail — check your connection and reopen this page.</p>
+        )}
+        {!logsError && logs.length === 0 && (
+          <div className="profile-empty">
+            <Icon name="clock" size={20} />
+            <p>No activity recorded yet</p>
+            <span>Actions you take across the system will appear here as they happen.</span>
+          </div>
+        )}
+        {logs.length > 0 && (
+          <ul className="profile-timeline">
+            {logs.map((entry) => {
+              const category = categoryOf(entry.action)
+              return (
+                <li key={entry.id}>
+                  <div className="pt-action">
+                    {ACTION_LABELS[entry.action] ?? entry.action}
+                    <span className={`pt-pill pt-pill--${categoryTone(category)}`}>
+                      {categoryLabel(category)}
+                    </span>
+                  </div>
+                  <div className="pt-time">{formatDayTime(entry.created_at)}</div>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </section>
     </div>
   )
 }

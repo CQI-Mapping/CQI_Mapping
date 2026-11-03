@@ -65,6 +65,10 @@ CREATE TABLE public.profiles (
     -- on archived rows. See migrations/008-archived-accounts.sql for existing
     -- databases.
     status TEXT NOT NULL DEFAULT 'active',
+    -- Academic context, managed by admins (Users & Accounts) and displayed
+    -- read-only on the Profile page. See migrations/013.
+    department TEXT,
+    designation TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -382,6 +386,47 @@ CREATE POLICY "Managers and admins can view all profiles" ON public.profiles FOR
 CREATE POLICY "Admins can update any profile" ON public.profiles FOR UPDATE
     USING (public.current_user_role() = 'admin')
     WITH CHECK (public.current_user_role() = 'admin');
+
+-- RLS decides whether a row may change; it cannot police columns. A signed-in
+-- user may update their OWN row, and without a trigger that door would also
+-- let role/email/status edits through. guard_profile_edits() is the column
+-- half (see migrations/013-profile-academic-fields-and-edit-guard.sql): system
+-- contexts and admin-on-others pass, self-edits are narrowed to the three
+-- identity columns the Profile page edits.
+CREATE OR REPLACE FUNCTION public.guard_profile_edits()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+DECLARE
+    v_caller public.user_role;
+BEGIN
+    IF current_user NOT IN ('authenticated', 'anon') THEN
+        RETURN NEW;
+    END IF;
+    SELECT role INTO v_caller FROM public.profiles WHERE id = auth.uid();
+    IF v_caller = 'admin' AND NEW.id <> auth.uid() THEN
+        RETURN NEW;
+    END IF;
+    IF NEW.id IS DISTINCT FROM OLD.id
+       OR NEW.role IS DISTINCT FROM OLD.role
+       OR NEW.email IS DISTINCT FROM OLD.email
+       OR NEW.program_id IS DISTINCT FROM OLD.program_id
+       OR NEW.status IS DISTINCT FROM OLD.status
+       OR NEW.department IS DISTINCT FROM OLD.department
+       OR NEW.designation IS DISTINCT FROM OLD.designation THEN
+        RAISE EXCEPTION
+            'Only administrators can change a role, email, program, status, department or designation.'
+            USING ERRCODE = '42501';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS profiles_edit_guard ON public.profiles;
+CREATE TRIGGER profiles_edit_guard
+    BEFORE UPDATE ON public.profiles
+    FOR EACH ROW EXECUTE FUNCTION public.guard_profile_edits();
 
 -- RESOURCES
 CREATE POLICY "Authenticated users can read resources" ON public.resources FOR SELECT

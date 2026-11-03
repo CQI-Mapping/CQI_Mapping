@@ -42,6 +42,13 @@ export interface Profile {
    * the same tolerance Course.year_level gets.
    */
   status?: string
+  /**
+   * Academic context (migration 013): admin-managed, shown read-only on the
+   * Profile page. Optional for the same reason `status` is — a database that
+   * predates the migration simply doesn't return the columns.
+   */
+  department?: string | null
+  designation?: string | null
   created_at: string
   updated_at: string
 }
@@ -178,7 +185,7 @@ export async function ensureProfile(user: User): Promise<Profile> {
 
 export async function updateProfile(
   profileId: string,
-  updates: Partial<Pick<Profile, 'full_name' | 'nickname' | 'avatar_url'>>,
+  updates: Partial<Pick<Profile, 'full_name' | 'nickname' | 'avatar_url' | 'department' | 'designation'>>,
 ): Promise<Profile> {
   const { data, error } = await supabase
     .from('profiles')

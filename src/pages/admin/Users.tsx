@@ -29,6 +29,10 @@ const ROLE_LABELS: Record<UserRole, string> = {
 const NAME_MAX_LENGTH = 80
 const NICKNAME_MAX_LENGTH = 40
 
+/** Academic context is admin-only territory (migration 013) — generous caps
+    since a designation like "Department Chairperson" is a mouthful. */
+const ACADEMIC_MAX_LENGTH = 100
+
 export default function Users() {
   // Draft persists the email across page navigation. No password state:
   // the Edge Function generates one server-side (nobody sees it) and
@@ -63,7 +67,7 @@ export default function Users() {
   // placeholder name like "test") without waiting for that user to sign in
   // and fix their own Profile page. Mirrors the Program page's modal.
   const [editingUser, setEditingUser] = useState<ProfileWithProgram | null>(null)
-  const [editForm, setEditForm] = useState({ fullName: '', nickname: '' })
+  const [editForm, setEditForm] = useState({ fullName: '', nickname: '', department: '', designation: '' })
   const [editBusy, setEditBusy] = useState(false)
 
   const loadUsers = async () => {
@@ -280,32 +284,46 @@ export default function Users() {
   // the user sees on their own Profile page.
   const openEdit = (u: ProfileWithProgram) => {
     setEditingUser(u)
-    setEditForm({ fullName: u.full_name || '', nickname: u.nickname ?? '' })
+    setEditForm({
+      fullName: u.full_name || '',
+      nickname: u.nickname ?? '',
+      department: u.department ?? '',
+      designation: u.designation ?? '',
+    })
   }
 
   const closeEdit = () => {
     // Mid-save the modal must stay put: the save writes the fields it shows.
     if (editBusy) return
     setEditingUser(null)
-    setEditForm({ fullName: '', nickname: '' })
+    setEditForm({ fullName: '', nickname: '', department: '', designation: '' })
   }
 
-  // Saves the repaired name through the same updateProfile the Profile page
-  // uses — RLS already lets admins update any profile row, so no new SQL is
-  // needed. Nickname follows the Profile page's normalization: trimmed, and
-  // empty becomes null rather than an empty string in the DB.
+  // Saves the repaired identity through the same updateProfile the Profile
+  // page uses. RLS lets admins update any profile row, and the edit-guard
+  // trigger (migration 013) allows admins to repair OTHER people's academic
+  // fields — a user could never send department/designation through here.
+  // Nickname follows the Profile page's normalization: trimmed, and empty
+  // becomes null rather than an empty string in the DB.
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!editingUser) return
     const name = editForm.fullName.trim()
     if (!name) return
     const nickname = editForm.nickname.trim()
+    const department = editForm.department.trim()
+    const designation = editForm.designation.trim()
     setError('')
     setSuccess('')
     setEditBusy(true)
     let saved = false
     try {
-      await updateProfile(editingUser.id, { full_name: name, nickname: nickname || null })
+      await updateProfile(editingUser.id, {
+        full_name: name,
+        nickname: nickname || null,
+        department: department || null,
+        designation: designation || null,
+      })
       setUsers((prev) =>
         prev.map((u) =>
           u.id === editingUser.id ? { ...u, full_name: name, nickname: nickname || null } : u,
@@ -331,7 +349,7 @@ export default function Users() {
     // read against the fields that produced it.
     if (saved) {
       setEditingUser(null)
-      setEditForm({ fullName: '', nickname: '' })
+      setEditForm({ fullName: '', nickname: '', department: '', designation: '' })
     }
   }
 
@@ -679,8 +697,35 @@ export default function Users() {
                     />
                   </label>
                 </div>
+                <div className="modal__grid-2" style={{ marginTop: 12 }}>
+                  <label className="field" style={{ marginBottom: 0 }}>
+                    <span>Academic department</span>
+                    <input
+                      className="input input--sm"
+                      type="text"
+                      placeholder="e.g. Institute of Computer Studies"
+                      autoComplete="off"
+                      value={editForm.department}
+                      maxLength={ACADEMIC_MAX_LENGTH}
+                      onChange={(e) => setEditForm((f) => ({ ...f, department: e.target.value }))}
+                    />
+                  </label>
+                  <label className="field" style={{ marginBottom: 0 }}>
+                    <span>Position / designation</span>
+                    <input
+                      className="input input--sm"
+                      type="text"
+                      placeholder="e.g. Instructor I"
+                      autoComplete="off"
+                      value={editForm.designation}
+                      maxLength={ACADEMIC_MAX_LENGTH}
+                      onChange={(e) => setEditForm((f) => ({ ...f, designation: e.target.value }))}
+                    />
+                  </label>
+                </div>
                 <p className="au__cred-note" style={{ marginTop: 10 }}>
-                  Reports and audit logs use the full name; the nickname shows in quotes. Clearing it removes the quoted name.
+                  Reports and audit logs use the full name; the nickname shows in quotes. Department and designation
+                  are admin-managed — the account holder sees them read-only on their Profile.
                 </p>
               </div>
               <div className="modal__footer">

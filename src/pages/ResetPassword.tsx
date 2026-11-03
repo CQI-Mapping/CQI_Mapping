@@ -9,14 +9,12 @@ import { useState } from 'react'
 import { supabase } from '../utils/supabaseClient'
 import { addActivityLog } from '../services/database'
 import { friendlyPasswordError } from '../utils/passwordErrors'
+import { MIN_PASSWORD_LENGTH } from '../utils/passwordPolicy'
 
 /** Consistent error text, same helper Profile uses. */
 function describe(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
-
-/** The system's password policy — keep in sync with the auth config and Profile. */
-export const MIN_PASSWORD_LENGTH = 8
 
 interface ResetPasswordProps {
   /** Called once the password is set — App hands the session back to the normal app flow. */

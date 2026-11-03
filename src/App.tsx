@@ -42,6 +42,7 @@ import ManagerCurriculum from './pages/manager/Curriculum'
 import ManagerCourse from './pages/manager/Course'
 import ManagerActivityLogs from './pages/admin/ActivityLogs'
 import UserDashboard from './pages/user/Dashboard'
+import SecurityPrivacy from './pages/SecurityPrivacy'
 import AdminChedMemoOrders from './pages/admin/ChedMemoOrders'
 import AdminStrategicGoals from './pages/admin/StrategicGoals'
 import AdminPEOs from './pages/admin/ProgramEducationalObjectives'
@@ -74,6 +75,7 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'users', label: 'Users & Accounts' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
+    { id: 'security', label: 'Security & Privacy' },
   ],
   manager: [
     { id: 'dashboard', label: 'Dashboard' },
@@ -89,6 +91,7 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'users', label: 'Users & Accounts' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
+    { id: 'security', label: 'Security & Privacy' },
   ],
   user: [
     { id: 'dashboard', label: 'Dashboard' },
@@ -96,6 +99,7 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'subject-view', label: 'Generate Map' },
     { id: 'tos', label: 'Generate TOS' },
     { id: 'profile', label: 'Profile' },
+    { id: 'security', label: 'Security & Privacy' },
   ],
 }
 
@@ -121,6 +125,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     users: AdminUsers,
     'activity-logs': AdminActivityLogs,
     profile: Profile,
+    security: SecurityPrivacy,
   },
   manager: {
     dashboard: ManagerDashboard,
@@ -136,6 +141,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     users: ManagerUsers,
     'activity-logs': ManagerActivityLogs,
     profile: Profile,
+    security: SecurityPrivacy,
   },
   user: {
     dashboard: UserDashboard,
@@ -143,6 +149,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     'subject-view': AdminSubjectView,
     tos: UserTOS,
     profile: Profile,
+    security: SecurityPrivacy,
   },
 }
 
