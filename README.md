@@ -127,7 +127,7 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
     │   ├── SuggestionInput.tsx       # PO-suggestion combobox on the CLO page
     │   └── ViewModeToggle.tsx        # List/grid toggle, as on Curriculum pages
     ├── pages/
-    │   ├── Login.tsx         # Sign in (email/password + school-scoped Google) + forgot-password form
+    │   ├── Login.tsx         # Sign in (email/password + school-scoped Google) — password recovery is admin-initiated
     │   ├── Profile.tsx       # View/edit own profile (shared by all roles)
     │   ├── SecurityPrivacy.tsx  # Password change, sessions, audit trail, privacy controls
     │   ├── ResetPassword.tsx    # Set-a-new-password screen (recovery-link sessions) + success card
@@ -460,7 +460,8 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 The rest of the password-reset journey (mockup: `design/profile-reset-redesign.html`, screens 3–5):
 - `ResetPassword` is the **set-a-new-password screen**: a `PASSWORD_RECOVERY` auth event swaps the whole app shell for it (App.tsx), and it writes the same `profile.password_changed` audit row the retired profile card used to write. Its submit endures an audit-write failure (logged, never thrown) so a completed change can't lie about itself.
 - On success the flow ends with the **"Password updated" card** (animated check, `login-check`) and a 5-second countdown; the recovery session — which was only ever valid for choosing a new password — is signed out, so the sign-in that follows genuinely comes from the fresh password. The countdown and the button both land on the sign-in page (`onDone`).
-- An **expired or already-used link** never reaches that page: Supabase's verify endpoint bounces it back to the app with `error_description="Email link is invalid or has expired"`, App reads it once (`src/utils/oauthErrors.ts`), scrubs the URL, and renders **`ResetLinkExpired`** — "nothing was changed, your current password still works", with **"Send me a new link"** jumping straight into Login's forgot-password form (email typed by the user; the bounce carries no address).
+- An **expired or already-used link** never reaches that page: Supabase's verify endpoint bounces it back to the app with `error_description="Email link is invalid or has expired"`, App reads it once (`src/utils/oauthErrors.ts`), scrubs the URL, and renders **`ResetLinkExpired`** — "nothing was changed, your current password still works", with the fix named honestly: an administrator sends a fresh recovery email or resends the invite.
+- **Self-service password reset is not on the sign-in page by design** (removed from Login with the admin's consent): accounts exist only because an administrator put them there, so recovery is administrator-initiated too — from the Supabase dashboard (**Authentication → Users → the account's row → send password-recovery email**). A recovery email triggered there still lands in this app exactly as before: `ResetPassword` swaps in and the person chooses their new password. The invite-failure messages on the Users pages point at "Resend invite"/the dashboard, never a control that doesn't exist.
 - Other auth bounces (OAuth cancellations, sign-ups-disabled refusals) arrive at Login as a pre-remixed one-line notice via the same module — expiry is matched **before** `access_denied` because a dead recovery link packs both markers, and sign-up-disabled before cancellation for the same reason. Covered by `oauthErrors.test.ts`.
 
 ### `admin/Dashboard.tsx`

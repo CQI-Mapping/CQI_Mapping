@@ -7300,7 +7300,7 @@ button.reports-panel__more:hover {
   color: #bbf7d0;
 }
 
-/* Greyed helper text on the forgot-password view. */
+/* Greyed helper text on the reset views (set-a-new-password, expired link). */
 .login-reset-description {
   margin: 0 0 16px;
   font-size: 13px;
@@ -7308,7 +7308,8 @@ button.reports-panel__more:hover {
   color: rgba(255, 255, 255, 0.6);
 }
 
-/* Self-recovery entry points: under the password field and on the reset view. */
+/* Quiet escape links on the reset views: the exit on the set-a-new-password
+   screen and the back-to-sign-in on the expired-link screen. */
 .login-card .login-reset-link {
   align-self: flex-start;
   background: none;

@@ -239,10 +239,6 @@ function App() {
   // Login as a pre-remixed one-line notice.
   const [oauthNotice, setOauthNotice] = useState<string | null>(null)
   const [expiredResetLink, setExpiredResetLink] = useState(false)
-  // Seed for the forgot-password form: "Send me a new link" on the expired
-  // screen jumps straight into asking for the email (the link bounce does not
-  // carry the address, so the person types their own — never pre-filled).
-  const [forgotSeed, setForgotSeed] = useState(false)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const hashPart = new URLSearchParams(
@@ -259,9 +255,7 @@ function App() {
     }
     scrubAuthReturnUrl()
     // The bounce happens before mount; reading once at boot is the contract.
-  }, [])
-
-  // The email's real Gravatar photo drives the sidebar avatar whenever no
+  }, [])  // The email's real Gravatar photo drives the sidebar avatar whenever no
   // picture was uploaded. The availability probe is async, so it lands a
   // beat after sign-in; the sidebar renders initials until then, and
   // addresses without a Gravatar account simply stay on initials.
@@ -425,20 +419,15 @@ function App() {
   if (expiredResetLink) {
     return (
       <ResetLinkExpired
-        onSendNewLink={() => {
-          setExpiredResetLink(false)
-          setForgotSeed(true)
-        }}
         onBackToLogin={() => {
           setExpiredResetLink(false)
-          setForgotSeed(false)
         }}
       />
     )
   }
 
   if (!session) {
-    return <Login notice={signOutNotice ?? oauthNotice} startForgot={forgotSeed} />
+    return <Login notice={signOutNotice ?? oauthNotice} />
   }
 
   // Mid-recovery → the Set-a-new-password screen alone, with no app shell and

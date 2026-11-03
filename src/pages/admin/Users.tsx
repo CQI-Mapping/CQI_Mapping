@@ -121,7 +121,7 @@ export default function Users() {
       setSuccess(
         created.welcomeEmailSent
           ? `${base} A welcome email was sent to ${createdEmail} with a one-time link to set their password.`
-          : `${base} No welcome email was sent (email service not set up) — please tell them to use "Forgot password" on the sign-in page to choose one.`,
+          : `${base} No welcome email was sent (email service not set up) — use "Resend invite" on their row, or set a password for them in the Supabase dashboard (Authentication → Users) and share it privately.`,
       )
       clearDraft()
       // The next creation is a fresh conscious pick: role and program reset
@@ -268,7 +268,7 @@ export default function Users() {
       setSuccess(
         res.inviteSent
           ? `A fresh sign-in email was sent to ${email}.`
-          : `No email could be sent right now (service limits or the address) — have ${email} use "Forgot password" on the sign-in page.`,
+          : `No email could be sent right now (service limits or the address) — try again in a moment, or set a password for ${email} in the Supabase dashboard (Authentication → Users).`,
       )
       await addActivityLog('user.invite_resent', { entity: 'user', entity_id: userId, label: email })
     } catch (e) {
@@ -510,7 +510,7 @@ export default function Users() {
           </div>
 
           <div className="au__foot">
-            <p>A welcome email with a one-time set-password link is sent when the mail service is configured — otherwise the new user can use "Forgot password" on the sign-in page.</p>
+            <p>A welcome email with a one-time set-password link is sent when the mail service is configured — otherwise use "Resend invite" on the new user's row after creating them.</p>
             <button className="btn btn--primary" type="submit" disabled={busy}>
               {busy ? 'Creating...' : (<><Icon name="plus" size={13} /> Create User</>)}
             </button>

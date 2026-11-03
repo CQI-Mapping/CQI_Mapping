@@ -3,16 +3,15 @@
 // classes. App swaps the whole shell for this screen when the bounced URLs
 // error params say the emailed link is dead. The honest core of the message:
 // nothing was changed — the account's current password still works, and the
-// only remedy is a fresh link.
+// only way to get a fresh link is an administrator (the sign-in page has no
+// self-service reset by design, so this screen points straight at them).
 
 interface ResetLinkExpiredProps {
-  /** Send me a new link → the forgot-password form, opened and focused. */
-  onSendNewLink: () => void
   /** Escape hatch: straight back to the sign-in form. */
   onBackToLogin: () => void
 }
 
-export default function ResetLinkExpired({ onSendNewLink, onBackToLogin }: ResetLinkExpiredProps) {
+export default function ResetLinkExpired({ onBackToLogin }: ResetLinkExpiredProps) {
   return (
     <div className="login-page">
       {/* Same aurora backdrop as the sign-in screen */}
@@ -42,9 +41,12 @@ export default function ResetLinkExpired({ onSendNewLink, onBackToLogin }: Reset
             </span>
           </div>
 
-          <button type="button" className="login-btn" onClick={onSendNewLink}>
-            Send me a new link
-          </button>
+          <p className="login-reset-description">
+            The fix is an administrator action: they can send a fresh password-reset
+            email (Supabase dashboard → Authentication → Users → the account's row),
+            or resend the invite if the account never finished its setup.
+          </p>
+
           <button
             type="button"
             className="login-reset-link login-reset-link--block"

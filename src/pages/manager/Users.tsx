@@ -48,7 +48,7 @@ function Users() {
       setSuccess(
         res.inviteSent
           ? `A fresh sign-in email was sent to ${email}.`
-          : `No email could be sent right now (service limits or the address) — have ${email} use "Forgot password" on the sign-in page.`,
+          : `No email could be sent right now (service limits or the address) — try again in a moment, or have an administrator set a password in the Supabase dashboard (Authentication → Users).`,
       )
       await addActivityLog('user.invite_resent', { entity: 'user', entity_id: userId, label: email })
     } catch (e) {
@@ -156,7 +156,7 @@ function Users() {
       setSuccess(
         created.welcomeEmailSent
           ? `${base} A welcome email was sent to ${createdEmail} with a one-time link to set their password.`
-          : `${base} No welcome email was sent (email service not set up) — please tell them to use "Forgot password" on the sign-in page to choose one.`,
+          : `${base} No welcome email was sent (email service not set up) — an administrator can use "Resend invite" on their row, or set a password in the Supabase dashboard (Authentication → Users).`,
       )
       setEmail('')
       load()
