@@ -354,18 +354,42 @@ function Profile({ profile, onSaved, onNavigate }: ProfileProps) {
   const hasNickname = Boolean(profile?.nickname)
   const completionPct = Math.round(((Number(hasPicture) + Number(hasNickname)) / 2) * 100)
 
+  // Count-up on load — a small alive touch for the completion meter.
+  const [shownPct, setShownPct] = useState(0)
+  useEffect(() => {
+    if (completionPct <= 0) { setShownPct(0); return }
+    const start = performance.now()
+    const duration = 700
+    let raf = 0
+    const tick = (t: number) => {
+      const k = Math.min(1, (t - start) / duration)
+      const eased = 1 - Math.pow(1 - k, 3)
+      setShownPct(Math.round(completionPct * eased))
+      if (k < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [completionPct])
+
   return (
     <div className="programs-page profile">
+    <div className="pr-aurora" aria-hidden="true">
+      <span className="pr-aurora__blob pr-aurora__blob--1" />
+      <span className="pr-aurora__blob pr-aurora__blob--2" />
+      <span className="pr-aurora__blob pr-aurora__blob--3" />
+    </div>
       {/* Identity header — light and airy. The role's tint still shows as
           the dot on the avatar (data-role). */}
       <header className="pr-head panel card-enter" data-role={role}>
         <div className="pr-head__id">
-          <div className="pr-avatar">
-            {avatarSrc ? (
-              <img className="pr-avatar__img" src={avatarSrc} alt="" />
-            ) : (
-              <span className="pr-avatar__fallback" aria-hidden="true">{initialsOf(displayName)}</span>
-            )}
+          <div className="pr-avatar-ring">
+            <div className="pr-avatar">
+              {avatarSrc ? (
+                <img className="pr-avatar__img" src={avatarSrc} alt="" />
+              ) : (
+                <span className="pr-avatar__fallback" aria-hidden="true">{initialsOf(displayName)}</span>
+              )}
+            </div>
           </div>
           <div className="pr-head__who">
             <div className="pr-head__row">
@@ -436,9 +460,9 @@ function Profile({ profile, onSaved, onNavigate }: ProfileProps) {
           {!editing && completionPct < 100 && (
             <div className="pr-progress" role="status">
               <span className="pr-progress__bar" aria-hidden="true">
-                <span className="pr-progress__fill" style={{ width: `${completionPct}%` }} />
+                <span className="pr-progress__fill" style={{ width: `${shownPct}%` }} />
               </span>
-              <span className="pr-progress__label">Profile {completionPct}% complete</span>
+              <span className="pr-progress__label">Profile {shownPct}% complete</span>
               {!hasNickname && (
                 <button type="button" className="pf-link" onClick={startEditingNickname}>
                   Add a nickname →

@@ -2655,6 +2655,356 @@ code {
 .pr-tl-pill--profile { background: #dcfce7; color: var(--primary-dark); }
 .pr-tl-pill--page, .pr-tl-pill--misc { background: var(--bg-soft); color: var(--text-muted); }
 
+/* ============================================================
+   Profile — Aurora Glass Dark (2026)
+   The Profile page becomes a dark personal-space island inside the
+   otherwise-light app: drifting aurora light, frosted-glass cards,
+   an animated conic ring on the avatar, glow accents. Everything
+   scoped under .programs-page.profile so the app shell, sidebar
+   and the Security & Privacy page are untouched.
+   ============================================================ */
+
+/* Dark island canvas. */
+.programs-page.profile {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: #0b1210;
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.programs-page.profile > *:not(.pr-aurora) {
+  position: relative;
+  z-index: 1;
+}
+
+/* Aurora backdrop — three slow-drifting blurred blobs. */
+.pr-aurora {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.pr-aurora__blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.32;
+  mix-blend-mode: screen;
+}
+
+.pr-aurora__blob--1 {
+  width: 420px;
+  height: 420px;
+  top: -120px;
+  right: -60px;
+  background: radial-gradient(circle, #22c55e, transparent 70%);
+  animation: prAurora1 24s ease-in-out infinite alternate;
+}
+
+.pr-aurora__blob--2 {
+  width: 360px;
+  height: 360px;
+  bottom: -100px;
+  left: -70px;
+  background: radial-gradient(circle, #a3e635, transparent 70%);
+  animation: prAurora2 32s ease-in-out infinite alternate;
+}
+
+.pr-aurora__blob--3 {
+  width: 300px;
+  height: 300px;
+  top: 42%;
+  left: 44%;
+  background: radial-gradient(circle, #2dd4bf, transparent 70%);
+  animation: prAurora3 28s ease-in-out infinite alternate;
+}
+
+@keyframes prAurora1 {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(-40px, 30px) scale(1.18); }
+}
+@keyframes prAurora2 {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(30px, -20px) scale(1.12); }
+}
+@keyframes prAurora3 {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(-20px, -30px) scale(1.22); }
+}
+
+/* Frosted glass cards. */
+.profile .panel {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(14px) saturate(1.1);
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  transition: transform 0.25s var(--ease-spring), box-shadow 0.25s var(--ease-spring), border-color 0.25s;
+}
+
+.profile .panel:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(34, 197, 94, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Card header text. */
+.profile .pr-card__head h3 { color: #f0f6fc; }
+.profile .pr-card__head h3 svg { color: #22c55e; }
+.profile .pr-card__sub { color: rgba(255, 255, 255, 0.45); }
+
+/* Header identity. */
+.profile .pr-head {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(14px) saturate(1.1);
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+}
+
+.profile .pr-head__name { color: #f0f6fc; }
+.profile .pr-head__nick { color: #a3e635; }
+.profile .pr-head__email { color: rgba(255, 255, 255, 0.55); }
+.profile .pr-head__email svg { opacity: 0.5; }
+.profile .pr-head__meta { color: rgba(255, 255, 255, 0.45); }
+.profile .pr-meta { color: rgba(255, 255, 255, 0.45); }
+.profile .pr-meta svg { opacity: 0.5; }
+
+/* Animated conic ring around the avatar. */
+.pr-avatar-ring {
+  flex-shrink: 0;
+  padding: 3px;
+  border-radius: 28px;
+  background: conic-gradient(from 0deg, #22c55e, #a3e635, #2dd4bf, #22c55e);
+  animation: prRingSpin 7s linear infinite;
+  box-shadow: 0 0 24px rgba(34, 197, 94, 0.25);
+}
+
+@keyframes prRingSpin { to { transform: rotate(360deg); } }
+
+.profile .pr-avatar-ring .pr-avatar {
+  width: 84px;
+  height: 84px;
+  border-radius: 25px;
+  background: #0b1210;
+}
+
+/* Status dot glow. */
+.profile .pr-head[data-role='admin'] .pr-avatar::after,
+.profile .pr-avatar::after {
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.7);
+}
+
+.profile .pr-head[data-role='manager'] .pr-avatar::after {
+  box-shadow: 0 0 10px rgba(163, 230, 53, 0.7);
+}
+
+.profile .pr-head[data-role='user'] .pr-avatar::after {
+  box-shadow: 0 0 10px rgba(148, 163, 184, 0.5);
+}
+
+/* Active pulse dot glow. */
+.profile .pr-meta__dot {
+  background: #22c55e;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
+  animation: profilePulse 2.2s infinite;
+}
+
+.profile .pr-meta__dot--idle {
+  background: rgba(255, 255, 255, 0.25);
+  box-shadow: none;
+  animation: none;
+}
+
+/* Glass pills. */
+.profile .pr-verified {
+  background: rgba(34, 197, 94, 0.12);
+  color: #a3e635;
+  border: 1px solid rgba(34, 197, 94, 0.25);
+}
+
+.profile .status-pill--active {
+  background: rgba(34, 197, 94, 0.12);
+  color: #a3e635;
+  border: 1px solid rgba(34, 197, 94, 0.25);
+}
+
+.profile .status-pill--active .status-pill__dot {
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.6);
+}
+
+.profile .status-pill--archived {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.profile .status-pill--archived .status-pill__dot {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.profile .role-badge {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f0f6fc;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.profile .role-badge--admin {
+  border-color: rgba(34, 197, 94, 0.35);
+  color: #a3e635;
+}
+
+.profile .role-badge--manager {
+  border-color: rgba(163, 230, 53, 0.35);
+  color: #a3e635;
+}
+
+.profile .role-badge--user {
+  border-color: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Account details + form text. */
+.profile .pr-label { color: rgba(255, 255, 255, 0.7); }
+.profile .pr-value { color: #f0f6fc; }
+.profile .pr-muted { color: rgba(255, 255, 255, 0.4); }
+.profile .pr-value__nick { color: #a3e635; }
+.profile .pr-row__k { color: rgba(255, 255, 255, 0.5); }
+.profile .pr-row__v { color: #f0f6fc; }
+.profile .pr-row__cap { color: rgba(255, 255, 255, 0.45); }
+.profile .pr-row { border-bottom-color: rgba(255, 255, 255, 0.07); }
+.profile .pr-rows-foot { color: rgba(255, 255, 255, 0.45); border-top-color: rgba(255, 255, 255, 0.08); }
+.profile .pr-rows-foot svg { color: #22c55e; }
+.profile .pr-photo__hint { color: rgba(255, 255, 255, 0.4); }
+.profile .pr-progress__label { color: rgba(255, 255, 255, 0.5); }
+.profile .pr-progress__bar { background: rgba(255, 255, 255, 0.08); }
+.profile .pr-note { background: rgba(34, 197, 94, 0.08); border-color: rgba(34, 197, 94, 0.25); color: #a3e635; }
+
+/* Activity timeline. */
+.profile .pr-timeline::before { background: rgba(255, 255, 255, 0.08); }
+.profile .pr-timeline li::before {
+  background: #0b1210;
+  border-color: #22c55e;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+}
+.profile .pr-timeline li:last-child::before {
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: none;
+}
+.profile .pr-tl-action { color: #f0f6fc; }
+.profile .pr-tl-time { color: rgba(255, 255, 255, 0.4); }
+.profile .pr-tl-pill--auth { background: rgba(251, 191, 36, 0.12); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.2); }
+.profile .pr-tl-pill--profile { background: rgba(34, 197, 94, 0.12); color: #a3e635; border: 1px solid rgba(34, 197, 94, 0.2); }
+.profile .pr-tl-pill--page, .profile .pr-tl-pill--misc { background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.5); border: 1px solid rgba(255, 255, 255, 0.08); }
+
+/* Empty state. */
+.profile .profile-empty {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.5);
+}
+.profile .profile-empty p { color: #f0f6fc; }
+.profile .profile-empty svg { color: #22c55e; opacity: 0.7; }
+
+/* Inputs & buttons inside the dark page. */
+.profile .input {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f0f6fc;
+}
+.profile .input:hover { border-color: rgba(255, 255, 255, 0.18); }
+.profile .input:focus {
+  border-color: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+}
+.profile .input::placeholder { color: rgba(255, 255, 255, 0.35); }
+
+.profile .btn--ghost {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f0f6fc;
+  box-shadow: none;
+}
+.profile .btn--ghost:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
+}
+.profile .btn--primary {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  border: none;
+  color: #052e16;
+  box-shadow: 0 4px 16px rgba(34, 197, 94, 0.35);
+}
+.profile .btn--primary:hover {
+  box-shadow: 0 6px 24px rgba(34, 197, 94, 0.5);
+  transform: translateY(-1px);
+}
+.profile .btn--primary:disabled {
+  opacity: 0.5;
+  box-shadow: none;
+  transform: none;
+}
+
+.profile .pf-link { color: #a3e635; }
+.profile .pf-link:hover { background: rgba(34, 197, 94, 0.12); }
+
+/* Messages inside the dark page. */
+.profile .msg--error {
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  color: #fca5a5;
+}
+.profile .msg--success {
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  color: #a3e635;
+}
+
+/* Completion meter shimmer. */
+.profile .pr-progress__fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  animation: prShimmer 2.5s ease-in-out infinite;
+}
+@keyframes prShimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Reduced motion: freeze everything animated. */
+@media (prefers-reduced-motion: reduce) {
+  .pr-aurora__blob { animation: none !important; }
+  .pr-avatar-ring { animation: none !important; }
+  .profile .pr-progress__fill::after { animation: none !important; }
+  .profile .panel { transition: none !important; }
+  .profile .panel:hover { transform: none !important; }
+}
+
+/* Status pill — dark glass variant (kept; base light rules still apply). */
+.profile .status-pill {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 /* Status pill (account status row). */
 .status-pill {
   display: inline-flex;
