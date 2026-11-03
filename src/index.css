@@ -2261,139 +2261,114 @@ code {
   gap: 10px;
 }
 
-/* ---- Profile ----
-   Two-column layout mirroring the design concept in
-   design/profile-redesign.html: a role-tinted hero avatar, an identity card
-   with fact tiles, the display-name editor, and a personal audit trail.
-   (The password panel was removed — password recovery lives in the
-   standalone Set-a-new-password screen reached from the sign-in page.) */
+/* ---- Profile — modern SaaS rework (2026) ----
+   Light identity header + two purposeful cards (editable public profile /
+   read-only account facts) + a full-width activity trail. Scoped to pr-*
+   classes; the shared .profile-card / .profile-timeline / .pf-link styles
+   reused by the Security & Privacy page stay untouched below. */
 
-.profile-hero {
-  position: relative;
-  overflow: hidden;
+/* Identity header: avatar, name, email, quiet meta line — no dark banner. */
+.pr-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
-  padding: 26px 28px;
-  border-radius: 18px;
-  background-color: #16342a;
-  background-image:
-    radial-gradient(420px 190px at 88% -20%, rgba(34, 197, 94, 0.28), transparent 70%),
-    radial-gradient(300px 150px at 70% 120%, rgba(255, 255, 255, 0.06), transparent 70%),
-    linear-gradient(90deg, rgba(9, 24, 17, 0.35), rgba(9, 24, 17, 0.06) 55%, transparent);
-  color: #fff;
-  box-shadow: 0 10px 30px rgba(6, 20, 12, 0.25);
+  gap: 16px;
+  padding: 20px 24px;
 }
 
-.profile-hero::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto;
-  height: 3px;
-  background: linear-gradient(90deg, var(--primary-light), var(--primary));
-}
+.pr-head__id { display: flex; align-items: center; gap: 18px; min-width: 0; }
+.pr-head__who { min-width: 0; }
 
-.profile-hero__left {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  min-width: 0;
-}
-
-/* Big initials tile; the ::after dot is the role's status tint. */
-.profile-avatar {
+/* Big avatar tile; the ::after dot carries the role's tint. */
+.pr-avatar {
   position: relative;
-  width: 76px;
-  height: 76px;
+  width: 84px;
+  height: 84px;
   flex-shrink: 0;
   display: grid;
   place-items: center;
-  border-radius: 22px;
+  border-radius: 24px;
   background: linear-gradient(135deg, var(--primary-light), var(--primary));
   color: #fff;
   font-weight: 800;
-  font-size: 22px;
+  font-size: 24px;
   letter-spacing: 0.02em;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  box-shadow: 0 6px 16px rgba(22, 163, 74, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
-.profile-avatar::after {
+.pr-avatar::after {
   content: '';
   position: absolute;
   right: -2px;
   bottom: -2px;
-  width: 19px;
-  height: 19px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: var(--primary-light);
-  border: 3px solid #16342a;
+  border: 3px solid var(--bg-panel);
+  z-index: 1;
 }
 
-.profile-hero[data-role='manager'] .profile-avatar::after { background: #a3e635; }
-.profile-hero[data-role='user'] .profile-avatar::after { background: #94a3b8; }
+.pr-head[data-role='manager'] .pr-avatar::after { background: #a3e635; }
+.pr-head[data-role='user'] .pr-avatar::after { background: #94a3b8; }
 
-/* The status dot sits above a profile picture too. */
-.profile-hero .profile-avatar::after { z-index: 1; }
+.pr-avatar__fallback { position: absolute; inset: 0; display: grid; place-items: center; }
 
-/* Profile pictures fill their tile and keep the rounded shape. */
-.profile-avatar__img {
-  inset: 0;
-  animation: cardIn 0.36s var(--ease-spring) both;
-}
-.profile-avatar__img,
-.profile-identity__avatar .profile-avatar__img {
+.pr-avatar__img {
   position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   border-radius: inherit;
   object-fit: cover;
+  animation: cardIn 0.36s var(--ease-spring) both;
 }
 
-.profile-hero__titles h2 {
+.pr-head__row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.pr-head__name {
   margin: 0;
-  font-size: 21px;
+  font-size: 22px;
   font-weight: 800;
   letter-spacing: -0.02em;
-  color: #fff;
+  color: var(--text);
+  overflow-wrap: anywhere;
 }
 
-.profile-hero__titles p {
-  margin: 3px 0 0;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.65);
+.pr-head__nick {
+  font-size: 14.5px;
+  font-weight: 600;
+  font-style: italic;
+  color: var(--text-muted);
 }
 
-/* Fact chips on the hero's right: role, member since, activity. */
-.profile-facts {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.profile-chip {
+.pr-head__email {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
+  gap: 6px;
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.pr-head__email svg { flex-shrink: 0; opacity: 0.7; }
+
+/* Quiet meta line: member since · last activity (pulsing dot). */
+.pr-head__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-top: 10px;
   font-size: 12.5px;
-  color: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  color: var(--text-muted);
 }
 
-.profile-chip svg { opacity: 0.75; flex-shrink: 0; }
+.pr-meta { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.pr-meta svg { flex-shrink: 0; opacity: 0.7; }
 
-@keyframes profilePulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.45); }
-  50% { box-shadow: 0 0 0 5px rgba(34, 197, 94, 0); }
-}
-
-.profile-chip__dot {
+.pr-meta__dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -2402,9 +2377,280 @@ code {
 }
 
 /* Grey steady dot when the newest entry is older than a day (or absent). */
-.profile-chip__dot--idle {
-  background: #94a3b8;
-  animation: none;
+.pr-meta__dot--idle { background: #94a3b8; animation: none; }
+
+.pr-head__edit { flex-shrink: 0; }
+
+/* Two purposeful cards under the header. */
+.pr-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.pr-card { display: flex; flex-direction: column; gap: 16px; }
+
+.pr-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pr-card__head h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.pr-card__head h3 svg { color: var(--primary); flex-shrink: 0; }
+
+.pr-card__sub { font-size: 12px; color: var(--text-muted); }
+
+/* --- Public profile card: picture row + editable names --- */
+
+.pr-photo { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+
+.pr-photo__img {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: linear-gradient(135deg, var(--primary-light), var(--primary));
+  color: #fff;
+  font-weight: 800;
+  font-size: 20px;
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25);
+  overflow: hidden;
+}
+
+.pr-photo__img img { width: 100%; height: 100%; object-fit: cover; }
+
+.pr-photo__tools {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.pr-photo__btns { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pr-photo__hint { font-size: 11.5px; color: var(--text-muted); }
+
+.pr-form { display: flex; flex-direction: column; gap: 14px; }
+.pr-form__row { display: flex; flex-direction: column; gap: 6px; }
+
+.pr-label { font-size: 12.5px; font-weight: 600; color: var(--text); }
+
+.pr-value {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.45;
+  min-height: 21px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
+}
+
+.pr-value__nick { font-style: italic; }
+.pr-muted { color: var(--text-muted); font-weight: 500; }
+
+/* Unsaved-changes strip + save/cancel row. */
+.pr-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 9px 12px;
+  border: 1px solid #bbe7c9;
+  border-radius: 10px;
+  background: #f0fdf4;
+  color: var(--primary-dark);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.pr-note svg { flex-shrink: 0; }
+.pr-note b { font-weight: 700; }
+
+.pr-notes { display: flex; flex-direction: column; gap: 8px; }
+.pr-notes .msg { margin: 0; }
+
+.pr-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+/* --- Account details card: quiet definition rows --- */
+
+.pr-rows { margin: 0; display: flex; flex-direction: column; }
+
+.pr-row {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.pr-row:first-child { padding-top: 2px; }
+.pr-row:last-child { border-bottom: none; padding-bottom: 2px; }
+
+.pr-row__k {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.pr-row__v {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.45;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
+}
+
+.pr-row__v--stack { flex-direction: column; align-items: flex-start; gap: 5px; }
+.pr-row__cap { font-size: 11.5px; font-weight: 500; color: var(--text-muted); }
+
+.pr-verified {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: var(--primary-dark);
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.pr-rows-foot {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 4px 0 0;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.pr-rows-foot svg { flex-shrink: 0; margin-top: 1px; color: var(--primary); }
+
+/* --- Activity card: slimmer timeline --- */
+
+.pr-timeline {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pr-timeline::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 999px;
+  background: var(--border);
+}
+
+.pr-timeline li { position: relative; padding: 0 0 14px 24px; }
+.pr-timeline li:last-child { padding-bottom: 0; }
+
+.pr-timeline li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--bg-panel);
+  border: 2px solid var(--primary-light);
+}
+
+.pr-timeline li:last-child::before { border-color: var(--border-strong); }
+
+.pr-tl-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.pr-tl-time { margin-top: 2px; font-size: 11.5px; color: var(--text-muted); }
+
+.pr-tl-pill {
+  padding: 2px 8px;
+  border-radius: 999px;
+  vertical-align: 1px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pr-tl-pill--auth { background: #fef9c3; color: #854d0e; }
+.pr-tl-pill--profile { background: #dcfce7; color: var(--primary-dark); }
+.pr-tl-pill--page, .pr-tl-pill--misc { background: var(--bg-soft); color: var(--text-muted); }
+
+/* Status pill (account status row). */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 4px 12px;
+}
+.status-pill__dot { width: 7px; height: 7px; border-radius: 50%; }
+.status-pill--active { background: #dcfce7; color: var(--primary-dark); }
+.status-pill--active .status-pill__dot { background: #16a34a; }
+.status-pill--archived { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+.status-pill--archived .status-pill__dot { background: #94a3b8; }
+
+/* Responsive */
+@media (max-width: 960px) {
+  .pr-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 720px) {
+  .pr-head { flex-direction: column; align-items: flex-start; padding: 18px; }
+  .pr-head__meta { justify-content: flex-start; }
+  .pr-row { grid-template-columns: 1fr; gap: 3px; }
+}
+
+@keyframes profilePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.45); }
+  50% { box-shadow: 0 0 0 5px rgba(34, 197, 94, 0); }
 }
 
 .profile-grid {
@@ -2458,176 +2704,6 @@ code {
   min-height: 0;
 }
 
-/* Card with the identity avatar, e-mail, role badge and fact tiles. */
-.profile-identity__main {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.profile-identity__who { min-width: 0; }
-
-.profile-identity__handle {
-  font-weight: 600;
-  color: var(--text);
-}
-
-/* The identity avatar is a button that opens the file picker; the hover
-   strip says so. The avatar keeps its initials look underneath. */
-.profile-identity__avatar-btn {
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: pointer;
-  display: inline-flex;
-  font: inherit;
-  flex-shrink: 0;
-}
-
-.profile-identity__avatar {
-  position: relative;
-  width: 58px;
-  height: 58px;
-  border-radius: 18px;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  font-weight: 800;
-  font-size: 18px;
-  background: linear-gradient(135deg, var(--primary-light), var(--primary));
-  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
-  overflow: hidden;
-}
-
-.profile-identity__avatar-btn:disabled { cursor: default; opacity: 0.85; }
-
-.profile-identity__avatar-btn:not(:disabled) .profile-identity__avatar:hover {
-  box-shadow: 0 6px 16px rgba(22, 163, 74, 0.42);
-}
-
-.profile-identity__avatar-overlay {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  border-radius: inherit;
-  background: rgba(6, 20, 12, 0.5);
-  color: #fff;
-  font-size: 11.5px;
-  font-weight: 700;
-  opacity: 0;
-  transition: opacity 0.15s var(--ease-smooth);
-  pointer-events: none;
-}
-
-.profile-identity__avatar-btn:hover .profile-identity__avatar-overlay,
-.profile-identity__avatar-btn:focus-visible .profile-identity__avatar-overlay {
-  opacity: 1;
-}
-
-.profile-identity__name {
-  font-size: 17px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
-  color: var(--text);
-  overflow-wrap: anywhere;
-}
-
-.profile-identity__meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 5px;
-  font-size: 13px;
-  color: var(--text-muted);
-}
-
-.profile-identity__main > .role-badge { margin-left: auto; flex-shrink: 0; }
-
-.profile-verified {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: #dcfce7;
-  color: var(--primary-dark);
-  font-size: 11.5px;
-  font-weight: 700;
-}
-
-.profile-facts-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.profile-tile {
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-soft);
-}
-
-.profile-tile__k {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.profile-tile__v {
-  display: block;
-  margin-top: 5px;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text);
-}
-
-.profile-tile__v small {
-  display: block;
-  margin-top: 2px;
-  font-weight: 500;
-  font-size: 11.5px;
-  color: var(--text-muted);
-}
-
-/* Editing state strip: green while changes await a save, amber when empty. */
-.profile-note {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 6px 0 0;
-  padding: 8px 12px;
-  border: 1px solid #bbe7c9;
-  border-radius: 10px;
-  background: #dcfce7;
-  color: var(--primary-dark);
-  font-size: 12.5px;
-  font-weight: 600;
-}
-
-.profile-note svg { flex-shrink: 0; }
-
-.profile-note--warn {
-  border-color: #fde68a;
-  background: #fef9c3;
-  color: #854d0e;
-}
-
-.profile-note-plain {
-  margin: 2px 0 0;
-  font-size: 12.5px;
-  color: var(--text-muted);
-}
-
 /* Fresh account, empty trail: a dashed placeholder instead of a bare
    sentence, so the stretched activity card never reads as broken. */
 .profile-empty {
@@ -2662,14 +2738,6 @@ code {
 .profile-empty span {
   font-size: 12px;
   line-height: 1.5;
-}
-
-/* Discard + Save in one row; Discard only renders while there are edits. */
-.profile-card__actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 8px;
 }
 
 /* Password checklist: ticks fill as the rules are satisfied. */
@@ -2882,77 +2950,7 @@ code {
 
 @media (max-width: 880px) {
   .profile-grid { grid-template-columns: 1fr; }
-  .profile-hero { flex-direction: column; align-items: flex-start; }
-  .profile-facts { justify-content: flex-start; }
 }
-
-@media (max-width: 520px) {
-  .profile-facts-grid { grid-template-columns: 1fr; }
-  .profile-hero { padding: 20px; border-radius: 14px; }
-}
-
-/* ============================================================
-   PROFILE — information card (spec-driven rework)
-   Fields grid: editable name/nickname render as inputs while
-   editing; every read-only field renders as plain text (never a
-   disabled input, which reads as "blocked" rather than "fact").
-   ============================================================ */
-
-.pf-card { padding: 20px; }
-.pf-head-tools { display: flex; align-items: center; gap: 10px; }
-
-/* Picture row */
-.pf-identity { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.pf-identity__img {
-  width: 62px; height: 62px; border-radius: 18px; flex-shrink: 0;
-  display: grid; place-items: center;
-  font-weight: 800; font-size: 19px; color: #fff;
-  background: linear-gradient(135deg, var(--primary-light), var(--primary));
-  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
-  overflow: hidden;
-}
-.pf-identity__img img { width: 100%; height: 100%; object-fit: cover; }
-.pf-identity__tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
-.pf-identity__hint { font-size: 11.5px; color: var(--text-muted); }
-
-/* Fields grid */
-.pf-fields {
-  display: grid; grid-template-columns: 1fr 1fr;
-  gap: 16px 18px; margin-top: 18px;
-}
-.pf-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.pf-field--wide { grid-column: span 2; }
-.pf-field__k {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 11px; font-weight: 700; letter-spacing: .05em;
-  text-transform: uppercase; color: var(--text-muted);
-  align-items: center;
-}
-.pf-field__k svg { color: var(--primary); }
-.pf-field__v { font-size: 14.5px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 20px; }
-.pf-field__v--wrapped { line-height: 1.4; }
-.pf-field__v--stack { flex-direction: column; align-items: flex-start; gap: 6px; }
-.pf-field__v--stack .pf-field__note { margin-top: 0; }
-.pf-field__v-muted { color: var(--text-muted); font-weight: 500; }
-.pf-nick { font-style: italic; }
-.pf-field__note { font-size: 11.5px; font-weight: 500; color: var(--text-muted); }
-
-/* Status pill (Account status field) */
-.status-pill {
-  display: inline-flex; align-items: center; gap: 7px;
-  font-size: 12px; font-weight: 700;
-  border-radius: 999px; padding: 4px 12px;
-}
-.status-pill__dot { width: 7px; height: 7px; border-radius: 50%; }
-.status-pill--active { background: #dcfce7; color: var(--primary-dark); }
-.status-pill--active .status-pill__dot { background: #16a34a; }
-.status-pill--archived { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
-.status-pill--archived .status-pill__dot { background: #94a3b8; }
-
-/* Inline edit flow */
-.pf-notes { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
-.pf-notes .msg, .pf-notes .profile-note { margin: 0; }
-.pf-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
 
 /* Text-style link buttons (activity head + removal links) */
 .pf-link {
@@ -3028,8 +3026,6 @@ code {
 
 /* Responsive */
 @media (max-width: 720px) {
-  .pf-fields { grid-template-columns: 1fr; }
-  .pf-field--wide { grid-column: auto; }
   .sess-row { flex-wrap: wrap; }
 }
 
