@@ -620,7 +620,9 @@ code {
   position: fixed;
   top: 16px;
   right: 16px;
-  z-index: 100;
+  /* Always topmost: even above the navbar (1100) and dialogs (2000), so a
+     "report exported" notice is readable no matter what is open. */
+  z-index: 3000;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -5173,7 +5175,8 @@ button.reports-panel__more:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 50;
+  /* Above the navbar (1100) — a dialog dims and covers the header row too. */
+  z-index: 2000;
   padding: 16px;
 }
 
@@ -5196,7 +5199,8 @@ button.reports-panel__more:hover {
   background: rgba(10, 20, 15, 0.52);
   display: flex;
   flex-direction: column;
-  z-index: 60;
+  /* Above the navbar (1100) — full-screen readers cover everything. */
+  z-index: 2000;
 }
 
 .syl-reader__bar {

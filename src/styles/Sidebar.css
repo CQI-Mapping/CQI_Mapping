@@ -14,7 +14,14 @@
 .hdr {
   position: sticky;
   top: 0;
-  z-index: 30;
+  /* Above every page overlay, including the z-1000 fullscreen curriculum map —
+     the navbar row and BOTH of its dropdowns must stay visible and clickable
+     while the map is expanded. The map's fixed panel only starts below
+     --hdr-h, but the menus extend BELOW the navbar, and a menu living inside
+     a z-30 header context used to slide behind the z-1000 overlay.
+     Full-screen modals (.modal-overlay) and the syllabus reader sit above
+     this (they must dim/cover the navbar when open). */
+  z-index: 1100;
   width: 100%;
   height: var(--hdr-h);
   flex-shrink: 0;
