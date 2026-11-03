@@ -409,6 +409,24 @@ BEGIN
     IF v_caller = 'admin' AND NEW.id <> auth.uid() THEN
         RETURN NEW;
     END IF;
+    -- Manager faculty management (migration 012 + 015): a manager acting on
+    -- ANOTHER person's faculty row may flip ONLY the archive status; every
+    -- other column there stays admins-only.
+    IF v_caller = 'manager' AND NEW.id <> auth.uid() AND OLD.role = 'user' THEN
+        IF NEW.role IS DISTINCT FROM OLD.role
+           OR NEW.email IS DISTINCT FROM OLD.email
+           OR NEW.full_name IS DISTINCT FROM OLD.full_name
+           OR NEW.nickname IS DISTINCT FROM OLD.nickname
+           OR NEW.avatar_url IS DISTINCT FROM OLD.avatar_url
+           OR NEW.program_id IS DISTINCT FROM OLD.program_id
+           OR NEW.department IS DISTINCT FROM OLD.department
+           OR NEW.designation IS DISTINCT FROM OLD.designation THEN
+            RAISE EXCEPTION
+                'Managers may change only the archive status on faculty accounts.'
+                USING ERRCODE = '42501';
+        END IF;
+        RETURN NEW;
+    END IF;
     IF NEW.id IS DISTINCT FROM OLD.id
        OR NEW.role IS DISTINCT FROM OLD.role
        OR NEW.email IS DISTINCT FROM OLD.email
