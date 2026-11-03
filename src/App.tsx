@@ -33,6 +33,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import Sidebar from './components/Sidebar'
 import Login from './pages/Login'
 import ResetPassword from './pages/ResetPassword'
+import ResetLinkExpired from './pages/ResetLinkExpired'
+import { interpretAuthReturnError, scrubAuthReturnUrl } from './utils/oauthErrors'
 import Profile from './pages/Profile'
 import AdminDashboard from './pages/admin/Dashboard'
 import AdminActivityLogs from './pages/admin/ActivityLogs'
@@ -228,6 +230,37 @@ function App() {
   // form's own archived check.
   const [signOutNotice, setSignOutNotice] = useState<string | null>(null)
 
+  // Failed auth returns. A bounced OAuth round-trip or a dead recovery link
+  // lands back on this origin carrying ?error= / #error_description= in the
+  // address bar. App reads them exactly once, renders the verdict, and wipes
+  // the params — a child component reading them too would race the scrub and
+  // double-handle the same bounce. Expiry gets its own full screen (screen 5
+  // of design/profile-reset-redesign.html); every other failure arrives at
+  // Login as a pre-remixed one-line notice.
+  const [oauthNotice, setOauthNotice] = useState<string | null>(null)
+  const [expiredResetLink, setExpiredResetLink] = useState(false)
+  // Seed for the forgot-password form: "Send me a new link" on the expired
+  // screen jumps straight into asking for the email (the link bounce does not
+  // carry the address, so the person types their own — never pre-filled).
+  const [forgotSeed, setForgotSeed] = useState(false)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const hashPart = new URLSearchParams(
+      window.location.hash.startsWith('#') ? window.location.hash.slice(1) : '',
+    )
+    const error = params.get('error') || hashPart.get('error')
+    const description = params.get('error_description') || hashPart.get('error_description')
+    if (!error && !description) return
+    const verdict = interpretAuthReturnError(error, description)
+    if (verdict.expiredResetLink) {
+      setExpiredResetLink(true)
+    } else {
+      setOauthNotice(verdict.message)
+    }
+    scrubAuthReturnUrl()
+    // The bounce happens before mount; reading once at boot is the contract.
+  }, [])
+
   // The email's real Gravatar photo drives the sidebar avatar whenever no
   // picture was uploaded. The availability probe is async, so it lands a
   // beat after sign-in; the sidebar renders initials until then, and
@@ -385,8 +418,27 @@ function App() {
     return <div className="center-screen">Loading...</div>
   }
 
+  // Dead recovery link → its own auth-styled screen (mockup screen 5)
+  // instead of an unexplained login. Checked before the session gate: a
+  // bounce never carries a session, and a tab may additionally hold a stale
+  // restored session the bounce should not mask the message for.
+  if (expiredResetLink) {
+    return (
+      <ResetLinkExpired
+        onSendNewLink={() => {
+          setExpiredResetLink(false)
+          setForgotSeed(true)
+        }}
+        onBackToLogin={() => {
+          setExpiredResetLink(false)
+          setForgotSeed(false)
+        }}
+      />
+    )
+  }
+
   if (!session) {
-    return <Login notice={signOutNotice} />
+    return <Login notice={signOutNotice ?? oauthNotice} startForgot={forgotSeed} />
   }
 
   // Mid-recovery → the Set-a-new-password screen alone, with no app shell and
