@@ -107,7 +107,10 @@ function Profile({ profile, onSaved, onNavigate }: ProfileProps) {
   // Nickname is casual and optional: trimmed, never empty-string in the DB.
   const nicknameNormalized = nickname.trim()
   const dirty = fullName.trim() !== savedName || nicknameNormalized !== savedNickname
-  const canSave = Boolean(profile) && fullName.trim().length > 0
+  // Save only fires when something actually changed — a clean form pressing
+  // Save would rewrite the row and stamp a needless profile.updated audit
+  // entry. Cancel stays available as the off-ramp either way.
+  const canSave = Boolean(profile) && dirty && fullName.trim().length > 0
 
   // ----- Profile picture (always editable, inside the fields card) -----
 
@@ -395,7 +398,9 @@ function Profile({ profile, onSaved, onNavigate }: ProfileProps) {
                 type="button"
                 className="pf-link"
                 onClick={handleAvatarRemove}
-                disabled={!profile || removingAvatar}
+                // avatarBusy too: removing while an upload is mid-flight would
+                // let the two writes to avatar_url race and the loser surprises.
+                disabled={!profile || removingAvatar || avatarBusy}
               >
                 {removingAvatar ? 'Removing…' : 'Remove photo'}
               </button>
@@ -496,11 +501,18 @@ function Profile({ profile, onSaved, onNavigate }: ProfileProps) {
             <span className="pf-field__k">
               <Icon name="shield" size={11} /> Assigned system role
             </span>
-            <span className="pf-field__v pf-field__v--stack">
-              <span className={`role-badge role-badge--${profile?.role}`}>{ROLE_LABELS[role]}</span>
-              <small className="pf-field__note">{CAPABILITIES[role].title} · {CAPABILITIES[role].sub}</small>
-            </span>
-            <small className="pf-field__note">assigned by an administrator</small>
+            {profile ? (
+              <span className="pf-field__v pf-field__v--stack">
+                <span className={`role-badge role-badge--${profile.role}`}>{ROLE_LABELS[role]}</span>
+                <small className="pf-field__note">
+                  {CAPABILITIES[role].title} · {CAPABILITIES[role].sub}
+                </small>
+              </span>
+            ) : (
+              <span className="pf-field__v">
+                <span className="pf-field__v-muted">—</span>
+              </span>
+            )}
           </div>
 
           <div className="pf-field">
