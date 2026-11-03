@@ -223,6 +223,19 @@ npm run dev
 
 Open the printed local URL (usually `http://localhost:5173`) and sign in.
 
+### 6. (Optional) Enable Google sign-in
+
+"Continue with Google" appears on the sign-in page once the provider is configured. Until then the button shows a "not set up yet" message — nothing breaks. The only difference from the demo project's hand-rolled flow (google_callback.php-style): Supabase's callback endpoint does the token exchange/verification server-side; three console steps here replace that code entirely.
+
+1. **Google Cloud Console** → create an *OAuth client (Web)*. Add the authorized redirect URI exactly:
+   `https://<project-ref>.supabase.co/auth/v1/callback` (find `<project-ref>` in **Settings > API**).
+2. **Supabase Dashboard → Authentication → Providers → Google**: enable it, paste the client **ID** and **secret**.
+3. **Supabase Dashboard → Authentication → Sign In / Up → Allowed email domains**: `nbsc.edu.ph`.
+
+   This step is the server-side version of the school-accounts-only rule: it enforces *back at the auth layer*, not just in the UI, that only official `@nbsc.edu.ph` Google accounts can sign in. Because it lives in a dashboard setting rather than a repo file, document it per project.
+
+On first Google sign-in the `handle_new_user` trigger creates the profile automatically from the Google metadata — full name and profile photo arrive pre-filled; the role starts as `user (faculty)` and must be assigned by an admin, exactly like password sign-ups. Every Google sign-in writes the same `auth.login` audit row the password path writes.
+
 ---
 
 ## 6. Database Schema Reference

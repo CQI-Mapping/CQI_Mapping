@@ -56,7 +56,7 @@ import AdminView from './pages/admin/Syllabus'
 
 import UserTOS from './pages/user/TOS'
 import { supabase } from './utils/supabaseClient'
-import { ensureProfile, syncDemoRole, addActivityLog } from './services/database'
+import { ensureProfile, syncDemoRole, addActivityLog, recordLoginEvent } from './services/database'
 import type { Profile as ProfileType, UserRole, NavItem } from './services/database'
 import type { Session } from '@supabase/supabase-js'
 import { loadEmailAvatar } from './utils/avatar'
@@ -222,6 +222,12 @@ function App() {
   const [retryTick, setRetryTick] = useState(0)
   const profileUserIdRef = useRef<string | null>(null)
 
+  // Message handed to the Login screen by App itself — currently only the
+  // archived-account refusal, which Google sign-ins need because the OAuth
+  // session lands in the app shell without ever passing through the Login
+  // form's own archived check.
+  const [signOutNotice, setSignOutNotice] = useState<string | null>(null)
+
   // The email's real Gravatar photo drives the sidebar avatar whenever no
   // picture was uploaded. The availability probe is async, so it lands a
   // beat after sign-in; the sidebar renders initials until then, and
@@ -277,6 +283,17 @@ function App() {
         // set, and skip restoring an old page when the profile lands.
         arrivedViaRecovery.current = true
         setRecovering(true)
+      } else if (event === 'SIGNED_IN') {
+        // A truly fresh sign-in. Restored tabs arrive as INITIAL_SESSION, so a
+        // page refresh never re-writes a login row here.
+        setSignOutNotice(null)
+        // OAuth sign-ins return straight into the app and never pass through
+        // the Login page's form-level recordLoginEvent, so their audit row is
+        // stamped here. app_metadata.provider is 'google' for the Google path.
+        if (session?.user?.app_metadata?.provider === 'google') {
+          // The service logs its own failures as a console warn — it never rejects.
+          recordLoginEvent(session.user.email ?? 'unknown', true)
+        }
       }
     })
 
@@ -311,8 +328,19 @@ function App() {
           })
           .catch((err) => { console.error('syncDemoRole failed:', err); return p })
       })
-      .then((p) => {
+      .then(async (p) => {
         if (cancelled) return
+        if (p?.status === 'archived') {
+          // Archived refusal, OAuth edition. The password path drops these
+          // on the Login page, but a Google sign-in hands its session
+          // straight to the app shell, so the check lives where the profile
+          // actually lands. Signing out keeps the token un-burned — the
+          // account remains restorable — and the Login screen inherits the
+          // explanation via signOutNotice.
+          setSignOutNotice('This account has been archived. Ask your administrator to restore it.')
+          await supabase!.auth.signOut()
+          return
+        }
         if (p) {
           setProfile(p)
           setProfileError('')
@@ -357,9 +385,8 @@ function App() {
     return <div className="center-screen">Loading...</div>
   }
 
-  // No session → show the login page.
   if (!session) {
-    return <Login />
+    return <Login notice={signOutNotice} />
   }
 
   // Mid-recovery → the Set-a-new-password screen alone, with no app shell and

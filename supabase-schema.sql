@@ -331,7 +331,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-    INSERT INTO public.profiles (id, email, full_name)
+    INSERT INTO public.profiles (id, email, full_name, avatar_url)
     VALUES (
         NEW.id,
         NEW.email,
@@ -339,7 +339,8 @@ BEGIN
             NEW.raw_user_meta_data->>'full_name',
             NEW.raw_user_meta_data->>'name',
             split_part(NEW.email, '@', 1)
-        )
+        ),
+        NULLIF(NEW.raw_user_meta_data->>'avatar_url', '')
     )
     ON CONFLICT (id) DO NOTHING;
     RETURN NEW;
