@@ -6,9 +6,22 @@
 // doorstep — the archived check and the audit row — because a Google sign-in
 // lands a session straight into the app shell without passing through here.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../utils/supabaseClient'
 import { recordLoginEvent, fetchOwnProfileStatus } from '../services/database'
+
+/** Remix raw OAuth-return errors into one friendly line (generic by design —
+    never quote provider internals). */
+function friendlyOAuthError(raw: string | null): string {
+  const msg = (raw || '').toLowerCase()
+  if (msg.includes('access_denied') || msg.includes('cancelled')) {
+    return 'Google sign-in was cancelled or did not complete.'
+  }
+  if (msg.includes('signup') || msg.includes('sign up') || msg.includes('disabled')) {
+    return 'Google sign-in works only for registered accounts. Ask your administrator to add you.'
+  }
+  return 'Google sign-in could not be completed. Try again in a moment.'
+}
 
 interface LoginProps {
   /** Message inherited from App.tsx — currently the archived-account refusal. */
@@ -29,6 +42,25 @@ function Login({ notice }: LoginProps) {
   const [resetSent, setResetSent] = useState(false)
   const [resetError, setResetError] = useState('')
   const [resetBusy, setResetBusy] = useState(false)
+
+  // OAuth returns land with either a hosted-error or error params in the
+  // URL. When sign-ups are disabled (Auth → Policies), a non-registered
+  // account is rejected exactly this way — surface the friendly line and
+  // scrub the params so a refresh or share never replays the failure.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const hashPart = new URLSearchParams(
+      window.location.hash.startsWith('#') ? window.location.hash.slice(1) : '',
+    )
+    const error = params.get('error') || hashPart.get('error')
+    const description = params.get('error_description') || hashPart.get('error_description')
+    if (error || description) {
+      setError(friendlyOAuthError(error ?? description))
+      window.history.replaceState({}, document.title, window.location.origin + '/')
+    }
+    // Run once on mount only.
+  }, [])
+
   // Google sign-in has its own busy state: the OAuth round-trip can take a
   // couple of seconds, and this flow cannot set busy on the password button
   // (the page usually navigates away before the request resolves — the popup
