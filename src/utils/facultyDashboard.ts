@@ -101,3 +101,30 @@ export function ownFigures(clos: Outcome[], courses: Course[], now: number) {
     latest,
   }
 }
+
+/** One trailing-week bucket of the edit history behind the week bars. */
+export interface EditWeek {
+  /** The window's closing edge in ms — `now` for the newest bucket. */
+  end: number
+  /** Outcomes edited in this trailing 7-day window. */
+  count: number
+}
+
+/** Trailing 7-day edit buckets, oldest first, for the bars under the
+ *  "Edited this week" figure. The newest bucket is the same window
+ *  ownFigures calls "Edited this week" — one fewer rule for a reader to
+ *  reconcile: the bars can never contradict their own tile. Half-open on
+ *  the side that faces the past ([end-7d, end)), so a week boundary assigns
+ *  an edit to exactly one bucket. */
+export function weeklyEditTrend(clos: Outcome[], now: number, weeks = 4): EditWeek[] {
+  return Array.from({ length: Math.max(1, weeks) }, (_, i) => {
+    const end = now - i * WEEK_MS
+    return {
+      end,
+      count: clos.filter((l) => {
+        const t = updatedAt(l)
+        return t >= end - WEEK_MS && t < end
+      }).length,
+    }
+  }).reverse()
+}

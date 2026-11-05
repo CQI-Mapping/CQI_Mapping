@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Course, CourseLearningOutcomeStandalone } from '../services/database'
-import { groupOutcomesBySubject, ownFigures, planNextStep } from './facultyDashboard'
+import { groupOutcomesBySubject, ownFigures, planNextStep, weeklyEditTrend } from './facultyDashboard'
 
 const subject = (code: string, title: string, year: number | null, semester: number | null) =>
   ({ id: code, code, title, year_level: year, semester }) as unknown as Course
@@ -124,5 +124,42 @@ describe('ownFigures', () => {
     ]
     expect(ownFigures(clos, courses, now).latest?.code).toBe('CLO2')
     expect(ownFigures([], courses, now).latest).toBeNull()
+  })
+})
+
+describe('weeklyEditTrend', () => {
+  const DAY = 24 * 60 * 60 * 1000
+  const now = new Date(2026, 10, 5, 15, 0).getTime()
+  const ago = (days: number) => new Date(now - days * DAY).toISOString()
+
+  it('splits four trailing weeks oldest first, boundary edits going to the older bucket', () => {
+    const clos = [
+      outcome('CLO1', 'IT10', ago(2)),   // this week
+      outcome('CLO2', 'IT10', ago(9)),   // last week
+      outcome('CLO3', 'IT99', ago(16)),  // two weeks back
+      outcome('CLO4', 'IT99', ago(23)),  // three weeks back
+      // Exactly seven days old: the [start, end) window counts a boundary
+      // edit in its OWN trailing bucket — the same inclusive rule the
+      // "Edited this week" figure uses, so they can never disagree.
+      outcome('CLO5', 'IT99', ago(7)),
+    ]
+    expect(weeklyEditTrend(clos, now).map((w) => w.count)).toEqual([1, 1, 1, 2])
+  })
+
+  it('agrees with the Edited this week figure on the trailing window', () => {
+    const courses = [subject('IT10', 'Intro to IT', 1, 1)]
+    const clos = [outcome('CLO1', 'IT10', ago(1)), outcome('CLO2', 'IT10', ago(10))]
+    const trend = weeklyEditTrend(clos, now)
+    expect(trend[3].count).toBe(ownFigures(clos, courses, now).editedThisWeek)
+    expect(trend).toHaveLength(4)
+  })
+
+  it('stays a flat quiet baseline when nothing was edited', () => {
+    expect(weeklyEditTrend([], now)).toEqual([
+      expect.objectContaining({ count: 0 }),
+      expect.objectContaining({ count: 0 }),
+      expect.objectContaining({ count: 0 }),
+      expect.objectContaining({ count: 0 }),
+    ])
   })
 })

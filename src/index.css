@@ -1670,6 +1670,13 @@ code {
   text-overflow: ellipsis;
 }
 
+/* Week history bars under the "Edited this week" figure — the current week
+   sits full green at the right edge, completed weeks faded in front of it. */
+.fac-stat__trend {
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
 /* ---- subjects and quick actions ---- */
 
 .fac-main {
@@ -2822,14 +2829,20 @@ code {
   gap: 10px;
 }
 
-/* ---- Profile ----
-   Two-column layout mirroring the design concept in
-   design/profile-redesign.html: a role-tinted hero avatar, an identity card
-   with fact tiles, the display-name editor, and a personal audit trail.
-   (The password panel was removed — password recovery lives in the
-   standalone Set-a-new-password screen reached from the sign-in page.) */
+/* ---- Profile (pages/Profile.tsx) ----
+   Laid out as the concept in design/profile-redesign.html: a dark hero with a
+   role-tinted avatar and fact chips, then two columns. The left holds the
+   identity card and the profile information; the right holds the security
+   summary and the activity trail. Colours are the app's own tokens plus the
+   concept's component values. The activity trail and its empty state reuse
+   the .profile-timeline and .profile-empty rules the Security & privacy page
+   also uses. */
 
-.profile-hero {
+.programs-page.prf {
+  gap: 18px;
+}
+
+.prf-hero {
   position: relative;
   overflow: hidden;
   display: flex;
@@ -2847,7 +2860,7 @@ code {
   box-shadow: 0 10px 30px rgba(6, 20, 12, 0.25);
 }
 
-.profile-hero::before {
+.prf-hero::before {
   content: '';
   position: absolute;
   inset: 0 0 auto;
@@ -2855,15 +2868,29 @@ code {
   background: linear-gradient(90deg, var(--primary-light), var(--primary));
 }
 
-.profile-hero__left {
+.prf-hero__left {
   display: flex;
   align-items: center;
   gap: 18px;
   min-width: 0;
 }
 
-/* Big initials tile; the ::after dot is the role's status tint. */
-.profile-avatar {
+.prf-hero__titles h2 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.prf-hero__titles p {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+/* Big initials tile; its dot takes the role's tint. */
+.prf-avatar {
   position: relative;
   width: 76px;
   height: 76px;
@@ -2879,11 +2906,12 @@ code {
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
-.profile-avatar::after {
+.prf-avatar::after {
   content: '';
   position: absolute;
   right: -2px;
   bottom: -2px;
+  z-index: 1;
   width: 19px;
   height: 19px;
   border-radius: 50%;
@@ -2891,49 +2919,27 @@ code {
   border: 3px solid #16342a;
 }
 
-.profile-hero[data-role='manager'] .profile-avatar::after { background: #a3e635; }
-.profile-hero[data-role='user'] .profile-avatar::after { background: #94a3b8; }
+.prf-hero[data-role='manager'] .prf-avatar::after { background: #a3e635; }
+.prf-hero[data-role='user'] .prf-avatar::after { background: #94a3b8; }
 
-/* The status dot sits above a profile picture too. */
-.profile-hero .profile-avatar::after { z-index: 1; }
-
-/* Profile pictures fill their tile and keep the rounded shape. */
-.profile-avatar__img {
-  inset: 0;
-  animation: cardIn 0.36s var(--ease-spring) both;
-}
-.profile-avatar__img,
-.profile-identity__avatar .profile-avatar__img {
+.prf-avatar__img {
   position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   border-radius: inherit;
   object-fit: cover;
 }
 
-.profile-hero__titles h2 {
-  margin: 0;
-  font-size: 21px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  color: #fff;
-}
-
-.profile-hero__titles p {
-  margin: 3px 0 0;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.65);
-}
-
-/* Fact chips on the hero's right: role, member since, activity. */
-.profile-facts {
+/* Fact chips on the hero's right: role, member since, last activity. */
+.prf-chips {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
 }
 
-.profile-chip {
+.prf-chip {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2947,14 +2953,17 @@ code {
   -webkit-backdrop-filter: blur(6px);
 }
 
-.profile-chip svg { opacity: 0.75; flex-shrink: 0; }
+.prf-chip svg {
+  flex-shrink: 0;
+  opacity: 0.8;
+}
 
 @keyframes profilePulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.45); }
   50% { box-shadow: 0 0 0 5px rgba(34, 197, 94, 0); }
 }
 
-.profile-chip__dot {
+.prf-chip__dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -2962,10 +2971,396 @@ code {
   animation: profilePulse 2.2s infinite;
 }
 
-/* Grey steady dot when the newest entry is older than a day (or absent). */
-.profile-chip__dot--idle {
+/* A grey, still dot when the newest entry is older than a day or absent. */
+.prf-chip__dot--idle {
   background: #94a3b8;
   animation: none;
+}
+
+/* Two columns at the concept's 1.1fr / 0.9fr. */
+.prf-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 18px;
+}
+
+.prf-col {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.prf-panel {
+  min-width: 0;
+  padding: 20px;
+  border-radius: 16px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  transition: box-shadow 0.2s var(--ease-spring);
+}
+
+.prf-panel:hover {
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.1), 0 2px 8px rgba(6, 20, 12, 0.07);
+}
+
+.prf-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.prf-panel__head h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.prf-panel__head h3 svg {
+  color: var(--primary);
+}
+
+.prf-panel__hint {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* The 58px initials tile used by the identity card and the photo row. */
+.prf-mini {
+  position: relative;
+  width: 58px;
+  height: 58px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  overflow: hidden;
+  color: #fff;
+  font-weight: 800;
+  font-size: 18px;
+  background: linear-gradient(135deg, var(--primary-light), var(--primary));
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+}
+
+.prf-mini img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Identity card */
+.prf-identity__main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.prf-identity__who {
+  flex: 1;
+  min-width: 0;
+}
+
+.prf-identity__name {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.prf-identity__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 5px;
+  font-size: 13px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.prf-identity__meta svg {
+  flex-shrink: 0;
+}
+
+.prf-verified {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: var(--primary-dark);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+/* Role badge: green for admin, lime for manager, grey for faculty, as the concept. */
+.prf-role {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: #16a34a;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.25);
+}
+
+.prf-role--manager {
+  background: #dcfce7;
+  color: #166534;
+  box-shadow: none;
+}
+
+.prf-role--user {
+  background: #f1f5f9;
+  color: #475569;
+  box-shadow: none;
+}
+
+.prf-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.prf-tile {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-soft);
+}
+
+.prf-tile__k {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.prf-tile__v {
+  display: block;
+  margin-top: 5px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.prf-tile__v small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+/* Profile information */
+.prf-photo {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.prf-photo__tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+}
+
+.prf-photo__hint {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.prf-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 18px;
+  margin-top: 18px;
+}
+
+.prf-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.prf-field--wide {
+  grid-column: span 2;
+}
+
+.prf-field__k {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.prf-field__k svg {
+  color: var(--primary);
+}
+
+.prf-field__v {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 20px;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.prf-field__v-muted {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.prf-nick {
+  font-style: italic;
+}
+
+.prf-field__foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.prf-field__note {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.prf-count {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.prf-dirty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid #bbe7c9;
+  border-radius: 10px;
+  background: #dcfce7;
+  color: var(--primary-dark);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.prf-dirty svg {
+  flex-shrink: 0;
+}
+
+.prf-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.prf-notes .msg {
+  margin: 0;
+}
+
+.prf-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+/* Security summary */
+.prf-security__text {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+.prf-security__btn {
+  width: 100%;
+}
+
+.prf-foot {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 16px 0 0;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.prf-foot svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--primary);
+}
+
+@media (max-width: 880px) {
+  .prf-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .prf-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .prf-chips {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 520px) {
+  .prf-hero {
+    padding: 20px;
+    border-radius: 14px;
+  }
+
+  .prf-facts,
+  .prf-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .prf-field--wide {
+    grid-column: auto;
+  }
 }
 
 .profile-grid {
@@ -3019,176 +3414,6 @@ code {
   min-height: 0;
 }
 
-/* Card with the identity avatar, e-mail, role badge and fact tiles. */
-.profile-identity__main {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.profile-identity__who { min-width: 0; }
-
-.profile-identity__handle {
-  font-weight: 600;
-  color: var(--text);
-}
-
-/* The identity avatar is a button that opens the file picker; the hover
-   strip says so. The avatar keeps its initials look underneath. */
-.profile-identity__avatar-btn {
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: pointer;
-  display: inline-flex;
-  font: inherit;
-  flex-shrink: 0;
-}
-
-.profile-identity__avatar {
-  position: relative;
-  width: 58px;
-  height: 58px;
-  border-radius: 18px;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  font-weight: 800;
-  font-size: 18px;
-  background: linear-gradient(135deg, var(--primary-light), var(--primary));
-  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
-  overflow: hidden;
-}
-
-.profile-identity__avatar-btn:disabled { cursor: default; opacity: 0.85; }
-
-.profile-identity__avatar-btn:not(:disabled) .profile-identity__avatar:hover {
-  box-shadow: 0 6px 16px rgba(22, 163, 74, 0.42);
-}
-
-.profile-identity__avatar-overlay {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  border-radius: inherit;
-  background: rgba(6, 20, 12, 0.5);
-  color: #fff;
-  font-size: 11.5px;
-  font-weight: 700;
-  opacity: 0;
-  transition: opacity 0.15s var(--ease-smooth);
-  pointer-events: none;
-}
-
-.profile-identity__avatar-btn:hover .profile-identity__avatar-overlay,
-.profile-identity__avatar-btn:focus-visible .profile-identity__avatar-overlay {
-  opacity: 1;
-}
-
-.profile-identity__name {
-  font-size: 17px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
-  color: var(--text);
-  overflow-wrap: anywhere;
-}
-
-.profile-identity__meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 5px;
-  font-size: 13px;
-  color: var(--text-muted);
-}
-
-.profile-identity__main > .role-badge { margin-left: auto; flex-shrink: 0; }
-
-.profile-verified {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: #dcfce7;
-  color: var(--primary-dark);
-  font-size: 11.5px;
-  font-weight: 700;
-}
-
-.profile-facts-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.profile-tile {
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-soft);
-}
-
-.profile-tile__k {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.profile-tile__v {
-  display: block;
-  margin-top: 5px;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text);
-}
-
-.profile-tile__v small {
-  display: block;
-  margin-top: 2px;
-  font-weight: 500;
-  font-size: 11.5px;
-  color: var(--text-muted);
-}
-
-/* Editing state strip: green while changes await a save, amber when empty. */
-.profile-note {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 6px 0 0;
-  padding: 8px 12px;
-  border: 1px solid #bbe7c9;
-  border-radius: 10px;
-  background: #dcfce7;
-  color: var(--primary-dark);
-  font-size: 12.5px;
-  font-weight: 600;
-}
-
-.profile-note svg { flex-shrink: 0; }
-
-.profile-note--warn {
-  border-color: #fde68a;
-  background: #fef9c3;
-  color: #854d0e;
-}
-
-.profile-note-plain {
-  margin: 2px 0 0;
-  font-size: 12.5px;
-  color: var(--text-muted);
-}
-
 /* Fresh account, empty trail: a dashed placeholder instead of a bare
    sentence, so the stretched activity card never reads as broken. */
 .profile-empty {
@@ -3223,14 +3448,6 @@ code {
 .profile-empty span {
   font-size: 12px;
   line-height: 1.5;
-}
-
-/* Discard + Save in one row; Discard only renders while there are edits. */
-.profile-card__actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 8px;
 }
 
 /* Password checklist: ticks fill as the rules are satisfied. */
@@ -3443,60 +3660,7 @@ code {
 
 @media (max-width: 880px) {
   .profile-grid { grid-template-columns: 1fr; }
-  .profile-hero { flex-direction: column; align-items: flex-start; }
-  .profile-facts { justify-content: flex-start; }
 }
-
-@media (max-width: 520px) {
-  .profile-facts-grid { grid-template-columns: 1fr; }
-  .profile-hero { padding: 20px; border-radius: 14px; }
-}
-
-/* ============================================================
-   PROFILE — information card (spec-driven rework)
-   Fields grid: editable name/nickname render as inputs while
-   editing; every read-only field renders as plain text (never a
-   disabled input, which reads as "blocked" rather than "fact").
-   ============================================================ */
-
-.pf-card { padding: 20px; }
-.pf-head-tools { display: flex; align-items: center; gap: 10px; }
-
-/* Picture row */
-.pf-identity { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.pf-identity__img {
-  width: 62px; height: 62px; border-radius: 18px; flex-shrink: 0;
-  display: grid; place-items: center;
-  font-weight: 800; font-size: 19px; color: #fff;
-  background: linear-gradient(135deg, var(--primary-light), var(--primary));
-  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
-  overflow: hidden;
-}
-.pf-identity__img img { width: 100%; height: 100%; object-fit: cover; }
-.pf-identity__tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
-.pf-identity__hint { font-size: 11.5px; color: var(--text-muted); }
-
-/* Fields grid */
-.pf-fields {
-  display: grid; grid-template-columns: 1fr 1fr;
-  gap: 16px 18px; margin-top: 18px;
-}
-.pf-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.pf-field--wide { grid-column: span 2; }
-.pf-field__k {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 11px; font-weight: 700; letter-spacing: .05em;
-  text-transform: uppercase; color: var(--text-muted);
-  align-items: center;
-}
-.pf-field__k svg { color: var(--primary); }
-.pf-field__v { font-size: 14.5px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 20px; }
-.pf-field__v--wrapped { line-height: 1.4; }
-.pf-field__v--stack { flex-direction: column; align-items: flex-start; gap: 6px; }
-.pf-field__v--stack .pf-field__note { margin-top: 0; }
-.pf-field__v-muted { color: var(--text-muted); font-weight: 500; }
-.pf-nick { font-style: italic; }
-.pf-field__note { font-size: 11.5px; font-weight: 500; color: var(--text-muted); }
 
 /* Status pill (Account status field) */
 .status-pill {
@@ -3509,11 +3673,6 @@ code {
 .status-pill--active .status-pill__dot { background: #16a34a; }
 .status-pill--archived { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
 .status-pill--archived .status-pill__dot { background: #94a3b8; }
-
-/* Inline edit flow */
-.pf-notes { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
-.pf-notes .msg, .pf-notes .profile-note { margin: 0; }
-.pf-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
 
 /* Text-style link buttons (activity head + removal links) */
 .pf-link {
@@ -3589,8 +3748,6 @@ code {
 
 /* Responsive */
 @media (max-width: 720px) {
-  .pf-fields { grid-template-columns: 1fr; }
-  .pf-field--wide { grid-column: auto; }
   .sess-row { flex-wrap: wrap; }
 }
 

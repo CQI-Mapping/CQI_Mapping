@@ -20,8 +20,8 @@ import MapPreview from '../../components/MapPreview'
 import { useClock } from '../../hooks/useClock'
 import { localISODate, timeGreeting } from '../../utils/clock'
 import { timeAgo } from '../../utils/time'
-import { groupOutcomesBySubject, ownFigures, planNextStep } from '../../utils/facultyDashboard'
-import type { NextStep } from '../../utils/facultyDashboard'
+import { groupOutcomesBySubject, ownFigures, planNextStep, weeklyEditTrend } from '../../utils/facultyDashboard'
+import type { EditWeek, NextStep } from '../../utils/facultyDashboard'
 
 interface DashboardProps {
   profile: Profile | null
@@ -155,6 +155,7 @@ function FacStat({
   value,
   sub,
   text,
+  extra,
 }: {
   icon: ReactNode
   tone: string
@@ -162,6 +163,8 @@ function FacStat({
   value: string | number
   sub: string
   text?: boolean
+  /** Optional trailing media under the sub line, e.g. the week bars. */
+  extra?: ReactNode
 }) {
   return (
     <article className="fac-stat card-enter">
@@ -170,8 +173,49 @@ function FacStat({
         <span className="fac-stat__label">{label}</span>
         <strong className={text ? 'fac-stat__value fac-stat__value--text' : 'fac-stat__value'}>{value}</strong>
         <span className="fac-stat__sub">{sub}</span>
+        {extra && extra}
       </div>
     </article>
+  )
+}
+
+/** Week-over-week edit history as four inline bars, oldest left, under the
+ *  "Edited this week" figure. Bars 0-2 are completed weeks at reduced
+ *  opacity; the right-most bar is the same trailing week the figure counts,
+ *  so the sparkline can never contradict its own tile. Pure SVG in the
+ *  brand green — no chart library, and everything zero renders as a quiet
+ *  2-px baseline rather than an empty box. */
+function EditTrend({ weeks }: { weeks: EditWeek[] }) {
+  const peak = Math.max(1, ...weeks.map((w) => w.count))
+  const labelFor = (age: number, count: number) =>
+    count === 1 ? `1 edit` : `${count} edits`
+  return (
+    <svg
+      className="fac-stat__trend"
+      width={44}
+      height={26}
+      viewBox="0 0 44 26"
+      role="img"
+      aria-label={`Edits by week, oldest to this week: ${weeks.map((w) => w.count).join(', ')}`}
+    >
+      {weeks.map((w, i) => {
+        const age = weeks.length - 1 - i
+        return (
+          <rect
+            key={w.end}
+            x={4 + i * 9}
+            y={26 - Math.max(2, Math.round((w.count / peak) * 22))}
+            width={7}
+            height={Math.max(2, Math.round((w.count / peak) * 22))}
+            rx={2.5}
+            fill="#16a34a"
+            opacity={age === 0 ? 1 : 0.35}
+          >
+            <title>{age === 0 ? 'This week' : age === 1 ? 'Last week' : `${age} weeks ago`} — {labelFor(age, w.count)}</title>
+          </rect>
+        )
+      })}
+    </svg>
   )
 }
 
@@ -205,6 +249,7 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
   const ready = !loading && !failed
   const pending = loading ? 'Loading…' : 'Unavailable right now'
   const figures = useMemo(() => ownFigures(clos, courses, now), [clos, courses, now])
+  const trend = useMemo(() => weeklyEditTrend(clos, now), [clos, now])
   const subjects = useMemo(() => groupOutcomesBySubject(clos, courses), [clos, courses])
   const hero = useMemo<HeroCopy>(() => {
     if (loading) return { title: 'Loading your workspace', detail: '', action: null }
@@ -294,6 +339,7 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
           label="Edited this week"
           value={ready ? figures.editedThisWeek : '—'}
           sub={ready ? 'Changed in the last 7 days' : pending}
+          extra={ready ? <EditTrend weeks={trend} /> : undefined}
         />
         <FacStat
           icon={
