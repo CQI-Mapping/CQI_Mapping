@@ -84,7 +84,7 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
 
 > Roles survive schema re-runs automatically — no manual SQL needed:
 > 1. The schema's seed section recreates profiles for all existing auth users and assigns the demo roles by email.
-> 2. The app calls the `sync_demo_role` RPC on every sign-in, restoring each demo account's expected role (or promoting the first user to admin when no admin exists).
+> 2. The app calls the `sync_demo_role` RPC on every sign-in, restoring each demo account's expected role (the admin bootstrap runs only for the `admin@cqi.test` fixture; every other account lands as `user` and is promoted by an existing admin).
 > (Manual alternative: re-apply the roles)
 > ```sql
 > UPDATE public.profiles SET role='admin'   WHERE email='admin@cqi.test';
@@ -237,7 +237,7 @@ Open the printed local URL (usually `http://localhost:5173`) and sign in.
 2. **Supabase Dashboard → Authentication → Providers → Google**: enable it, paste the client **ID** and **secret**.
 3. **Supabase Dashboard → Authentication → Sign In / Up → Allowed email domains**: `nbsc.edu.ph`.
 
-   This step is the server-side version of the school-accounts-only rule: it enforces *back at the auth layer*, not just in the UI, that only official `@nbsc.edu.ph` Google accounts can sign in. Because it lives in a dashboard setting rather than a repo file, document it per project.
+   This step is the server-side version of the school-accounts-only rule: it enforces *back at the auth layer*, not just in the UI, that only official `@nbsc.edu.ph` Google accounts can sign in. Because it lives in a dashboard setting rather than a repo file, document it per project. As a code-level backup, `App.tsx` re-checks the email once a Google session lands and signs out anything that is not `@nbsc.edu.ph` with a notice on the Login screen — so a missed dashboard step can no longer admit a personal Gmail.
 
 On first Google sign-in the `handle_new_user` trigger creates the profile automatically from the Google metadata — full name and profile photo arrive pre-filled; the role starts as `user (faculty)` and must be assigned by an admin, exactly like password sign-ups. Every Google sign-in writes the same `auth.login` audit row the password path writes.
 
@@ -345,7 +345,7 @@ All three tables have RLS enabled. Policies use `public.current_user_role()` —
 - **`public.handle_new_user()`** — `AFTER INSERT` trigger on `auth.users`. Creates a `profiles` row (role defaults to `user`) on signup. On conflict it does nothing.
 - **`public.record_login_event(email, success, reason)`** — `SECURITY DEFINER` function that writes an `auth.login` / `auth.login_failed` audit entry, keeping `reason` in `details.reason` on failure. It is callable by `anon` and `authenticated` so it works even for failed logins that have no session (RLS would otherwise block the insert).
 - **`public.log_activity(action, details)`** — `SECURITY DEFINER` function behind the `addActivityLog` client helper. Stamps `user_email` from the caller's JWT, so the client cannot attribute an action to another user. `details` defaults to NULL; an empty object is normalised to NULL so the UI has one falsy case for "no context".
-- **`public.sync_demo_role()`** — `SECURITY DEFINER` function called by the app on every sign-in. Restores each demo account's expected role when it fell back to `user` (`admin@cqi.test` → admin, `manager@cqi.test` → manager) and promotes the first user to `admin` when the system has no admin at all. Never overrides a deliberately-changed role and never creates a second admin.
+- **`public.sync_demo_role()`** — `SECURITY DEFINER` function called by the app on every sign-in. Restores each demo account's expected role when it fell back to `user` (`admin@cqi.test` → admin, `manager@cqi.test` → manager). The admin bootstrap is demo-emails-only — every other email, school or otherwise, lands as `user` and stays there until an existing admin promotes it, so the first stranger to sign in can never take the admin chair. Never overrides a deliberately-changed role and never creates a second admin. (Migration `016-strangers-never-admin.sql`.)
 
 ### 6.4 Seed Data
 

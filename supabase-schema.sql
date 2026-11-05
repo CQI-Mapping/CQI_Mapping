@@ -752,8 +752,10 @@ GRANT EXECUTE ON FUNCTION public.log_activity(TEXT, JSONB) TO authenticated;
 
 -- ============================================================
 -- ROLE RESTORE / FIRST ADMIN BOOTSTRAP
--- Called by the app on every sign-in. Restores demo account roles
--- and promotes the first user to admin when no admin exists.
+-- Called by the app on every sign-in. Restores demo account roles.
+-- The admin bootstrap is demo-emails-only: admin@cqi.test takes the
+-- admin chair when none exists. Every other email lands as 'user' —
+-- a stranger can never sign their way into admin.
 -- SECURITY DEFINER so it bypasses RLS.
 -- ============================================================
 
@@ -791,8 +793,12 @@ BEGIN
             CASE WHEN v_has_admin THEN 'user'::public.user_role ELSE 'admin'::public.user_role END
         WHEN 'manager@cqi.test' THEN 'manager'::public.user_role
         WHEN 'user@cqi.test' THEN 'user'::public.user_role
-        ELSE
-            CASE WHEN v_has_admin THEN 'user'::public.user_role ELSE 'admin'::public.user_role END
+        -- Everyone else lands as 'user', never admin. The old ELSE branch
+        -- promoted the first unknown signer-in to admin on an admin-less
+        -- system, which handed the keys to any Google account that slipped
+        -- past the allowed-email-domains gate. Real school accounts are
+        -- promoted by an existing admin through Users & Accounts.
+        ELSE 'user'::public.user_role
     END;
 
     IF v_role <> v_current THEN
