@@ -34,14 +34,23 @@ export function interpretAuthReturnError(
     }
   }
 
-  // Sign-ups-disabled is more specific than a plain OAuth cancellation: the
-  // bounce for an unregistered Google account ALSO arrives as
-  // error=access_denied, so this rule must run before the cancellation one.
-  if (combined.includes('signup') || combined.includes('sign up') || combined.includes('disabled')) {
+  // Registration-closed bounces are more specific than a plain OAuth
+  // cancellation and must run before it — the cancelled bounce ALSO arrives
+  // as error=access_denied. Two shapes share the same verdict:
+  //   * 'Sign up is disabled' — the dashboard's allow-signups toggle did it.
+  //   * 'Database error saving new user' — the same verdict for the trigger
+  //     that refuses auto-created Google accounts (closed registration,
+  //     migration 017), plus the dashboard's own signup-off path.
+  if (
+    combined.includes('signup')
+    || combined.includes('sign up')
+    || combined.includes('disabled')
+    || combined.includes('saving new user')
+  ) {
     return {
       expiredResetLink: false,
       message:
-        'Google sign-in works only for registered accounts. Ask your administrator to add you.',
+        'Google sign-in works only for registered accounts. Ask the admin or manager to register you first.',
     }
   }
 

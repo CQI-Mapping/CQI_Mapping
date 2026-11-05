@@ -37,6 +37,15 @@ describe('interpretAuthReturnError', () => {
     expect(verdict.message).toContain('registered accounts')
   })
 
+  it('reads the closed-registration trigger refusal as the registered-accounts rule', () => {
+    // A Google identity nobody registered is refused at user-creation time
+    // (migration 017's trigger); GoTrue surfaces that as this same
+    // "Database error saving new user" bounce.
+    const verdict = interpretAuthReturnError('unexpected_failure', 'Database error saving new user')
+    expect(verdict.expiredResetLink).toBe(false)
+    expect(verdict.message).toContain('registered accounts')
+  })
+
   it('falls back to the generic line for anything unrecognised', () => {
     const verdict = interpretAuthReturnError('server_error', 'Internal Server Error')
     expect(verdict.expiredResetLink).toBe(false)
