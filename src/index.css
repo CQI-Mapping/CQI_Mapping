@@ -5681,6 +5681,30 @@ button.reports-panel__more:hover {
   margin-bottom: 0;
 }
 
+/* CLO Code entry: the stored code is a bare number, so the "CLO" word is a
+   rendered prefix inside the box — a typed "1" reads as "CLO 1" while the
+   value stays numeric. The field reserves the prefix's width so digits never
+   jump sideways when it appears. */
+.clo-code-input {
+  position: relative;
+}
+
+.clo-code-input__prefix {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  transform: translateY(-50%);
+  font-size: 13px;
+  font-weight: 600;
+  color: #94a3b8;
+  pointer-events: none;
+  user-select: none;
+}
+
+.clo-code-input__field {
+  padding-left: 42px;
+}
+
 .clo-layout__ref-group {
   margin-bottom: 12px;
 }

@@ -465,7 +465,10 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             ))}
           </select>
         )}
-        <input className="input input--sm" type="text" inputMode="numeric" value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: digitsOnly(e.target.value) })} placeholder="CLO Code (e.g. 1)" />
+        <div className="clo-code-input">
+          {editForm.code !== '' && <span className="clo-code-input__prefix" aria-hidden="true">CLO</span>}
+          <input className="input input--sm clo-code-input__field" type="text" inputMode="numeric" value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: digitsOnly(e.target.value) })} placeholder="CLO Code (e.g. 1)" />
+        </div>
       </div>
       <textarea className="input input--sm" rows={2} ref={autoResize} value={editForm.description} onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} placeholder="Description" />
       <SuggestionInput value={editForm.programOutcomes} onChange={(v) => setEditForm({ ...editForm, programOutcomes: v })} options={poSuggestions} placeholder="Type to search POs" />
@@ -617,8 +620,11 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
         </label>
         <label className="field">
           <span>CLO Code</span>
-          <input className="input input--sm" type="text" inputMode="numeric" placeholder="e.g. 1" value={form.code}
-            onChange={(e) => setForm({ ...form, code: digitsOnly(e.target.value) })} required />
+          <div className="clo-code-input">
+            {form.code !== '' && <span className="clo-code-input__prefix" aria-hidden="true">CLO</span>}
+            <input className="input input--sm clo-code-input__field" type="text" inputMode="numeric" placeholder="e.g. 1" value={form.code}
+              onChange={(e) => setForm({ ...form, code: digitsOnly(e.target.value) })} required />
+          </div>
         </label>
         <label className="field">
           <span>Description</span>
