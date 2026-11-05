@@ -163,6 +163,14 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
 // the next session starts fresh.
 const LAST_PAGE_KEY = 'cqi.lastPage'
 
+// School-accounts-only: a Google sign-in is only accepted from the official
+// school domain. Supabase's allowed-email-domains dashboard setting is the
+// real auth-layer gate; this constant backs it up in code so a personal
+// Gmail that slips through a missed dashboard step is signed straight out.
+const SCHOOL_EMAIL_DOMAIN = '@nbsc.edu.ph'
+const SCHOOL_ONLY_NOTICE =
+  'Only @nbsc.edu.ph school accounts can sign in. Please use your official NBSC Google account.'
+
 /** The page this tab was last on, when it belongs to the given role. */
 function readLastPage(role: UserRole): string | null {
   try {
@@ -357,6 +365,20 @@ function App() {
       })
       .then(async (p) => {
         if (cancelled) return
+        // School-accounts-only refusal, OAuth edition. Supabase welcomes any
+        // Google identity until allowed email domains are configured on the
+        // project, so the email is re-checked once the session lands: a
+        // non-school Google account is signed straight out, and Login.tsx
+        // inherits the explanation via signOutNotice. Only the Google path is
+        // gated — the demo bootstrap accounts (cqi.test) are password logins,
+        // and the archived check below stays for every provider.
+        if (session.user.app_metadata?.provider === 'google'
+          && p
+          && !p.email?.toLowerCase().endsWith(SCHOOL_EMAIL_DOMAIN)) {
+          setSignOutNotice(SCHOOL_ONLY_NOTICE)
+          await supabase!.auth.signOut()
+          return
+        }
         if (p?.status === 'archived') {
           // Archived refusal, OAuth edition. The password path drops these
           // on the Login page, but a Google sign-in hands its session
