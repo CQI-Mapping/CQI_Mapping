@@ -1,21 +1,42 @@
 import { describe, expect, it } from 'vitest'
-import type { Course, CourseLearningOutcomeStandalone } from '../services/database'
-import { groupOutcomesBySubject, ownFigures, planNextStep, weeklyEditTrend } from './facultyDashboard'
+import type { Course, CourseLearningOutcomeStandalone, ProgramOutcomeStandalone } from '../services/database'
+import { groupOutcomesBySubject, ownFigures, planNextStep, staleOutcomeRefs, weeklyEditTrend } from './facultyDashboard'
 
 const subject = (code: string, title: string, year: number | null, semester: number | null) =>
   ({ id: code, code, title, year_level: year, semester }) as unknown as Course
 
-const outcome = (code: string, course: string, updated: string, status = 'active') =>
+const outcome = (code: string, course: string, updated: string, status = 'active', title = '') =>
   ({
     id: code,
     code,
     course,
-    title: '',
+    title,
     description: null,
     status,
     created_at: updated,
     updated_at: updated,
   }) as CourseLearningOutcomeStandalone
+
+// Manager Curriculum Mapping row as the CLO page sees it: the official CMO
+// 25 s. 2015 category lives in the description column, per the report split.
+const CMO25 = 'BACHELOR OF SCIENCE IN INFORMATION TECHNOLOGY PROGRAM OUTCOMES (CMO 25 S. 2015)'
+const po = (code: string, status = 'active') =>
+  ({
+    id: code,
+    code,
+    title: 'Design and build a solution.',
+    description: CMO25,
+    source: 'manager',
+    status,
+    cmo_id: null,
+    cmo_text: null,
+    peo_id: null,
+    peo_text: null,
+    sg_id: null,
+    sg_text: null,
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+  }) as unknown as ProgramOutcomeStandalone
 
 describe('groupOutcomesBySubject', () => {
   it('groups spellings of one code and names the subject from the list', () => {
@@ -161,5 +182,46 @@ describe('weeklyEditTrend', () => {
       expect.objectContaining({ count: 0 }),
       expect.objectContaining({ count: 0 }),
     ])
+  })
+})
+
+describe('staleOutcomeRefs', () => {
+  it('flags a row whose reference the Program Outcomes list no longer has', () => {
+    const rows = staleOutcomeRefs(
+      [outcome('CLO1', 'IT10', '2026-11-02T08:00:00.000Z', 'active', 'PO 1, PO 9')],
+      [po('PO 1'), po('PO 2'), po('PO 3')],
+    )
+    expect(rows).toEqual([expect.objectContaining({ missing: ['PO 9'] })])
+    expect(rows[0].outcome.code).toBe('CLO1')
+  })
+
+  it('reads one reference across its spellings and ignores dash and case drift', () => {
+    const rows = staleOutcomeRefs(
+      [
+        outcome('CLO1', 'IT10', '2026-11-02T08:00:00.000Z', 'active', 'po-1'),
+        outcome('CLO2', 'IT10', '2026-11-02T08:00:00.000Z', 'active', 'PO  2'),
+      ],
+      [po('PO 1'), po('PO 2')],
+    )
+    expect(rows).toEqual([])
+  })
+
+  it('leaves archived rows and reference-less rows alone', () => {
+    const rows = staleOutcomeRefs(
+      [
+        outcome('CLO1', 'IT10', '2026-11-02T08:00:00.000Z', 'archived', 'PO 9'),
+        outcome('CLO2', 'IT10', '2026-11-02T08:00:00.000Z', 'active', ''),
+      ],
+      [],
+    )
+    expect(rows).toEqual([])
+  })
+
+  it('collects every lost code a row still names, in its stored order', () => {
+    const rows = staleOutcomeRefs(
+      [outcome('CLO1', 'IT10', '2026-11-02T08:00:00.000Z', 'active', 'PO 1, PO 15, PO 7')],
+      [po('PO 7')],
+    )
+    expect(rows).toEqual([expect.objectContaining({ missing: ['PO 1', 'PO 15'] })])
   })
 })

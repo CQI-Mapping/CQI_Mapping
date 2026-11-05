@@ -7,20 +7,26 @@
 // Everything personal here is data the faculty role can read: its own CLOs
 // (RLS scopes them to the owner) and the shared subject list. The rules that
 // turn those rows into figures live in utils/facultyDashboard.ts.
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import type { ReactNode } from 'react'
 import {
   fetchCourses,
   fetchCourseLearningOutcomesStandalone,
+  fetchProgramOutcomesStandalone,
 } from '../../services/database'
-import type { Profile, Course, CourseLearningOutcomeStandalone } from '../../services/database'
+import type {
+  Profile,
+  Course,
+  CourseLearningOutcomeStandalone,
+  ProgramOutcomeStandalone,
+} from '../../services/database'
 import CloViewModal from '../../components/CloViewModal'
 import MapBrief from '../../components/MapBrief'
 import MapPreview from '../../components/MapPreview'
 import { useClock } from '../../hooks/useClock'
 import { localISODate, timeGreeting } from '../../utils/clock'
 import { timeAgo } from '../../utils/time'
-import { groupOutcomesBySubject, ownFigures, planNextStep, weeklyEditTrend } from '../../utils/facultyDashboard'
+import { groupOutcomesBySubject, ownFigures, planNextStep, staleOutcomeRefs, weeklyEditTrend } from '../../utils/facultyDashboard'
 import type { EditWeek, NextStep } from '../../utils/facultyDashboard'
 
 interface DashboardProps {
@@ -222,23 +228,51 @@ function EditTrend({ weeks }: { weeks: EditWeek[] }) {
 function Dashboard({ profile, onNavigate }: DashboardProps) {
   const [courses, setCourses] = useState<Course[]>([])
   const [clos, setClos] = useState<CourseLearningOutcomeStandalone[]>([])
+  const [pos, setPos] = useState<ProgramOutcomeStandalone[]>([])
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
   const [viewItem, setViewItem] = useState<CourseLearningOutcomeStandalone | null>(null)
 
-  useEffect(() => {
-    let cancelled = false
-    Promise.all([fetchCourses(), fetchCourseLearningOutcomesStandalone()])
-      .then(([c, l]) => {
-        if (cancelled) return
-        setCourses(c)
-        setClos(l)
-        setFailed(false)
-      })
-      .catch(() => { if (!cancelled) setFailed(true) })
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
+  // Stamp of the load backing the current screen, for the refocus rule below.
+  const lastLoad = useRef(0)
+  const load = useCallback(async (opts: { silent?: boolean } = {}) => {
+    try {
+      const [courses, outs, outcomes] = await Promise.all([
+        fetchCourses(),
+        fetchCourseLearningOutcomesStandalone(),
+        fetchProgramOutcomesStandalone(),
+      ])
+      setCourses(courses)
+      setClos(outs)
+      setPos(outcomes)
+      setFailed(false)
+      lastLoad.current = Date.now()
+    } catch {
+      // A silent refresh keeps whatever is already on screen — a transient
+      // network loss on a tab wake-up shouldn't blank working figures. Only
+      // the initial load owns the error state.
+      if (!opts.silent) setFailed(true)
+    } finally {
+      if (!opts.silent) setLoading(false)
+    }
   }, [])
+
+  useEffect(() => { void load() }, [load])
+
+  // Returning to the tab is the natural moment to catch up: changes made
+  // elsewhere (a manager renaming or archiving a Program Outcome the faculty
+  // member's CLOs point at, a new subject in the curriculum) reach the
+  // figures, the next step and the notice strip without a manual reload.
+  // Throttled so alt-tab wandering cannot hammer the tables.
+  useEffect(() => {
+    const onWake = () => {
+      if (document.visibilityState === 'visible' && Date.now() - lastLoad.current >= 30_000) {
+        void load({ silent: true })
+      }
+    }
+    document.addEventListener('visibilitychange', onWake)
+    return () => document.removeEventListener('visibilitychange', onWake)
+  }, [load])
 
   // Ticking clock: the greeting, the date pill and every relative time re-read
   // on the minute, so an open dashboard stays true across noon and midnight.
@@ -250,6 +284,15 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
   const pending = loading ? 'Loading…' : 'Unavailable right now'
   const figures = useMemo(() => ownFigures(clos, courses, now), [clos, courses, now])
   const trend = useMemo(() => weeklyEditTrend(clos, now), [clos, now])
+
+  // The proactive strip's fuel: the faculty member's references that no
+  // longer resolve since the manager's list moved on. The distinct codes go
+  // in the copy, comma-joined, beyond four collapsed to a count.
+  const stale = useMemo(() => staleOutcomeRefs(clos, pos), [clos, pos])
+  const staleCodes = useMemo(() => {
+    const codes = [...new Set(stale.flatMap((r) => r.missing))]
+    return codes.slice(0, 4).join(', ') + (codes.length > 4 ? ` … +${codes.length - 4} more` : '')
+  }, [stale])
   const subjects = useMemo(() => groupOutcomesBySubject(clos, courses), [clos, courses])
   const hero = useMemo<HeroCopy>(() => {
     if (loading) return { title: 'Loading your workspace', detail: '', action: null }
@@ -292,6 +335,39 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
         </aside>
       </section>
 
+      {ready && stale.length > 0 && (
+        <div
+          role="status"
+          className="fac-notice"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            background: '#fefce8', border: '1px solid #fde047',
+            color: '#713f12', padding: '10px 14px', borderRadius: 12,
+          }}
+        >
+          <span style={{ color: '#a16207', flexShrink: 0 }}>
+            <Glyph size={16}>
+              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </Glyph>
+          </span>
+          <p style={{ flex: 1, fontSize: 13, lineHeight: 1.5, margin: 0 }}>
+            {stale.length} of your outcome{stale.length === 1 ? '' : 's'} point{stale.length === 1 ? 's' : ''} at a
+            Program Outcome that no longer exists — <strong>{staleCodes}</strong>. The manager's
+            list changed since you wrote them.
+          </p>
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            style={{ color: '#713f12', borderColor: '#fde047', flexShrink: 0 }}
+            onClick={() => go('clo')}
+          >
+            Review →
+          </button>
+        </div>
+      )}
+
       <div className="fac-stats" aria-busy={loading}>
         <FacStat
           icon={
@@ -325,8 +401,8 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
             !ready
               ? pending
               : courses.length > 0
-                ? `of ${courses.length} subject${courses.length === 1 ? '' : 's'} in the system`
-                : 'No subjects in the system yet'
+                ? `of the ${courses.length} subject${courses.length === 1 ? '' : 's'} in the curriculum`
+                : 'No subjects in the program yet'
           }
         />
         <FacStat

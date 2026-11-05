@@ -2,8 +2,9 @@
 // a faculty member has written for, the figures for their own outcomes, and
 // the next step the hero card names. Pure functions over the rows the page
 // loads, so the page only lays them out and the rules stay under test.
-import type { Course, CourseLearningOutcomeStandalone } from '../services/database'
+import type { Course, CourseLearningOutcomeStandalone, ProgramOutcomeStandalone } from '../services/database'
 import { normalizeCode } from './courseCodes'
+import { splitReportPos } from './report'
 
 type Outcome = CourseLearningOutcomeStandalone
 
@@ -127,4 +128,44 @@ export function weeklyEditTrend(clos: Outcome[], now: number, weeks = 4): EditWe
       }).length,
     }
   }).reverse()
+}
+
+// A stored PO reference must name an outcome the CLO page actually offers:
+// the suggestion chips and the printed reference panel both read the
+// manager's Curriculum Mapping rows, so that is the valid set. Comparisons
+// ignore spacing and dashes — "PO-1" and "po 1" are PO 1's own spellings.
+const normCode = (s: string) => s.trim().toLowerCase().replace(/[-_\s]+/g, '')
+
+/** One outcome that still names Program Outcome(s) nothing active now does:
+ *  renamed, archived, or deleted since the reference was written. */
+export interface StaleRef {
+  /** The row holding the lost reference(s). */
+  outcome: Outcome
+  /** The codes that no longer resolve, in the row's order. */
+  missing: string[]
+}
+
+/** The proactive-notice signal for the dashboard: active CLOs whose
+ *  Program Outcome list does not fully resolve against the active Curriculum
+ *  Mapping outcomes. Titles hold the PO list on these rows, an archived
+ *  outcome is history rather than something to fix, and a row without
+ *  references has nothing to lose. */
+export function staleOutcomeRefs(
+  clos: Outcome[],
+  pos: ProgramOutcomeStandalone[],
+): StaleRef[] {
+  const active = pos.filter((p) => !p.status || p.status === 'active')
+  const { managerPos } = splitReportPos(active)
+  const valid = new Set(managerPos.map((p) => normCode(p.code)))
+  return clos
+    .filter((l) => isActive(l) && (l.title ?? '').trim())
+    .map((l) => ({
+      outcome: l,
+      missing: (l.title ?? '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .filter((c) => !valid.has(normCode(c))),
+    }))
+    .filter((r) => r.missing.length > 0)
 }
