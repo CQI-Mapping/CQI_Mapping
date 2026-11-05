@@ -472,7 +472,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
       {editDisplay.length > 0 ? (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '6px 0' }}>
           <span style={{ fontSize: 12, color: '#64748b', width: '100%' }}>
-            {editDisplay[0].raw > 0 ? 'Closest for this description:' : 'Best guesses (low confidence):'}
+            Suggested POs for this draft.
           </span>
           {editDisplay.map((r) => (
             <span key={r.code} style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
@@ -638,9 +638,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
         {createDisplay.length > 0 ? (
           <div className="field" style={{ marginTop: -4 }}>
             <span style={{ fontSize: 12, color: '#64748b' }}>
-              {createDisplay[0].raw > 0
-                ? 'Closest Program Outcomes for this description:'
-                : 'Best guesses (low confidence) — click or pick manually:'}
+              Suggested POs for this draft.
             </span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
               {createDisplay.map((r) => (
