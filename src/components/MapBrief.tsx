@@ -42,6 +42,7 @@ import {
   poOutcomes,
 } from '../utils/alignment'
 import { buildMappingReport, chartableOutcomes } from '../utils/cloPoMapping'
+import { isManagerCmCategory, isManagerOutcome } from '../utils/report'
 import type { MappingStatus } from '../utils/reportsPdfModel'
 import { normalizeCode } from '../utils/courseCodes'
 import PoCoverageBars from './PoCoverageBars'
@@ -232,17 +233,23 @@ function MapBrief({ profile, onNavigate, children }: MapBriefProps) {
     [outcomes],
   )
   const archivedOutcomes = outcomes.length - activeOutcomes.length
-  // The headline reads the OFFICIAL framework — what the admin Program
-  // Outcomes page serves (source='admin', active). The Program Head's own
-  // second universe (source='manager') is disclosed in the qualifier: the
-  // role pages are two separated lists, but mapping still runs against the
-  // union of both, so a CLO can target either universe.
+  // The headline reads the OFFICIAL framework: the CMO 25 S. 2015 document,
+  // which migration 010 inserted VERBATIM as manager-sourced rows carrying
+  // one of the two category headers. Recognised the SAME way the manager
+  // page, the syllabus and the report's mapping matrix recognise it
+  // (source='manager' + description in MANAGER_CM_CATEGORIES) — not by the
+  // 'admin' label, which belongs to the other (separately curated) universe.
+  // Everything else active is disclosed in the qualifier, and mapping still
+  // runs on the union of both universes so either stays targetable by CLOs.
   const officialOutcomes = useMemo(
-    () => poOutcomes(pos.filter((r) => r.source === 'admin'), anchors)
-      .filter((o) => o.status === 'active'),
+    () =>
+      poOutcomes(
+        pos.filter((r) => isManagerOutcome(r) && isManagerCmCategory(r)),
+        anchors,
+      ).filter((o) => o.status === 'active'),
     [pos, anchors],
   )
-  const programHeadOutcomes = activeOutcomes.length - officialOutcomes.length
+  const otherActiveOutcomes = activeOutcomes.length - officialOutcomes.length
   const summary = alignmentSummary(activeOutcomes)
 
   const programCourseList = useMemo(
@@ -332,7 +339,7 @@ function MapBrief({ profile, onNavigate, children }: MapBriefProps) {
               label="Total PO's"
               value={officialOutcomes.length}
               sub={[
-                programHeadOutcomes > 0 ? `${programHeadOutcomes} from Program Head` : null,
+                otherActiveOutcomes > 0 ? `${otherActiveOutcomes} additional` : null,
                 archivedOutcomes > 0 ? `${archivedOutcomes} archived` : null,
               ].filter(Boolean).join(' · ') || 'Program Outcomes'}
             />
