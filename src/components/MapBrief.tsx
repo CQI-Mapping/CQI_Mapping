@@ -304,9 +304,10 @@ function MapBrief({ profile, onNavigate, children }: MapBriefProps) {
     return { fully, total: programCourseList.length, percent }
   }, [programCourseList, mappedByCourse])
 
-  // Empty-pipeline honesty: a literal 0% over zero CLOs is true but reads as
-  // a failure. When no faculty member has started the pipeline yet, the tile
-  // shows '—' and says so instead — same convention the totals-0 branch uses.
+  // Empty-pipeline honesty: until any faculty member has created the first
+  // CLO, the Coverage qualifier names the state ("0 / 33 subjects — no CLOs
+  // yet") instead of a plain "(0 / 33)" — the same convention the totals-0
+  // branch uses. The value itself keeps the literal 0%.
   const pipelineEmpty = programClos.length === 0
 
   return (
@@ -355,11 +356,7 @@ function MapBrief({ profile, onNavigate, children }: MapBriefProps) {
             />
             <KpiCard
               label="Mapping Coverage"
-              value={
-                subjectCoverage.total === 0 || pipelineEmpty
-                  ? '—'
-                  : `${subjectCoverage.percent}%`
-              }
+              value={subjectCoverage.total === 0 ? '—' : `${subjectCoverage.percent}%`}
               sub={
                 subjectCoverage.total === 0
                   ? 'No subjects in this program yet'
