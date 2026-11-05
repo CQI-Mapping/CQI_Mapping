@@ -353,7 +353,9 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   void memTick
   const createShown = fuseRanked(form.description, createClosest, createSemantic, poTexts, 3)
   const editShown = fuseRanked(editForm.description, editClosest, editSemantic, poTexts, 3)
-  // Relative display only (top raw > 0 shows 100%). All gates read raw lists.
+  // Bars stay on a relative scale (top suggestion paints the full bar); the
+  // chip label itself shows only the PO code — no percentages on screen.
+  // All gates still read the raw lists.
   const createDisplay = toRelative(createShown)
   const editDisplay = toRelative(editShown)
 
@@ -478,7 +480,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                 style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: 3 }}
                 title={r.label}
                 onClick={() => { logPick(editForm.description, r.code); setEditForm((f) => ({ ...f, programOutcomes: appendPo(f.programOutcomes, r.code) })) }}>
-                <span>{r.raw > 0 ? `${r.code} · ${r.shown}%` : `~ ${r.code}`}</span>
+                <span>{r.code}</span>
                 <span aria-hidden="true" style={{ height: 3, borderRadius: 999, background: '#f1f5f9', overflow: 'hidden' }}>
                   <span style={{
                     display: 'block', height: '100%', width: `${Math.min(100, r.shown)}%`,
@@ -647,7 +649,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                     style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: 3 }}
                     title={r.label}
                     onClick={() => { logPick(form.description, r.code); setForm((f) => ({ ...f, programOutcomes: appendPo(f.programOutcomes, r.code) })) }}>
-                    <span>{r.raw > 0 ? `${r.code} · ${r.shown}%` : `~ ${r.code}`}</span>
+                    <span>{r.code}</span>
                     <span aria-hidden="true" style={{ height: 3, borderRadius: 999, background: '#f1f5f9', overflow: 'hidden' }}>
                       <span style={{
                         display: 'block', height: '100%', width: `${Math.min(100, r.shown)}%`,
