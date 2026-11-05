@@ -232,6 +232,17 @@ function MapBrief({ profile, onNavigate, children }: MapBriefProps) {
     [outcomes],
   )
   const archivedOutcomes = outcomes.length - activeOutcomes.length
+  // The headline reads the OFFICIAL framework — what the admin Program
+  // Outcomes page serves (source='admin', active). The Program Head's own
+  // second universe (source='manager') is disclosed in the qualifier: the
+  // role pages are two separated lists, but mapping still runs against the
+  // union of both, so a CLO can target either universe.
+  const officialOutcomes = useMemo(
+    () => poOutcomes(pos.filter((r) => r.source === 'admin'), anchors)
+      .filter((o) => o.status === 'active'),
+    [pos, anchors],
+  )
+  const programHeadOutcomes = activeOutcomes.length - officialOutcomes.length
   const summary = alignmentSummary(activeOutcomes)
 
   const programCourseList = useMemo(
@@ -319,12 +330,11 @@ function MapBrief({ profile, onNavigate, children }: MapBriefProps) {
             />
             <KpiCard
               label="Total PO's"
-              value={summary.outcomes}
-              sub={
-                archivedOutcomes > 0
-                  ? `Program Outcomes · ${archivedOutcomes} archived`
-                  : 'Program Outcomes'
-              }
+              value={officialOutcomes.length}
+              sub={[
+                programHeadOutcomes > 0 ? `${programHeadOutcomes} from Program Head` : null,
+                archivedOutcomes > 0 ? `${archivedOutcomes} archived` : null,
+              ].filter(Boolean).join(' · ') || 'Program Outcomes'}
             />
             <KpiCard
               label="Total PEO's"
