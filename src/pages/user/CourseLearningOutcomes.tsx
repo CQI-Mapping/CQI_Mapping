@@ -337,11 +337,11 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
     return parts.join(', ')
   }
 
-  // Suggestions need real content: a 1-2 character draft ("f") scores trivia
-  // in the keyword ranker and the top-anchored display then shows confident
-  // "100%" chips for junk. The 4-char floor is the same one the semantic
-  // engine and the "no close match" hint already use.
-  const DRAFT_MIN = 4
+  // Suggestions wait for real content: short drafts score trivia in the
+  // keyword ranker, so nothing renders — chips or the no-match hint — until
+  // the description reaches DRAFT_MIN characters. The semantic engine
+  // shares this floor.
+  const DRAFT_MIN = 15
   const createClosest = form.description.trim().length >= DRAFT_MIN
     ? rankClosestPos(form.description, poTexts, Math.max(3, poTexts.length))
     : []
@@ -371,7 +371,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   // Debounced semantic re-rank for the create-form description.
   useEffect(() => {
     const draft = form.description.trim()
-    if (draft.length < 4 || poTexts.length === 0) { setCreateSemantic(null); return }
+    if (draft.length < DRAFT_MIN || poTexts.length === 0) { setCreateSemantic(null); return }
     let cancelled = false
     const t = setTimeout(() => {
       rankSemantic(draft, poTexts, 3).then((res) => {
@@ -385,7 +385,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   // Debounced semantic re-rank for the edit-form description.
   useEffect(() => {
     const draft = editForm.description.trim()
-    if (editingId === null || draft.length < 4 || poTexts.length === 0) { setEditSemantic(null); return }
+    if (editingId === null || draft.length < DRAFT_MIN || poTexts.length === 0) { setEditSemantic(null); return }
     let cancelled = false
     const t = setTimeout(() => {
       rankSemantic(draft, poTexts, 3).then((res) => {
@@ -494,7 +494,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             </span>
           ))}
         </div>
-      ) : editForm.description.trim().length >= 4 && (
+      ) : editForm.description.trim().length >= DRAFT_MIN && (
         <div style={{ fontSize: 12, color: '#64748b', margin: '6px 0' }}>
           {poTexts.length === 0
             ? 'No Curriculum Mapping outcomes yet — add them on the Program Outcomes page first.'
@@ -662,7 +662,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
               ))}
             </div>
           </div>
-        ) : form.description.trim().length >= 4 && (
+        ) : form.description.trim().length >= DRAFT_MIN && (
           <div className="field" style={{ marginTop: -4 }}>
             <span style={{ fontSize: 12, color: '#64748b' }}>
               {poTexts.length === 0
