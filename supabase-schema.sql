@@ -331,6 +331,26 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
+    -- Closed registration. This trigger fires inside the OAuth callback
+    -- transaction whenever Supabase auto-creates an auth user — for a
+    -- Google identity nobody registered. Only emails the admin or manager
+    -- already registered (their auth row and profile exist from the Add
+    -- user / invite flow) may use the system: an unknown Google sign-up
+    -- raises here, which refuses the whole callback transaction — no auth
+    -- row, no profile, no session — and GoTrue bounces the outsider back
+    -- with a sign-in error. Password-path creations (the admin-users edge
+    -- function and seeded fixtures) carry provider 'email'
+    -- and always seed, so normal account creation is untouched. A
+    -- registered email that signs in with Google does not reach this
+    -- trigger at all: GoTrue matches the existing row and simply signs in.
+    IF NEW.app_metadata->>'provider' = 'google'
+       AND NOT EXISTS (
+           SELECT 1 FROM public.profiles
+           WHERE lower(email) = lower(NEW.email)
+       ) THEN
+        RAISE EXCEPTION 'Google sign-up refused: % is not registered. Accounts are created by the admin or manager.', NEW.email;
+    END IF;
+
     INSERT INTO public.profiles (id, email, full_name, avatar_url)
     VALUES (
         NEW.id,

@@ -237,9 +237,11 @@ Open the printed local URL (usually `http://localhost:5173`) and sign in.
 2. **Supabase Dashboard → Authentication → Providers → Google**: enable it, paste the client **ID** and **secret**.
 3. **Supabase Dashboard → Authentication → Sign In / Up → Allowed email domains**: `nbsc.edu.ph`.
 
-   This step is the server-side version of the school-accounts-only rule: it enforces *back at the auth layer*, not just in the UI, that only official `@nbsc.edu.ph` Google accounts can sign in. Because it lives in a dashboard setting rather than a repo file, document it per project. As a code-level backup, `App.tsx` re-checks the email once a Google session lands and signs out anything that is not `@nbsc.edu.ph` with a notice on the Login screen — so a missed dashboard step can no longer admit a personal Gmail.
+   This step is the server-side version of the school-accounts-only rule: it enforces *back at the auth layer*, not just in the UI, that only official `@nbsc.edu.ph` Google accounts can sign in. Because it lives in a dashboard setting rather than a repo file, document it per project. The repo carries the other layers of the same door: the closed-registration gate in `handle_new_user` (migration `017-closed-google-registration.sql`) refuses *any* Google identity the admin or manager never registered — no auth row, no profile, no session — and `App.tsx` re-checks the email once a session lands, signing out anything not `@nbsc.edu.ph` with a notice on the Login screen.
 
-On first Google sign-in the `handle_new_user` trigger creates the profile automatically from the Google metadata — full name and profile photo arrive pre-filled; the role starts as `user (faculty)` and must be assigned by an admin, exactly like password sign-ups. Every Google sign-in writes the same `auth.login` audit row the password path writes.
+4. **Supabase Dashboard → Authentication → Sign In / Up → Allow new users to sign up**: OFF. With this toggle, a stranger can only ever match an account the admin or manager already created; the closed-registration trigger backs the same rule up in code.
+
+On Google sign-in only **registered** addresses complete the flow: registration always creates the auth user (and, via `handle_new_user`, its profile row) at Add-user time, so a registered person signing in with Google simply matches their existing row and lands signed in — no new account is ever auto-created. Self-created Google identities raise inside the transaction and bounce back with the sign-in error *"Google sign-in works only for registered accounts. Ask the admin or manager to register you first."* Every completed Google sign-in writes the same `auth.login` audit row the password path writes.
 
 ### 7. Align the password minimum to 8 (auth config)
 
