@@ -220,7 +220,19 @@ function MapBrief({ profile, onNavigate, children }: MapBriefProps) {
   // ---- the same derivation Generate Map runs ----
   const anchors = useMemo(() => buildAnchors({ cmos, peos, goals }), [cmos, peos, goals])
   const outcomes = useMemo(() => (pos.length > 0 ? poOutcomes(pos, anchors) : []), [pos, anchors])
-  const summary = alignmentSummary(outcomes)
+  // The brief reports the COMMITTED framework: the outcomes the Program
+  // Outcomes page actively offers. Codes parked in the archive (the pre-010
+  // hand-typed drift, deliberately saved for reference) stay out of every
+  // headline figure — counting them said "40 outcomes" over a page that
+  // actively lists 17. An archived spelling that shares a code with an
+  // active row still contributes to that outcome's document unions below
+  // (poOutcomes merges spellings before this filter runs).
+  const activeOutcomes = useMemo(
+    () => outcomes.filter((o) => o.status === 'active'),
+    [outcomes],
+  )
+  const archivedOutcomes = outcomes.length - activeOutcomes.length
+  const summary = alignmentSummary(activeOutcomes)
 
   const programCourseList = useMemo(
     () => (program ? coursesInProgram(courses, program.id) : []),
@@ -237,7 +249,9 @@ function MapBrief({ profile, onNavigate, children }: MapBriefProps) {
     [programCourseList],
   )
 
-  const mapping = useMemo(() => buildMappingReport(programClos, outcomes), [programClos, outcomes])
+  // Mapping runs against the active outcome set: a CLO quoting a parked code
+  // is a gap worth surfacing, not a silent match against nothing.
+  const mapping = useMemo(() => buildMappingReport(programClos, activeOutcomes), [programClos, activeOutcomes])
   const charted = useMemo(() => chartableOutcomes(mapping), [mapping])
 
   const courseOutcomeRows = useMemo(
@@ -303,7 +317,15 @@ function MapBrief({ profile, onNavigate, children }: MapBriefProps) {
               value={programClos.length}
               sub={program ? `${program.code} courses` : 'From all courses'}
             />
-            <KpiCard label="Total PO's" value={summary.outcomes} sub="Program Outcomes" />
+            <KpiCard
+              label="Total PO's"
+              value={summary.outcomes}
+              sub={
+                archivedOutcomes > 0
+                  ? `Program Outcomes · ${archivedOutcomes} archived`
+                  : 'Program Outcomes'
+              }
+            />
             <KpiCard
               label="Total PEO's"
               value={peos.length}
@@ -317,7 +339,7 @@ function MapBrief({ profile, onNavigate, children }: MapBriefProps) {
             <KpiCard
               label="Unmapped / Incomplete"
               value={summary.unaligned + mapping.gaps.length}
-              sub="CLOs / Relationships"
+              sub={`${mapping.gaps.length} CLOs unmapped · ${summary.unaligned} outcomes unanchored`}
             />
           </div>
 
