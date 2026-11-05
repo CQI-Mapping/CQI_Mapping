@@ -34,7 +34,7 @@ The system uses three application roles, each mapped to the people who actually 
 |---|---|
 | Build tool | Vite 8 |
 | Framework | React 18 (function components + hooks) |
-| Tests | Vitest 2 — 257 unit tests (`npm test`) |
+| Tests | Vitest 2 — 328 unit tests (`npm test`) |
 | Styling | Plain CSS with CSS custom properties in `src/index.css` |
 | Graph | d3 7 — Subject Graph (`admin/Map.tsx`) |
 | Documents | ExcelJS (TOS workbooks), `docx` (Word syllabus exports), `jspdf` + `html2canvas` (report PDFs), `xlsx` (report workbooks) |
@@ -157,7 +157,7 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
     │   │   ├── ProgramOutcomes.tsx   # Manager-side PO alignment; inline add form with a reader leg (all POs, grouped per CMO category)
     │   │   └── Course.tsx            # Wraps AdminCourse with `hideDelete`-style gating (no delete)
     │   └── user/
-    │       ├── Dashboard.tsx         # Faculty: Subjects + CLO stats, recent CLOs
+    │       ├── Dashboard.tsx         # Faculty home: next step, own-outcome figures, subjects, quick actions, program brief
     │       ├── CourseLearningOutcomes.tsx  # Faculty CLO editor (same bespoke page)
     │       └── TOS.tsx               # Generate TOS: blueprint editor + saved-blueprint library
     ├── services/
@@ -172,7 +172,7 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
         ├── tosOptions.ts     # Program/course/term pickers data
         ├── report.ts         # Report model + letterhead constants (vision/mission wording)
         ├── syllabusDocx.ts   # Word (.docx) export of the syllabus docs
-        └── alignment.ts / poMatch.ts / poRank.ts / poSemantic.ts / cloPoMapping.ts / download.ts 
+        └── alignment.ts / poMatch.ts / poRank.ts / poSemantic.ts / cloPoMapping.ts / facultyDashboard.ts / download.ts 
 ```
 
 ---
@@ -471,11 +471,18 @@ The rest of the password-reset journey (mockup: `design/profile-reset-redesign.h
 - Stats: Users, Strategic Goals, PEOs, Program Outcomes, CLOs, CHED Memo Orders.
 - Quick actions: Add Program, Map CLO → PO, Review Outcomes, Activity Logs. Recent activity (latest 5, `toLocaleString`).
 
-### `manager/Dashboard.tsx` and `user/Dashboard.tsx`
+### `manager/Dashboard.tsx`
 - Same banner + skeleton pattern. The manager page is deliberately slim — no role-badge line, no "what you can do" panel.
 - Manager: stats (Curriculum, Programs, Courses, POs, CLOs, Faculty) + Course quick-action.
-- Faculty: Subjects (= Courses count) and Course Outcomes stats + recent CLOs (latest 5 by `created_at`).
-- CLO stats are role-scoped: RLS lets managers/admins read every outcome, while a faculty user counts only their own (migration `009-private-clos.sql`).
+
+### `user/Dashboard.tsx` (the faculty home)
+- Opens on a **next-step** card. `utils/facultyDashboard.ts` (`planNextStep`) picks the first subject in curriculum order that holds no *active* outcome from the faculty member: "Start with …" before any active outcome exists, "Next up: …" while subjects still lack one, and "Every subject is covered" once none do. Its button opens Course Outcomes.
+- Four figures from the faculty member's own outcomes (`ownFigures`): outcomes written (active and archived), subjects covered out of all subjects in the system, outcomes changed in the last 7 days, and the time since the last edit. An archived outcome does not cover its subject.
+- "Your subjects" lists the subjects they have written for, most recently edited first, five at a time (`groupOutcomesBySubject`). Spellings of one code group together ("it 10" and "IT10"), and each row shows its archived count. A row opens that subject's latest outcome in the shared CLO modal.
+- Quick actions: Course Outcomes, Generate Map, Generate TOS, My Profile.
+- "Program at a glance" closes the page with `MapBrief` and its `MapPreview` curriculum map, the same blocks the admin and manager dashboards embed.
+- Styles are the `fac-*` classes in `index.css`. `MapBrief`'s panel tokens (`--reports-gap`, `--reports-radius`, `--reports-band`) are defined only under `.reports`, so `.fac-dash` sets them itself. The admin and manager dashboards do not, so their brief panels lose the gap and corner radius; defining the tokens on `.map-brief` would fix all three dashboards at once.
+- CLO stats are role-scoped: RLS lets managers/admins read every outcome, while a faculty user counts only their own (migration `009-private-clos.sql`). The faculty figures depend on that scope.
 
 > **Theme note (2026 look):** the app sits on the same dark circuit wallpaper everywhere. Dashboards keep the entrance-art banner; every content page's banner strip uses the open-book artwork (`banner-bg-page.jpg`); page banners, panels, table headers and hairlines are sage-tinted so the light content sits comfortably against the dark background. Both banners carry a deep drop shadow + faint green rim so they lift off the wallpaper.
 
