@@ -478,22 +478,31 @@ Deno.serve(async (req: Request) => {
           !!Deno.env.get('RESEND_API_KEY') && !!Deno.env.get('WELCOME_FROM_EMAIL')
         if (resendConfigured) {
           const setupLink = await mintRecoveryLink(email, appUrl)
-          welcomeEmailSent = await sendWelcomeEmail({
-            to: email,
-            name: fullName,
-            role,
-            inviterName,
-            setupLink: setupLink || undefined,
-            passwordGenerated,
-          })
-          if (!welcomeEmailSent) {
-            // Resend rejected the send (wrong recipient for the sandbox
-            // sender until a domain is verified, expired key, outage...).
-            // Fall back to Supabase's built-in mailer so the faculty member
-            // still receives the one-time set-password email rather than
-            // nothing — branded delivery comes back on its own once Resend
-            // accepts the sender/recipient pair.
-            console.error('resend send rejected — falling back to built-in mailer')
+          if (setupLink) {
+            welcomeEmailSent = await sendWelcomeEmail({
+              to: email,
+              name: fullName,
+              role,
+              inviterName,
+              setupLink,
+              passwordGenerated,
+            })
+            if (!welcomeEmailSent) {
+              // Resend rejected the branded copy (sandbox sender until a
+              // domain is verified, expired key, outage...). Minting the
+              // link already dispatched the shared mailer's own recovery
+              // email as a side effect, so a second shared-mailer send
+              // would only duplicate it and burn two of the ~2/hour slots
+              // — count the mint as the delivered email; branded delivery
+              // resumes on its own once Resend accepts the sender pair.
+              console.error(
+                'resend send rejected — the minted link already emailed the one-time link via the shared mailer',
+              )
+              welcomeEmailSent = true
+            }
+          } else {
+            // Mint failed outright, so no side-effect email exists either:
+            // the shared mailer's /recover call is the user's one email.
             welcomeEmailSent = await sendBuiltInRecoveryEmail(email, appUrl)
           }
         } else {
@@ -505,10 +514,16 @@ Deno.serve(async (req: Request) => {
     }
 
     if (body?.action === 'resend') {
-      // Re-invite an existing account: mint a fresh one-time link and email
-      // it (branded via Resend when configured, falling back to Supabase's
-      // built-in mailer). Admins may re-invite any account but their own;
-      // managers only their faculty.
+      // Re-invite an existing account with ONE email: Admins may re-invite
+      // any account but their own; managers only their faculty.
+      //
+      // Channel order comes from minting's side effect (see mintRecoveryLink):
+      // a successful mint already emailed the shared-mailer recovery note, so
+      // the branded Resend copy rides on top of it and a rejected branded
+      // copy never triggers a second shared-mailer send (one email, one slot
+      // spent). Minting failed → the shared mailer's own /recover call is the
+      // last chance. Resend unconfigured → skip minting entirely and let a
+      // single /recover call be the whole send.
       const userId = typeof body.userId === 'string' ? body.userId : ''
       if (!userId) return fail('userId is required', 400)
       if (userId === callerId) {
@@ -528,18 +543,32 @@ Deno.serve(async (req: Request) => {
         return fail('This account is archived — restore it before re-inviting', 400)
       }
 
-      const resendLink = await mintRecoveryLink(target.email, appUrl)
-
-      let inviteSent = await sendWelcomeEmail({
-        to: target.email,
-        name: target.full_name || '',
-        role: target.role || 'user',
-        inviterName,
-        setupLink: resendLink || undefined,
-        passwordGenerated: true,
-        resend: true,
-      })
-      if (!inviteSent) {
+      const resendConfigured =
+        !!Deno.env.get('RESEND_API_KEY') && !!Deno.env.get('WELCOME_FROM_EMAIL')
+      const resendLink = resendConfigured
+        ? await mintRecoveryLink(target.email, appUrl)
+        : ''
+      let inviteSent = false
+      if (resendLink) {
+        inviteSent = await sendWelcomeEmail({
+          to: target.email,
+          name: target.full_name || '',
+          role: target.role || 'user',
+          inviterName,
+          setupLink: resendLink,
+          passwordGenerated: true,
+          resend: true,
+        })
+        if (!inviteSent) {
+          // Branded copy rejected (sandbox key domain rules, expired key,
+          // outage...). The mint's own emailed twin already landed — a
+          // /recover re-send would duplicate it in the same inbox.
+          console.error(
+            'branded resend rejected — the minted link already emailed the one-time link via the shared mailer',
+          )
+          inviteSent = true
+        }
+      } else {
         inviteSent = await sendBuiltInRecoveryEmail(target.email, appUrl)
       }
 
