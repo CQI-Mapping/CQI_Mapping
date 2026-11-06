@@ -44,8 +44,8 @@ function friendlyCreateError(e: unknown): string {
   if (message === 'Database error creating new user') {
     return (
       'The account-seeding trigger on the database is failing — run ' +
-      'supabase/migrations/020-user-creation-heal.sql in the Supabase SQL Editor ' +
-      '(it self-reports any remaining blocker), then verify with ' +
+      'supabase/migrations/021-handle-new-user-raw-app-metadata.sql in the Supabase SQL Editor ' +
+      '(it repairs the trigger and its self-running probe reports the exact verdict), then verify with ' +
       '"node scripts/diag-admin-create.mjs". See README §Troubleshooting.'
     )
   }
