@@ -1,11 +1,14 @@
-// Profile page: the account's identity record.
+// Profile page: the account's identity record, laid out as the concept in
+// design/profile-redesign.html.
 //
-// Built to the Profile & Security spec: one "Profile information" card where
-// only the picture, full name and nickname are editable (through an explicit
-// Edit profile → Save changes / Cancel cycle), while email, department,
-// program, designation, role and account status display read-only. Password
-// and session control live on the Security & Privacy page; a personal
-// activity trail closes the page.
+// Two columns. The left holds who the account is: the identity card (picture,
+// name, verified email, role, capabilities and last activity) and the
+// "Profile information" card, where only the picture, full name and nickname
+// are editable, through an explicit Edit profile → Save changes / Cancel
+// cycle. Email, department, program, designation, role and account status
+// display read-only. The right holds a security summary that links to the
+// Security & privacy page, where password and session control live, and the
+// personal activity trail.
 //
 // Backend authorization note: the read-only fields are enforced server-side
 // by the profiles_edit_guard trigger (migrations/013) — the UI simply never
@@ -314,38 +317,36 @@ function Profile({ profile, onSaved, onNavigate }: ProfileProps) {
   const isArchived = profile?.status === 'archived'
 
   return (
-    <div className="programs-page profile">
-      <header className="profile-hero" data-role={role}>
-        <div className="profile-hero__left">
-          {avatarSrc ? (
-            <div className="profile-avatar">
-              <img className="profile-avatar__img" src={avatarSrc} alt="" />
-            </div>
-          ) : (
-            <div className="profile-avatar" aria-hidden="true">{initialsOf(displayName)}</div>
-          )}
-          <div className="profile-hero__titles">
+    <div className="programs-page profile prf">
+      <header className="prf-hero" data-role={role}>
+        <div className="prf-hero__left">
+          <div className="prf-avatar" aria-hidden="true">
+            {avatarSrc ? <img className="prf-avatar__img" src={avatarSrc} alt="" /> : initialsOf(displayName)}
+          </div>
+          <div className="prf-hero__titles">
             <h2>Profile</h2>
             <p>
               {profile
-                ? `${displayName || 'Your account'}${profile.nickname ? ` "${profile.nickname}"` : ''}`
+                ? `${displayName || 'Your account'}${profile.nickname ? ` "${profile.nickname}"` : ''} · ${ROLE_LABELS[role]} account`
                 : 'Loading your account…'}
             </p>
           </div>
         </div>
 
-        <div className="profile-facts">
-          <span className="profile-chip" title="Role">
+        <div className="prf-chips">
+          <span className="prf-chip" title="Role">
             <Icon name="user" size={13} />
             {ROLE_LABELS[role]}
           </span>
-          <span className="profile-chip" title="Member since">
+          <span className="prf-chip" title="Member since">
             <Icon name="calendar" size={13} />
-            {profile?.created_at ? `Member since ${new Date(profile.created_at).toLocaleDateString()}` : 'Member since —'}
+            {profile?.created_at
+              ? `Member since ${new Date(profile.created_at).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}`
+              : 'Member since —'}
           </span>
-          <span className="profile-chip" title="Last activity">
+          <span className="prf-chip" title="Last activity">
             <span
-              className={`profile-chip__dot${activeRecently ? '' : ' profile-chip__dot--idle'}`}
+              className={`prf-chip__dot${activeRecently ? '' : ' prf-chip__dot--idle'}`}
               aria-hidden="true"
             />
             {latestEntry ? formatDayTime(latestEntry.created_at) : 'No activity yet'}
@@ -353,258 +354,326 @@ function Profile({ profile, onSaved, onNavigate }: ProfileProps) {
         </div>
       </header>
 
-      {/* Profile information — the spec's field list. Editable: picture, full
-          name, nickname. Everything else is rendered as plain text all the
-          time, never as a disabled input, so nothing looks editable that
-          isn't (and the server refuses those columns anyway). */}
-      <section className="panel profile-card card-enter pf-card" aria-label="Profile information">
-        <div className="profile-card__head">
-          <h3><Icon name="user" size={15} />Profile information</h3>
-          {!editing ? (
-            <button
-              type="button"
-              className="btn btn--ghost btn--sm"
-              onClick={startEditing}
-              disabled={!profile}
-              title="Changes your picture, full name and nickname only"
-            >
-              Edit profile
-            </button>
-          ) : (
-            <span className="profile-card__hint" role="status">
-              Editing name &amp; picture only — academic fields are managed by the administrator
-            </span>
-          )}
-        </div>
+      <div className="prf-grid">
+        <div className="prf-col">
+          {/* Identity: who the account is, with the two facts the concept
+              pairs with it. */}
+          <section className="prf-panel card-enter" aria-label="Account identity">
+            <div className="prf-identity__main">
+              <div className="prf-mini" aria-hidden="true">
+                {avatarSrc ? <img src={avatarSrc} alt="" /> : initialsOf(displayName)}
+              </div>
+              <div className="prf-identity__who">
+                <div className="prf-identity__name">{displayName || '—'}</div>
+                <div className="prf-identity__meta">
+                  <Icon name="mail" size={13} />
+                  <span>{profile?.email ?? '—'}</span>
+                  {emailVerified && (
+                    <span className="prf-verified" title="Email ownership was confirmed at sign-up">
+                      <Icon name="check" size={11} strokeWidth={3} />
+                      Verified
+                    </span>
+                  )}
+                </div>
+              </div>
+              <span className={`prf-role prf-role--${role}`}>{ROLE_LABELS[role]}</span>
+            </div>
 
-        {/* Picture row — explicit controls, no hover-only affordance. */}
-        <div className="pf-identity">
-          {avatarSrc ? (
-            <img className="pf-identity__img" src={avatarSrc} alt="" />
-          ) : (
-            <div className="pf-identity__img" aria-hidden="true">{initialsOf(displayName)}</div>
-          )}
-          <div className="pf-identity__tools">
-            <button
-              type="button"
-              className="btn btn--ghost btn--sm"
-              onClick={handleAvatarPick}
-              disabled={!profile || avatarBusy}
-            >
-              {avatarBusy ? 'Uploading…' : 'Change photo'}
-            </button>
-            {profile?.avatar_url && (
-              <button
-                type="button"
-                className="pf-link"
-                onClick={handleAvatarRemove}
-                // avatarBusy too: removing while an upload is mid-flight would
-                // let the two writes to avatar_url race and the loser surprises.
-                disabled={!profile || removingAvatar || avatarBusy}
-              >
-                {removingAvatar ? 'Removing…' : 'Remove photo'}
-              </button>
-            )}
-            <span className="pf-identity__hint">PNG · JPG · WebP · under 2 MB — falls back to your Gravatar or initials</span>
-          </div>
-          {avatarError && <p className="msg msg--error" role="alert">{avatarError}</p>}
-        </div>
-        <input
-          ref={avatarInputRef}
-          type="file"
-          accept="image/png,image/jpeg,image/webp"
-          hidden
-          onChange={handleAvatarChange}
-        />
+            <div className="prf-facts">
+              <div className="prf-tile">
+                <span className="prf-tile__k">Role capabilities</span>
+                <span className="prf-tile__v">
+                  {CAPABILITIES[role].title}
+                  <small>{CAPABILITIES[role].sub}</small>
+                </span>
+              </div>
+              <div className="prf-tile">
+                <span className="prf-tile__k">Last activity</span>
+                <span className="prf-tile__v">
+                  {latestEntry ? (ACTION_LABELS[latestEntry.action] ?? latestEntry.action) : 'Nothing yet'}
+                  <small>
+                    {latestEntry ? formatDayTime(latestEntry.created_at) : 'Actions you take will show here'}
+                  </small>
+                </span>
+              </div>
+            </div>
+          </section>
 
-        <div className="pf-fields">
-          <div className="pf-field pf-field--wide">
-            <span className="pf-field__k">Full name</span>
-            {editing ? (
-              <input
-                className="input"
-                type="text"
-                value={fullName}
-                maxLength={NAME_MAX_LENGTH}
-                onChange={(e) => setFullName(e.target.value)}
-                autoFocus
-              />
-            ) : (
-              <span className="pf-field__v">{profile ? (savedName || '—') : '—'}</span>
-            )}
-            <small className="pf-field__note">shown across reports &amp; audit logs</small>
-          </div>
-
-          <div className="pf-field pf-field--wide">
-            <span className="pf-field__k">Nickname</span>
-            {editing ? (
-              <input
-                className="input"
-                type="text"
-                value={nickname}
-                maxLength={NICKNAME_MAX_LENGTH}
-                placeholder='what friends call you — e.g. "Bebot"'
-                autoComplete="off"
-                onChange={(e) => setNickname(e.target.value)}
-              />
-            ) : (
-              <span className="pf-field__v">
-                {savedNickname ? <>
-                  <span className="pf-nick">"{savedNickname}"</span>
-                </> : <span className="pf-field__v-muted">Not set</span>}
-              </span>
-            )}
-            <small className="pf-field__note">optional · casual · shown in quotes</small>
-          </div>
-
-          <div className="pf-field">
-            <span className="pf-field__k">
-              <Icon name="mail" size={11} /> Email address
-            </span>
-            <span className="pf-field__v pf-field__v--wrapped">
-              {profile?.email ?? '—'}
-              {emailVerified && (
-                <span className="profile-verified" title="Email ownership was confirmed at sign-up">
-                  <Icon name="check" size={9} strokeWidth={3.4} />
-                  Verified
+          {/* Profile information: the three editable fields sit behind the
+              explicit edit cycle; everything else is plain text, never a
+              disabled input, so nothing looks editable that isn't. */}
+          <section className="prf-panel card-enter" aria-label="Profile information">
+            <div className="prf-panel__head">
+              <h3>
+                <Icon name="user" size={15} />
+                Profile information
+              </h3>
+              {!editing ? (
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--sm"
+                  onClick={startEditing}
+                  disabled={!profile}
+                  title="Changes your picture, full name and nickname only"
+                >
+                  Edit profile
+                </button>
+              ) : (
+                <span className="prf-panel__hint" role="status">
+                  Editing name &amp; picture only — academic fields are managed by the administrator
                 </span>
               )}
-            </span>
-            <small className="pf-field__note">managed by your administrator</small>
-          </div>
+            </div>
 
-          <div className="pf-field">
-            <span className="pf-field__k">
-              <Icon name="book" size={11} /> Academic department
-            </span>
-            <span className="pf-field__v">{savedDepartment ? savedDepartment : <span className="pf-field__v-muted">Not set</span>}</span>
-            <small className="pf-field__note">read-only · set by your administrator</small>
-          </div>
+            {/* Picture row — explicit controls, no hover-only affordance. */}
+            <div className="prf-photo">
+              <div className="prf-mini" aria-hidden="true">
+                {avatarSrc ? <img src={avatarSrc} alt="" /> : initialsOf(displayName)}
+              </div>
+              <div className="prf-photo__tools">
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--sm"
+                  onClick={handleAvatarPick}
+                  disabled={!profile || avatarBusy}
+                >
+                  {avatarBusy ? 'Uploading…' : 'Change photo'}
+                </button>
+                {profile?.avatar_url && (
+                  <button
+                    type="button"
+                    className="pf-link"
+                    onClick={handleAvatarRemove}
+                    // avatarBusy too: removing while an upload is mid-flight would
+                    // let the two writes to avatar_url race and the loser surprises.
+                    disabled={!profile || removingAvatar || avatarBusy}
+                  >
+                    {removingAvatar ? 'Removing…' : 'Remove photo'}
+                  </button>
+                )}
+                <span className="prf-photo__hint">
+                  PNG · JPG · WebP · under 2 MB — falls back to your Gravatar or initials
+                </span>
+              </div>
+            </div>
+            {avatarError && <p className="msg msg--error" role="alert">{avatarError}</p>}
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              hidden
+              onChange={handleAvatarChange}
+            />
 
-          <div className="pf-field">
-            <span className="pf-field__k">
-              <Icon name="cap" size={11} /> Academic program
-            </span>
-            <span className="pf-field__v">{program ? `${program.code} — ${program.name}` : <span className="pf-field__v-muted">Not assigned</span>}</span>
-            <small className="pf-field__note">read-only · set by your administrator</small>
-          </div>
+            <div className="prf-fields">
+              <div className="prf-field prf-field--wide">
+                <span className="prf-field__k">Full name</span>
+                {editing ? (
+                  <input
+                    className="input"
+                    type="text"
+                    value={fullName}
+                    maxLength={NAME_MAX_LENGTH}
+                    onChange={(e) => setFullName(e.target.value)}
+                    autoFocus
+                  />
+                ) : (
+                  <span className="prf-field__v">{profile ? (savedName || '—') : '—'}</span>
+                )}
+                <span className="prf-field__foot">
+                  <span className="prf-field__note">shown across reports &amp; audit logs</span>
+                  {editing && <span className="prf-count">{fullName.length} / {NAME_MAX_LENGTH}</span>}
+                </span>
+              </div>
 
-          <div className="pf-field">
-            <span className="pf-field__k">
-              <Icon name="doc" size={11} /> Position / designation
-            </span>
-            <span className="pf-field__v">{savedDesignation ? savedDesignation : <span className="pf-field__v-muted">Not set</span>}</span>
-            <small className="pf-field__note">read-only · set by your administrator</small>
-          </div>
+              <div className="prf-field prf-field--wide">
+                <span className="prf-field__k">Nickname</span>
+                {editing ? (
+                  <input
+                    className="input"
+                    type="text"
+                    value={nickname}
+                    maxLength={NICKNAME_MAX_LENGTH}
+                    placeholder='what friends call you — e.g. "Bebot"'
+                    autoComplete="off"
+                    onChange={(e) => setNickname(e.target.value)}
+                  />
+                ) : (
+                  <span className="prf-field__v">
+                    {savedNickname ? (
+                      <span className="prf-nick">"{savedNickname}"</span>
+                    ) : (
+                      <span className="prf-field__v-muted">Not set</span>
+                    )}
+                  </span>
+                )}
+                <span className="prf-field__foot">
+                  <span className="prf-field__note">optional · casual · shown in quotes</span>
+                  {editing && <span className="prf-count">{nickname.length} / {NICKNAME_MAX_LENGTH}</span>}
+                </span>
+              </div>
 
-          <div className="pf-field">
-            <span className="pf-field__k">
-              <Icon name="shield" size={11} /> Assigned system role
-            </span>
-            {profile ? (
-              <span className="pf-field__v pf-field__v--stack">
-                <span className={`role-badge role-badge--${profile.role}`}>{ROLE_LABELS[role]}</span>
-                <small className="pf-field__note">
-                  {CAPABILITIES[role].title} · {CAPABILITIES[role].sub}
-                </small>
-              </span>
-            ) : (
-              <span className="pf-field__v">
-                <span className="pf-field__v-muted">—</span>
-              </span>
+              <div className="prf-field">
+                <span className="prf-field__k">
+                  <Icon name="mail" size={11} />
+                  Email address
+                </span>
+                <span className="prf-field__v">{profile?.email ?? '—'}</span>
+                <span className="prf-field__note">managed by your administrator</span>
+              </div>
+
+              <div className="prf-field">
+                <span className="prf-field__k">
+                  <Icon name="book" size={11} />
+                  Academic department
+                </span>
+                <span className="prf-field__v">
+                  {savedDepartment ? savedDepartment : <span className="prf-field__v-muted">Not set</span>}
+                </span>
+                <span className="prf-field__note">read-only · set by your administrator</span>
+              </div>
+
+              <div className="prf-field">
+                <span className="prf-field__k">
+                  <Icon name="cap" size={11} />
+                  Academic program
+                </span>
+                <span className="prf-field__v">
+                  {program ? `${program.code} — ${program.name}` : <span className="prf-field__v-muted">Not assigned</span>}
+                </span>
+                <span className="prf-field__note">read-only · set by your administrator</span>
+              </div>
+
+              <div className="prf-field">
+                <span className="prf-field__k">
+                  <Icon name="doc" size={11} />
+                  Position / designation
+                </span>
+                <span className="prf-field__v">
+                  {savedDesignation ? savedDesignation : <span className="prf-field__v-muted">Not set</span>}
+                </span>
+                <span className="prf-field__note">read-only · set by your administrator</span>
+              </div>
+
+              <div className="prf-field">
+                <span className="prf-field__k">
+                  <Icon name="checkCircle" size={11} />
+                  Account status
+                </span>
+                <span className="prf-field__v">
+                  <span className={`status-pill status-pill--${isArchived ? 'archived' : 'active'}`}>
+                    <span className="status-pill__dot" aria-hidden="true" />
+                    {isArchived ? 'Archived' : 'Active'}
+                  </span>
+                </span>
+                <span className="prf-field__note">
+                  {isArchived ? 'signing in is disabled; contact an administrator' : 'signing in and access are enabled'}
+                </span>
+              </div>
+            </div>
+
+            {(message || error || (editing && dirty)) && (
+              <div className="prf-notes">
+                {message && <p className="msg msg--success" role="status">{message}</p>}
+                {error && <p className="msg msg--error" role="alert">{error}</p>}
+                {editing && dirty && !message && (
+                  <p className="prf-dirty" role="status">
+                    <Icon name="warning" size={14} />
+                    Unsaved changes — reports keep showing <b>{savedName || 'the current name'}</b> until you save.
+                  </p>
+                )}
+              </div>
             )}
-          </div>
 
-          <div className="pf-field">
-            <span className="pf-field__k">
-              <Icon name="checkCircle" size={11} /> Account status
-            </span>
-            <span className="pf-field__v pf-field__v--stack">
-              <span className={`status-pill status-pill--${isArchived ? 'archived' : 'active'}`}>
-                <span className="status-pill__dot" aria-hidden="true" />
-                {isArchived ? 'Archived' : 'Active'}
-              </span>
-            </span>
-            <small className="pf-field__note">{isArchived ? 'signing in is disabled; contact an administrator' : 'signing in and access are enabled'}</small>
-          </div>
+            {editing && (
+              <div className="prf-actions">
+                <button className="btn btn--ghost" type="button" onClick={cancelEditing} disabled={saving}>
+                  Cancel
+                </button>
+                <button
+                  className="btn btn--primary"
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={!canSave || saving}
+                >
+                  {!profile ? 'Loading…' : saving ? 'Saving changes…' : 'Save changes'}
+                </button>
+              </div>
+            )}
+          </section>
         </div>
 
-        {(message || error || (editing && dirty)) && (
-          <div className="pf-notes">
-            {message && <p className="msg msg--success" role="status">{message}</p>}
-            {error && <p className="msg msg--error" role="alert">{error}</p>}
-            {editing && dirty && !message && (
-              <p className="profile-note" role="status">
-                <Icon name="warning" size={14} />
-                Unsaved changes — reports keep showing <b>{savedName || 'the current name'}</b> until you save.
-              </p>
-            )}
-          </div>
-        )}
-
-        {editing && (
-          <div className="pf-actions">
-            <button
-              className="btn btn--ghost"
-              type="button"
-              onClick={cancelEditing}
-              disabled={saving}
-            >
-              Cancel
-            </button>
-            <button
-              className="btn btn--primary"
-              type="button"
-              onClick={handleSubmit}
-              disabled={!canSave || saving}
-            >
-              {!profile ? 'Loading…' : saving ? 'Saving changes…' : 'Save changes'}
-            </button>
-          </div>
-        )}
-      </section>
-
-      <section className="panel profile-card card-enter profile-card--fill" aria-label="Recent activity">
-        <div className="profile-card__head">
-          <h3><Icon name="clock" size={15} />Recent activity</h3>
-          <div className="pf-head-tools">
+        <div className="prf-col">
+          {/* Security: a summary only. Password and sessions live on the
+              Security & privacy page. */}
+          <section className="prf-panel card-enter" aria-label="Security">
+            <div className="prf-panel__head">
+              <h3>
+                <Icon name="lock" size={15} />
+                Security
+              </h3>
+              <span className="prf-panel__hint">password &amp; sessions</span>
+            </div>
+            <p className="prf-security__text">
+              Change your password, sign out other devices and export your data on Security &amp; privacy.
+            </p>
             {onNavigate && (
-              <button type="button" className="pf-link" onClick={() => onNavigate('security')}>
-                Security &amp; privacy →
+              <button
+                type="button"
+                className="btn btn--primary prf-security__btn"
+                onClick={() => onNavigate('security')}
+              >
+                Open Security &amp; privacy →
               </button>
             )}
-          </div>
-        </div>
+            <p className="prf-foot">
+              <Icon name="shield" size={15} />
+              Each change made there is recorded in your activity trail.
+            </p>
+          </section>
 
-        {logsError && (
-          <p className="msg msg--error" role="alert">Couldn't load your activity trail — check your connection and reopen this page.</p>
-        )}
-        {!logsError && logs.length === 0 && (
-          <div className="profile-empty">
-            <Icon name="clock" size={20} />
-            <p>No activity recorded yet</p>
-            <span>Actions you take across the system will appear here as they happen.</span>
-          </div>
-        )}
-        {logs.length > 0 && (
-          <ul className="profile-timeline">
-            {logs.map((entry) => {
-              const category = categoryOf(entry.action)
-              return (
-                <li key={entry.id}>
-                  <div className="pt-action">
-                    {ACTION_LABELS[entry.action] ?? entry.action}
-                    <span className={`pt-pill pt-pill--${categoryTone(category)}`}>
-                      {categoryLabel(category)}
-                    </span>
-                  </div>
-                  <div className="pt-time">{formatDayTime(entry.created_at)}</div>
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </section>
+          <section className="prf-panel card-enter" aria-label="Recent activity">
+            <div className="prf-panel__head">
+              <h3>
+                <Icon name="clock" size={15} />
+                Recent activity
+              </h3>
+              <span className="prf-panel__hint">your audit trail</span>
+            </div>
+
+            {logsError && (
+              <p className="msg msg--error" role="alert">
+                Couldn't load your activity trail — check your connection and reopen this page.
+              </p>
+            )}
+            {!logsError && logs.length === 0 && (
+              <div className="profile-empty">
+                <Icon name="clock" size={20} />
+                <p>No activity recorded yet</p>
+                <span>Actions you take across the system will appear here as they happen.</span>
+              </div>
+            )}
+            {logs.length > 0 && (
+              <ul className="profile-timeline">
+                {logs.map((entry) => {
+                  const category = categoryOf(entry.action)
+                  return (
+                    <li key={entry.id}>
+                      <div className="pt-action">
+                        {ACTION_LABELS[entry.action] ?? entry.action}
+                        <span className={`pt-pill pt-pill--${categoryTone(category)}`}>
+                          {categoryLabel(category)}
+                        </span>
+                      </div>
+                      <div className="pt-time">{formatDayTime(entry.created_at)}</div>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </section>
+        </div>
+      </div>
     </div>
   )
 }

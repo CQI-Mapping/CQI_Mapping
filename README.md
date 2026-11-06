@@ -34,7 +34,7 @@ The system uses three application roles, each mapped to the people who actually 
 |---|---|
 | Build tool | Vite 8 |
 | Framework | React 18 (function components + hooks) |
-| Tests | Vitest 2 — 328 unit tests (`npm test`) |
+| Tests | Vitest 2 — 335 unit tests (`npm test`) |
 | Styling | Plain CSS with CSS custom properties in `src/index.css` |
 | Graph | d3 7 — Subject Graph (`admin/Map.tsx`) |
 | Documents | ExcelJS (TOS workbooks), `docx` (Word syllabus exports), `jspdf` + `html2canvas` (report PDFs), `xlsx` (report workbooks) |
@@ -562,7 +562,12 @@ The rest of the password-reset journey (mockup: `design/profile-reset-redesign.h
 - `ACTION_LABELS` — action string → human-readable label, plus `labelAction()` / `labelReason()` helpers. Derived from what the app actually emits, not from an ideal wish list, so nothing renders as raw snake_case.
 
 ### `Profile.tsx`
-- Props: `profile`, `onSaved`. Edits `full_name`, writes an audit entry, and reports the updated profile back to `App.tsx` via `onSaved`. Shared by all roles.
+- Laid out as the concept in `design/profile-redesign.html`: a dark hero with a role-tinted avatar and fact chips, then two columns. The left holds the identity card (picture, name, verified email, role badge, capabilities, last activity) and **Profile information**. The right holds a security summary and the personal activity trail.
+- Only the picture, full name and nickname are editable, through the explicit **Edit profile → Save changes / Cancel** cycle the Profile & Security spec requires. Email, department, program, designation, role and account status display read-only.
+- Password and sessions are not on this page. The security card links to Security & privacy, so the concept's password form is not ported.
+- Role badges use the concept's colours (green admin, lime manager, grey faculty). The Users pages and the activity log still use the global purple and blue badges, so the two differ.
+- Styles are the `prf-*` classes in `index.css`. `.profile-timeline`, `.profile-empty` and `.pf-link` are shared with Security & privacy and unchanged.
+- Props: `profile`, `onSaved`, `onNavigate`. Writes `profile.updated`, `profile.avatar_changed` and `profile.avatar_removed` audit entries, and reports the updated profile back to `App.tsx` via `onSaved`. Shared by all roles.
 
 ### `App.tsx`
 - Holds `session`, `profile`, `activePage`. Defines the `NAV` map (role → nav items) and the `PAGES` map (role → page components, one per role folder; `Profile` is shared). On session change, loads the profile via `ensureProfile` (auto-creates the row if missing — e.g. after a schema re-run) and renders `Login` when signed out; otherwise renders the header + current page.
