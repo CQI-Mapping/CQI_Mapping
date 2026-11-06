@@ -43,6 +43,7 @@ import {
   fetchChedMemoOrders,
   addActivityLog,
 } from '../../services/database'
+import { labelSchoolYearStart, schoolYearStartFor } from '../../utils/schoolYear'
 import type {
   Program,
   Course,
@@ -491,10 +492,28 @@ export default function SubjectView() {
     [allClos, selectedCloId],
   )
 
-  // Curriculum root options: the distinct curricula the selected program's
-  // subjects actually carry. A program whose subjects have no curriculum
-  // assigned offers none.
+  // Curriculum options the picker offers — every active record, newest
+  // school year first. Ordering reads the structured school year
+  // (migration 020) and falls back to the pair in the record's name for
+  // rows it never reached; unparseable ones trail, sorted by label.
   const allCurricula = useMemo(() => {
+    const eff = (r: Resource) =>
+      r.sy_start ?? labelSchoolYearStart(`${r.code ?? ''} ${r.title ?? ''}`)
+    return [...(datasets?.resources ?? [])].sort((a, b) => {
+      const ya = eff(a)
+      const yb = eff(b)
+      if (ya != null && yb != null && ya !== yb) return yb - ya
+      if (ya != null && yb == null) return -1
+      if (yb != null && ya == null) return 1
+      return curriculumLabel(a).localeCompare(curriculumLabel(b))
+    })
+  }, [datasets])
+
+  // What the selected program's subjects actually carry, in course order —
+  // the only section the map boots into, because every subject there is
+  // committed to its curriculum. Records no subject uses stay picker-only:
+  // they are browseable, but opening on one draws an empty grid by choice.
+  const assignedCurricula = useMemo(() => {
     const found: Resource[] = []
     const seen = new Set<string>()
     for (const c of programCourses) {
@@ -507,6 +526,38 @@ export default function SubjectView() {
     }
     return found
   }, [programCourses, datasets])
+
+  // A program's default curriculum, by program year: among its assigned
+  // records, one covering the current school year wins (structured field
+  // first, the label's pair second), else the first assignment — opening
+  // on a year the program carries beats opening on a blank grid.
+  const pickDefaultCurriculum = useCallback(
+    (programId: string | null): Resource | null => {
+      if (!programId || !datasets) return null
+      const pidOf = (c: Course) => {
+        const opt = c.program_id
+        return opt && typeof opt === 'object' ? opt.id : opt
+      }
+      const assigned: Resource[] = []
+      const seen = new Set<string>()
+      for (const c of courses) {
+        const pid = typeof c.program_id === 'object' ? c.program_id.id : c.program_id
+        if (pid !== programId) continue
+        const opt = c.curriculum_id
+        const cid = opt && typeof opt === 'object' ? opt.id : opt
+        if (!cid || seen.has(cid)) continue
+        seen.add(cid)
+        const rec = datasets.resources.find((r) => r.id === cid)
+        if (rec) assigned.push(rec)
+      }
+      if (assigned.length === 0) return null
+      const eff = (r: Resource) =>
+        r.sy_start ?? labelSchoolYearStart(`${r.code ?? ''} ${r.title ?? ''}`)
+      const sy = schoolYearStartFor()
+      return assigned.find((r) => eff(r) === sy) ?? assigned[0]
+    },
+    [datasets, courses],
+  )
 
   const selectedCurriculum = useMemo(
     () => allCurricula.find((r) => r.id === selectedCurriculumId) ?? null,
@@ -526,6 +577,11 @@ export default function SubjectView() {
   // is polite: it stands down if the visitor has picked any visualization
   // themselves, and it prefers their program when it qualifies.
   const mapBootRanRef = useRef(false)
+  // Whether the curriculum pick came from a picker press. A manual pick may
+  // point at any active record — including one no subject carries — and is
+  // kept until its record disappears; automatic picks always come from the
+  // program's assignments through its default.
+  const manualPickRef = useRef(false)
   useEffect(() => {
     if (mapBootRanRef.current || loading || !datasets || rootType || programs.length === 0) return
     const qualifies = (p: { id: string } | undefined) =>
@@ -542,36 +598,41 @@ export default function SubjectView() {
     if (!candidate) return
     mapBootRanRef.current = true
     setSelectedProgramId(candidate.id)
-    for (const c of courses) {
-      const pid = typeof c.program_id === 'object' ? c.program_id.id : c.program_id
-      if (pid !== candidate.id) continue
-      const opt = c.curriculum_id
-      const cid = opt && typeof opt === 'object' ? opt.id : opt
-      if (cid == null || !datasets.resources.some((r) => r.id === cid)) continue
-      setSelectedCurriculumId(cid)
-      setRootType('curriculum')
-      setShowGraph(true)
-      setIsFullscreen(true)
-      break
-    }
-  }, [loading, datasets, rootType, programs, courses, selectedProgramId])
+    // The opening curriculum is program-year based: the assigned record
+    // covering the current school year when one exists, else the program's
+    // first assignment. The candidate already guarantees an assignment.
+    const def = pickDefaultCurriculum(candidate.id)
+    if (!def) return
+    manualPickRef.current = false
+    setSelectedCurriculumId(def.id)
+    setRootType('curriculum')
+    setShowGraph(true)
+    setIsFullscreen(true)
+  }, [loading, datasets, rootType, programs, courses, selectedProgramId, pickDefaultCurriculum])
 
-  // While the curriculum root is up, a program switch keeps the map on screen:
-  // the new program's default curriculum replaces the stale pick (which belongs
-  // to the previous program and would render nothing). A program without
-  // curricula stand down the full screen — its empty picker already explains.
+  // While the curriculum root is up, a program switch keeps the map on
+  // screen: the new program's default — an assigned curriculum covering the
+  // current school year, else its first assignment — replaces a pick that
+  // no longer fits. A manual pick survives until its record disappears.
+  // A program whose subjects carry no curricula stands down the full
+  // screen — there is nothing mapped to keep it open for.
   useEffect(() => {
     if (rootType !== 'curriculum') return
-    if (allCurricula.length === 0) {
+    if (manualPickRef.current) {
+      if (selectedCurriculumId && datasets?.resources.some((r) => r.id === selectedCurriculumId)) return
+      manualPickRef.current = false // the record it named is gone; fall below
+    }
+    if (assignedCurricula.length === 0) {
       setIsFullscreen(false)
       return
     }
-    if (selectedCurriculumId && allCurricula.some((r) => r.id === selectedCurriculumId)) return
-    const first = allCurricula[0]
-    setSelectedCurriculumId(first.id)
+    if (selectedCurriculumId && assignedCurricula.some((r) => r.id === selectedCurriculumId)) return
+    const def = pickDefaultCurriculum(selectedProgramId) ?? assignedCurricula[0]
+    manualPickRef.current = false
+    setSelectedCurriculumId(def.id)
     setShowGraph(true)
     setIsFullscreen(true)
-  }, [rootType, allCurricula, selectedCurriculumId])
+  }, [rootType, assignedCurricula, selectedCurriculumId, pickDefaultCurriculum, selectedProgramId, datasets])
 
   // Quick tallies shown in the left panel before View.
   // Subject mode: pre-req / co-req / CLO counts. PO mode: linked CLOs / subjects.
@@ -3262,6 +3323,7 @@ export default function SubjectView() {
                 <select className="input input--sm" value={selectedCurriculumId ?? ''}
                   disabled={allCurricula.length === 0}
                   onChange={(e) => {
+                    manualPickRef.current = true
                     setSelectedCurriculumId(e.target.value || null)
                     // The OBE Curriculum Map *is* the curriculum's default
                     // visualization, and it opens full screen right away —
@@ -3271,7 +3333,7 @@ export default function SubjectView() {
                     setNavStack([])
                   }}>
                   {allCurricula.length === 0 ? (
-                    <option value="">No curricula assigned in this program yet</option>
+                    <option value="">No active curriculum records yet — create one on the Curriculum page</option>
                   ) : (
                     <>
                       <option value="">— Select a curriculum —</option>
@@ -3377,6 +3439,9 @@ export default function SubjectView() {
                       className="input input--sm"
                       value={selectedCurriculumId ?? ''}
                       onChange={(e) => {
+                        // A picker press is a manual pick: it may name a year
+                        // no subject carries, and it survives refreshes.
+                        manualPickRef.current = true
                         setSelectedCurriculumId(e.target.value || null)
                         // A fresh curriculum starts unfiltered; the page keeps
                         // its fullscreen state since the map stays on screen.
