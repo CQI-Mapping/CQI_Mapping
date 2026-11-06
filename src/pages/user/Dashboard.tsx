@@ -1,8 +1,7 @@
 // User dashboard — the faculty home. It opens on the next step to take, shows
-// the figures for the outcomes this faculty member owns, lists the subjects
-// they have written for, and closes with the program brief (the MapBrief
-// figures and the live curriculum map) that the admin and manager dashboards
-// embed as well.
+// the figures for the outcomes this faculty member owns with the live
+// curriculum map right under them, and closes with the program brief (the
+// MapBrief figures) that the admin and manager dashboards embed as well.
 //
 // Everything personal here is data the faculty role can read: its own CLOs
 // (RLS scopes them to the owner) and the shared subject list. The rules that
@@ -438,6 +437,12 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
         />
       </div>
 
+      {/* The OBE Curriculum Map directly under the stat figures — the
+          curriculum picture rides with the tiles it explains. The block is
+          self-contained: it fetches its own data and carries its own panel
+          frame and Generate Map link. */}
+      <MapPreview profile={profile} onNavigate={onNavigate} />
+
       <div className="fac-main">
         <section className="fac-card card-enter" aria-labelledby="fac-subjects-title">
           <header className="fac-card__head">
@@ -522,13 +527,9 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
       <section className="fac-program" aria-labelledby="fac-program-title">
         <header className="fac-program__head">
           <h2 id="fac-program-title">Program at a glance</h2>
-          <p>The curriculum on this account. The figures and the map update as outcomes change.</p>
+          <p>The curriculum on this account. The figures update as outcomes change.</p>
         </header>
-        {/* Figures first, then the live map slotted between them and the
-            summary and coverage panels. */}
-        <MapBrief profile={profile} onNavigate={onNavigate}>
-          <MapPreview profile={profile} onNavigate={onNavigate} />
-        </MapBrief>
+        <MapBrief profile={profile} onNavigate={onNavigate} />
       </section>
 
       {viewItem && <CloViewModal item={viewItem} onClose={() => setViewItem(null)} />}
