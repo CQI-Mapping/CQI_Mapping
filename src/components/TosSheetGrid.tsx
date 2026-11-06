@@ -136,6 +136,13 @@ function Cell({
       value={value}
       placeholder={placeholder}
       aria-label={label}
+      // Numeric cells highlight their whole value on focus (and keep it
+      // highlighted after the click's mouse-up, which would otherwise
+      // collapse the caret), so typing a 1 over a prefilled 0 replaces it
+      // instead of appending — you get "1", never "01". Text cells keep the
+      // normal caret so mid-word editing still works.
+      onFocus={(e) => { if (type === 'number') e.currentTarget.select() }}
+      onMouseUp={(e) => { if (type === 'number') e.preventDefault() }}
       onChange={(e) => onChange(e.target.value)}
     />
   )
