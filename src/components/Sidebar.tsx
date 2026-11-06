@@ -96,7 +96,6 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
   const ddRef = useRef<HTMLDivElement>(null)
   const profileRef = useRef<HTMLDivElement>(null)
   const navRef = useRef<HTMLDivElement>(null)
-  const leaveTimer = useRef<number | null>(null)
 
   // Separate dashboard, academics, and other items — profile and security live
   // in the avatar dropdown
@@ -113,27 +112,10 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
   const displayEmail = (profileEmail ?? '').trim() || `Signed in as ${role}`
   const avatarInitials = initialsOf(profileName, role)
 
-  // Hover helpers — delayed close so you can move from button to menu without it vanishing
-  const handleDdEnter = useCallback(() => {
-    if (window.innerWidth <= 1024) return
-    if (leaveTimer.current) {
-      window.clearTimeout(leaveTimer.current)
-      leaveTimer.current = null
-    }
-    setDdOpen(true)
-    setProfileOpen(false)
-  }, [])
-  const handleDdLeave = useCallback(() => {
-    if (window.innerWidth <= 1024) return
-    if (leaveTimer.current) window.clearTimeout(leaveTimer.current)
-    leaveTimer.current = window.setTimeout(() => setDdOpen(false), 140)
-  }, [])
-
-  useEffect(() => {
-    return () => {
-      if (leaveTimer.current) window.clearTimeout(leaveTimer.current)
-    }
-  }, [])
+  // The Academics dropdown is strictly click-driven: the button toggles it,
+  // an outside click or Esc closes it, and picking an item closes it. No
+  // hover auto-open — brushing the header on the way elsewhere never springs
+  // the mega menu open by accident.
 
   // Close dropdowns on outside click + Esc (Awwwards-style)
   useEffect(() => {
@@ -217,8 +199,6 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
               <div
                 className="hdr__dd"
                 ref={ddRef}
-                onMouseEnter={handleDdEnter}
-                onMouseLeave={handleDdLeave}
               >
                 <button
                   type="button"
