@@ -83,9 +83,9 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   const [editForm, setEditForm] = useState(EMPTY)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [archived, setArchived] = useState(false)
-  // Semester category tab ('' = all terms). The tabs trail the Active/Archive
-  // pair; picking one leaves the archived view and filters the active list
-  // to the term.
+  // Semester category dropdown ('' = all terms). It trails the Active/Archive
+  // tabs; picking a term leaves the archived view and filters the active list
+  // to that term's subjects.
   const [semCat, setSemCat] = useState('')
   const [query, setQuery] = useState('')
   const [bulkBusy, setBulkBusy] = useState(false)
@@ -137,9 +137,9 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
     .filter((i) => !q || [i.course, i.code, i.description, i.title].some((v) => (v || '').toLowerCase().includes(q)))
   const archivedCount = items.filter((i) => !isActive(i)).length
 
-  // Semester categories trailing the Active/Archive pair — one tab per term
-  // the curriculum actually uses, so no permanently empty tab sits in the
-  // row. Badges count active CLOs whose subject runs in that term.
+  // Semester categories, one dropdown option per term the curriculum
+  // actually uses, so no permanently empty entry. Badges in each option
+  // count active CLOs whose subject runs in that term.
   const semTabs = useMemo(
     () =>
       [...new Set(courses.map((c) => String(c.semester ?? '').trim()).filter(Boolean))]
@@ -790,19 +790,29 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
               >
                 Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
               </button>
-              {semTabs.map((s) => (
-                <button
-                  key={s.value}
-                  className={`sd-tab ${!archived && semCat === s.value ? 'sd-tab--active' : ''}`}
-                  onClick={() => { setArchived(false); setSemCat(s.value) }}
-                >
-                  {s.label}
-                  {(semCounts.get(s.value) ?? 0) > 0 && (
-                    <span className="sd-tab__count">{semCounts.get(s.value)}</span>
-                  )}
-                </button>
-              ))}
             </div>
+            {/* The semester categories live in a dropdown instead of trailing
+                tabs — five tabs crowded the row, and a select reads as a
+                filter. "All semesters" clears it; picking a term also leaves
+                the Archive view, since the filter applies to active rows.
+                Terms the curriculum does not use do not become options, and
+                each shows how many active CLOs sit in it. */}
+            <select
+              className="input input--sm"
+              aria-label="Filter outcomes by semester"
+              value={semCat}
+              onChange={(e) => { setArchived(false); setSemCat(e.target.value) }}
+            >
+              <option value="">All semesters</option>
+              {semTabs.map((s) => {
+                const count = semCounts.get(s.value) ?? 0
+                return (
+                  <option key={s.value} value={s.value}>
+                    {count > 0 ? `${s.label} (${count})` : s.label}
+                  </option>
+                )
+              })}
+            </select>
             <ViewModeToggle mode={viewMode} onChange={setViewMode} />
             <label className="program-search" aria-label="Search CLOs">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="M20 20L15.5 15.5"/></svg>
