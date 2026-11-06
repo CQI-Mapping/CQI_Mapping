@@ -266,7 +266,16 @@ export default function TosSheetGrid({
                 )}
               </td>
 
-              <td className="tos-td--num">
+              <td
+                className="tos-td--num"
+                onClick={(e) => {
+                  // The green cell is the click target, not just the number
+                  // box: any click inside it finds the input and focuses it
+                  // (which selects the value), Excel-style.
+                  const input = e.currentTarget.querySelector('input')
+                  if (input && document.activeElement !== input) input.focus()
+                }}
+              >
                 {editable ? (
                   <Cell
                     type="number"
@@ -285,7 +294,16 @@ export default function TosSheetGrid({
               <td className="tos-td--num tos-td--formula">{fmt1(weightedFor(sheet, topic))}</td>
 
               {BLOOM_LEVELS.map((level) => (
-                <td key={level} className="tos-td--num">
+                <td
+                  key={level}
+                  className="tos-td--num"
+                  onClick={(e) => {
+                    // Same rule as the hours cell: the whole green cell is
+                    // the edit box, not just the narrow input strip.
+                    const input = e.currentTarget.querySelector('input')
+                    if (input && document.activeElement !== input) input.focus()
+                  }}
+                >
                   {editable ? (
                     <Cell
                       type="number"
