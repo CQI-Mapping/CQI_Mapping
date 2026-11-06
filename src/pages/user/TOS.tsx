@@ -630,7 +630,7 @@ export default function TOS() {
   return (
     <div className="syllabus-doc">
       {/* Screen-only page banner; the document's own letterhead follows. */}
-      <PageBanner title="Generate TOS" sub="Build the table of specifications for every exam you write." />
+      <PageBanner title="Generate TOS" sub="Build the table of specifications — your guide in making the GRASPS." />
 
       {/* ---- exam header ---- */}
       <div className="panel tos-panel no-print">
