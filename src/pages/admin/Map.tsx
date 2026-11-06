@@ -36,7 +36,7 @@ import {
   fetchPrograms,
   fetchCourses,
   fetchResources,
-  fetchCourseLearningOutcomesStandalone,
+  fetchCourseLearningOutcomePoolForMap,
   fetchProgramOutcomesStandalone,
   fetchProgramEducationalObjectives,
   fetchStrategicGoals,
@@ -716,6 +716,12 @@ export default function SubjectView() {
   // ── Load + cache outcome datasets ──────────────────────────────────────────
   // Called on mount (silently) so the About card can show the full CLO list
   // without waiting for Visualization, and again on View / Refresh.
+  //
+  // CLOs come from the map pool (migration 019) — every row for every
+  // signed-in role, so a faculty session's tree fills like an admin's. The
+  // owner-scoped table read stays on the personal pages; the map is the one
+  // surface allowed the whole pool. Archived rows leave where the datasets
+  // are filtered, just below.
   const loadDatasets = async (force = false, silent = false) => {
     if (datasets && !force) return
     if (!silent) setSpinner(true)
@@ -723,7 +729,7 @@ export default function SubjectView() {
     try {
       const [resources, clos, pos, peos, sgs, cmos] = await Promise.all([
         fetchResources(),
-        fetchCourseLearningOutcomesStandalone(),
+        fetchCourseLearningOutcomePoolForMap(),
         fetchProgramOutcomesStandalone(),
         fetchProgramEducationalObjectives(),
         fetchStrategicGoals(),

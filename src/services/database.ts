@@ -948,6 +948,20 @@ export async function fetchCourseLearningOutcomesStandalone(): Promise<CourseLea
   return data
 }
 
+/**
+ * The Generate Map's read of the outcome pool (migration 019): a SECURITY
+ * DEFINER function returns every row to the signed-in curriculum roles, so
+ * the Visualization shows each role the same connected tree. Deliberately
+ * separate from the table fetch above, whose owner-scoped RLS keeps the
+ * CLO page, dashboard figures and reports per-faculty. Rows are ordered by
+ * code inside the function, like the table fetch; callers filter actives.
+ */
+export async function fetchCourseLearningOutcomePoolForMap(): Promise<CourseLearningOutcomeStandalone[]> {
+  const { data, error } = await supabase.rpc('map_outcome_pool')
+  if (error) throw error
+  return data ?? []
+}
+
 export async function createCourseLearningOutcomeStandalone(payload: Partial<CourseLearningOutcomeStandalone>): Promise<CourseLearningOutcomeStandalone> {
   // Ownership is stamped here, not left to the caller: every creator owns
   // what they make, so the RLS policies can scope faculty visibility to
