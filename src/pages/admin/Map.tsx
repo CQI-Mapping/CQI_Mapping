@@ -2762,6 +2762,10 @@ export default function SubjectView() {
     if (rootType === 'curriculum' && !selectedCurriculumId) return
     if (rootType === 'program' && !selectedProgramId) return
     setShowGraph(true)
+    // A generated run opens framed: whatever zoom/pan the previous graph
+    // sat at stays outside this run, so the freshly selected subject, PO,
+    // or PEO starts fully visible instead of at a stale magnification.
+    resetZoom()
     // Every generated graph reads like the reference dashboard: it opens full
     // screen right away (Esc / Exit fullscreen steps back to the panel).
     setIsFullscreen(true)
