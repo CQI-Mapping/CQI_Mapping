@@ -136,13 +136,15 @@ function Cell({
       value={value}
       placeholder={placeholder}
       aria-label={label}
-      // Numeric cells highlight their whole value on focus, so typing a 1
-      // over a prefilled 0 replaces it instead of appending — you get "1",
-      // never "01". No mouse-up guard on purpose: swallowing the click's
-      // mouse-up leaves the browser holding the native stepper, and the
-      // value then runs away on its own. The focus-select already survives
-      // the click intact in modern browsers.
+      // Numeric cells highlight their whole value on focus and keep it after
+      // the click's own processing, so typing a 1 over a prefilled 0 replaces
+      // it — you get "1", never "01". Chromium re-collapses a focus-time
+      // selection when the click's mouse-up lands, so the re-select runs
+      // there. It only re-selects, never preventDefault — cancelling the
+      // mouse-up itself is what left the native stepper believing it was
+      // held down and made the value run away last time.
       onFocus={(e) => { if (type === 'number') e.currentTarget.select() }}
+      onMouseUp={(e) => { if (type === 'number') e.currentTarget.select() }}
       onChange={(e) => onChange(e.target.value)}
     />
   )
