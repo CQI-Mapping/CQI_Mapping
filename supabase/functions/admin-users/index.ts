@@ -418,18 +418,6 @@ Deno.serve(async (req: Request) => {
         return fail('Email is required', 400)
       }
 
-      // Pre-flight duplicate check: GoTrue refuses re-registration anyway,
-      // but that surfaced as a raw 500 with no actionable wording. Ask
-      // first, so the inviter gets usable guidance before any password or
-      // program validation is spent on an unregistrable address.
-      const { data: existingUser } = await admin.auth.admin.getUserByEmail(email)
-      if (existingUser?.user) {
-        return fail(
-          'This email already has an account — if they need a new sign-in link, use "Resend invite" on their row.',
-          400,
-        )
-      }
-
       // The password is optional: the inviter-chosen one (admin flow) or a
       // generated random one (invite flow where the new user sets their own
       // password through the emailed one-time link). Either way the account
@@ -466,11 +454,18 @@ Deno.serve(async (req: Request) => {
           user_metadata: { full_name: fullName || undefined },
         })
       if (createError) {
-        // Belt-and-braces behind the pre-flight: a duplicate that slips past
-        // (two invocations racing, a case variant, fresh GoTrue wording)
-        // still surfaces as a clean 400 instead of a raw internal 500.
+        // The duplicate check happens HERE, on GoTrue's own refusal — there
+        // is no pre-flight: `getUserByEmail` does not exist on the admin API
+        // surface of supabase-js 2.112 (auth users are addressable by id or
+        // by the paginated listUsers only), so a pre-call probe can never
+        // run. GoTrue's refusal surfaces as a clean 400 with resend-invite
+        // guidance instead of a raw 500. The matcher tolerates the phrasings
+        // GoTrue has used across versions — "User already registered" and
+        // the current "has already been registered" split the pair across
+        // the word "been", so matching the two words separately is the only
+        // phrasing-proof test.
         const raw = createError.message?.toLowerCase() ?? ''
-        if (raw.includes('already registered') || raw.includes('already exists')) {
+        if (raw.includes('already') && (raw.includes('registered') || raw.includes('exists'))) {
           return fail(
             'This email already has an account — if they need a new sign-in link, use "Resend invite" on their row.',
             400,
