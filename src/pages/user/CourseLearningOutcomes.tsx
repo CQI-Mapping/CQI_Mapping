@@ -83,7 +83,9 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   const [editForm, setEditForm] = useState(EMPTY)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [archived, setArchived] = useState(false)
-  // Semester category tab ('' = all terms). Sits between Active and Archive.
+  // Semester category tab ('' = all terms). The tabs trail the Active/Archive
+  // pair; picking one leaves the archived view and filters the active list
+  // to the term.
   const [semCat, setSemCat] = useState('')
   const [query, setQuery] = useState('')
   const [bulkBusy, setBulkBusy] = useState(false)
@@ -135,9 +137,9 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
     .filter((i) => !q || [i.course, i.code, i.description, i.title].some((v) => (v || '').toLowerCase().includes(q)))
   const archivedCount = items.filter((i) => !isActive(i)).length
 
-  // Semester categories between Active and Archive — one tab per term the
-  // curriculum actually uses, so no permanently empty tab sits in the row.
-  // Badges count active CLOs whose subject runs in that term.
+  // Semester categories trailing the Active/Archive pair — one tab per term
+  // the curriculum actually uses, so no permanently empty tab sits in the
+  // row. Badges count active CLOs whose subject runs in that term.
   const semTabs = useMemo(
     () =>
       [...new Set(courses.map((c) => String(c.semester ?? '').trim()).filter(Boolean))]
@@ -782,6 +784,12 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                 className={`sd-tab ${!archived && semCat === '' ? 'sd-tab--active' : ''}`}
                 onClick={() => { setArchived(false); setSemCat('') }}
               >Active</button>
+              <button
+                className={`sd-tab ${archived ? 'sd-tab--active' : ''}`}
+                onClick={() => { setArchived(true); setSemCat('') }}
+              >
+                Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
+              </button>
               {semTabs.map((s) => (
                 <button
                   key={s.value}
@@ -794,12 +802,6 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                   )}
                 </button>
               ))}
-              <button
-                className={`sd-tab ${archived ? 'sd-tab--active' : ''}`}
-                onClick={() => { setArchived(true); setSemCat('') }}
-              >
-                Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
-              </button>
             </div>
             <ViewModeToggle mode={viewMode} onChange={setViewMode} />
             <label className="program-search" aria-label="Search CLOs">
