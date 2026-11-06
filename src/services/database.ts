@@ -42,6 +42,13 @@ export interface Profile {
    * the same tolerance Course.year_level gets.
    */
   status?: string
+  /**
+   * Academic context (migration 013): admin-managed, shown read-only on the
+   * Profile page. Optional for the same reason `status` is — a database that
+   * predates the migration simply doesn't return the columns.
+   */
+  department?: string | null
+  designation?: string | null
   created_at: string
   updated_at: string
 }
@@ -178,7 +185,7 @@ export async function ensureProfile(user: User): Promise<Profile> {
 
 export async function updateProfile(
   profileId: string,
-  updates: Partial<Pick<Profile, 'full_name' | 'nickname' | 'avatar_url'>>,
+  updates: Partial<Pick<Profile, 'full_name' | 'nickname' | 'avatar_url' | 'department' | 'designation'>>,
 ): Promise<Profile> {
   const { data, error } = await supabase
     .from('profiles')
@@ -309,7 +316,9 @@ export async function updateUserProgram(profileId: string, programId: string | n
  * restorable, nothing is ever lost, and the only thing an archived account
  * loses is sign-in — Login refuses it while the status reads archived. The
  * direct-update pattern matches updateUserRole: admins own these columns
- * under RLS, so a manager can never park or revive an account.
+ * under RLS, and since migration 012 managers share the right for
+ * 'user'-role rows only (the guard trigger rejects any other column change
+ * from a manager).
  */
 export async function updateUserStatus(
   profileId: string,
@@ -402,6 +411,22 @@ export async function adminCreateUser(
 
 export async function adminDeleteUser(userId: string): Promise<void> {
   await invokeAdminUsers({ action: 'delete', userId })
+}
+
+/** Emails an existing user a fresh one-time sign-in link (re-invite).
+ *  Admins may re-invite anyone but themselves; managers only faculty.
+ *  `inviteSent` is false when neither Resend nor the built-in mailer
+ *  accepted the send — the UI then points the admin at Resend invite again or
+ *  the Supabase dashboard's password editor (Authentication → Users). */
+export async function adminResendInvite(userId: string): Promise<{
+  ok?: boolean
+  email?: string
+  inviteSent?: boolean
+}> {
+  return (await invokeAdminUsers({
+    action: 'resend',
+    userId,
+  })) as { ok?: boolean; email?: string; inviteSent?: boolean }
 }
 
 // ---------- Resources (curriculum records) ----------

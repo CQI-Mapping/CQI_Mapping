@@ -65,6 +65,10 @@ CREATE TABLE public.profiles (
     -- on archived rows. See migrations/008-archived-accounts.sql for existing
     -- databases.
     status TEXT NOT NULL DEFAULT 'active',
+    -- Academic context, managed by admins (Users & Accounts) and displayed
+    -- read-only on the Profile page. See migrations/013.
+    department TEXT,
+    designation TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -327,7 +331,27 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-    INSERT INTO public.profiles (id, email, full_name)
+    -- Closed registration. This trigger fires inside the OAuth callback
+    -- transaction whenever Supabase auto-creates an auth user — for a
+    -- Google identity nobody registered. Only emails the admin or manager
+    -- already registered (their auth row and profile exist from the Add
+    -- user / invite flow) may use the system: an unknown Google sign-up
+    -- raises here, which refuses the whole callback transaction — no auth
+    -- row, no profile, no session — and GoTrue bounces the outsider back
+    -- with a sign-in error. Password-path creations (the admin-users edge
+    -- function and seeded fixtures) carry provider 'email'
+    -- and always seed, so normal account creation is untouched. A
+    -- registered email that signs in with Google does not reach this
+    -- trigger at all: GoTrue matches the existing row and simply signs in.
+    IF NEW.app_metadata->>'provider' = 'google'
+       AND NOT EXISTS (
+           SELECT 1 FROM public.profiles
+           WHERE lower(email) = lower(NEW.email)
+       ) THEN
+        RAISE EXCEPTION 'Google sign-up refused: % is not registered. Accounts are created by the admin or manager.', NEW.email;
+    END IF;
+
+    INSERT INTO public.profiles (id, email, full_name, avatar_url)
     VALUES (
         NEW.id,
         NEW.email,
@@ -335,7 +359,8 @@ BEGIN
             NEW.raw_user_meta_data->>'full_name',
             NEW.raw_user_meta_data->>'name',
             split_part(NEW.email, '@', 1)
-        )
+        ),
+        NULLIF(NEW.raw_user_meta_data->>'avatar_url', '')
     )
     ON CONFLICT (id) DO NOTHING;
     RETURN NEW;
@@ -382,6 +407,65 @@ CREATE POLICY "Managers and admins can view all profiles" ON public.profiles FOR
 CREATE POLICY "Admins can update any profile" ON public.profiles FOR UPDATE
     USING (public.current_user_role() = 'admin')
     WITH CHECK (public.current_user_role() = 'admin');
+
+-- RLS decides whether a row may change; it cannot police columns. A signed-in
+-- user may update their OWN row, and without a trigger that door would also
+-- let role/email/status edits through. guard_profile_edits() is the column
+-- half (see migrations/013-profile-academic-fields-and-edit-guard.sql): system
+-- contexts and admin-on-others pass, self-edits are narrowed to the three
+-- identity columns the Profile page edits.
+CREATE OR REPLACE FUNCTION public.guard_profile_edits()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+DECLARE
+    v_caller public.user_role;
+BEGIN
+    IF current_user NOT IN ('authenticated', 'anon') THEN
+        RETURN NEW;
+    END IF;
+    SELECT role INTO v_caller FROM public.profiles WHERE id = auth.uid();
+    IF v_caller = 'admin' AND NEW.id <> auth.uid() THEN
+        RETURN NEW;
+    END IF;
+    -- Manager faculty management (migration 012 + 015): a manager acting on
+    -- ANOTHER person's faculty row may flip ONLY the archive status; every
+    -- other column there stays admins-only.
+    IF v_caller = 'manager' AND NEW.id <> auth.uid() AND OLD.role = 'user' THEN
+        IF NEW.role IS DISTINCT FROM OLD.role
+           OR NEW.email IS DISTINCT FROM OLD.email
+           OR NEW.full_name IS DISTINCT FROM OLD.full_name
+           OR NEW.nickname IS DISTINCT FROM OLD.nickname
+           OR NEW.avatar_url IS DISTINCT FROM OLD.avatar_url
+           OR NEW.program_id IS DISTINCT FROM OLD.program_id
+           OR NEW.department IS DISTINCT FROM OLD.department
+           OR NEW.designation IS DISTINCT FROM OLD.designation THEN
+            RAISE EXCEPTION
+                'Managers may change only the archive status on faculty accounts.'
+                USING ERRCODE = '42501';
+        END IF;
+        RETURN NEW;
+    END IF;
+    IF NEW.id IS DISTINCT FROM OLD.id
+       OR NEW.role IS DISTINCT FROM OLD.role
+       OR NEW.email IS DISTINCT FROM OLD.email
+       OR NEW.program_id IS DISTINCT FROM OLD.program_id
+       OR NEW.status IS DISTINCT FROM OLD.status
+       OR NEW.department IS DISTINCT FROM OLD.department
+       OR NEW.designation IS DISTINCT FROM OLD.designation THEN
+        RAISE EXCEPTION
+            'Only administrators can change a role, email, program, status, department or designation.'
+            USING ERRCODE = '42501';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS profiles_edit_guard ON public.profiles;
+CREATE TRIGGER profiles_edit_guard
+    BEFORE UPDATE ON public.profiles
+    FOR EACH ROW EXECUTE FUNCTION public.guard_profile_edits();
 
 -- RESOURCES
 CREATE POLICY "Authenticated users can read resources" ON public.resources FOR SELECT
@@ -688,8 +772,10 @@ GRANT EXECUTE ON FUNCTION public.log_activity(TEXT, JSONB) TO authenticated;
 
 -- ============================================================
 -- ROLE RESTORE / FIRST ADMIN BOOTSTRAP
--- Called by the app on every sign-in. Restores demo account roles
--- and promotes the first user to admin when no admin exists.
+-- Called by the app on every sign-in. Restores demo account roles.
+-- The admin bootstrap is demo-emails-only: admin@cqi.test takes the
+-- admin chair when none exists. Every other email lands as 'user' —
+-- a stranger can never sign their way into admin.
 -- SECURITY DEFINER so it bypasses RLS.
 -- ============================================================
 
@@ -727,8 +813,12 @@ BEGIN
             CASE WHEN v_has_admin THEN 'user'::public.user_role ELSE 'admin'::public.user_role END
         WHEN 'manager@cqi.test' THEN 'manager'::public.user_role
         WHEN 'user@cqi.test' THEN 'user'::public.user_role
-        ELSE
-            CASE WHEN v_has_admin THEN 'user'::public.user_role ELSE 'admin'::public.user_role END
+        -- Everyone else lands as 'user', never admin. The old ELSE branch
+        -- promoted the first unknown signer-in to admin on an admin-less
+        -- system, which handed the keys to any Google account that slipped
+        -- past the allowed-email-domains gate. Real school accounts are
+        -- promoted by an existing admin through Users & Accounts.
+        ELSE 'user'::public.user_role
     END;
 
     IF v_role <> v_current THEN

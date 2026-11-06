@@ -34,7 +34,7 @@ The system uses three application roles, each mapped to the people who actually 
 |---|---|
 | Build tool | Vite 8 |
 | Framework | React 18 (function components + hooks) |
-| Tests | Vitest 2 — 257 unit tests (`npm test`) |
+| Tests | Vitest 2 — 335 unit tests (`npm test`) |
 | Styling | Plain CSS with CSS custom properties in `src/index.css` |
 | Graph | d3 7 — Subject Graph (`admin/Map.tsx`) |
 | Documents | ExcelJS (TOS workbooks), `docx` (Word syllabus exports), `jspdf` + `html2canvas` (report PDFs), `xlsx` (report workbooks) |
@@ -84,7 +84,7 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
 
 > Roles survive schema re-runs automatically — no manual SQL needed:
 > 1. The schema's seed section recreates profiles for all existing auth users and assigns the demo roles by email.
-> 2. The app calls the `sync_demo_role` RPC on every sign-in, restoring each demo account's expected role (or promoting the first user to admin when no admin exists).
+> 2. The app calls the `sync_demo_role` RPC on every sign-in, restoring each demo account's expected role (the admin bootstrap runs only for the `admin@cqi.test` fixture; every other account lands as `user` and is promoted by an existing admin).
 > (Manual alternative: re-apply the roles)
 > ```sql
 > UPDATE public.profiles SET role='admin'   WHERE email='admin@cqi.test';
@@ -113,7 +113,9 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
     ├── vite-env.d.ts         # Vite environment variable types
     ├── components/
     │   ├── Sidebar.tsx               # Dark-glass top navbar, per-role nav + mega dropdown + profile menu
+    │   ├── ErrorBoundary.tsx         # App-root crash guard: readable fallback page + stack in <details>
     │   ├── icons.tsx                 # The `Icon` set (name → svg) used across pages
+    │   ├── ConfirmDialog.tsx         # Accessible destructive-action confirm (Profile & Security uses it)
     │   ├── PageBanner.tsx            # Screen-only banner strip for TOS / View / Map
     │   ├── TosSheetGrid.tsx          # The on-screen workbook grid (green inputs / gray formulas)
     │   ├── TosBlueprintEditor.tsx    # Inline blueprint editor inside a library card
@@ -125,8 +127,11 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
     │   ├── SuggestionInput.tsx       # PO-suggestion combobox on the CLO page
     │   └── ViewModeToggle.tsx        # List/grid toggle, as on Curriculum pages
     ├── pages/
-    │   ├── Login.tsx         # Sign in (login only, no create-account tab)
+    │   ├── Login.tsx         # Sign in (email/password + school-scoped Google) — password recovery is admin-initiated
     │   ├── Profile.tsx       # View/edit own profile (shared by all roles)
+    │   ├── SecurityPrivacy.tsx  # Password change, sessions, audit trail, privacy controls
+    │   ├── ResetPassword.tsx    # Set-a-new-password screen (recovery-link sessions) + success card
+    │   ├── ResetLinkExpired.tsx # Expired/used recovery link — screen 5 of the reset redesign
     │   ├── shared/
     │   │   └── Reports.tsx   # Generate Map (all roles): mapping summary, PO coverage, exports
     │   ├── admin/
@@ -152,7 +157,7 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
     │   │   ├── ProgramOutcomes.tsx   # Manager-side PO alignment; inline add form with a reader leg (all POs, grouped per CMO category)
     │   │   └── Course.tsx            # Wraps AdminCourse with `hideDelete`-style gating (no delete)
     │   └── user/
-    │       ├── Dashboard.tsx         # Faculty: Subjects + CLO stats, recent CLOs
+    │       ├── Dashboard.tsx         # Faculty home: next step, own-outcome figures, subjects, quick actions, program brief
     │       ├── CourseLearningOutcomes.tsx  # Faculty CLO editor (same bespoke page)
     │       └── TOS.tsx               # Generate TOS: blueprint editor + saved-blueprint library
     ├── services/
@@ -167,7 +172,7 @@ Ready-made accounts for the demo (created in the Supabase project, roles set in 
         ├── tosOptions.ts     # Program/course/term pickers data
         ├── report.ts         # Report model + letterhead constants (vision/mission wording)
         ├── syllabusDocx.ts   # Word (.docx) export of the syllabus docs
-        └── alignment.ts / poMatch.ts / poRank.ts / poSemantic.ts / cloPoMapping.ts / download.ts 
+        └── alignment.ts / poMatch.ts / poRank.ts / poSemantic.ts / cloPoMapping.ts / facultyDashboard.ts / download.ts 
 ```
 
 ---
@@ -222,6 +227,29 @@ npm run dev
 ```
 
 Open the printed local URL (usually `http://localhost:5173`) and sign in.
+
+### 6. (Optional) Enable Google sign-in
+
+"Continue with Google" appears on the sign-in page once the provider is configured. Until then the button shows a "not set up yet" message — nothing breaks. The only difference from the demo project's hand-rolled flow (google_callback.php-style): Supabase's callback endpoint does the token exchange/verification server-side; three console steps here replace that code entirely.
+
+1. **Google Cloud Console** → create an *OAuth client (Web)*. Add the authorized redirect URI exactly:
+   `https://<project-ref>.supabase.co/auth/v1/callback` (find `<project-ref>` in **Settings > API**).
+2. **Supabase Dashboard → Authentication → Providers → Google**: enable it, paste the client **ID** and **secret**.
+3. **Supabase Dashboard → Authentication → Sign In / Up → Allowed email domains**: `nbsc.edu.ph`.
+
+   This step is the server-side version of the school-accounts-only rule: it enforces *back at the auth layer*, not just in the UI, that only official `@nbsc.edu.ph` Google accounts can sign in. Because it lives in a dashboard setting rather than a repo file, document it per project. The repo carries the other layers of the same door: the closed-registration gate in `handle_new_user` (migration `017-closed-google-registration.sql`) refuses *any* Google identity the admin or manager never registered — no auth row, no profile, no session — and `App.tsx` re-checks the email once a session lands, signing out anything not `@nbsc.edu.ph` with a notice on the Login screen.
+
+4. **Supabase Dashboard → Authentication → Sign In / Up → Allow new users to sign up**: OFF. With this toggle, a stranger can only ever match an account the admin or manager already created; the closed-registration trigger backs the same rule up in code.
+
+On Google sign-in only **registered** addresses complete the flow: registration always creates the auth user (and, via `handle_new_user`, its profile row) at Add-user time, so a registered person signing in with Google simply matches their existing row and lands signed in — no new account is ever auto-created. Self-created Google identities raise inside the transaction and bounce back with the sign-in error *"Google sign-in works only for registered accounts. Ask the admin or manager to register you first."* Every completed Google sign-in writes the same `auth.login` audit row the password path writes.
+
+### 7. Align the password minimum to 8 (auth config)
+
+Every password form in this app requires **8 characters** (`src/utils/passwordPolicy.ts`), but a fresh Supabase project still accepts **6** server-side — so a 7-character password sent by anything other than our forms (a direct API call) would slip through the policy split. Close it in the dashboard:
+
+**Supabase Dashboard → Authentication → Policies → "Minimum password length" → `8`** (in older dashboard layouts this lives under **Settings → Authentication / Providers**, as "Minimum password length").
+
+It is a project setting, not a schema file, so per database it's a one-time toggle. Already-set accounts aren't affected — only new/changed passwords are checked.
 
 ---
 
@@ -319,7 +347,7 @@ All three tables have RLS enabled. Policies use `public.current_user_role()` —
 - **`public.handle_new_user()`** — `AFTER INSERT` trigger on `auth.users`. Creates a `profiles` row (role defaults to `user`) on signup. On conflict it does nothing.
 - **`public.record_login_event(email, success, reason)`** — `SECURITY DEFINER` function that writes an `auth.login` / `auth.login_failed` audit entry, keeping `reason` in `details.reason` on failure. It is callable by `anon` and `authenticated` so it works even for failed logins that have no session (RLS would otherwise block the insert).
 - **`public.log_activity(action, details)`** — `SECURITY DEFINER` function behind the `addActivityLog` client helper. Stamps `user_email` from the caller's JWT, so the client cannot attribute an action to another user. `details` defaults to NULL; an empty object is normalised to NULL so the UI has one falsy case for "no context".
-- **`public.sync_demo_role()`** — `SECURITY DEFINER` function called by the app on every sign-in. Restores each demo account's expected role when it fell back to `user` (`admin@cqi.test` → admin, `manager@cqi.test` → manager) and promotes the first user to `admin` when the system has no admin at all. Never overrides a deliberately-changed role and never creates a second admin.
+- **`public.sync_demo_role()`** — `SECURITY DEFINER` function called by the app on every sign-in. Restores each demo account's expected role when it fell back to `user` (`admin@cqi.test` → admin, `manager@cqi.test` → manager). The admin bootstrap is demo-emails-only — every other email, school or otherwise, lands as `user` and stays there until an existing admin promotes it, so the first stranger to sign in can never take the admin chair. Never overrides a deliberately-changed role and never creates a second admin. (Migration `016-strangers-never-admin.sql`.)
 
 ### 6.4 Seed Data
 
@@ -350,7 +378,9 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 | `syncDemoRole()` | Restore the caller's expected role (demo accounts) or bootstrap the first admin | any signed-in user |
 | `fetchAllProfiles()` | List all users | admins/managers |
 | `updateUserRole(profileId, role)` | Change a user's role | admins |
-| `adminCreateUser(email, password, fullName, role)` | Create an auth user via Supabase admin API | admins (needs service role key) |
+| `updateUserStatus(profileId, status)` | Archive/restore an account (soft delete) | admins; managers (faculty rows only — migration 012) |
+| `adminResendInvite(userId)` | Re-email a fresh one-time sign-in link via the `admin-users` Edge Function | admins/managers (managers can only re-invite faculty) |
+| `adminCreateUser(email, password?, fullName?, role)` | Create an auth user via the `admin-users` Edge Function; with no password one is generated and a one-time set-password link is emailed to the user | admins/managers (managers can only create faculty) |
 | `fetchResources()` | List resources with creator name (embedded join) | all signed-in users |
 | `createResource(title, description, userId)` | Insert a resource | admins/managers |
 | `updateResource(id, updates)` | Edit title/description/status | admins/managers |
@@ -428,16 +458,31 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 - Every attempt is written to `activity_logs` via the `record_login_event` RPC (`auth.login` on success, `auth.login_failed` on failure), with the failure reason (`invalid_credentials` / `service_unreachable`) kept in `details.reason`.
 - Respects `prefers-reduced-motion`; mobile padding at 360px.
 
+### `ResetPassword.tsx` & `ResetLinkExpired.tsx`
+The rest of the password-reset journey (mockup: `design/profile-reset-redesign.html`, screens 3–5):
+- `ResetPassword` is the **set-a-new-password screen**: a `PASSWORD_RECOVERY` auth event swaps the whole app shell for it (App.tsx), and it writes the same `profile.password_changed` audit row the retired profile card used to write. Its submit endures an audit-write failure (logged, never thrown) so a completed change can't lie about itself.
+- On success the flow ends with the **"Password updated" card** (animated check, `login-check`) and a 5-second countdown; the recovery session — which was only ever valid for choosing a new password — is signed out, so the sign-in that follows genuinely comes from the fresh password. The countdown and the button both land on the sign-in page (`onDone`).
+- An **expired or already-used link** never reaches that page: Supabase's verify endpoint bounces it back to the app with `error_description="Email link is invalid or has expired"`, App reads it once (`src/utils/oauthErrors.ts`), scrubs the URL, and renders **`ResetLinkExpired`** — "nothing was changed, your current password still works", with the fix named honestly: an administrator sends a fresh recovery email or resends the invite.
+- **Self-service password reset is not on the sign-in page by design** (removed from Login with the admin's consent): accounts exist only because an administrator put them there, so recovery is administrator-initiated too — from the Supabase dashboard (**Authentication → Users → the account's row → send password-recovery email**). A recovery email triggered there still lands in this app exactly as before: `ResetPassword` swaps in and the person chooses their new password. The invite-failure messages on the Users pages point at "Resend invite"/the dashboard, never a control that doesn't exist.
+- Other auth bounces (OAuth cancellations, sign-ups-disabled refusals) arrive at Login as a pre-remixed one-line notice via the same module — expiry is matched **before** `access_denied` because a dead recovery link packs both markers, and sign-up-disabled before cancellation for the same reason. Covered by `oauthErrors.test.ts`.
+
 ### `admin/Dashboard.tsx`
 - Banner strip with the composed campus-entrance artwork (`banner-bg.jpg`) + greeting; skeleton stat cards with per-item error fallback (`0`, never stuck), `aria-busy` grid.
 - Stats: Users, Strategic Goals, PEOs, Program Outcomes, CLOs, CHED Memo Orders.
 - Quick actions: Add Program, Map CLO → PO, Review Outcomes, Activity Logs. Recent activity (latest 5, `toLocaleString`).
 
-### `manager/Dashboard.tsx` and `user/Dashboard.tsx`
+### `manager/Dashboard.tsx`
 - Same banner + skeleton pattern. The manager page is deliberately slim — no role-badge line, no "what you can do" panel.
 - Manager: stats (Curriculum, Programs, Courses, POs, CLOs, Faculty) + Course quick-action.
-- Faculty: Subjects (= Courses count) and Course Outcomes stats + recent CLOs (latest 5 by `created_at`).
-- CLO stats are role-scoped: RLS lets managers/admins read every outcome, while a faculty user counts only their own (migration `009-private-clos.sql`).
+
+### `user/Dashboard.tsx` (the faculty home)
+- Opens on a **next-step** card. `utils/facultyDashboard.ts` (`planNextStep`) picks the first subject in curriculum order that holds no *active* outcome from the faculty member: "Start with …" before any active outcome exists, "Next up: …" while subjects still lack one, and "Every subject is covered" once none do. Its button opens Course Outcomes.
+- Four figures from the faculty member's own outcomes (`ownFigures`): outcomes written (active and archived), subjects covered out of all subjects in the system, outcomes changed in the last 7 days, and the time since the last edit. An archived outcome does not cover its subject.
+- "Your subjects" lists the subjects they have written for, most recently edited first, five at a time (`groupOutcomesBySubject`). Spellings of one code group together ("it 10" and "IT10"), and each row shows its archived count. A row opens that subject's latest outcome in the shared CLO modal.
+- Quick actions: Course Outcomes, Generate Map, Generate TOS, My Profile.
+- "Program at a glance" closes the page with `MapBrief` and its `MapPreview` curriculum map, the same blocks the admin and manager dashboards embed.
+- Styles are the `fac-*` classes in `index.css`. `MapBrief`'s panel tokens (`--reports-gap`, `--reports-radius`, `--reports-band`) are defined only under `.reports`, so `.fac-dash` sets them itself. The admin and manager dashboards do not, so their brief panels lose the gap and corner radius; defining the tokens on `.map-brief` would fix all three dashboards at once.
+- CLO stats are role-scoped: RLS lets managers/admins read every outcome, while a faculty user counts only their own (migration `009-private-clos.sql`). The faculty figures depend on that scope.
 
 > **Theme note (2026 look):** the app sits on the same dark circuit wallpaper everywhere. Dashboards keep the entrance-art banner; every content page's banner strip uses the open-book artwork (`banner-bg-page.jpg`); page banners, panels, table headers and hairlines are sage-tinted so the light content sits comfortably against the dark background. Both banners carry a deep drop shadow + faint green rim so they lift off the wallpaper.
 
@@ -473,6 +518,8 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 
 ### `components/MapBrief.tsx` (embedded on all three role dashboards)
 - The program's curriculum at a glance, moved off the Generate Map page: the seven KPI tiles (Total Programs … Unmapped / Incomplete), the Curriculum Mapping Summary table and the PO Coverage Chart. Self-contained — it fetches its own data, opens on the account's program assignment (then BSIT, then first), and re-uses the shared alignment engines (`utils/alignment.ts`, `utils/cloPoMapping.ts`), so its figures always agree with the report's PDF.
+- The tiles read the **committed framework** (corrected 2026-11-05, twice — see below): "Total PO's" shows the **official CMO 25 S. 2015 document** — the manager-sourced rows carrying one of the two category headers, recognized by the exact same predicate the report's mapping matrix uses (`isManagerOutcome` + `isManagerCmCategory`), because migration 010 deliberately stamped the official list as `source='manager'` so the report builds from manager rows. The qualifier discloses what's beyond that set: `N additional · M archived` (both live-computed; duplicates along an official code can't inflate the extras). Mapping deliberately still runs on the **union of all active sources**, so a CLO may target an official or a non-official outcome, and quoting an archived code correctly shows as a gap. "Unmapped / Incomplete" names its own two halves in the sub (`N CLOs unmapped · M outcomes unanchored`): a faculty CLO that names no program outcome vs an outcome no CMO/PEO/Strategic-Goal document anchors.
+- The **empty pipeline keeps the literal 0%, and says why** (as chosen by the user on 2026-11-05): until any faculty member creates the first CLO, "Mapping Coverage" reads `0%` with the qualifier `0 / 33 subjects — no CLOs yet`, so the zero explains itself — the engine isn't broken, the input side just hasn't started. "Unmapped / Incomplete" likewise says `M unanchored outcomes · no CLOs yet`. The `—` display remains reserved for the genuinely unmeasurable case (no subjects in the program at all). The tiles stay aggregates (admin/manager see all users' CLOs under RLS 009; a faculty member's tile is scoped to their own). Coverage itself still counts a subject only when it has CLOs and every one of them names an outcome — partial mapping stays parked in Unmapped/Incomplete, never in Coverage.
 
 ### `components/MapPreview.tsx` (slotted inside MapBrief on all three role dashboards)
 - The live OBE Curriculum Map as a dashboard block (added 2026-11-01): the Year·Semester columns (Summer only in 3rd year), the Viridis year palette, the amber prerequisite connectors and the press-to-reveal spotlight (a press lights the pressed dot's forward prerequisite chain to its end; press again or press the empty canvas to clear). Self-fetched like MapBrief and forked deliberately from `Map.tsx`'s `renderCurriculumMap` — geometry and palette are copies; the page-specific machinery (PO/PI filters, zoom, inspection card, floating tooltip) stays there.
@@ -515,7 +562,12 @@ All queries live in `src/services/database.ts`. Signatures, purpose, and who can
 - `ACTION_LABELS` — action string → human-readable label, plus `labelAction()` / `labelReason()` helpers. Derived from what the app actually emits, not from an ideal wish list, so nothing renders as raw snake_case.
 
 ### `Profile.tsx`
-- Props: `profile`, `onSaved`. Edits `full_name`, writes an audit entry, and reports the updated profile back to `App.tsx` via `onSaved`. Shared by all roles.
+- Laid out as the concept in `design/profile-redesign.html`: a dark hero with a role-tinted avatar and fact chips, then two columns. The left holds the identity card (picture, name, verified email, role badge, capabilities, last activity) and **Profile information**. The right holds a security summary and the personal activity trail.
+- Only the picture, full name and nickname are editable, through the explicit **Edit profile → Save changes / Cancel** cycle the Profile & Security spec requires. Email, department, program, designation, role and account status display read-only.
+- Password and sessions are not on this page. The security card links to Security & privacy, so the concept's password form is not ported.
+- Role badges use the concept's colours (green admin, lime manager, grey faculty). The Users pages and the activity log still use the global purple and blue badges, so the two differ.
+- Styles are the `prf-*` classes in `index.css`. `.profile-timeline`, `.profile-empty` and `.pf-link` are shared with Security & privacy and unchanged.
+- Props: `profile`, `onSaved`, `onNavigate`. Writes `profile.updated`, `profile.avatar_changed` and `profile.avatar_removed` audit entries, and reports the updated profile back to `App.tsx` via `onSaved`. Shared by all roles.
 
 ### `App.tsx`
 - Holds `session`, `profile`, `activePage`. Defines the `NAV` map (role → nav items) and the `PAGES` map (role → page components, one per role folder; `Profile` is shared). On session change, loads the profile via `ensureProfile` (auto-creates the row if missing — e.g. after a schema re-run) and renders `Login` when signed out; otherwise renders the header + current page.
@@ -570,7 +622,7 @@ New role-restricted feature, end to end. Example: a `reports` table that admins 
 - **`.env` is gitignored** — commit `.env.example`, not `.env`.
 - **Audit log** is client-inserted; treat it as an activity trail, not a tamper-proof record.
 - **Never promote via email-derived rules.** In this starter, role is assigned explicitly (admin updates it). Do not derive access from email domains or department fields — that is fragile and error-prone (see the instructor-ui repo discussion).
-- **Password policy** — Supabase defaults apply; `adminCreateUser` uses `email_confirm: true` so created users can sign in immediately (development convenience).
+- **Password policy** — client-side every form requires 8 characters and mirrors it in the strength meter (`src/utils/passwordPolicy.ts`); align the project's **Minimum password length** to 8 in the dashboard (setup step 7) so a direct API call can't sneak in a 6–7-character password. `adminCreateUser` uses `email_confirm: true` so created users can sign in immediately (development convenience). With no password given, the Edge Function generates one (nobody sees it) and the user is emailed a one-time set-password link: Supabase's built-in mailer by default (rate-limited ~2/hour), or a custom-branded Resend email when `RESEND_API_KEY`/`WELCOME_FROM_EMAIL` secrets are set. No password is ever shared with the inviter.
 - **Log an action only when it happened.** `useEntityCrud` handlers return early when there is no row to act on and skip the audit write in that case. Copy the pattern when adding handlers — an audit entry for a mutation that did not occur is worse than a missing one, because it looks like evidence.
 - **Archive/restore are not updates.** Give them their own action names (`<entity>.archived` / `<entity>.restored`) so the log can distinguish removing a record from renaming one. `EntityCrudPage` derives these from `updateAction`.
 
@@ -601,6 +653,19 @@ New role-restricted feature, end to end. Example: a `reports` table that admins 
 | Changes to `supabase-schema.sql` have no effect | The SQL file is only the source of truth — you must re-run it (or the relevant DDL) in the Supabase SQL Editor. |
 | Port already in use on `npm run dev` | Vite picks another port automatically, or kill the process holding the port. |
 | Stale data after edits | Data is fetched on page load; navigate away and back (or refresh). No realtime subscriptions are set up. |
+
+---
+
+## 12. Continuous Integration
+
+`.github/workflows/ci.yml` runs on **every push and pull request** on a GitHub-hosted Ubuntu runner — no secrets, no Supabase connection needed:
+
+1. `npm ci` — installs the pinned tree (`package-lock.json`); the platform-specific rolldown/rollup bindings resolve as optional transitive dependencies, so one lockfile installs cleanly on Windows (dev) and Linux (CI).
+2. `npx tsc --noEmit` — the typecheck gate.
+3. `npm test` — the `vitest` suite (pure logic, 300+ tests).
+4. `npm run build` — the production bundle.
+
+A red match here means a regression landed; fixing it precedes any new feature work. The workflow never runs migrations against the database — schema changes stay manual by design (see §6).
 
 ---
 

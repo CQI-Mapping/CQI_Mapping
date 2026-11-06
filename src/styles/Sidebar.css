@@ -14,7 +14,14 @@
 .hdr {
   position: sticky;
   top: 0;
-  z-index: 30;
+  /* Above every page overlay, including the z-1000 fullscreen curriculum map —
+     the navbar row and BOTH of its dropdowns must stay visible and clickable
+     while the map is expanded. The map's fixed panel only starts below
+     --hdr-h, but the menus extend BELOW the navbar, and a menu living inside
+     a z-30 header context used to slide behind the z-1000 overlay.
+     Full-screen modals (.modal-overlay) and the syllabus reader sit above
+     this (they must dim/cover the navbar when open). */
+  z-index: 1100;
   width: 100%;
   height: var(--hdr-h);
   flex-shrink: 0;
@@ -239,27 +246,17 @@
   /* transparent but keeps :hover / onMouseEnter alive */
 }
 
-.hdr__dd-overlay {
-  position: fixed;
-  inset: 0;
-  top: 70px;
-  background: rgba(17, 17, 17, 0.06);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  border: none;
-  padding: 0;
-  margin: 0;
-  z-index: 35;
-  cursor: default;
-  animation: ddOverlayIn 0.22s ease;
-}
+/* The old .hdr__dd-overlay (fixed viewport dim) is gone entirely: as a fixed
+   descendant of the backdrop-filtered sticky header it resolved against the
+   header's own 70px box and collapsed to zero height in Chromium 105+ —
+   invisible, unclickable, pure dead markup. Outside clicks are already
+   dismissed by the Sidebar's own document listener. */
 
-@keyframes ddOverlayIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-/* Filter-style dropdown — unified Academics menu for all roles */
+/* Filter-style dropdown — unified Academics menu for all roles.
+   No entrance animation: opening mid-scroll or on a busy/throttled tab left
+   the menu stuck at its first fade frame, which reads as "the dropdown is
+   behind the page" (page content ghosting through a ~0.1-opacity menu).
+   It now simply appears — instant, above everything, per the audit spec. */
 .hdr__dd-menu {
   position: absolute;
   top: calc(100% + 12px);
@@ -276,18 +273,6 @@
   gap: 0;
   z-index: 60;
   overflow: hidden;
-  animation: ddIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes ddIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
 }
 
 .hdr__dd-grid {
@@ -308,25 +293,6 @@
   background: #ececec;
   border-radius: 999px;
 }
-
-@keyframes ddItemIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.hdr__dd-grid .hdr__dd-item {
-  animation: ddItemIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.hdr__dd-grid .hdr__dd-item:nth-child(1) { animation-delay: 0.02s; }
-.hdr__dd-grid .hdr__dd-item:nth-child(2) { animation-delay: 0.04s; }
-.hdr__dd-grid .hdr__dd-item:nth-child(3) { animation-delay: 0.06s; }
-.hdr__dd-grid .hdr__dd-item:nth-child(4) { animation-delay: 0.08s; }
-.hdr__dd-grid .hdr__dd-item:nth-child(5) { animation-delay: 0.10s; }
-.hdr__dd-grid .hdr__dd-item:nth-child(6) { animation-delay: 0.12s; }
-.hdr__dd-grid .hdr__dd-item:nth-child(7) { animation-delay: 0.14s; }
-.hdr__dd-grid .hdr__dd-item:nth-child(8) { animation-delay: 0.16s; }
-.hdr__dd-grid .hdr__dd-item:nth-child(9) { animation-delay: 0.18s; }
 
 .hdr__dd-item {
   display: flex;
@@ -574,19 +540,6 @@
   margin-left: 1px;
 }
 
-.hdr__profile-overlay {
-  position: fixed;
-  inset: 0;
-  top: 70px;
-  background: rgba(17, 17, 17, 0.04);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  border: none;
-  z-index: 35;
-  cursor: default;
-  animation: ddOverlayIn 0.2s ease;
-}
-
 .hdr__profile-menu {
   position: absolute;
   top: calc(100% + 12px);
@@ -598,12 +551,6 @@
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12), 0 2px 10px rgba(0, 0, 0, 0.06);
   overflow: hidden;
   z-index: 60;
-  animation: ddInProfile 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes ddInProfile {
-  from { opacity: 0; transform: translateY(8px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .hdr__profile-head {
@@ -829,11 +776,6 @@
     border-radius: 12px;
   }
 
-  .hdr__dd-overlay,
-  .hdr__profile-overlay {
-    display: none;
-  }
-
   .hdr__dd-menu,
   .hdr__profile-menu {
     position: static;
@@ -843,14 +785,8 @@
     margin-top: 6px;
     border-radius: 14px;
     box-shadow: none;
-    animation: ddInMobile 0.18s ease;
     left: auto;
     right: auto;
-  }
-
-  @keyframes ddInMobile {
-    from { opacity: 0; transform: translateY(-4px); }
-    to { opacity: 1; transform: translateY(0); }
   }
 
   .hdr__dd-grid {

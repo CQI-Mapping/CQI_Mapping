@@ -4,22 +4,28 @@
 // app shell for this screen), replacing the password card once carried by
 // Profile. Reuses the sign-in page's classes so it reads as its sibling, not
 // a new visual language.
+//
+// Two states past the form (screens 4 & 5 of design/profile-reset-redesign.html):
+//   • success  — "Password updated" card; the recovery session (which was only
+//                ever good for choosing a new password) is signed out, and a
+//                short countdown returns the person to the sign-in page.
+//   • An expired link never reaches this page: App detects the bounce and
+//     renders ResetLinkExpired instead.
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../utils/supabaseClient'
 import { addActivityLog } from '../services/database'
 import { friendlyPasswordError } from '../utils/passwordErrors'
+import { MIN_PASSWORD_LENGTH } from '../utils/passwordPolicy'
 
 /** Consistent error text, same helper Profile uses. */
 function describe(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
 
-/** The system's password policy — keep in sync with the auth config and Profile. */
-export const MIN_PASSWORD_LENGTH = 8
-
 interface ResetPasswordProps {
-  /** Called once the password is set — App hands the session back to the normal app flow. */
+  /** Called once the password is set AND the reset session is over — App hands
+   *  the normal login screen back, so the sign-in that follows comes fresh. */
   onDone: () => void
 }
 
@@ -29,15 +35,51 @@ export default function ResetPassword({ onDone }: ResetPasswordProps) {
   const [showPassword, setShowPassword] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  // Success state: once the new password is stored the form is replaced by the
+  // "Password updated" card (screen 4 of the mockup) and a countdown begins.
+  const [done, setDone] = useState(false)
+  const [countdown, setCountdown] = useState(5)
+  // Guard so the countdown firing and a button click can't both sign out.
+  const closingRef = useRef(false)
 
   // Escape hatch: a reset link opened by accident should never trap the tab.
   const handleExit = async () => {
     await supabase!.auth.signOut()
   }
 
+  // End the reset session and hand control back. The recovery session was
+  // only ever valid for choosing a new password — signing out means the next
+  // sign-in genuinely comes from the fresh password, and no uploaded photo,
+  // form state or tab ever rides the recovery session into the app.
+  const finishToSignIn = async () => {
+    if (closingRef.current) return
+    closingRef.current = true
+    try {
+      await supabase!.auth.signOut()
+    } catch {
+      // The session may already be gone — the goal is to end it either way.
+    }
+    onDone()
+  }
+
+  // Fire once the success screen shows: tick the countdown, and when it lands
+  // on zero, finish. Closing at any point (button) unmounts this effect.
+  useEffect(() => {
+    if (!done) return
+    if (countdown <= 0) {
+      void finishToSignIn()
+      return
+    }
+    const timer = window.setTimeout(() => setCountdown((c) => c - 1), 1000)
+    return () => window.clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [done, countdown])
+
   // Write the new password into the signed-in user (the recovery link
   // exchanged a session), replay the audit row the old profile card used to
-  // write so the trail keeps mapping to the same label, then return to the app.
+  // write so the trail keeps mapping to the same label, then show the
+  // success card. The audit write must never mask a completed password
+  // change — it is logged, never thrown into the user's face.
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -54,12 +96,16 @@ export default function ResetPassword({ onDone }: ResetPasswordProps) {
       const { error: updateError } = await supabase!.auth.updateUser({ password })
       if (updateError) throw updateError
       const { data: { user } } = await supabase!.auth.getUser()
-      await addActivityLog('profile.password_changed', {
-        entity: 'profile',
-        entity_id: user?.id ?? '',
-        label: user?.email ?? 'account',
-      })
-      onDone()
+      try {
+        await addActivityLog('profile.password_changed', {
+          entity: 'profile',
+          entity_id: user?.id ?? '',
+          label: user?.email ?? 'account',
+        })
+      } catch (auditError) {
+        console.warn('Password-change audit row skipped:', describe(auditError))
+      }
+      setDone(true)
     } catch (err) {
       const friendly = friendlyPasswordError(err)
       console.error('Password update rejected:', describe(err))
@@ -67,6 +113,50 @@ export default function ResetPassword({ onDone }: ResetPasswordProps) {
     } finally {
       setBusy(false)
     }
+  }
+
+  // Success (mockup screen 4): full auth-styled card with the animated check.
+  // The session ends here — the countdown or the button both land on the
+  // sign-in page where the new password does its first job.
+  if (done) {
+    return (
+      <div className="login-page">
+        {/* Same aurora backdrop as the sign-in screen */}
+        <div className="login-blobs" aria-hidden="true">
+          <span className="login-blob login-blob--1" />
+          <span className="login-blob login-blob--2" />
+          <span className="login-blob login-blob--3" />
+        </div>
+
+        <div className="login-panel">
+          <div className="login-card">
+            <div className="login-brand">
+              <div className="login-brand-mark"><img src="/LOGO.png" alt="Institute of Computer Studies" className="login-brand-logo" /></div>
+              <h1>CQI Monitoring</h1>
+              <p className="login-subtitle">NBSC · Institute of Computer Studies</p>
+            </div>
+
+            <svg className="login-check" viewBox="0 0 96 96" width="84" height="84" aria-hidden="true">
+              <circle cx="48" cy="48" r="41" />
+              <path d="M31 50l12 12 22-24" />
+            </svg>
+
+            <h2 className="login-success-title">Password updated</h2>
+            <p className="login-success-sub">
+              Sign in with your new password — this reset session is finished, and the change
+              is on your activity trail.
+            </p>
+
+            <button type="button" className="login-btn" onClick={finishToSignIn}>
+              Go to the sign-in page →
+            </button>
+            <p className="login-count-note" role="timer">
+              Returning automatically in <b>{countdown} second{countdown === 1 ? '' : 's'}</b>
+            </p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

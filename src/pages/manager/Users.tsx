@@ -2,10 +2,21 @@
 // Managers may create 'user' (faculty) accounts only — the admin-users Edge
 // Function forces the role to 'user' for manager callers. Role changes and
 // removal stay admin-only.
+//
+// Add Faculty collects just the email: the Edge Function generates the
+// account password server-side and emails the faculty member a one-time
+// "set your password" link, so the person adding the account never handles
+// a password and the new faculty sets their own.
+//
+// Archive + Restore live here too (migration 012 scoped it: managers may
+// flip ONLY the archive status of 'user'-role rows; the 015 reconciliation
+// taught the 013 column guard the same carve-out, so both buttons work).
+// Restore used to be admin-territory; with the list added, the Program
+// Head can also unpark their own faculty without routing through the admin.
 
 import { useState, useEffect } from 'react'
 import Icon from '../../components/icons'
-import { adminCreateUser, addActivityLog, fetchAllProfiles } from '../../services/database'
+import { adminCreateUser, adminResendInvite, addActivityLog, fetchAllProfiles, updateUserStatus } from '../../services/database'
 import { isActive } from '../../utils/report'
 import { supabase } from '../../utils/supabaseClient'
 import type { Profile } from '../../services/database'
@@ -16,23 +27,89 @@ function Users() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [fullName, setFullName] = useState('')
   const [busy, setBusy] = useState(false)
   const [creatorName, setCreatorName] = useState('')
+  const [archived, setArchived] = useState(false)
+  // Re-invite a faculty member whose one-time set-password email never
+  // arrived or was lost — one click, one fresh link. The Edge Function
+  // re-checks that the caller is a manager and the target is faculty.
+  const [resendBusyId, setResendBusyId] = useState('')
+  // The status flip (Archive / Restore) shares the row-busy pattern with
+  // re-invite, but keeps its own slot so the two buttons never swap labels.
+  const [statusBusyId, setStatusBusyId] = useState('')
+
+  const handleResendInvite = async (userId: string, email: string) => {
+    if (!window.confirm(`Send ${email} a fresh one-time sign-in link?`)) return
+    setError('')
+    setSuccess('')
+    setResendBusyId(userId)
+    try {
+      const res = await adminResendInvite(userId)
+      setSuccess(
+        res.inviteSent
+          ? `A fresh sign-in email was sent to ${email}.`
+          : `No email could be sent right now (service limits or the address) — try again in a moment, or have an administrator set a password in the Supabase dashboard (Authentication → Users).`,
+      )
+      await addActivityLog('user.invite_resent', { entity: 'user', entity_id: userId, label: email })
+    } catch (e) {
+      setError('Failed to resend the invite: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setResendBusyId('')
+    }
+  }
+
+  // Archive (soft-delete) a faculty account: the same reversible pattern the
+  // admin page uses. Migration 012 scopes this RLS-right to 'user'-role rows
+  // only, and BOTH guard triggers (012's column fence + 015's reconciliation
+  // of the 013 edit-guard) refuse anything beyond the status change.
+  // The row leaves the Active list and waits in this page's own Archive list.
+  const handleArchive = async (userId: string, email: string) => {
+    if (!window.confirm(`Archive user ${email}? They cannot sign in until the account is restored.`)) return
+    setError('')
+    setSuccess('')
+    setStatusBusyId(userId)
+    try {
+      await updateUserStatus(userId, 'archived')
+      setSuccess(`Account ${email} archived — they cannot sign in until it is restored.`)
+      await addActivityLog('user.archived', { entity: 'user', entity_id: userId, label: email })
+      load()
+    } catch (e) {
+      setError('Failed to archive user: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setStatusBusyId('')
+    }
+  }
+
+  // Restore = the same status flip in the other direction. The policy the
+  // migration shipped permits either direction for faculty rows, so the
+  // Archive list can unpark the account itself — no admin trip required.
+  const handleRestore = async (userId: string, email: string) => {
+    if (!window.confirm(`Restore ${email}? They can sign in again right away.`)) return
+    setError('')
+    setSuccess('')
+    setStatusBusyId(userId)
+    try {
+      await updateUserStatus(userId, 'active')
+      setSuccess(`Account ${email} restored — they can sign in again.`)
+      await addActivityLog('user.restored', { entity: 'user', entity_id: userId, label: email })
+      load()
+    } catch (e) {
+      setError('Failed to restore user: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setStatusBusyId('')
+    }
+  }
 
   const load = async () => {
     setLoading(true)
     setError('')
     try {
       const profiles = await fetchAllProfiles()
-      // Faculty directory scope: admin accounts are not this page's business —
-      // managers add faculty and review accounts, they don't administer admins —
-      // and archived accounts are parked (their sign-in is refused), so both
-      // are filtered out of the table. The inviter-name lookup below still
-      // reads the full list.
-      setUsers(profiles.filter((u) => u.role !== 'admin' && isActive(u)))
+      // Scope note: admin accounts are not this page's business — managers
+      // add faculty, they don't administer admins. EVERY faculty row is
+      // kept (active and archived alike): the tab below decides which ones
+      // the table shows, and the Archive tab needs its roster too.
+      setUsers(profiles.filter((u) => u.role !== 'admin'))
       try {
         const { data } = await supabase!.auth.getUser()
         const me = profiles.find((u) => u.id === data?.user?.id)
@@ -49,15 +126,25 @@ function Users() {
 
   useEffect(() => { load() }, [])
 
+  // The directory follows the tab: the Active list is the faculty roster,
+  // the Archive list is the park. Both come from the same fetch.
+  const activeUsers = users.filter(isActive)
+  const archivedUsers = users.filter((u) => !isActive(u))
+  const shown = archived ? archivedUsers : activeUsers
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setSuccess('')
-    if (!email.trim() || !password.trim()) { setError('Email and password are required.'); return }
+    if (!email.trim()) { setError('Email is required.'); return }
     setBusy(true)
     try {
       const createdEmail = email.trim()
-      const created = await adminCreateUser(createdEmail, password, fullName.trim(), 'user')
+      // Empty password/name by design: the Edge Function generates a random
+      // password the inviter never sees and emails a one-time set-password
+      // link; the name is left blank until the faculty member fills it in
+      // on their Profile page.
+      const created = await adminCreateUser(createdEmail, '', '', 'user')
       await addActivityLog('user.created', {
         entity: 'user',
         entity_id: created?.id,
@@ -68,12 +155,10 @@ function Users() {
         : `Faculty ${createdEmail} has been added to the system.`
       setSuccess(
         created.welcomeEmailSent
-          ? `${base} A welcome email was sent to ${createdEmail}.`
-          : `${base} No welcome email was sent (email service not set up) — please tell them their login directly.`,
+          ? `${base} A welcome email was sent to ${createdEmail} with a one-time link to set their password.`
+          : `${base} No welcome email was sent (email service not set up) — an administrator can use "Resend invite" on their row, or set a password in the Supabase dashboard (Authentication → Users).`,
       )
       setEmail('')
-      setPassword('')
-      setFullName('')
       load()
     } catch (e) {
       setError('Failed to create faculty: ' + (e instanceof Error ? e.message : String(e)))
@@ -83,8 +168,8 @@ function Users() {
   return (
     <div className="users">
       <div className="page-heading">
-        <h2>Users</h2>
-        <p>Faculty directory. You can add faculty accounts; role changes and removal are admin-only.</p>
+        <h2>Users &amp; Accounts</h2>
+        <p>Faculty directory. You can add faculty accounts, resend their invite, or archive them; role changes and removal are admin-only.</p>
       </div>
 
       {error && <p className="msg msg--error" role="alert">{error}</p>}
@@ -93,64 +178,102 @@ function Users() {
       <div className="panel create-user" style={{ borderTop: '3px solid #16a34a' }}>
         <h3>Add Faculty</h3>
         <form onSubmit={handleSubmit}>
-          <div className="create-user__row">
+          <div className="create-user__row create-user__row--email-only">
             <label className="field">
               <span>Email</span>
               <input className="input" type="email" placeholder="faculty@example.com" value={email} required
                 onChange={(e) => setEmail(e.target.value)} />
             </label>
-            <label className="field">
-              <span>Password</span>
-              <div className="password-wrapper">
-                <input className="input" type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••" value={password} required
-                  onChange={(e) => setPassword(e.target.value)} />
-                <button type="button" className="password-toggle" onClick={() => setShowPassword(!showPassword)}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}>
-                  {showPassword ? 'Hide' : 'Show'}
-                </button>
-              </div>
-            </label>
-            <label className="field">
-              <span>Full name</span>
-              <input className="input" type="text" placeholder="Juan Dela Cruz" value={fullName}
-                onChange={(e) => setFullName(e.target.value)} />
-            </label>
             <button className="btn btn--primary btn--sm" type="submit" disabled={busy}>
               {busy ? 'Creating...' : (<><Icon name="plus" size={13} /> Create Faculty</>)}
             </button>
           </div>
+          <p className="create-user__hint">
+            <Icon name="mail" size={14} />
+            Only an email is needed. The faculty member gets an email with a one-time link to
+            set their password, and can fill in their name on their Profile page.
+          </p>
         </form>
       </div>
 
       {loading ? (
         <p>Loading users...</p>
       ) : (
-        <div className="panel table-wrap" style={{ marginTop: 16 }}>
-          <h3>All Users</h3>
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Joined</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => (
-                <tr key={u.id}>
-                  <td>{u.full_name || '—'}</td>
-                  <td>{u.email}</td>
-                  <td>
-                    <span className={`role-badge role-badge--${u.role}`}>{u.role}</span>
-                  </td>
-                  <td>{new Date(u.created_at).toLocaleDateString()}</td>
+        <>
+          <div className="panel table-wrap" style={{ marginTop: 16 }}>
+            <div className="program-toolbar">
+              <div className="sd-tabs" style={{ marginBottom: 0, flex: 1 }}>
+                <button className={`sd-tab ${!archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(false)}>
+                  Active
+                </button>
+                <button className={`sd-tab ${archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(true)}>
+                  Archive {archivedUsers.length > 0 && <span className="sd-tab__count">{archivedUsers.length}</span>}
+                </button>
+              </div>
+            </div>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Joined</th>
+                  <th>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {shown.length === 0 && (
+                  <tr><td colSpan={5}>{archived ? 'No archived accounts — every faculty member is active.' : 'No active faculty yet — add one above.'}</td></tr>
+                )}
+                {shown.map((u) => (
+                  <tr key={u.id} style={!isActive(u) ? { opacity: 0.65 } : undefined}>
+                    <td>{u.full_name || '—'}</td>
+                    <td>{u.email}</td>
+                    <td>
+                      <span className={`role-badge role-badge--${u.role}`}>{u.role}</span>
+                    </td>
+                    <td>{new Date(u.created_at).toLocaleDateString()}</td>
+                    <td>
+                      {!isActive(u) ? (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            className="btn btn--ghost btn--sm"
+                            disabled={statusBusyId === u.id}
+                            onClick={() => handleRestore(u.id, u.email)}
+                            title="Unpark the account — they can sign in right away"
+                          >
+                            {statusBusyId === u.id ? 'Restoring...' : 'Restore'}
+                          </button>
+                        </div>
+                      ) : (
+                        u.role === 'user' && (
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              className="btn btn--ghost btn--sm"
+                              disabled={resendBusyId === u.id}
+                              onClick={() => handleResendInvite(u.id, u.email)}
+                              title="Lost the invite? Emails them a fresh one-time link to set their password"
+                            >
+                              {resendBusyId === u.id ? 'Sending...' : (<><Icon name="mail" size={13} /> Resend invite</>)}
+                            </button>
+                            <button
+                              className="btn btn--ghost btn--sm"
+                              disabled={statusBusyId === u.id}
+                              onClick={() => handleArchive(u.id, u.email)}
+                              title="Soft delete — they cannot sign in while archived; restore from the Archive tab"
+                            >
+                              {statusBusyId === u.id ? 'Archiving...' : 'Archive'}
+                            </button>
+                          </div>
+                        )
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   )

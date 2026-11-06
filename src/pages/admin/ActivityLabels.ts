@@ -13,6 +13,7 @@ export const ACTION_LABELS: Record<string, string> = {
   // Authentication
   'auth.login': 'Signed in',
   'auth.login_failed': 'Failed sign-in',
+  'auth.signed_out_others': 'Signed out other sessions',
 
   // Generic resources (manager Curriculum page)
   'resource.created': 'Created curriculum record',
@@ -100,6 +101,8 @@ export const ACTION_LABELS: Record<string, string> = {
   'profile.updated': 'Updated profile',
   'profile.password_changed': 'Changed password',
   'profile.avatar_changed': 'Updated profile picture',
+  'profile.avatar_removed': 'Removed profile picture',
+  'profile.data_exported': 'Downloaded account data',
 }
 
 /**

@@ -61,6 +61,7 @@ const ICONS: Record<string, string> = {
   analytics: 'path M3 3v18h18|rect 7 12 3 6 1|rect 12 7 3 11 1|rect 17 10 3 8 1',
   'activity-logs': 'path M3 12a9 9 0 1 0 3-6.7L3 8|path M3 3v5h5|path M12 7v5l4 2',
   profile: 'circle 12 8 4|path M4 21c0-4.418 3.582-7 8-7s8 2.582 8 7',
+  security: 'path M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z',
 }
 
 const LOGOUT_ICON = 'path M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4|polyline 16 17 21 12 16 7|line 21 12 9 12'
@@ -95,42 +96,26 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
   const ddRef = useRef<HTMLDivElement>(null)
   const profileRef = useRef<HTMLDivElement>(null)
   const navRef = useRef<HTMLDivElement>(null)
-  const leaveTimer = useRef<number | null>(null)
 
-  // Separate dashboard, academics, and other items — profile is handled in avatar dropdown
+  // Separate dashboard, academics, and other items — profile and security live
+  // in the avatar dropdown
   const academics = navItems.filter((n) => ACADEMICS_IDS.has(n.id))
   const hasAcademics = academics.length >= 2
   const dashboardItem = navItems.find((n) => n.id === 'dashboard')
+  const inProfileMenu = (n: { id: string }) => n.id === 'profile' || n.id === 'security'
   const otherItems = hasAcademics
-    ? navItems.filter((n) => n.id !== 'dashboard' && !ACADEMICS_IDS.has(n.id) && n.id !== 'profile')
-    : navItems.filter((n) => n.id !== 'dashboard' && n.id !== 'profile')
+    ? navItems.filter((n) => n.id !== 'dashboard' && !ACADEMICS_IDS.has(n.id) && !inProfileMenu(n))
+    : navItems.filter((n) => n.id !== 'dashboard' && !inProfileMenu(n))
 
   const isAcademicsActive = academics.some((n) => n.id === activePage)
   const displayName = (profileName ?? '').trim() || `${role.charAt(0).toUpperCase() + role.slice(1)} User`
   const displayEmail = (profileEmail ?? '').trim() || `Signed in as ${role}`
   const avatarInitials = initialsOf(profileName, role)
 
-  // Hover helpers — delayed close so you can move from button to menu without it vanishing
-  const handleDdEnter = useCallback(() => {
-    if (window.innerWidth <= 1024) return
-    if (leaveTimer.current) {
-      window.clearTimeout(leaveTimer.current)
-      leaveTimer.current = null
-    }
-    setDdOpen(true)
-    setProfileOpen(false)
-  }, [])
-  const handleDdLeave = useCallback(() => {
-    if (window.innerWidth <= 1024) return
-    if (leaveTimer.current) window.clearTimeout(leaveTimer.current)
-    leaveTimer.current = window.setTimeout(() => setDdOpen(false), 140)
-  }, [])
-
-  useEffect(() => {
-    return () => {
-      if (leaveTimer.current) window.clearTimeout(leaveTimer.current)
-    }
-  }, [])
+  // The Academics dropdown is strictly click-driven: the button toggles it,
+  // an outside click or Esc closes it, and picking an item closes it. No
+  // hover auto-open — brushing the header on the way elsewhere never springs
+  // the mega menu open by accident.
 
   // Close dropdowns on outside click + Esc (Awwwards-style)
   useEffect(() => {
@@ -214,8 +199,6 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
               <div
                 className="hdr__dd"
                 ref={ddRef}
-                onMouseEnter={handleDdEnter}
-                onMouseLeave={handleDdLeave}
               >
                 <button
                   type="button"
@@ -234,37 +217,34 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
                   </svg>
                 </button>
                 {ddOpen && (
-                  <>
-                    <button type="button" className="hdr__dd-overlay" onClick={() => setDdOpen(false)} aria-label="Close academics menu" tabIndex={-1} />
-                    <div className="hdr__dd-menu" role="menu">
-                      <div className="hdr__dd-grid" role="none">
-                        {academics.map(({ id, label }) => (
-                          <button
-                            key={id}
-                            type="button"
-                            role="menuitem"
-                            className={`hdr__dd-item ${activePage === id ? 'hdr__dd-item--active' : ''}`}
-                            onClick={() => navigate(id)}
-                          >
-                            <span className="hdr__dd-iconWrap">
-                              <Icon d={ICONS[id] || ICONS.dashboard} className="hdr__dd-icon" />
-                            </span>
-                            <span className="hdr__dd-text">
-                              <span className="hdr__dd-label">{label}</span>
-                              <span className="hdr__dd-desc">{ACADEMICS_META[id]?.desc ?? ''}</span>
-                            </span>
-                            <svg className="hdr__dd-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                              <path d="M9 18l6-6-6-6" />
-                            </svg>
-                          </button>
-                        ))}
-                      </div>
-                      <div className="hdr__dd-foot">
-                        <span>Quick access to all academic records</span>
-                        <span className="hdr__dd-foot-hint">Press Esc to close</span>
-                      </div>
+                  <div className="hdr__dd-menu" role="menu">
+                    <div className="hdr__dd-grid" role="none">
+                      {academics.map(({ id, label }) => (
+                        <button
+                          key={id}
+                          type="button"
+                          role="menuitem"
+                          className={`hdr__dd-item ${activePage === id ? 'hdr__dd-item--active' : ''}`}
+                          onClick={() => navigate(id)}
+                        >
+                          <span className="hdr__dd-iconWrap">
+                            <Icon d={ICONS[id] || ICONS.dashboard} className="hdr__dd-icon" />
+                          </span>
+                          <span className="hdr__dd-text">
+                            <span className="hdr__dd-label">{label}</span>
+                            <span className="hdr__dd-desc">{ACADEMICS_META[id]?.desc ?? ''}</span>
+                          </span>
+                          <svg className="hdr__dd-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M9 18l6-6-6-6" />
+                          </svg>
+                        </button>
+                      ))}
                     </div>
-                  </>
+                    <div className="hdr__dd-foot">
+                      <span>Quick access to all academic records</span>
+                      <span className="hdr__dd-foot-hint">Press Esc to close</span>
+                    </div>
+                  </div>
                 )}
               </div>
             )}
@@ -301,7 +281,7 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
             <div className="hdr__profile" ref={profileRef}>
               <button
                 type="button"
-                className={`hdr__profileBtn ${profileOpen ? 'hdr__profileBtn--open' : ''} ${activePage === 'profile' ? 'hdr__profileBtn--active' : ''}`}
+                className={`hdr__profileBtn ${profileOpen ? 'hdr__profileBtn--open' : ''} ${activePage === 'profile' || activePage === 'security' ? 'hdr__profileBtn--active' : ''}`}
                 onClick={() => {
                   setProfileOpen((v) => !v)
                   if (!profileOpen) setDdOpen(false)
@@ -319,45 +299,54 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
                 </svg>
               </button>
               {profileOpen && (
-                <>
-                  <button type="button" className="hdr__profile-overlay" onClick={() => setProfileOpen(false)} aria-label="Close profile menu" tabIndex={-1} />
-                  <div className="hdr__profile-menu" role="menu">
-                    <div className="hdr__profile-head">
-                      <div className="hdr__profile-avatarLg">
-                        {profileAvatar ? <img src={profileAvatar} alt="" className="hdr__avatar-img" /> : avatarInitials}
-                      </div>
-                      <div className="hdr__profile-info">
-                        <span className="hdr__profile-name">{displayName}</span>
-                        <span className="hdr__profile-sub">{displayEmail}</span>
-                      </div>
-                      <span className="hdr__profile-badge">{role}</span>
+                <div className="hdr__profile-menu" role="menu">
+                  <div className="hdr__profile-head">
+                    <div className="hdr__profile-avatarLg">
+                      {profileAvatar ? <img src={profileAvatar} alt="" className="hdr__avatar-img" /> : avatarInitials}
                     </div>
-                    <div className="hdr__profile-list" role="none">
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className={`hdr__profile-item ${activePage === 'profile' ? 'hdr__profile-item--active' : ''}`}
-                        onClick={() => navigate('profile')}
-                      >
-                        <Icon d={ICONS.profile} className="hdr__profile-icon" />
-                        <span>My Profile</span>
-                        <svg className="hdr__profile-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <path d="M9 18l6-6-6-6" />
-                        </svg>
-                      </button>
-                      <div className="hdr__profile-sep" role="separator" />
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="hdr__profile-item hdr__profile-item--danger"
-                        onClick={onLogout}
-                      >
-                        <Icon d={LOGOUT_ICON} className="hdr__profile-icon" />
-                        <span>Logout</span>
-                      </button>
+                    <div className="hdr__profile-info">
+                      <span className="hdr__profile-name">{displayName}</span>
+                      <span className="hdr__profile-sub">{displayEmail}</span>
                     </div>
+                    <span className="hdr__profile-badge">{role}</span>
                   </div>
-                </>
+                  <div className="hdr__profile-list" role="none">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={`hdr__profile-item ${activePage === 'profile' ? 'hdr__profile-item--active' : ''}`}
+                      onClick={() => navigate('profile')}
+                    >
+                      <Icon d={ICONS.profile} className="hdr__profile-icon" />
+                      <span>My Profile</span>
+                      <svg className="hdr__profile-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M9 18l6-6-6-6" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={`hdr__profile-item ${activePage === 'security' ? 'hdr__profile-item--active' : ''}`}
+                      onClick={() => navigate('security')}
+                    >
+                      <Icon d={ICONS.security} className="hdr__profile-icon" />
+                      <span>Security &amp; Privacy</span>
+                      <svg className="hdr__profile-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M9 18l6-6-6-6" />
+                      </svg>
+                    </button>
+                    <div className="hdr__profile-sep" role="separator" />
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="hdr__profile-item hdr__profile-item--danger"
+                      onClick={onLogout}
+                    >
+                      <Icon d={LOGOUT_ICON} className="hdr__profile-icon" />
+                      <span>Logout</span>
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           </div>

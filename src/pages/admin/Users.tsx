@@ -3,11 +3,17 @@
 // display name, and the archive/restore cycle. Archiving is the app's soft
 // delete: the account stays restorable, sign-in is refused while archived,
 // and only archived rows can be hard-deleted.
+//
+// The add form collects only the email (plus the role, and for the
+// manager/faculty roles the program they scope): the Edge Function
+// generates a random password nobody sees and emails the new user a
+// one-time link to set their own — the same invite flow the manager's
+// Add Faculty form uses. Names get filled in on the user's Profile page.
 
 import { useState, useEffect } from 'react'
 import Icon from '../../components/icons'
 import { useDraft } from '../../hooks/useDraft'
-import { adminCreateUser, adminDeleteUser, addActivityLog, fetchAllProfilesWithProgram, fetchPrograms, profileProgramOf, updateProfile, updateUserProgram, updateUserRole, updateUserStatus } from '../../services/database'
+import { adminCreateUser, adminDeleteUser, adminResendInvite, addActivityLog, fetchAllProfilesWithProgram, fetchPrograms, profileProgramOf, updateProfile, updateUserProgram, updateUserRole, updateUserStatus } from '../../services/database'
 import { isActive } from '../../utils/report'
 import { supabase } from '../../utils/supabaseClient'
 import type { ProfileWithProgram, Program, UserRole } from '../../services/database'
@@ -23,15 +29,17 @@ const ROLE_LABELS: Record<UserRole, string> = {
 const NAME_MAX_LENGTH = 80
 const NICKNAME_MAX_LENGTH = 40
 
+/** Academic context is admin-only territory (migration 013) — generous caps
+    since a designation like "Department Chairperson" is a mouthful. */
+const ACADEMIC_MAX_LENGTH = 100
+
 export default function Users() {
-  // Draft persists email + name across page navigation. The password is
-  // deliberately kept in memory-only state and never written to storage.
-  const [draft, setDraft, clearDraft] = useDraft('cqi.draft.Users', { email: '', fullName: '' })
-  const { email, fullName } = draft
+  // Draft persists the email across page navigation. No password state:
+  // the Edge Function generates one server-side (nobody sees it) and
+  // emails the new user a one-time link to set their own.
+  const [draft, setDraft, clearDraft] = useDraft('cqi.draft.Users', { email: '' })
+  const { email } = draft
   const setEmail = (v: string) => setDraft((d) => ({ ...d, email: v }))
-  const setFullName = (v: string) => setDraft((d) => ({ ...d, fullName: v }))
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
   // Role starts unselected: the placeholder option forces a conscious
   // pick (Manager/Admin/Faculty) instead of a silent default.
   const [role, setRole] = useState<UserRole | ''>('')
@@ -49,6 +57,8 @@ export default function Users() {
   // The row's program select shares the busy pattern with the one above.
   const [programBusyId, setProgramBusyId] = useState('')
   const [deleteBusyId, setDeleteBusyId] = useState('')
+  // Re-invite: batches a fresh one-time sign-in email (lost invite helper).
+  const [resendBusyId, setResendBusyId] = useState('')
   // Archive tab: the parked accounts, listed separately so the directory
   // stays a roster of people who can actually sign in.
   const [archived, setArchived] = useState(false)
@@ -57,7 +67,7 @@ export default function Users() {
   // placeholder name like "test") without waiting for that user to sign in
   // and fix their own Profile page. Mirrors the Program page's modal.
   const [editingUser, setEditingUser] = useState<ProfileWithProgram | null>(null)
-  const [editForm, setEditForm] = useState({ fullName: '', nickname: '' })
+  const [editForm, setEditForm] = useState({ fullName: '', nickname: '', department: '', designation: '' })
   const [editBusy, setEditBusy] = useState(false)
 
   const loadUsers = async () => {
@@ -86,16 +96,18 @@ export default function Users() {
     setError('')
     setSuccess('')
     if (!role) { setError('Please select a role for this account.'); return }
-    if (!email.trim() || !password.trim()) { setError('Email and password are required.'); return }
-    // Password policy matches the profile card and reset screen: 8+ characters.
-    if (password.length < 8) { setError('Password must be at least 8 characters.'); return }
+    if (!email.trim()) { setError('Email is required.'); return }
     // Managers and faculty are program-scoped accounts — the program is
     // required so the dropdown choice can't silently be forgotten.
     if (roleNeedsProgram && !programId) { setError('Choose the program this account belongs to.'); return }
     setBusy(true)
     try {
       const createdEmail = email.trim()
-      const created = await adminCreateUser(createdEmail, password, fullName.trim(), role, programId || null)
+      // Empty password/name by design: the Edge Function generates a random
+      // password the inviter never sees and emails a one-time set-password
+      // link; the name is left blank until the user fills it in on their
+      // Profile page.
+      const created = await adminCreateUser(createdEmail, '', '', role, programId || null)
       await addActivityLog('user.created', {
         entity: 'user',
         entity_id: created?.id,
@@ -108,11 +120,10 @@ export default function Users() {
         : `${ROLE_LABELS[role]} ${createdEmail} has been added to the system.`
       setSuccess(
         created.welcomeEmailSent
-          ? `${base} A welcome email was sent to ${createdEmail}.`
-          : `${base} No welcome email was sent (email service not set up) — please tell them their login directly.`,
+          ? `${base} A welcome email was sent to ${createdEmail} with a one-time link to set their password.`
+          : `${base} No welcome email was sent (email service not set up) — use "Resend invite" on their row, or set a password for them in the Supabase dashboard (Authentication → Users) and share it privately.`,
       )
       clearDraft()
-      setPassword('')
       // The next creation is a fresh conscious pick: role and program reset
       // with the credentials so an earlier assignment can't be reused.
       setRole('')
@@ -243,38 +254,76 @@ export default function Users() {
     }
   }
 
+  // Re-invite: when a new account's invite email never arrived (or was
+  // lost), this emails them a fresh one-time link to set their password —
+  // branded via Resend when it accepts the send, otherwise through
+  // Supabase's built-in mailer. Ask before spending an email slot.
+  const handleResendInvite = async (userId: string, email: string) => {
+    if (!window.confirm(`Send ${email} a fresh one-time sign-in link?`)) return
+    setError('')
+    setSuccess('')
+    setResendBusyId(userId)
+    try {
+      const res = await adminResendInvite(userId)
+      setSuccess(
+        res.inviteSent
+          ? `A fresh sign-in email was sent to ${email}.`
+          : `No email could be sent right now (service limits or the address) — try again in a moment, or set a password for ${email} in the Supabase dashboard (Authentication → Users).`,
+      )
+      await addActivityLog('user.invite_resent', { entity: 'user', entity_id: userId, label: email })
+    } catch (e) {
+      setError('Failed to resend the invite: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setResendBusyId('')
+    }
+  }
+
   // ----- Fix profile -----
 
   // Seeded from the row so the fields open pre-filled, exactly the identity
   // the user sees on their own Profile page.
   const openEdit = (u: ProfileWithProgram) => {
     setEditingUser(u)
-    setEditForm({ fullName: u.full_name || '', nickname: u.nickname ?? '' })
+    setEditForm({
+      fullName: u.full_name || '',
+      nickname: u.nickname ?? '',
+      department: u.department ?? '',
+      designation: u.designation ?? '',
+    })
   }
 
   const closeEdit = () => {
     // Mid-save the modal must stay put: the save writes the fields it shows.
     if (editBusy) return
     setEditingUser(null)
-    setEditForm({ fullName: '', nickname: '' })
+    setEditForm({ fullName: '', nickname: '', department: '', designation: '' })
   }
 
-  // Saves the repaired name through the same updateProfile the Profile page
-  // uses — RLS already lets admins update any profile row, so no new SQL is
-  // needed. Nickname follows the Profile page's normalization: trimmed, and
-  // empty becomes null rather than an empty string in the DB.
+  // Saves the repaired identity through the same updateProfile the Profile
+  // page uses. RLS lets admins update any profile row, and the edit-guard
+  // trigger (migration 013) allows admins to repair OTHER people's academic
+  // fields — a user could never send department/designation through here.
+  // Nickname follows the Profile page's normalization: trimmed, and empty
+  // becomes null rather than an empty string in the DB.
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!editingUser) return
     const name = editForm.fullName.trim()
     if (!name) return
     const nickname = editForm.nickname.trim()
+    const department = editForm.department.trim()
+    const designation = editForm.designation.trim()
     setError('')
     setSuccess('')
     setEditBusy(true)
     let saved = false
     try {
-      await updateProfile(editingUser.id, { full_name: name, nickname: nickname || null })
+      await updateProfile(editingUser.id, {
+        full_name: name,
+        nickname: nickname || null,
+        department: department || null,
+        designation: designation || null,
+      })
       setUsers((prev) =>
         prev.map((u) =>
           u.id === editingUser.id ? { ...u, full_name: name, nickname: nickname || null } : u,
@@ -300,7 +349,7 @@ export default function Users() {
     // read against the fields that produced it.
     if (saved) {
       setEditingUser(null)
-      setEditForm({ fullName: '', nickname: '' })
+      setEditForm({ fullName: '', nickname: '', department: '', designation: '' })
     }
   }
 
@@ -361,11 +410,6 @@ export default function Users() {
             <div>
               <div className="au__section-title"><span className="au__step">1</span>Who is this person</div>
               <div className="au__who">
-                <label className="field">
-                  <span>Full name</span>
-                  <input className="input" type="text" placeholder="Juan Dela Cruz" value={fullName}
-                    onChange={(e) => setFullName(e.target.value)} />
-                </label>
                 <div className="field">
                   <span>Role</span>
                   <div className="role-cards" role="group" aria-label="Role">
@@ -457,27 +501,16 @@ export default function Users() {
                       onChange={(e) => setEmail(e.target.value)} />
                   </div>
                 </label>
-                <label className="field">
-                  <span>Password</span>
-                  <div className="password-wrapper">
-                    <input className="input" type={showPassword ? 'text' : 'password'}
-                      placeholder="••••••••" value={password} required
-                      onChange={(e) => setPassword(e.target.value)} />
-                    <button type="button" className="password-toggle" onClick={() => setShowPassword(!showPassword)}
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}>
-                      {showPassword ? 'Hide' : 'Show'}
-                    </button>
-                  </div>
-                </label>
                 <p className="au__cred-note">
-                  At least 8 characters — the new user can change it after signing in, or reset it from the sign-in page themselves.
+                  Only the email is needed. The new user gets an email with a one-time link to set
+                  their password, and can fill in their name on their Profile page.
                 </p>
               </div>
             </div>
           </div>
 
           <div className="au__foot">
-            <p>A welcome email is sent when the mail service is configured — otherwise share the password directly.</p>
+            <p>A welcome email with a one-time set-password link is sent when the mail service is configured — otherwise use "Resend invite" on the new user's row after creating them.</p>
             <button className="btn btn--primary" type="submit" disabled={busy}>
               {busy ? 'Creating...' : (<><Icon name="plus" size={13} /> Create User</>)}
             </button>
@@ -598,6 +631,14 @@ export default function Users() {
                             </button>
                             <button
                               className="btn btn--ghost btn--sm"
+                              disabled={resendBusyId === u.id}
+                              onClick={() => handleResendInvite(u.id, u.email)}
+                              title="Lost the invite? Emails them a fresh one-time link to set their password"
+                            >
+                              {resendBusyId === u.id ? 'Sending...' : (<><Icon name="mail" size={13} /> Resend invite</>)}
+                            </button>
+                            <button
+                              className="btn btn--ghost btn--sm"
                               disabled={statusBusyId === u.id}
                               onClick={() => handleArchive(u.id, u.email)}
                               title="Soft delete — reversible from the Archive tab"
@@ -656,8 +697,35 @@ export default function Users() {
                     />
                   </label>
                 </div>
+                <div className="modal__grid-2" style={{ marginTop: 12 }}>
+                  <label className="field" style={{ marginBottom: 0 }}>
+                    <span>Academic department</span>
+                    <input
+                      className="input input--sm"
+                      type="text"
+                      placeholder="e.g. Institute of Computer Studies"
+                      autoComplete="off"
+                      value={editForm.department}
+                      maxLength={ACADEMIC_MAX_LENGTH}
+                      onChange={(e) => setEditForm((f) => ({ ...f, department: e.target.value }))}
+                    />
+                  </label>
+                  <label className="field" style={{ marginBottom: 0 }}>
+                    <span>Position / designation</span>
+                    <input
+                      className="input input--sm"
+                      type="text"
+                      placeholder="e.g. Instructor I"
+                      autoComplete="off"
+                      value={editForm.designation}
+                      maxLength={ACADEMIC_MAX_LENGTH}
+                      onChange={(e) => setEditForm((f) => ({ ...f, designation: e.target.value }))}
+                    />
+                  </label>
+                </div>
                 <p className="au__cred-note" style={{ marginTop: 10 }}>
-                  Reports and audit logs use the full name; the nickname shows in quotes. Clearing it removes the quoted name.
+                  Reports and audit logs use the full name; the nickname shows in quotes. Department and designation
+                  are admin-managed — the account holder sees them read-only on their Profile.
                 </p>
               </div>
               <div className="modal__footer">

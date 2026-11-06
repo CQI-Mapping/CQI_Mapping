@@ -33,6 +33,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import Sidebar from './components/Sidebar'
 import Login from './pages/Login'
 import ResetPassword from './pages/ResetPassword'
+import ResetLinkExpired from './pages/ResetLinkExpired'
+import { interpretAuthReturnError, scrubAuthReturnUrl } from './utils/oauthErrors'
 import Profile from './pages/Profile'
 import AdminDashboard from './pages/admin/Dashboard'
 import AdminActivityLogs from './pages/admin/ActivityLogs'
@@ -42,6 +44,7 @@ import ManagerCurriculum from './pages/manager/Curriculum'
 import ManagerCourse from './pages/manager/Course'
 import ManagerActivityLogs from './pages/admin/ActivityLogs'
 import UserDashboard from './pages/user/Dashboard'
+import SecurityPrivacy from './pages/SecurityPrivacy'
 import AdminChedMemoOrders from './pages/admin/ChedMemoOrders'
 import AdminStrategicGoals from './pages/admin/StrategicGoals'
 import AdminPEOs from './pages/admin/ProgramEducationalObjectives'
@@ -55,7 +58,7 @@ import AdminView from './pages/admin/Syllabus'
 
 import UserTOS from './pages/user/TOS'
 import { supabase } from './utils/supabaseClient'
-import { ensureProfile, syncDemoRole, addActivityLog } from './services/database'
+import { ensureProfile, syncDemoRole, addActivityLog, recordLoginEvent } from './services/database'
 import type { Profile as ProfileType, UserRole, NavItem } from './services/database'
 import type { Session } from '@supabase/supabase-js'
 import { loadEmailAvatar } from './utils/avatar'
@@ -74,6 +77,7 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'users', label: 'Users & Accounts' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
+    { id: 'security', label: 'Security & Privacy' },
   ],
   manager: [
     { id: 'dashboard', label: 'Dashboard' },
@@ -86,9 +90,10 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'course', label: 'Course' },
     { id: 'subject-view', label: 'Generate Map' },
     { id: 'view', label: 'View Syllabus' },
-    { id: 'users', label: 'Users' },
+    { id: 'users', label: 'Users & Accounts' },
     { id: 'activity-logs', label: 'Activity Logs' },
     { id: 'profile', label: 'Profile' },
+    { id: 'security', label: 'Security & Privacy' },
   ],
   user: [
     { id: 'dashboard', label: 'Dashboard' },
@@ -96,6 +101,7 @@ const NAV: Record<UserRole, NavItem[]> = {
     { id: 'subject-view', label: 'Generate Map' },
     { id: 'tos', label: 'Generate TOS' },
     { id: 'profile', label: 'Profile' },
+    { id: 'security', label: 'Security & Privacy' },
   ],
 }
 
@@ -121,6 +127,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     users: AdminUsers,
     'activity-logs': AdminActivityLogs,
     profile: Profile,
+    security: SecurityPrivacy,
   },
   manager: {
     dashboard: ManagerDashboard,
@@ -136,6 +143,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     users: ManagerUsers,
     'activity-logs': ManagerActivityLogs,
     profile: Profile,
+    security: SecurityPrivacy,
   },
   user: {
     dashboard: UserDashboard,
@@ -143,6 +151,7 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
     'subject-view': AdminSubjectView,
     tos: UserTOS,
     profile: Profile,
+    security: SecurityPrivacy,
   },
 }
 
@@ -153,6 +162,14 @@ const PAGES: Record<string, Record<string, React.ComponentType<any>>> = {
 // dashboard, while a brand-new tab always opens there. Cleared on sign-out so
 // the next session starts fresh.
 const LAST_PAGE_KEY = 'cqi.lastPage'
+
+// School-accounts-only: a Google sign-in is only accepted from the official
+// school domain. Supabase's allowed-email-domains dashboard setting is the
+// real auth-layer gate; this constant backs it up in code so a personal
+// Gmail that slips through a missed dashboard step is signed straight out.
+const SCHOOL_EMAIL_DOMAIN = '@nbsc.edu.ph'
+const SCHOOL_ONLY_NOTICE =
+  'Only @nbsc.edu.ph school accounts can sign in. Please use your official NBSC Google account.'
 
 /** The page this tab was last on, when it belongs to the given role. */
 function readLastPage(role: UserRole): string | null {
@@ -215,7 +232,38 @@ function App() {
   const [retryTick, setRetryTick] = useState(0)
   const profileUserIdRef = useRef<string | null>(null)
 
-  // The email's real Gravatar photo drives the sidebar avatar whenever no
+  // Message handed to the Login screen by App itself — currently only the
+  // archived-account refusal, which Google sign-ins need because the OAuth
+  // session lands in the app shell without ever passing through the Login
+  // form's own archived check.
+  const [signOutNotice, setSignOutNotice] = useState<string | null>(null)
+
+  // Failed auth returns. A bounced OAuth round-trip or a dead recovery link
+  // lands back on this origin carrying ?error= / #error_description= in the
+  // address bar. App reads them exactly once, renders the verdict, and wipes
+  // the params — a child component reading them too would race the scrub and
+  // double-handle the same bounce. Expiry gets its own full screen (screen 5
+  // of design/profile-reset-redesign.html); every other failure arrives at
+  // Login as a pre-remixed one-line notice.
+  const [oauthNotice, setOauthNotice] = useState<string | null>(null)
+  const [expiredResetLink, setExpiredResetLink] = useState(false)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const hashPart = new URLSearchParams(
+      window.location.hash.startsWith('#') ? window.location.hash.slice(1) : '',
+    )
+    const error = params.get('error') || hashPart.get('error')
+    const description = params.get('error_description') || hashPart.get('error_description')
+    if (!error && !description) return
+    const verdict = interpretAuthReturnError(error, description)
+    if (verdict.expiredResetLink) {
+      setExpiredResetLink(true)
+    } else {
+      setOauthNotice(verdict.message)
+    }
+    scrubAuthReturnUrl()
+    // The bounce happens before mount; reading once at boot is the contract.
+  }, [])  // The email's real Gravatar photo drives the sidebar avatar whenever no
   // picture was uploaded. The availability probe is async, so it lands a
   // beat after sign-in; the sidebar renders initials until then, and
   // addresses without a Gravatar account simply stay on initials.
@@ -270,6 +318,17 @@ function App() {
         // set, and skip restoring an old page when the profile lands.
         arrivedViaRecovery.current = true
         setRecovering(true)
+      } else if (event === 'SIGNED_IN') {
+        // A truly fresh sign-in. Restored tabs arrive as INITIAL_SESSION, so a
+        // page refresh never re-writes a login row here.
+        setSignOutNotice(null)
+        // OAuth sign-ins return straight into the app and never pass through
+        // the Login page's form-level recordLoginEvent, so their audit row is
+        // stamped here. app_metadata.provider is 'google' for the Google path.
+        if (session?.user?.app_metadata?.provider === 'google') {
+          // The service logs its own failures as a console warn — it never rejects.
+          recordLoginEvent(session.user.email ?? 'unknown', true)
+        }
       }
     })
 
@@ -304,8 +363,33 @@ function App() {
           })
           .catch((err) => { console.error('syncDemoRole failed:', err); return p })
       })
-      .then((p) => {
+      .then(async (p) => {
         if (cancelled) return
+        // School-accounts-only refusal, OAuth edition. Supabase welcomes any
+        // Google identity until allowed email domains are configured on the
+        // project, so the email is re-checked once the session lands: a
+        // non-school Google account is signed straight out, and Login.tsx
+        // inherits the explanation via signOutNotice. Only the Google path is
+        // gated — the demo bootstrap accounts (cqi.test) are password logins,
+        // and the archived check below stays for every provider.
+        if (session.user.app_metadata?.provider === 'google'
+          && p
+          && !p.email?.toLowerCase().endsWith(SCHOOL_EMAIL_DOMAIN)) {
+          setSignOutNotice(SCHOOL_ONLY_NOTICE)
+          await supabase!.auth.signOut()
+          return
+        }
+        if (p?.status === 'archived') {
+          // Archived refusal, OAuth edition. The password path drops these
+          // on the Login page, but a Google sign-in hands its session
+          // straight to the app shell, so the check lives where the profile
+          // actually lands. Signing out keeps the token un-burned — the
+          // account remains restorable — and the Login screen inherits the
+          // explanation via signOutNotice.
+          setSignOutNotice('This account has been archived. Ask your administrator to restore it.')
+          await supabase!.auth.signOut()
+          return
+        }
         if (p) {
           setProfile(p)
           setProfileError('')
@@ -350,9 +434,22 @@ function App() {
     return <div className="center-screen">Loading...</div>
   }
 
-  // No session → show the login page.
+  // Dead recovery link → its own auth-styled screen (mockup screen 5)
+  // instead of an unexplained login. Checked before the session gate: a
+  // bounce never carries a session, and a tab may additionally hold a stale
+  // restored session the bounce should not mask the message for.
+  if (expiredResetLink) {
+    return (
+      <ResetLinkExpired
+        onBackToLogin={() => {
+          setExpiredResetLink(false)
+        }}
+      />
+    )
+  }
+
   if (!session) {
-    return <Login />
+    return <Login notice={signOutNotice ?? oauthNotice} />
   }
 
   // Mid-recovery → the Set-a-new-password screen alone, with no app shell and
@@ -423,7 +520,7 @@ function App() {
     const Page = PAGES[role]?.[page] ?? PAGES[role]?.[navItems[0]?.id] ?? UserDashboard
 
     if (page === 'dashboard') return <Page profile={profile} onNavigate={navigate} />
-    if (page === 'profile') return <Page profile={profile} onSaved={setProfile} />
+    if (page === 'profile') return <Page profile={profile} onSaved={setProfile} onNavigate={navigate} />
     if (page === 'users') return <Page />
     if (SHARED_ACADEMIC_PAGES.has(page)) return <Page allowDelete={allowDelete} />
     if (page === 'curriculum' && role !== 'user') return <Page userEmail={profile?.email} allowDelete={role === 'admin'} />

@@ -43,6 +43,10 @@ import { reportFileName } from '../../utils/download'
 
 const EMPTY = { code: '', course: '', description: '', programOutcomes: '' }
 
+// Semester tab labels for the category row — the same terms the create
+// form's Semester filter offers (1st, 2nd, Summer).
+const SEM_LABELS: Record<string, string> = { '1': '1st Sem', '2': '2nd Sem', '3': 'Summer' }
+
 // Raw reference lists the syllabus document is built from. The CLO page
 // already loads all of them for its suggestion machinery, so the reader
 // just reuses that fetch instead of querying again.
@@ -79,6 +83,10 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   const [editForm, setEditForm] = useState(EMPTY)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [archived, setArchived] = useState(false)
+  // Semester category tab ('' = all terms). The tabs trail the Active/Archive
+  // pair; picking one leaves the archived view and filters the active list
+  // to the term.
+  const [semCat, setSemCat] = useState('')
   const [query, setQuery] = useState('')
   const [bulkBusy, setBulkBusy] = useState(false)
   // List (default) or grid card style — the user decides per browser.
@@ -113,11 +121,41 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   }, [])
 
   const isActive = (i: CourseLearningOutcomeStandalone) => !i.status || i.status === 'active'
+  // A CLO's term comes from its subject record — the row stores only the
+  // course code, resolved leniently the same way the syllabus reader does.
+  // Rows whose course text matches nothing belong to no term: they stay in
+  // Active and Archive, but no semester tab claims them.
+  const courseSemOf = (i: CourseLearningOutcomeStandalone) => {
+    const c = courses.find((x) => cloMatchesSubject(i.course || '', normalizeCode(x.code)))
+    return c ? String(c.semester ?? '').trim() : ''
+  }
   const q = query.trim().toLowerCase()
   const visible = items
-    .filter((i) => (archived ? !isActive(i) : isActive(i)))
+    .filter((i) => (archived
+      ? !isActive(i)
+      : isActive(i) && (semCat === '' || courseSemOf(i) === semCat)))
     .filter((i) => !q || [i.course, i.code, i.description, i.title].some((v) => (v || '').toLowerCase().includes(q)))
   const archivedCount = items.filter((i) => !isActive(i)).length
+
+  // Semester categories trailing the Active/Archive pair — one tab per term
+  // the curriculum actually uses, so no permanently empty tab sits in the
+  // row. Badges count active CLOs whose subject runs in that term.
+  const semTabs = useMemo(
+    () =>
+      [...new Set(courses.map((c) => String(c.semester ?? '').trim()).filter(Boolean))]
+        .sort()
+        .map((s) => ({ value: s, label: SEM_LABELS[s] ?? `Sem ${s}` })),
+    [courses],
+  )
+  const semCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const i of items) {
+      if (!isActive(i)) continue
+      const s = courseSemOf(i)
+      if (s) counts.set(s, (counts.get(s) ?? 0) + 1)
+    }
+    return counts
+  }, [items, courses])
 
   // ── Syllabus reader ──────────────────────────────────────────────────
   // The opened CLO resolves to its subject by lenient course-code matching
@@ -337,11 +375,11 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
     return parts.join(', ')
   }
 
-  // Suggestions need real content: a 1-2 character draft ("f") scores trivia
-  // in the keyword ranker and the top-anchored display then shows confident
-  // "100%" chips for junk. The 4-char floor is the same one the semantic
-  // engine and the "no close match" hint already use.
-  const DRAFT_MIN = 4
+  // Suggestions wait for real content: short drafts score trivia in the
+  // keyword ranker, so nothing renders — chips or the no-match hint — until
+  // the description reaches DRAFT_MIN characters. The semantic engine
+  // shares this floor.
+  const DRAFT_MIN = 15
   const createClosest = form.description.trim().length >= DRAFT_MIN
     ? rankClosestPos(form.description, poTexts, Math.max(3, poTexts.length))
     : []
@@ -353,7 +391,9 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   void memTick
   const createShown = fuseRanked(form.description, createClosest, createSemantic, poTexts, 3)
   const editShown = fuseRanked(editForm.description, editClosest, editSemantic, poTexts, 3)
-  // Relative display only (top raw > 0 shows 100%). All gates read raw lists.
+  // Bars stay on a relative scale (top suggestion paints the full bar); the
+  // chip label itself shows only the PO code — no percentages on screen.
+  // All gates still read the raw lists.
   const createDisplay = toRelative(createShown)
   const editDisplay = toRelative(editShown)
 
@@ -369,7 +409,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   // Debounced semantic re-rank for the create-form description.
   useEffect(() => {
     const draft = form.description.trim()
-    if (draft.length < 4 || poTexts.length === 0) { setCreateSemantic(null); return }
+    if (draft.length < DRAFT_MIN || poTexts.length === 0) { setCreateSemantic(null); return }
     let cancelled = false
     const t = setTimeout(() => {
       rankSemantic(draft, poTexts, 3).then((res) => {
@@ -383,7 +423,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   // Debounced semantic re-rank for the edit-form description.
   useEffect(() => {
     const draft = editForm.description.trim()
-    if (editingId === null || draft.length < 4 || poTexts.length === 0) { setEditSemantic(null); return }
+    if (editingId === null || draft.length < DRAFT_MIN || poTexts.length === 0) { setEditSemantic(null); return }
     let cancelled = false
     const t = setTimeout(() => {
       rankSemantic(draft, poTexts, 3).then((res) => {
@@ -463,14 +503,17 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             ))}
           </select>
         )}
-        <input className="input input--sm" type="text" inputMode="numeric" value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: digitsOnly(e.target.value) })} placeholder="CLO Code (e.g. 1)" />
+        <div className="clo-code-input">
+          {editForm.code !== '' && <span className="clo-code-input__prefix" aria-hidden="true">CLO</span>}
+          <input className="input input--sm clo-code-input__field" type="text" inputMode="numeric" value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: digitsOnly(e.target.value) })} placeholder="CLO Code (e.g. 1)" />
+        </div>
       </div>
       <textarea className="input input--sm" rows={2} ref={autoResize} value={editForm.description} onChange={(e) => { setEditForm({ ...editForm, description: e.target.value }); autoResize(e.target) }} placeholder="Description" />
       <SuggestionInput value={editForm.programOutcomes} onChange={(v) => setEditForm({ ...editForm, programOutcomes: v })} options={poSuggestions} placeholder="Type to search POs" />
       {editDisplay.length > 0 ? (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '6px 0' }}>
           <span style={{ fontSize: 12, color: '#64748b', width: '100%' }}>
-            {editDisplay[0].raw > 0 ? 'Closest for this description:' : 'Best guesses (low confidence):'}
+            Suggested POs for this draft.
           </span>
           {editDisplay.map((r) => (
             <span key={r.code} style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
@@ -478,7 +521,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                 style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: 3 }}
                 title={r.label}
                 onClick={() => { logPick(editForm.description, r.code); setEditForm((f) => ({ ...f, programOutcomes: appendPo(f.programOutcomes, r.code) })) }}>
-                <span>{r.raw > 0 ? `${r.code} · ${r.shown}%` : `~ ${r.code}`}</span>
+                <span>{r.code}</span>
                 <span aria-hidden="true" style={{ height: 3, borderRadius: 999, background: '#f1f5f9', overflow: 'hidden' }}>
                   <span style={{
                     display: 'block', height: '100%', width: `${Math.min(100, r.shown)}%`,
@@ -492,7 +535,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
             </span>
           ))}
         </div>
-      ) : editForm.description.trim().length >= 4 && (
+      ) : editForm.description.trim().length >= DRAFT_MIN && (
         <div style={{ fontSize: 12, color: '#64748b', margin: '6px 0' }}>
           {poTexts.length === 0
             ? 'No Curriculum Mapping outcomes yet — add them on the Program Outcomes page first.'
@@ -615,8 +658,11 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
         </label>
         <label className="field">
           <span>CLO Code</span>
-          <input className="input input--sm" type="text" inputMode="numeric" placeholder="e.g. 1" value={form.code}
-            onChange={(e) => setForm({ ...form, code: digitsOnly(e.target.value) })} required />
+          <div className="clo-code-input">
+            {form.code !== '' && <span className="clo-code-input__prefix" aria-hidden="true">CLO</span>}
+            <input className="input input--sm clo-code-input__field" type="text" inputMode="numeric" placeholder="e.g. 1" value={form.code}
+              onChange={(e) => setForm({ ...form, code: digitsOnly(e.target.value) })} required />
+          </div>
         </label>
         <label className="field">
           <span>Description</span>
@@ -636,9 +682,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
         {createDisplay.length > 0 ? (
           <div className="field" style={{ marginTop: -4 }}>
             <span style={{ fontSize: 12, color: '#64748b' }}>
-              {createDisplay[0].raw > 0
-                ? 'Closest Program Outcomes for this description:'
-                : 'Best guesses (low confidence) — click or pick manually:'}
+              Suggested POs for this draft.
             </span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
               {createDisplay.map((r) => (
@@ -647,7 +691,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                     style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: 3 }}
                     title={r.label}
                     onClick={() => { logPick(form.description, r.code); setForm((f) => ({ ...f, programOutcomes: appendPo(f.programOutcomes, r.code) })) }}>
-                    <span>{r.raw > 0 ? `${r.code} · ${r.shown}%` : `~ ${r.code}`}</span>
+                    <span>{r.code}</span>
                     <span aria-hidden="true" style={{ height: 3, borderRadius: 999, background: '#f1f5f9', overflow: 'hidden' }}>
                       <span style={{
                         display: 'block', height: '100%', width: `${Math.min(100, r.shown)}%`,
@@ -662,7 +706,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
               ))}
             </div>
           </div>
-        ) : form.description.trim().length >= 4 && (
+        ) : form.description.trim().length >= DRAFT_MIN && (
           <div className="field" style={{ marginTop: -4 }}>
             <span style={{ fontSize: 12, color: '#64748b' }}>
               {poTexts.length === 0
@@ -735,11 +779,29 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
       ) : (
         <div className="program-panel">
           <div className="program-toolbar">
-            <div className="sd-tabs" style={{ marginBottom: 0, flex: 1 }}>
-              <button className={`sd-tab ${!archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(false)}>Active</button>
-              <button className={`sd-tab ${archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(true)}>
+            <div className="sd-tabs" style={{ marginBottom: 0, flex: 1, flexWrap: 'wrap' }}>
+              <button
+                className={`sd-tab ${!archived && semCat === '' ? 'sd-tab--active' : ''}`}
+                onClick={() => { setArchived(false); setSemCat('') }}
+              >Active</button>
+              <button
+                className={`sd-tab ${archived ? 'sd-tab--active' : ''}`}
+                onClick={() => { setArchived(true); setSemCat('') }}
+              >
                 Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
               </button>
+              {semTabs.map((s) => (
+                <button
+                  key={s.value}
+                  className={`sd-tab ${!archived && semCat === s.value ? 'sd-tab--active' : ''}`}
+                  onClick={() => { setArchived(false); setSemCat(s.value) }}
+                >
+                  {s.label}
+                  {(semCounts.get(s.value) ?? 0) > 0 && (
+                    <span className="sd-tab__count">{semCounts.get(s.value)}</span>
+                  )}
+                </button>
+              ))}
             </div>
             <ViewModeToggle mode={viewMode} onChange={setViewMode} />
             <label className="program-search" aria-label="Search CLOs">
@@ -767,8 +829,18 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
           </div>
           {visible.length === 0 ? (
             <div className="program-empty" style={{ marginTop: 14 }}>
-              <strong>No course learning outcomes yet.</strong>
-              <span>{query ? `No results for "${query}"` : 'Add your first CLO above.'}</span>
+              <strong>
+                {semCat && !archived
+                  ? `No CLOs for ${SEM_LABELS[semCat] ?? `Sem ${semCat}`} yet.`
+                  : 'No course learning outcomes yet.'}
+              </strong>
+              <span>
+                {query
+                  ? `No results for "${query}"`
+                  : semCat && !archived
+                    ? 'CLOs for subjects taught in this term will appear here.'
+                    : 'Add your first CLO above.'}
+              </span>
             </div>
           ) : viewMode === 'list' ? (
             <div className="resource-list">

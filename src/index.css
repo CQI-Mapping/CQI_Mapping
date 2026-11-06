@@ -126,6 +126,86 @@ code {
   line-height: 1.6;
 }
 
+/* ---- App crash fallback (ErrorBoundary) ------------------------------ */
+/* Same spirit as the config-error screen: a readable page instead of a
+   blank tab when rendering itself fails. */
+
+.app-crash {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--bg-app);
+}
+
+.app-crash__card {
+  max-width: 560px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px;
+  box-shadow: var(--shadow);
+}
+
+.app-crash__card h1 {
+  margin: 0 0 10px;
+  font-size: 20px;
+}
+
+.app-crash__card p {
+  margin: 0 0 10px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.app-crash__message {
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 12.5px;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  word-break: break-word;
+}
+
+.app-crash__details {
+  margin-top: 14px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.app-crash__details pre {
+  max-height: 220px;
+  overflow: auto;
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.app-crash__reload {
+  margin-top: 16px;
+  padding: 8px 18px;
+  border: none;
+  border-radius: 999px;
+  background: var(--primary);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.app-crash__reload:hover {
+  filter: brightness(1.08);
+}
+
 .app-layout {
   display: flex;
   flex-direction: column;
@@ -620,7 +700,9 @@ code {
   position: fixed;
   top: 16px;
   right: 16px;
-  z-index: 100;
+  /* Always topmost: even above the navbar (1100) and dialogs (2000), so a
+     "report exported" notice is readable no matter what is open. */
+  z-index: 3000;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1343,50 +1425,12 @@ code {
 
 .activity-feed__item:last-child { border-bottom: none; }
 
-/* Rows that act as buttons: hover paints the row, focus keeps its ring
-   inside the list instead of the browser's default outline. */
-.activity-feed__item--link {
-  cursor: pointer;
-  border-radius: 8px;
-  padding: 10px 6px;
-  margin: 0 -6px;
-  transition: background 0.15s ease;
-}
-
-.activity-feed__item--link:hover,
-.activity-feed__item--link:focus-visible {
-  background: var(--bg-soft);
-  outline: none;
-}
-
-.activity-feed__item--link:focus-visible {
-  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18);
-}
-
 .activity-feed__dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: #22c55e;
   box-shadow: 0 0 0 4px #dcfce7;
-}
-
-/* Faculty dashboard's subject feed has no status dot: the leading 8px
-   column collapses so the subject sits flush at the panel edge. */
-.activity-feed--plain .activity-feed__item {
-  grid-template-columns: 1fr auto;
-}
-
-.activity-feed--plain .activity-feed__action {
-  grid-column: 1;
-}
-
-.activity-feed--plain .activity-feed__user {
-  grid-column: 1;
-}
-
-.activity-feed--plain .activity-feed__time {
-  grid-column: 2;
 }
 
 .activity-feed__action {
@@ -1420,6 +1464,532 @@ code {
 @media (max-width: 900px) {
   .dashboard-panels { grid-template-columns: 1fr; }
   .quick-actions { grid-template-columns: 1fr; }
+}
+
+/* ---- Faculty dashboard (pages/user/Dashboard.tsx) ----
+   The faculty home has its own blocks rather than the shared .dashbanner and
+   .dashboard-panels set the admin and manager pages use: a hero with a
+   next-step card, the figures for the outcomes this faculty member owns, the
+   subjects they have written for beside the quick actions, then the program
+   brief. Surfaces and greens are the app's own. */
+
+.fac-dash {
+  /* MapBrief's panels read these tokens, which only the Reports page defines
+     on .reports. Setting them here gives the brief its gap, corners and table
+     band on this page. */
+  --reports-gap: 14px;
+  --reports-radius: 12px;
+  --reports-band: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* ---- hero ---- */
+
+.fac-hero {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(250px, 340px);
+  align-items: center;
+  gap: 24px;
+  padding: 26px 28px;
+  border-radius: 20px;
+  border: 1px solid rgba(151, 235, 175, 0.18);
+  color: #fff;
+  background-color: #16342a;
+  background-image:
+    linear-gradient(100deg, rgba(9, 24, 17, 0.92) 0%, rgba(9, 24, 17, 0.72) 50%, rgba(9, 24, 17, 0.5) 100%),
+    url('./assets/banner-bg.jpg');
+  background-size: 100% 100%, cover;
+  background-position: center, center;
+  background-repeat: no-repeat, no-repeat;
+  box-shadow: 0 18px 44px -18px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.fac-hero__info {
+  min-width: 0;
+}
+
+.fac-hero__date {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.fac-hero__greeting {
+  margin: 16px 0 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.fac-hero__name {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.08;
+  color: #fff;
+}
+
+.fac-hero__chip {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fff;
+}
+
+.fac-hero__desc {
+  margin: 12px 0 0;
+  max-width: 540px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: rgba(255, 251, 244, 0.78);
+}
+
+/* The next step: a glass card over the artwork's right-hand building. */
+.fac-next {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 18px 16px;
+  border-radius: 16px;
+  background: rgba(9, 24, 17, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.fac-next__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #bbf7d0;
+}
+
+.fac-next__title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: #fff;
+}
+
+.fac-next__detail {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.76);
+}
+
+.fac-next__btn {
+  align-self: flex-start;
+}
+
+/* ---- figures ---- */
+
+.fac-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.fac-stat {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+  padding: 16px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 4px 16px rgba(15, 23, 42, 0.04);
+}
+
+.fac-stat__icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+}
+
+.fac-stat__body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fac-stat__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.fac-stat__value {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fac-stat__value--text {
+  font-size: 19px;
+  letter-spacing: -0.01em;
+}
+
+.fac-stat__sub {
+  font-size: 11.5px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Week history bars under the "Edited this week" figure — the current week
+   sits full green at the right edge, completed weeks faded in front of it. */
+.fac-stat__trend {
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+/* ---- subjects and quick actions ---- */
+
+.fac-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
+}
+
+.fac-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 18px;
+  border-radius: 16px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.fac-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.fac-card__head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+
+.fac-card__head span {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.fac-card__foot {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid #eef3ee;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.fac-card__more {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 700;
+  color: #15803d;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.fac-card__more:hover {
+  text-decoration: underline;
+}
+
+.fac-subjects {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fac-subject {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.fac-subject:hover {
+  background: #fff;
+  border-color: var(--border);
+}
+
+.fac-subject:focus-visible {
+  outline: none;
+  background: #fff;
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.22);
+}
+
+.fac-subject__mark {
+  width: 44px;
+  height: 44px;
+  box-sizing: border-box;
+  padding: 0 4px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #22c55e, #15803d);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fac-subject__body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fac-subject__title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fac-subject__meta {
+  font-size: 12px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fac-subject__time {
+  font-size: 11.5px;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.fac-chev {
+  display: inline-flex;
+  color: #94a3b8;
+}
+
+.fac-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fac-action {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #fff;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s var(--ease-spring);
+}
+
+.fac-action:hover {
+  background: var(--bg-soft);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-1px);
+}
+
+.fac-action:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.22);
+}
+
+.fac-action__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+}
+
+.fac-action__text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.fac-action__text strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.fac-action__text small {
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.fac-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px dashed var(--border-strong);
+  background: #fff;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #64748b;
+}
+
+.fac-empty p {
+  margin: 0;
+}
+
+/* ---- program brief ---- */
+
+.fac-program {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fac-program__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 16px;
+}
+
+.fac-program__head h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+
+.fac-program__head p {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+@media (max-width: 1000px) {
+  .fac-hero,
+  .fac-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fac-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .fac-dash .reports-panels {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .fac-hero {
+    padding: 22px 20px;
+  }
+
+  .fac-hero__name {
+    font-size: 26px;
+  }
+
+  .fac-stats {
+    gap: 10px;
+  }
+
+  .fac-stat {
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .fac-subject {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .fac-subject__time {
+    display: none;
+  }
 }
 
 /* ---- Legacy Dashboard Hero ---- */
@@ -1811,6 +2381,34 @@ code {
   align-items: center;
 }
 
+/* Manager "Add Faculty" — email-only invite row: no password or name is
+   collected (the Edge Function generates the password and emails a one-time
+   set-password link), so the email spans wide and the button sits at end. */
+.create-user__row--email-only {
+  grid-template-columns: 3fr auto;
+}
+
+/* The explanatory line under the invite row, mirroring the admin card's
+   .au__hint pill (dashed border, mail icon, muted text). */
+.create-user__hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 10px 13px;
+  border-radius: 12px;
+  background: var(--bg-soft);
+  border: 1px dashed var(--border-strong);
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.create-user__hint svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--primary);
+}
+
 /* The Program select joins the Email/Password/Name/Role row when the
    chosen role is manager or faculty. */
 .create-user__row--with-program {
@@ -1904,9 +2502,10 @@ code {
   text-transform: none;
 }
 
+/* One column now — the section holds only the role cards. */
 .au__who {
   display: grid;
-  grid-template-columns: 2fr 6fr;
+  grid-template-columns: 1fr;
   gap: 18px;
   margin-top: 12px;
 }
@@ -2034,10 +2633,11 @@ code {
   color: var(--primary);
 }
 
-/* Credentials: email with its icon, password with its toggle. */
+/* Credentials: only the email with its icon; the password is generated
+   server-side and sent to the new user as a one-time set-password link. */
 .au__creds {
   display: grid;
-  grid-template-columns: 3fr 2fr;
+  grid-template-columns: 1fr;
   gap: 14px;
   margin-top: 12px;
 }
@@ -2084,16 +2684,7 @@ code {
   color: var(--text-muted);
 }
 
-@media (max-width: 860px) {
-  .au__who {
-    grid-template-columns: 1fr;
-  }
-}
-
 @media (max-width: 720px) {
-  .au__creds {
-    grid-template-columns: 1fr;
-  }
   .role-cards {
     grid-template-columns: 1fr;
   }
@@ -2238,14 +2829,20 @@ code {
   gap: 10px;
 }
 
-/* ---- Profile ----
-   Two-column layout mirroring the design concept in
-   design/profile-redesign.html: a role-tinted hero avatar, an identity card
-   with fact tiles, the display-name editor, and a personal audit trail.
-   (The password panel was removed — password recovery lives in the
-   standalone Set-a-new-password screen reached from the sign-in page.) */
+/* ---- Profile (pages/Profile.tsx) ----
+   Laid out as the concept in design/profile-redesign.html: a dark hero with a
+   role-tinted avatar and fact chips, then two columns. The left holds the
+   identity card and the profile information; the right holds the security
+   summary and the activity trail. Colours are the app's own tokens plus the
+   concept's component values. The activity trail and its empty state reuse
+   the .profile-timeline and .profile-empty rules the Security & privacy page
+   also uses. */
 
-.profile-hero {
+.programs-page.prf {
+  gap: 18px;
+}
+
+.prf-hero {
   position: relative;
   overflow: hidden;
   display: flex;
@@ -2263,7 +2860,7 @@ code {
   box-shadow: 0 10px 30px rgba(6, 20, 12, 0.25);
 }
 
-.profile-hero::before {
+.prf-hero::before {
   content: '';
   position: absolute;
   inset: 0 0 auto;
@@ -2271,15 +2868,29 @@ code {
   background: linear-gradient(90deg, var(--primary-light), var(--primary));
 }
 
-.profile-hero__left {
+.prf-hero__left {
   display: flex;
   align-items: center;
   gap: 18px;
   min-width: 0;
 }
 
-/* Big initials tile; the ::after dot is the role's status tint. */
-.profile-avatar {
+.prf-hero__titles h2 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.prf-hero__titles p {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+/* Big initials tile; its dot takes the role's tint. */
+.prf-avatar {
   position: relative;
   width: 76px;
   height: 76px;
@@ -2295,11 +2906,12 @@ code {
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
-.profile-avatar::after {
+.prf-avatar::after {
   content: '';
   position: absolute;
   right: -2px;
   bottom: -2px;
+  z-index: 1;
   width: 19px;
   height: 19px;
   border-radius: 50%;
@@ -2307,49 +2919,27 @@ code {
   border: 3px solid #16342a;
 }
 
-.profile-hero[data-role='manager'] .profile-avatar::after { background: #a3e635; }
-.profile-hero[data-role='user'] .profile-avatar::after { background: #94a3b8; }
+.prf-hero[data-role='manager'] .prf-avatar::after { background: #a3e635; }
+.prf-hero[data-role='user'] .prf-avatar::after { background: #94a3b8; }
 
-/* The status dot sits above a profile picture too. */
-.profile-hero .profile-avatar::after { z-index: 1; }
-
-/* Profile pictures fill their tile and keep the rounded shape. */
-.profile-avatar__img {
-  inset: 0;
-  animation: cardIn 0.36s var(--ease-spring) both;
-}
-.profile-avatar__img,
-.profile-identity__avatar .profile-avatar__img {
+.prf-avatar__img {
   position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   border-radius: inherit;
   object-fit: cover;
 }
 
-.profile-hero__titles h2 {
-  margin: 0;
-  font-size: 21px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  color: #fff;
-}
-
-.profile-hero__titles p {
-  margin: 3px 0 0;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.65);
-}
-
-/* Fact chips on the hero's right: role, member since, activity. */
-.profile-facts {
+/* Fact chips on the hero's right: role, member since, last activity. */
+.prf-chips {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
 }
 
-.profile-chip {
+.prf-chip {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2363,14 +2953,17 @@ code {
   -webkit-backdrop-filter: blur(6px);
 }
 
-.profile-chip svg { opacity: 0.75; flex-shrink: 0; }
+.prf-chip svg {
+  flex-shrink: 0;
+  opacity: 0.8;
+}
 
 @keyframes profilePulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.45); }
   50% { box-shadow: 0 0 0 5px rgba(34, 197, 94, 0); }
 }
 
-.profile-chip__dot {
+.prf-chip__dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -2378,10 +2971,396 @@ code {
   animation: profilePulse 2.2s infinite;
 }
 
-/* Grey steady dot when the newest entry is older than a day (or absent). */
-.profile-chip__dot--idle {
+/* A grey, still dot when the newest entry is older than a day or absent. */
+.prf-chip__dot--idle {
   background: #94a3b8;
   animation: none;
+}
+
+/* Two columns at the concept's 1.1fr / 0.9fr. */
+.prf-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 18px;
+}
+
+.prf-col {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.prf-panel {
+  min-width: 0;
+  padding: 20px;
+  border-radius: 16px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  transition: box-shadow 0.2s var(--ease-spring);
+}
+
+.prf-panel:hover {
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.1), 0 2px 8px rgba(6, 20, 12, 0.07);
+}
+
+.prf-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.prf-panel__head h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.prf-panel__head h3 svg {
+  color: var(--primary);
+}
+
+.prf-panel__hint {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* The 58px initials tile used by the identity card and the photo row. */
+.prf-mini {
+  position: relative;
+  width: 58px;
+  height: 58px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  overflow: hidden;
+  color: #fff;
+  font-weight: 800;
+  font-size: 18px;
+  background: linear-gradient(135deg, var(--primary-light), var(--primary));
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+}
+
+.prf-mini img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Identity card */
+.prf-identity__main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.prf-identity__who {
+  flex: 1;
+  min-width: 0;
+}
+
+.prf-identity__name {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.prf-identity__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 5px;
+  font-size: 13px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.prf-identity__meta svg {
+  flex-shrink: 0;
+}
+
+.prf-verified {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: var(--primary-dark);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+/* Role badge: green for admin, lime for manager, grey for faculty, as the concept. */
+.prf-role {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: #16a34a;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.25);
+}
+
+.prf-role--manager {
+  background: #dcfce7;
+  color: #166534;
+  box-shadow: none;
+}
+
+.prf-role--user {
+  background: #f1f5f9;
+  color: #475569;
+  box-shadow: none;
+}
+
+.prf-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.prf-tile {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-soft);
+}
+
+.prf-tile__k {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.prf-tile__v {
+  display: block;
+  margin-top: 5px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.prf-tile__v small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+/* Profile information */
+.prf-photo {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.prf-photo__tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+}
+
+.prf-photo__hint {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.prf-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 18px;
+  margin-top: 18px;
+}
+
+.prf-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.prf-field--wide {
+  grid-column: span 2;
+}
+
+.prf-field__k {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.prf-field__k svg {
+  color: var(--primary);
+}
+
+.prf-field__v {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 20px;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.prf-field__v-muted {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.prf-nick {
+  font-style: italic;
+}
+
+.prf-field__foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.prf-field__note {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.prf-count {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.prf-dirty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid #bbe7c9;
+  border-radius: 10px;
+  background: #dcfce7;
+  color: var(--primary-dark);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.prf-dirty svg {
+  flex-shrink: 0;
+}
+
+.prf-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.prf-notes .msg {
+  margin: 0;
+}
+
+.prf-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+/* Security summary */
+.prf-security__text {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+.prf-security__btn {
+  width: 100%;
+}
+
+.prf-foot {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 16px 0 0;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.prf-foot svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--primary);
+}
+
+@media (max-width: 880px) {
+  .prf-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .prf-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .prf-chips {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 520px) {
+  .prf-hero {
+    padding: 20px;
+    border-radius: 14px;
+  }
+
+  .prf-facts,
+  .prf-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .prf-field--wide {
+    grid-column: auto;
+  }
 }
 
 .profile-grid {
@@ -2435,176 +3414,6 @@ code {
   min-height: 0;
 }
 
-/* Card with the identity avatar, e-mail, role badge and fact tiles. */
-.profile-identity__main {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.profile-identity__who { min-width: 0; }
-
-.profile-identity__handle {
-  font-weight: 600;
-  color: var(--text);
-}
-
-/* The identity avatar is a button that opens the file picker; the hover
-   strip says so. The avatar keeps its initials look underneath. */
-.profile-identity__avatar-btn {
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: pointer;
-  display: inline-flex;
-  font: inherit;
-  flex-shrink: 0;
-}
-
-.profile-identity__avatar {
-  position: relative;
-  width: 58px;
-  height: 58px;
-  border-radius: 18px;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  font-weight: 800;
-  font-size: 18px;
-  background: linear-gradient(135deg, var(--primary-light), var(--primary));
-  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
-  overflow: hidden;
-}
-
-.profile-identity__avatar-btn:disabled { cursor: default; opacity: 0.85; }
-
-.profile-identity__avatar-btn:not(:disabled) .profile-identity__avatar:hover {
-  box-shadow: 0 6px 16px rgba(22, 163, 74, 0.42);
-}
-
-.profile-identity__avatar-overlay {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  border-radius: inherit;
-  background: rgba(6, 20, 12, 0.5);
-  color: #fff;
-  font-size: 11.5px;
-  font-weight: 700;
-  opacity: 0;
-  transition: opacity 0.15s var(--ease-smooth);
-  pointer-events: none;
-}
-
-.profile-identity__avatar-btn:hover .profile-identity__avatar-overlay,
-.profile-identity__avatar-btn:focus-visible .profile-identity__avatar-overlay {
-  opacity: 1;
-}
-
-.profile-identity__name {
-  font-size: 17px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
-  color: var(--text);
-  overflow-wrap: anywhere;
-}
-
-.profile-identity__meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 5px;
-  font-size: 13px;
-  color: var(--text-muted);
-}
-
-.profile-identity__main > .role-badge { margin-left: auto; flex-shrink: 0; }
-
-.profile-verified {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: #dcfce7;
-  color: var(--primary-dark);
-  font-size: 11.5px;
-  font-weight: 700;
-}
-
-.profile-facts-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.profile-tile {
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-soft);
-}
-
-.profile-tile__k {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.profile-tile__v {
-  display: block;
-  margin-top: 5px;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text);
-}
-
-.profile-tile__v small {
-  display: block;
-  margin-top: 2px;
-  font-weight: 500;
-  font-size: 11.5px;
-  color: var(--text-muted);
-}
-
-/* Editing state strip: green while changes await a save, amber when empty. */
-.profile-note {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 6px 0 0;
-  padding: 8px 12px;
-  border: 1px solid #bbe7c9;
-  border-radius: 10px;
-  background: #dcfce7;
-  color: var(--primary-dark);
-  font-size: 12.5px;
-  font-weight: 600;
-}
-
-.profile-note svg { flex-shrink: 0; }
-
-.profile-note--warn {
-  border-color: #fde68a;
-  background: #fef9c3;
-  color: #854d0e;
-}
-
-.profile-note-plain {
-  margin: 2px 0 0;
-  font-size: 12.5px;
-  color: var(--text-muted);
-}
-
 /* Fresh account, empty trail: a dashed placeholder instead of a bare
    sentence, so the stretched activity card never reads as broken. */
 .profile-empty {
@@ -2639,14 +3448,6 @@ code {
 .profile-empty span {
   font-size: 12px;
   line-height: 1.5;
-}
-
-/* Discard + Save in one row; Discard only renders while there are edits. */
-.profile-card__actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 8px;
 }
 
 /* Password checklist: ticks fill as the rules are satisfied. */
@@ -2859,13 +3660,95 @@ code {
 
 @media (max-width: 880px) {
   .profile-grid { grid-template-columns: 1fr; }
-  .profile-hero { flex-direction: column; align-items: flex-start; }
-  .profile-facts { justify-content: flex-start; }
 }
 
-@media (max-width: 520px) {
-  .profile-facts-grid { grid-template-columns: 1fr; }
-  .profile-hero { padding: 20px; border-radius: 14px; }
+/* Status pill (Account status field) */
+.status-pill {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 12px; font-weight: 700;
+  border-radius: 999px; padding: 4px 12px;
+}
+.status-pill__dot { width: 7px; height: 7px; border-radius: 50%; }
+.status-pill--active { background: #dcfce7; color: var(--primary-dark); }
+.status-pill--active .status-pill__dot { background: #16a34a; }
+.status-pill--archived { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+.status-pill--archived .status-pill__dot { background: #94a3b8; }
+
+/* Text-style link buttons (activity head + removal links) */
+.pf-link {
+  background: none; border: none; cursor: pointer; font: inherit;
+  font-size: 12.5px; font-weight: 700; color: var(--primary-dark);
+  padding: 2px 4px; border-radius: 6px;
+  transition: color .15s, background .15s;
+}
+.pf-link:hover { color: var(--primary); background: rgba(34, 197, 94, 0.08); }
+.pf-link:disabled { color: var(--text-muted); cursor: not-allowed; background: none; }
+.pf-link:focus-visible { outline: 2px solid rgba(34, 197, 94, 0.65); outline-offset: 2px; }
+
+/* ============================================================
+   SECURITY & PRIVACY page additions
+   reuses .profile-card / .profile-input-wrap / .profile-req* /
+   .profile-strength / .profile-timeline from the profile page.
+   ============================================================ */
+
+.sec-hero__title { margin: 0; font-size: 17px; font-weight: 800; letter-spacing: -.01em; color: var(--text); }
+.sec-hero__sub { margin: 2px 0 0; font-size: 12.5px; color: var(--text-muted); }
+
+/* Session row */
+.sess-row {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--bg-soft); border: 1px solid var(--border);
+  border-radius: 12px; padding: 12px 14px;
+}
+.sess-row__icon {
+  width: 38px; height: 38px; border-radius: 12px; flex-shrink: 0;
+  display: grid; place-items: center;
+  background: #dcfce7; color: var(--primary-dark);
+}
+.sess-row__who { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.sess-row__who b { font-size: 13.5px; letter-spacing: -.005em; }
+.sess-row__who span { font-size: 12px; color: var(--text-muted); }
+.pill-current {
+  flex-shrink: 0;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  border-radius: 999px; padding: 3px 10px;
+  background: #dcfce7; color: var(--primary-dark);
+}
+.sess-note { margin: 12px 0 0; font-size: 12px; color: var(--text-muted); line-height: 1.55; }
+.sess-signout-btn { margin-top: 14px; align-self: flex-start; }
+
+/* Privacy card */
+.pp-list { margin: 0; padding: 0 0 0 4px; list-style: none; display: flex; flex-direction: column; gap: 9px; }
+.pp-list li {
+  position: relative; padding-left: 18px;
+  font-size: 12.5px; color: var(--text-muted); line-height: 1.55;
+}
+.pp-list li b { color: var(--text); font-weight: 600; }
+.pp-list li::before {
+  content: ''; position: absolute; left: 4px; top: 7px;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--primary-light);
+}
+.pp-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+.pp-loading { margin: 6px 0; font-size: 12.5px; color: var(--text-muted); }
+.pp-foot { margin-top: 12px; }
+
+/* Privacy policy modal */
+.pp-modal { max-width: 620px; }
+.pp-policy { margin: 0; display: flex; flex-direction: column; gap: 12px; }
+.pp-policy dt { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--primary-dark); }
+.pp-policy dd { margin: 4px 0 0; font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+
+/* Confirm dialog */
+.confirm-modal__head h3 { margin: 0; }
+.confirm-modal__warning { color: var(--danger); flex-shrink: 0; }
+.confirm-modal__body { margin: 0 0 8px; font-size: 13px; color: var(--text); line-height: 1.55; }
+.confirm-modal__body--soft { color: var(--text-muted); font-weight: 500; }
+.confirm-modal__body b { font-weight: 700; }
+
+/* Responsive */
+@media (max-width: 720px) {
+  .sess-row { flex-wrap: wrap; }
 }
 
 
@@ -5010,7 +5893,8 @@ button.reports-panel__more:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 50;
+  /* Above the navbar (1100) — a dialog dims and covers the header row too. */
+  z-index: 2000;
   padding: 16px;
 }
 
@@ -5033,7 +5917,8 @@ button.reports-panel__more:hover {
   background: rgba(10, 20, 15, 0.52);
   display: flex;
   flex-direction: column;
-  z-index: 60;
+  /* Above the navbar (1100) — full-screen readers cover everything. */
+  z-index: 2000;
 }
 
 .syl-reader__bar {
@@ -5432,6 +6317,30 @@ button.reports-panel__more:hover {
 
 .clo-form-filters .field {
   margin-bottom: 0;
+}
+
+/* CLO Code entry: the stored code is a bare number, so the "CLO" word is a
+   rendered prefix inside the box — a typed "1" reads as "CLO 1" while the
+   value stays numeric. The field reserves the prefix's width so digits never
+   jump sideways when it appears. */
+.clo-code-input {
+  position: relative;
+}
+
+.clo-code-input__prefix {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  transform: translateY(-50%);
+  font-size: 13px;
+  font-weight: 600;
+  color: #94a3b8;
+  pointer-events: none;
+  user-select: none;
+}
+
+.clo-code-input__field {
+  padding-left: 42px;
 }
 
 .clo-layout__ref-group {
@@ -6979,7 +7888,81 @@ button.reports-panel__more:hover {
   color: rgba(255, 255, 255, 0.85);
 }
 
-/* Greyed helper text on the forgot-password view. */
+/* Amber notice — the expired/already-used recovery link screen keeps its
+   wording friendly while still reading as "attention", not an error red. */
+.login-alert--warn {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: rgba(120, 78, 10, 0.25);
+  border: 1px solid rgba(253, 186, 116, 0.4);
+  color: #fde68a;
+  text-align: left;
+}
+
+.login-alert--warn svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* Success card (screen 4 of the reset redesign): the animated check, the
+   centered title/sub, and the auto-return countdown note. */
+.login-check {
+  display: block;
+  margin: 2px auto 12px;
+}
+
+.login-check circle {
+  fill: rgba(34, 197, 94, 0.12);
+  stroke: #4ade80;
+  stroke-width: 3.5;
+  stroke-dasharray: 260;
+  stroke-dashoffset: 260;
+  animation: login-draw 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.login-check path {
+  fill: none;
+  stroke: #bbf7d0;
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 70;
+  stroke-dashoffset: 70;
+  animation: login-draw 0.5s 0.4s ease-out forwards;
+}
+
+@keyframes login-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+.login-success-title {
+  text-align: center;
+  font-size: 21px;
+  font-weight: 800;
+  margin: 6px 0 8px;
+}
+
+.login-success-sub {
+  text-align: center;
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.75);
+  line-height: 1.55;
+  margin: 0 0 18px;
+}
+
+.login-count-note {
+  text-align: center;
+  margin-top: 14px;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.login-count-note b {
+  color: #bbf7d0;
+}
+
+/* Greyed helper text on the reset views (set-a-new-password, expired link). */
 .login-reset-description {
   margin: 0 0 16px;
   font-size: 13px;
@@ -6987,7 +7970,8 @@ button.reports-panel__more:hover {
   color: rgba(255, 255, 255, 0.6);
 }
 
-/* Self-recovery entry points: under the password field and on the reset view. */
+/* Quiet escape links on the reset views: the exit on the set-a-new-password
+   screen and the back-to-sign-in on the expired-link screen. */
 .login-card .login-reset-link {
   align-self: flex-start;
   background: none;
@@ -7011,6 +7995,56 @@ button.reports-panel__more:hover {
   width: 100%;
   margin-top: 14px;
 }
+
+/* "or" divider between password sign-in and Google sign-in. */
+.login-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 18px 0 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+}
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+/* The white Google button — the one bright element on the green card, so it
+   reads instantly as "different provider, same page". */
+.login-google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1f2937;
+  background: #ffffff;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+  transition: transform 0.12s cubic-bezier(0.16, 1, 0.3, 1), filter 0.15s;
+}
+.login-google-btn:hover { filter: brightness(0.97); }
+.login-google-btn:active { transform: scale(0.985); }
+.login-google-btn:disabled { cursor: wait; opacity: 0.75; transform: none; }
+.login-google-btn:focus-visible {
+  outline: 2px solid rgba(74, 222, 128, 0.9);
+  outline-offset: 2px;
+}
+.login-google-btn svg { flex-shrink: 0; }
 
 @keyframes login-shake {
   0%, 100% { transform: translateX(0); }
@@ -7282,8 +8316,16 @@ button.reports-panel__more:hover {
   .login-btn::after,
   .login-card,
   .login-alert--error,
+  .login-check,
   .login-spinner {
     animation: none;
     transition: none;
+  }
+
+  /* Without the animation the check glyph would hang at dashoffset 260/70 —
+     show the completed strokes immediately instead. */
+  .login-check circle,
+  .login-check path {
+    stroke-dashoffset: 0;
   }
 }

@@ -42,6 +42,7 @@ import {
   poOutcomes,
 } from '../utils/alignment'
 import { buildMappingReport, chartableOutcomes } from '../utils/cloPoMapping'
+import { isManagerCmCategory, isManagerOutcome } from '../utils/report'
 import type { MappingStatus } from '../utils/reportsPdfModel'
 import { normalizeCode } from '../utils/courseCodes'
 import PoCoverageBars from './PoCoverageBars'
@@ -220,7 +221,36 @@ function MapBrief({ profile, onNavigate, children }: MapBriefProps) {
   // ---- the same derivation Generate Map runs ----
   const anchors = useMemo(() => buildAnchors({ cmos, peos, goals }), [cmos, peos, goals])
   const outcomes = useMemo(() => (pos.length > 0 ? poOutcomes(pos, anchors) : []), [pos, anchors])
-  const summary = alignmentSummary(outcomes)
+  // The brief reports the COMMITTED framework: the outcomes the Program
+  // Outcomes page actively offers. Codes parked in the archive (the pre-010
+  // hand-typed drift, deliberately saved for reference) stay out of every
+  // headline figure — counting them said "40 outcomes" over a page that
+  // actively lists 17. An archived spelling that shares a code with an
+  // active row still contributes to that outcome's document unions below
+  // (poOutcomes merges spellings before this filter runs).
+  const activeOutcomes = useMemo(
+    () => outcomes.filter((o) => o.status === 'active'),
+    [outcomes],
+  )
+  const archivedOutcomes = outcomes.length - activeOutcomes.length
+  // The headline reads the OFFICIAL framework: the CMO 25 S. 2015 document,
+  // which migration 010 inserted VERBATIM as manager-sourced rows carrying
+  // one of the two category headers. Recognised the SAME way the manager
+  // page, the syllabus and the report's mapping matrix recognise it
+  // (source='manager' + description in MANAGER_CM_CATEGORIES) — not by the
+  // 'admin' label, which belongs to the other (separately curated) universe.
+  // Everything else active is disclosed in the qualifier, and mapping still
+  // runs on the union of both universes so either stays targetable by CLOs.
+  const officialOutcomes = useMemo(
+    () =>
+      poOutcomes(
+        pos.filter((r) => isManagerOutcome(r) && isManagerCmCategory(r)),
+        anchors,
+      ).filter((o) => o.status === 'active'),
+    [pos, anchors],
+  )
+  const otherActiveOutcomes = activeOutcomes.length - officialOutcomes.length
+  const summary = alignmentSummary(activeOutcomes)
 
   const programCourseList = useMemo(
     () => (program ? coursesInProgram(courses, program.id) : []),
@@ -237,7 +267,9 @@ function MapBrief({ profile, onNavigate, children }: MapBriefProps) {
     [programCourseList],
   )
 
-  const mapping = useMemo(() => buildMappingReport(programClos, outcomes), [programClos, outcomes])
+  // Mapping runs against the active outcome set: a CLO quoting a parked code
+  // is a gap worth surfacing, not a silent match against nothing.
+  const mapping = useMemo(() => buildMappingReport(programClos, activeOutcomes), [programClos, activeOutcomes])
   const charted = useMemo(() => chartableOutcomes(mapping), [mapping])
 
   const courseOutcomeRows = useMemo(
@@ -272,6 +304,12 @@ function MapBrief({ profile, onNavigate, children }: MapBriefProps) {
     return { fully, total: programCourseList.length, percent }
   }, [programCourseList, mappedByCourse])
 
+  // Empty-pipeline honesty: until any faculty member has created the first
+  // CLO, the Coverage qualifier names the state ("0 / 33 subjects — no CLOs
+  // yet") instead of a plain "(0 / 33)" — the same convention the totals-0
+  // branch uses. The value itself keeps the literal 0%.
+  const pipelineEmpty = programClos.length === 0
+
   return (
     <div className="map-brief">
       {error && <p className="msg msg--error" role="alert">{error}</p>}
@@ -303,7 +341,14 @@ function MapBrief({ profile, onNavigate, children }: MapBriefProps) {
               value={programClos.length}
               sub={program ? `${program.code} courses` : 'From all courses'}
             />
-            <KpiCard label="Total PO's" value={summary.outcomes} sub="Program Outcomes" />
+            <KpiCard
+              label="Total PO's"
+              value={officialOutcomes.length}
+              sub={[
+                otherActiveOutcomes > 0 ? `${otherActiveOutcomes} additional` : null,
+                archivedOutcomes > 0 ? `${archivedOutcomes} archived` : null,
+              ].filter(Boolean).join(' · ') || 'Program Outcomes'}
+            />
             <KpiCard
               label="Total PEO's"
               value={peos.length}
@@ -312,12 +357,22 @@ function MapBrief({ profile, onNavigate, children }: MapBriefProps) {
             <KpiCard
               label="Mapping Coverage"
               value={subjectCoverage.total === 0 ? '—' : `${subjectCoverage.percent}%`}
-              sub={`(${subjectCoverage.fully} / ${subjectCoverage.total} subjects)`}
+              sub={
+                subjectCoverage.total === 0
+                  ? 'No subjects in this program yet'
+                  : pipelineEmpty
+                    ? `0 / ${subjectCoverage.total} subjects — no CLOs yet`
+                    : `(${subjectCoverage.fully} / ${subjectCoverage.total} subjects)`
+              }
             />
             <KpiCard
               label="Unmapped / Incomplete"
               value={summary.unaligned + mapping.gaps.length}
-              sub="CLOs / Relationships"
+              sub={
+                pipelineEmpty
+                  ? `${summary.unaligned} unanchored outcomes · no CLOs yet`
+                  : `${mapping.gaps.length} CLOs unmapped · ${summary.unaligned} outcomes unanchored`
+              }
             />
           </div>
 

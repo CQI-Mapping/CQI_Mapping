@@ -136,6 +136,15 @@ function Cell({
       value={value}
       placeholder={placeholder}
       aria-label={label}
+      // Numeric cells highlight their whole value on focus and keep it after
+      // the click's own processing, so typing a 1 over a prefilled 0 replaces
+      // it — you get "1", never "01". Chromium re-collapses a focus-time
+      // selection when the click's mouse-up lands, so the re-select runs
+      // there. It only re-selects, never preventDefault — cancelling the
+      // mouse-up itself is what left the native stepper believing it was
+      // held down and made the value run away last time.
+      onFocus={(e) => { if (type === 'number') e.currentTarget.select() }}
+      onMouseUp={(e) => { if (type === 'number') e.currentTarget.select() }}
       onChange={(e) => onChange(e.target.value)}
     />
   )
@@ -259,7 +268,16 @@ export default function TosSheetGrid({
                 )}
               </td>
 
-              <td className="tos-td--num">
+              <td
+                className="tos-td--num"
+                onClick={(e) => {
+                  // The green cell is the click target, not just the number
+                  // box: any click inside it finds the input and focuses it
+                  // (which selects the value), Excel-style.
+                  const input = e.currentTarget.querySelector('input')
+                  if (input && document.activeElement !== input) input.focus()
+                }}
+              >
                 {editable ? (
                   <Cell
                     type="number"
@@ -278,7 +296,16 @@ export default function TosSheetGrid({
               <td className="tos-td--num tos-td--formula">{fmt1(weightedFor(sheet, topic))}</td>
 
               {BLOOM_LEVELS.map((level) => (
-                <td key={level} className="tos-td--num">
+                <td
+                  key={level}
+                  className="tos-td--num"
+                  onClick={(e) => {
+                    // Same rule as the hours cell: the whole green cell is
+                    // the edit box, not just the narrow input strip.
+                    const input = e.currentTarget.querySelector('input')
+                    if (input && document.activeElement !== input) input.focus()
+                  }}
+                >
                   {editable ? (
                     <Cell
                       type="number"

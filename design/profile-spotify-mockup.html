@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Profile — Spotify-style Dark Mockup · CQI Monitoring</title>
+<style>
+  /* ============================================================
+     Profile page concept: "Spotify-style dark immersive" (2026).
+     Standalone interactive mockup — a dark island floating inside
+     the app's light sage shell, an emerald→teal→lime aurora banner
+     whose colour bleeds into the whole page, display-size type,
+     frosted-glass cards and glow accents.
+
+     Everything is self-contained: no network, no fonts fetched,
+     no dependencies. Toggles in the demo bar drive every state.
+     ============================================================ */
+
+  /* Rotating conic ring without rotating the shape: animate the
+     gradient's angle itself. Browsers without @property simply get a
+     static ring — still correct, just still. */
+  @property --ring-angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+
+  :root {
+    /* Light shell (mirrors the app's sage backdrop) */
+    --sage-bg: #d8e4d9;
+    /* Dark island */
+    --island: #0d1512;
+    --green: #22c55e;
+    --green-deep: #16a34a;
+    --lime: #a3e635;
+    --teal: #2dd4bf;
+    --tx: #f2f7f4;
+    --tx-muted: #9fb3a8;
+    --tx-soft: #c9d7cf;
+    --glass: rgba(255, 255, 255, 0.045);
+    --glass-brd: rgba(255, 255, 255, 0.09);
+    --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  * { box-sizing: border-box; }
+  ::selection { background: rgba(163, 230, 53, 0.28); }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    /* The app's light sage backdrop — the dark island floats on it. */
+    background-color: var(--sage-bg);
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(22, 163, 74, 0.08), transparent 60%),
+      radial-gradient(ellipse 40% 30% at 100% 0%, rgba(245, 197, 24, 0.05), transparent 55%);
+    color: var(--tx);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- Demo control strip (not part of the real UI) ---------- */
+  .demo-bar {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    margin: 0 auto 18px; max-width: 1080px;
+    background: #0f172a; color: #e2e8f0;
+    border-radius: 12px; padding: 10px 14px;
+    font-size: 12.5px; box-shadow: 0 8px 24px rgba(6, 20, 12, 0.35);
+  }
+  .demo-bar b { color: #86efac; font-weight: 800; margin-right: 4px; letter-spacing: 0.06em; }
+  .demo-bar .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .demo-bar .lbl { color: #94a3b8; font-weight: 700; }
+  .demo-bar button {
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.08);
+    color: inherit; border-radius: 999px; padding: 4px 12px;
+    cursor: pointer; font: inherit; font-size: 12px;
+    transition: background 0.15s, transform 0.15s;
+  }
+  .demo-bar button:hover { background: rgba(255, 255, 255, 0.16); }
+  .demo-bar button[aria-pressed="true"] {
+    background: var(--green); border-color: transparent; color: #052e16; font-weight: 800;
+  }
+  .demo-bar .sep { width: 1px; height: 18px; background: rgba(255, 255, 255, 0.18); }
+
+  .frame { max-width: 1080px; margin: 0 auto; padding: 0 18px 60px; }
+
+  .footnote {
+    margin: 16px auto 0; max-width: 1080px;
+    font-size: 12px; color: #5b6f62; text-align: center; line-height: 1.6;
+  }
+
+  /* ================= THE DARK ISLAND ================= */
+
+  .island {
+    position: relative;
+    overflow: hidden;
+    border-radius: 24px;
+    /* The banner's emerald bleeds down into near-black — the Spotify trick. */
+    background: linear-gradient(180deg, #14352a 0%, var(--island) 340px);
+    box-shadow:
+      0 30px 80px rgba(6, 20, 12, 0.45),
+      inset 0 2px 0 rgba(255, 255, 255, 0.05);
+    padding-bottom: 26px;
+  }
+
+  /* ---------- Banner: aurora wash ---------- */
+  .banner {
+    position: relative;
+    height: 220px;
+    overflow: hidden;
+    background:
+      radial-gradient(600px 300px at 20% 0%, rgba(34, 197, 94, 0.38), transparent 65%),
+      radial-gradient(500px 260px at 85% 20%, rgba(45, 212, 191, 0.3), transparent 65%),
+      linear-gradient(160deg, #0f3d26 0%, #0c2a1c 55%, #0d1512 100%);
+  }
+
+  .blob { position: absolute; border-radius: 50%; filter: blur(70px); will-change: transform; }
+  .blob--a { width: 340px; height: 340px; left: -80px; top: -130px; background: #16a34a; opacity: 0.55; animation: driftA 26s ease-in-out infinite alternate; }
+  .blob--b { width: 280px; height: 280px; right: -60px; top: -50px; background: #2dd4bf; opacity: 0.38; animation: driftB 32s ease-in-out infinite alternate; }
+  .blob--c { width: 220px; height: 220px; left: 38%; top: 30px; background: #a3e635; opacity: 0.16; animation: driftC 24s ease-in-out infinite alternate; }
+
+  @keyframes driftA { to { transform: translate(60px, 45px) scale(1.15); } }
+  @keyframes driftB { to { transform: translate(-50px, 35px) scale(0.9); } }
+  @keyframes driftC { to { transform: translate(-35px, -25px) scale(1.25); } }
+
+  /* Film grain over the wash — keeps big gradients from banding. */
+  .banner__noise {
+    position: absolute; inset: 0; opacity: 0.06; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
+  }
+
+  /* Fade the banner's foot into the island so the header reads on it. */
+  .banner__fade {
+    position: absolute; inset: auto 0 0 0; height: 130px;
+    background: linear-gradient(180deg, transparent, rgba(13, 21, 18, 0.92));
+  }
+
+  /* ---------- Identity header ---------- */
+  .head {
+    position: relative;
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 18px; flex-wrap: wrap;
+    padding: 0 30px;
+    margin-top: -56px; /* the avatar rides the banner's edge */
+  }
+
+  .head__id { display: flex; align-items: flex-end; gap: 20px; min-width: 0; }
+  .head__who { min-width: 0; padding-bottom: 6px; }
+
+  .overline {
+    margin: 0 0 8px;
+    font-size: 12px; font-weight: 800; letter-spacing: 0.24em;
+    text-transform: uppercase; color: var(--lime);
+  }
+
+  /* THE statement: Spotify artist-page scale. */
+  .name {
+    margin: 0;
+    font-size: clamp(38px, 6vw, 62px);
+    font-weight: 900; letter-spacing: -0.035em; line-height: 1.0;
+    color: #fff;
+    display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+    overflow-wrap: anywhere;
+  }
+  .nick {
+    font-size: clamp(18px, 2.6vw, 26px);
+    font-weight: 600; font-style: italic; letter-spacing: 0;
+    color: var(--lime);
+  }
+
+  .head__meta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 7px 14px; border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.13);
+    color: #dbe7e0; font-size: 13px; font-weight: 600;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  }
+  .chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+  .chip--pulse .dot {
+    box-shadow: 0 0 12px rgba(34, 197, 94, 0.9);
+    animation: pulse 2.2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55); }
+    50% { box-shadow: 0 0 0 7px rgba(34, 197, 94, 0); }
+  }
+
+  .status {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 6px 14px; border-radius: 999px;
+    font-size: 12.5px; font-weight: 800;
+  }
+  .status .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .status--active {
+    background: rgba(34, 197, 94, 0.16); border: 1px solid rgba(34, 197, 94, 0.38); color: #86efac;
+    box-shadow: 0 0 14px rgba(34, 197, 94, 0.22);
+  }
+  .status--active .dot { background: var(--green); box-shadow: 0 0 8px rgba(34, 197, 94, 0.9); }
+  .status--archived {
+    background: rgba(148, 163, 184, 0.14); border: 1px solid rgba(148, 163, 184, 0.3); color: #cbd5e1;
+  }
+  .status--archived .dot { background: #94a3b8; }
+
+  /* Avatar: 112px tile inside a slowly rotating conic ring. */
+  .avatar { position: relative; width: 112px; height: 112px; flex-shrink: 0; }
+  .avatar__ring {
+    position: absolute; inset: 0; border-radius: 32px;
+    background: conic-gradient(from var(--ring-angle), #22c55e, #a3e635, #2dd4bf, #22c55e);
+    animation: ringSpin 7s linear infinite;
+    filter: drop-shadow(0 0 18px rgba(34, 197, 94, 0.5));
+  }
+  @keyframes ringSpin { to { --ring-angle: 360deg; } }
+
+  .avatar__img {
+    position: absolute; inset: 4px; border-radius: 28px;
+    background: #0a100d; color: #e8f5ec;
+    display: grid; place-items: center;
+    font-size: 34px; font-weight: 900; letter-spacing: 0.02em;
+    overflow: hidden; z-index: 1;
+  }
+  /* The "photo" state of the mockup: an abstract emerald portrait. */
+  .avatar__img--photo { background: linear-gradient(135deg, #1f6b43, #123524 45%, #2b6f5a); }
+  .avatar__img--photo span { display: none; }
+
+  /* Role-tinted status dot, glowing. */
+  .avatar__dot {
+    position: absolute; right: -5px; bottom: -5px;
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--green); border: 5px solid #10201a;
+    z-index: 2;
+    box-shadow: 0 0 16px rgba(34, 197, 94, 0.85);
+    transition: background 0.25s, box-shadow 0.25s;
+  }
+  [data-role='manager'] .avatar__dot { background: var(--lime); box-shadow: 0 0 16px rgba(163, 230, 53, 0.75); }
+  [data-role='user'] .avatar__dot { background: #94a3b8; box-shadow: none; }
+
+  .btn-edit {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 22px; margin-bottom: 10px;
+    border: none; border-radius: 999px;
+    background: linear-gradient(135deg, #22c55e, #a3e635);
+    color: #052e16; font: inherit; font-size: 14px; font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(34, 197, 94, 0.4);
+    transition: transform 0.2s var(--ease-spring), box-shadow 0.2s;
+  }
+  .btn-edit:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(34, 197, 94, 0.55); }
+  .btn-edit svg { flex-shrink: 0; }
+
+  /* ---------- Cards: dark glass ---------- */
+  .grid {
+    display: grid; grid-template-columns: 1.05fr 0.95fr;
+    gap: 18px; align-items: start;
+    padding: 26px 26px 0;
+  }
+  .activity-wrap { padding: 18px 26px 0; }
+
+  .card {
+    background: var(--glass);
+    border: 1px solid var(--glass-brd);
+    border-radius: 20px;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    padding: 24px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    transition: transform 0.28s var(--ease-spring), border-color 0.28s, box-shadow 0.28s;
+    animation: cardIn 0.5s var(--ease-spring) both;
+  }
+  .grid .card:nth-child(2) { animation-delay: 0.07s; }
+  .activity-wrap .card { animation-delay: 0.14s; }
+  .card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(255, 255, 255, 0.16);
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45), 0 0 26px rgba(34, 197, 94, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(14px) scale(0.985); }
+    to { opacity: 1; transform: none; }
+  }
+
+  .card__head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 10px; flex-wrap: wrap; margin-bottom: 16px;
+  }
+  .card__head h2 {
+    margin: 0; font-size: 15px; font-weight: 800; letter-spacing: -0.01em;
+    color: var(--tx); display: flex; align-items: center; gap: 9px;
+  }
+  .card__head h2 svg { color: var(--lime); flex-shrink: 0; }
+  .card__sub { font-size: 12px; color: var(--tx-muted); }
+
+  /* ---------- Completion meter ---------- */
+  .meter { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  .meter__bar {
+    position: relative; flex: 1 1 130px; height: 7px;
+    border-radius: 999px; background: rgba(255, 255, 255, 0.09);
+    overflow: hidden;
+  }
+  .meter__fill {
+    position: absolute; inset: 0 auto 0 0; border-radius: inherit;
+    background: linear-gradient(90deg, #16a34a, #22c55e, #a3e635);
+    box-shadow: 0 0 12px rgba(34, 197, 94, 0.7);
+    transition: width 0.6s var(--ease-spring);
+  }
+  .meter__fill::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.35) 50%, transparent 70%);
+    background-size: 200% 100%;
+    animation: shimmer 2.6s linear infinite;
+  }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+  .meter__label { font-size: 12.5px; font-weight: 700; color: var(--tx-muted); flex-shrink: 0; }
+  .meter__link {
+    background: none; border: none; cursor: pointer; font: inherit;
+    font-size: 12.5px; font-weight: 800; color: var(--lime);
+    padding: 2px 5px; border-radius: 6px;
+    transition: color 0.15s, background 0.15s;
+  }
+  .meter__link:hover { color: #d9f99d; background: rgba(163, 230, 53, 0.12); }
+
+  /* ---------- Public profile card ---------- */
+  .photo { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .photo__img {
+    position: relative; width: 64px; height: 64px; flex-shrink: 0;
+    border-radius: 18px; overflow: hidden;
+    background: linear-gradient(135deg, #16a34a, #0f3d26);
+    color: #e8f5ec; display: grid; place-items: center;
+    font-weight: 900; font-size: 20px;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  }
+  .photo__img--photo { background: linear-gradient(135deg, #1f6b43, #123524 45%, #2b6f5a); }
+  .photo__img--photo span { display: none; }
+  .photo__tools { display: flex; flex-direction: column; align-items: flex-start; gap: 7px; min-width: 0; }
+  .photo__btns { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .photo__hint { font-size: 11.5px; color: var(--tx-muted); }
+
+  .form { display: flex; flex-direction: column; gap: 18px; margin-top: 20px; }
+  .field label { font-size: 13px; font-weight: 700; color: var(--tx-soft); }
+  .field .value { margin: 7px 0 0; font-size: 16px; font-weight: 700; color: var(--tx); line-height: 1.45; }
+  .value .mut { color: var(--tx-muted); font-weight: 500; }
+  .value .nick-v { font-style: italic; color: var(--lime); }
+
+  .field input {
+    width: 100%; margin-top: 7px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 12px; padding: 12px 14px;
+    color: var(--tx); font: inherit; font-size: 15px;
+    transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  }
+  .field input::placeholder { color: #6b7f74; }
+  .field input:focus {
+    outline: none; border-color: var(--green);
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.25);
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+  .btn {
+    padding: 11px 20px; border-radius: 999px;
+    font: inherit; font-size: 14px; font-weight: 800;
+    cursor: pointer; border: 1px solid transparent;
+    transition: transform 0.2s var(--ease-spring), box-shadow 0.2s, background 0.2s;
+  }
+  .btn--ghost {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.16); color: #dbe7e0;
+  }
+  .btn--ghost:hover { background: rgba(255, 255, 255, 0.12); transform: translateY(-1px); }
+  .btn--primary {
+    background: linear-gradient(135deg, #22c55e, #a3e635); color: #052e16;
+    box-shadow: 0 8px 22px rgba(34, 197, 94, 0.4);
+  }
+  .btn--primary:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(34, 197, 94, 0.55); }
+
+  .link {
+    background: none; border: none; cursor: pointer; font: inherit;
+    font-size: 12.5px; font-weight: 800; color: var(--lime);
+    padding: 2px 5px; border-radius: 6px;
+  }
+  .link:hover { color: #d9f99d; background: rgba(163, 230, 53, 0.12); }
+
+  /* ---------- Account details card ---------- */
+  .rows { margin: 0; }
+  .row {
+    display: grid; grid-template-columns: 150px 1fr; gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  }
+  .row:last-of-type { border-bottom: none; }
+  .row dt { font-size: 13px; font-weight: 500; color: var(--tx-muted); line-height: 1.5; align-self: start; padding-top: 2px; }
+  .row dd {
+    margin: 0; font-size: 15.5px; font-weight: 700; color: var(--tx);
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    overflow-wrap: anywhere; line-height: 1.5;
+  }
+  .row .cap { font-size: 12px; font-weight: 500; color: var(--tx-muted); width: 100%; }
+
+  .badge--role {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 5px 13px; border-radius: 999px;
+    font-size: 12px; font-weight: 800;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    color: #e6efe9;
+  }
+  .badge--role .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px rgba(34, 197, 94, 0.8); }
+  [data-role='manager'] .badge--role .dot { background: var(--lime); box-shadow: 0 0 8px rgba(163, 230, 53, 0.7); }
+  [data-role='user'] .badge--role .dot { background: #94a3b8; box-shadow: none; }
+
+  .pill--verified {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 999px;
+    background: rgba(34, 197, 94, 0.16);
+    border: 1px solid rgba(34, 197, 94, 0.38);
+    color: #86efac; font-size: 11px; font-weight: 800;
+    box-shadow: 0 0 10px rgba(34, 197, 94, 0.25);
+  }
+
+  .rows__foot {
+    display: flex; align-items: flex-start; gap: 9px;
+    margin-top: 16px; padding-top: 14px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.14);
+    font-size: 12.5px; color: var(--tx-muted); line-height: 1.6;
+  }
+  .rows__foot svg { flex-shrink: 0; margin-top: 2px; color: var(--green); }
+
+  /* ---------- Activity timeline ---------- */
+  .tl { list-style: none; margin: 0; padding: 0; position: relative; }
+  .tl::before {
+    content: ''; position: absolute; left: 6px; top: 10px; bottom: 10px;
+    width: 2px; border-radius: 999px; background: rgba(255, 255, 255, 0.1);
+  }
+  .tl li { position: relative; padding: 0 0 16px 28px; transition: background 0.15s; border-radius: 8px; }
+  .tl li:last-child { padding-bottom: 0; }
+  .tl li::before {
+    content: ''; position: absolute; left: 0; top: 5px;
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--green); border: 2px solid #0d1512;
+    box-shadow: 0 0 12px rgba(34, 197, 94, 0.9);
+  }
+  .tl li:last-child::before { background: #475569; box-shadow: none; }
+  .tl__action { font-size: 15px; font-weight: 700; color: var(--tx); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .tl__time { margin-top: 3px; font-size: 12.5px; color: var(--tx-muted); }
+
+  .pill {
+    padding: 3px 10px; border-radius: 999px;
+    font-size: 10.5px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase;
+  }
+  .pill--auth { background: rgba(250, 204, 21, 0.13); border: 1px solid rgba(250, 204, 21, 0.3); color: #fde68a; }
+  .pill--profile { background: rgba(34, 197, 94, 0.14); border: 1px solid rgba(34, 197, 94, 0.34); color: #86efac; }
+  .pill--browse { background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.14); color: var(--tx-muted); }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 940px) {
+    .grid { grid-template-columns: 1fr; }
+    .head, .grid, .activity-wrap { padding-left: 22px; padding-right: 22px; }
+    .head { margin-top: -52px; }
+  }
+  @media (max-width: 640px) {
+    .banner { height: 170px; }
+    .head { margin-top: -46px; }
+    .avatar { width: 92px; height: 92px; }
+    .avatar__img { font-size: 28px; }
+    .name { font-size: clamp(30px, 9vw, 40px); }
+    .row { grid-template-columns: 1fr; gap: 4px; }
+  }
+
+  /* Motion-sensitive visitors keep the design, lose the drift. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+  <!-- Demo controls — every state of the page, one click each. -->
+  <div class="demo-bar">
+    <b>PROFILE MOCKUP</b>
+    <span class="sep"></span>
+    <span class="lbl">Role</span>
+    <span class="chips" id="roleChips">
+      <button type="button" data-role="admin" aria-pressed="true">Admin</button>
+      <button type="button" data-role="manager" aria-pressed="false">Manager</button>
+      <button type="button" data-role="user" aria-pressed="false">Faculty</button>
+    </span>
+    <span class="sep"></span>
+    <span class="lbl">State</span>
+    <span class="chips">
+      <button type="button" id="t-photo" aria-pressed="false">Photo</button>
+      <button type="button" id="t-nick" aria-pressed="true">Nickname</button>
+      <button type="button" id="t-archived" aria-pressed="false">Archived</button>
+      <button type="button" id="t-edit" aria-pressed="false">Edit mode</button>
+    </span>
+  </div>
+
+  <main class="frame">
+    <section class="island" id="island" data-role="admin">
+
+      <!-- Banner: the aurora wash. -->
+      <div class="banner" aria-hidden="true">
+        <div class="blob blob--a"></div>
+        <div class="blob blob--b"></div>
+        <div class="blob blob--c"></div>
+        <div class="banner__noise"></div>
+        <div class="banner__fade"></div>
+      </div>
+
+      <!-- Identity header. -->
+      <header class="head">
+        <div class="head__id">
+          <div class="avatar">
+            <span class="avatar__ring" aria-hidden="true"></span>
+            <div class="avatar__img" id="avatarImg"><span>JD</span></div>
+            <span class="avatar__dot" aria-hidden="true"></span>
+          </div>
+          <div class="head__who">
+            <p class="overline">Profile</p>
+            <h1 class="name">
+              Juan Dela Cruz
+              <span class="nick" id="headNick">“Bebot”</span>
+            </h1>
+            <div class="head__meta">
+              <span class="chip">
+                <span class="dot" aria-hidden="true"></span>
+                <span id="roleBadge">Admin</span>
+              </span>
+              <span class="chip">Member since Aug 2024</span>
+              <span class="chip chip--pulse">
+                <span class="dot" aria-hidden="true"></span>
+                Active 2h ago
+              </span>
+              <span class="status status--active" id="statusPill">
+                <span class="dot" aria-hidden="true"></span>
+                <span id="statusText">Active</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn-edit" id="editBtn" type="button">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+          Edit profile
+        </button>
+      </header>
+
+      <!-- Two purposeful cards. -->
+      <div class="grid">
+        <!-- Public profile (editable). -->
+        <section class="card" aria-label="Public profile">
+          <div class="card__head">
+            <h2>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              Public profile
+            </h2>
+            <span class="card__sub" id="ppSub">What others see across reports &amp; audit logs</span>
+          </div>
+
+          <!-- Completion meter (hidden while editing or at 100%). -->
+          <div class="meter" id="meter">
+            <span class="meter__bar" aria-hidden="true">
+              <span class="meter__fill" id="meterFill" style="width: 50%"></span>
+            </span>
+            <span class="meter__label" id="meterLabel">Profile 50% complete</span>
+            <button type="button" class="meter__link" id="nickNudge">Add a nickname →</button>
+            <button type="button" class="meter__link" id="photoNudge">Upload a photo →</button>
+          </div>
+
+          <!-- Picture row. -->
+          <div class="photo">
+            <div class="photo__img" id="photoImg"><span>JD</span></div>
+            <div class="photo__tools">
+              <div class="photo__btns">
+                <button class="btn btn--ghost" type="button">Change photo</button>
+                <button class="link" type="button" id="removePhoto">Remove photo</button>
+              </div>
+              <span class="photo__hint">PNG · JPG · WebP · under 2 MB — falls back to Gravatar or initials</span>
+            </div>
+          </div>
+
+          <!-- Names: view vs edit. -->
+          <div class="form">
+            <div class="field">
+              <label for="f-name">Full name</label>
+              <p class="value" id="v-name">Juan Dela Cruz</p>
+              <input id="f-name" type="text" value="Juan Dela Cruz" maxlength="80" hidden />
+            </div>
+            <div class="field">
+              <label for="f-nick">Nickname</label>
+              <p class="value" id="v-nick"><span class="nick-v">“Bebot”</span></p>
+              <input id="f-nick" type="text" value="Bebot" maxlength="40" placeholder="what friends call you — e.g. “Bebot”" hidden />
+            </div>
+          </div>
+
+          <div class="actions" id="actions" hidden>
+            <button class="btn btn--ghost" type="button" id="cancelBtn">Cancel</button>
+            <button class="btn btn--primary" type="button" id="saveBtn">Save changes</button>
+          </div>
+        </section>
+
+        <!-- Account details (read-only). -->
+        <section class="card" aria-label="Account details">
+          <div class="card__head">
+            <h2>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              Account details
+            </h2>
+            <span class="card__sub">Read-only</span>
+          </div>
+
+          <dl class="rows">
+            <div class="row">
+              <dt>Email address</dt>
+              <dd>
+                j.delacruz@nbsc-ics.edu.ph
+                <span class="pill--verified">
+                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+                  Verified
+                </span>
+              </dd>
+            </div>
+            <div class="row">
+              <dt>Academic department</dt>
+              <dd>College of Computer Studies</dd>
+            </div>
+            <div class="row">
+              <dt>Academic program</dt>
+              <dd>BSIT — Information Technology</dd>
+            </div>
+            <div class="row">
+              <dt>Position / designation</dt>
+              <dd>Assistant Professor II</dd>
+            </div>
+            <div class="row">
+              <dt>Assigned system role</dt>
+              <dd>
+                <span class="badge--role"><span class="dot" aria-hidden="true"></span><span id="roleBadge2">Admin</span></span>
+                <small class="cap" id="roleCap">Full system access · users · curriculum · logs</small>
+              </dd>
+            </div>
+            <div class="row">
+              <dt>Account status</dt>
+              <dd>
+                <span class="status status--active" id="statusPill2"><span class="dot" aria-hidden="true"></span><span id="statusText2">Active</span></span>
+                <small class="cap" id="statusCap">signing in and access are enabled</small>
+              </dd>
+            </div>
+          </dl>
+
+          <p class="rows__foot">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Email, department, program, designation and role are set by your administrator —
+            the profile editor only changes your picture and names.
+          </p>
+        </section>
+      </div>
+
+      <!-- Recent activity. -->
+      <div class="activity-wrap">
+        <section class="card" aria-label="Recent activity">
+          <div class="card__head">
+            <h2>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              Recent activity
+            </h2>
+            <button class="link" type="button">Security &amp; privacy →</button>
+          </div>
+
+          <ul class="tl">
+            <li>
+              <div class="tl__action">Signed in <span class="pill pill--auth">Auth</span></div>
+              <div class="tl__time">just now</div>
+            </li>
+            <li>
+              <div class="tl__action">Updated your profile <span class="pill pill--profile">Profile</span></div>
+              <div class="tl__time">2h ago</div>
+            </li>
+            <li>
+              <div class="tl__action">Viewed Programs <span class="pill pill--browse">Browse</span></div>
+              <div class="tl__time">5h ago</div>
+            </li>
+            <li>
+              <div class="tl__action">Signed in <span class="pill pill--auth">Auth</span></div>
+              <div class="tl__time">Yesterday</div>
+            </li>
+            <li>
+              <div class="tl__action">Changed profile picture <span class="pill pill--profile">Profile</span></div>
+              <div class="tl__time">2d ago</div>
+            </li>
+            <li>
+              <div class="tl__action">Viewed Dashboard <span class="pill pill--browse">Browse</span></div>
+              <div class="tl__time">3d ago</div>
+            </li>
+          </ul>
+        </section>
+      </div>
+    </section>
+
+    <p class="footnote">
+      Interactive concept — the toggles above flip every state (role, photo, nickname, archived, edit mode).
+      Nothing here touches the real app until you approve the look.
+    </p>
+  </main>
+
+<script>
+  // Mockup state machine — mirrors the real page's states so every toggle
+  // above is honest about what the app would show.
+  const ROLE_LABEL = { admin: 'Admin', manager: 'Manager', user: 'Faculty' }
+  const ROLE_CAP = {
+    admin: 'Full system access · users · curriculum · logs',
+    manager: 'Reviewer access · curriculum · reports · logs',
+    user: 'Faculty access · own courses · CLOs · TOS',
+  }
+
+  const state = { role: 'admin', photo: false, nickname: true, archived: false, editing: false }
+
+  const $ = (id) => document.getElementById(id)
+  const island = $('island')
+
+  function render() {
+    // Role: dot tints + badge labels everywhere.
+    island.dataset.role = state.role
+    $('roleBadge').textContent = ROLE_LABEL[state.role]
+    $('roleBadge2').textContent = ROLE_LABEL[state.role]
+    $('roleCap').textContent = ROLE_CAP[state.role]
+
+    // Photo: avatar and the small tile swap to the "photo" look.
+    $('avatarImg').classList.toggle('avatar__img--photo', state.photo)
+    $('photoImg').classList.toggle('photo__img--photo', state.photo)
+
+    // Nickname: header quote + card value.
+    $('headNick').style.display = state.nickname ? '' : 'none'
+    $('v-nick').innerHTML = state.nickname
+      ? '<span class="nick-v">“Bebot”</span>'
+      : '<span class="mut">Not set</span>'
+    $('f-nick').value = state.nickname ? 'Bebot' : ''
+
+    // Status: mirrored pill in header and account card.
+    for (const pill of [$('statusPill'), $('statusPill2')]) {
+      pill.className = 'status ' + (state.archived ? 'status--archived' : 'status--active')
+    }
+    $('statusText').textContent = state.archived ? 'Archived' : 'Active'
+    $('statusText2').textContent = state.archived ? 'Archived' : 'Active'
+    $('statusCap').textContent = state.archived
+      ? 'signing in is disabled; contact an administrator'
+      : 'signing in and access are enabled'
+
+    // Completion meter: photo + nickname, hidden while editing or full.
+    const pct = Math.round(((state.photo ? 1 : 0) + (state.nickname ? 1 : 0)) / 2 * 100)
+    $('meterFill').style.width = pct + '%'
+    $('meterLabel').textContent = 'Profile ' + pct + '% complete'
+    $('nickNudge').style.display = state.nickname ? 'none' : ''
+    $('photoNudge').style.display = state.photo ? 'none' : ''
+    $('meter').style.display = state.editing || pct === 100 ? 'none' : 'flex'
+
+    // Editing: swap values for inputs, reveal the action row.
+    $('v-name').hidden = state.editing
+    $('f-name').hidden = !state.editing
+    $('v-nick').hidden = state.editing
+    $('f-nick').hidden = !state.editing
+    $('actions').hidden = !state.editing
+    $('editBtn').style.display = state.editing ? 'none' : ''
+    $('ppSub').textContent = state.editing
+      ? 'Editing name & picture only'
+      : 'What others see across reports & audit logs'
+
+    // Demo-bar pressed states.
+    document.querySelectorAll('#roleChips button').forEach((b) => {
+      b.setAttribute('aria-pressed', String(b.dataset.role === state.role))
+    })
+    $('t-photo').setAttribute('aria-pressed', String(state.photo))
+    $('t-nick').setAttribute('aria-pressed', String(state.nickname))
+    $('t-archived').setAttribute('aria-pressed', String(state.archived))
+    $('t-edit').setAttribute('aria-pressed', String(state.editing))
+  }
+
+  // Role chips.
+  document.querySelectorAll('#roleChips button').forEach((b) => {
+    b.addEventListener('click', () => { state.role = b.dataset.role; render() })
+  })
+
+  // State toggles.
+  $('t-photo').addEventListener('click', () => { state.photo = !state.photo; render() })
+  $('t-nick').addEventListener('click', () => { state.nickname = !state.nickname; render() })
+  $('t-archived').addEventListener('click', () => { state.archived = !state.archived; render() })
+
+  function enterEdit(focusNick) {
+    state.editing = true
+    render()
+    ;(focusNick ? $('f-nick') : $('f-name')).focus()
+  }
+  function exitEdit() { state.editing = false; render() }
+
+  $('t-edit').addEventListener('click', () => {
+    state.editing ? exitEdit() : enterEdit(false)
+  })
+  $('editBtn').addEventListener('click', () => enterEdit(false))
+  $('nickNudge').addEventListener('click', () => enterEdit(true))
+  $('photoNudge').addEventListener('click', () => { state.photo = true; render() })
+  $('removePhoto').addEventListener('click', () => { state.photo = false; render() })
+  $('cancelBtn').addEventListener('click', exitEdit)
+  $('saveBtn').addEventListener('click', () => {
+    // Mockup save: adopt whatever is typed, like the real page would.
+    const name = $('f-name').value.trim()
+    const nick = $('f-nick').value.trim()
+    $('v-name').textContent = name || 'Juan Dela Cruz'
+    if (nick) { state.nickname = true } // saved nicknames count toward completion
+    $('v-nick').innerHTML = nick
+      ? '<span class="nick-v">“' + nick + '”</span>'
+      : '<span class="mut">Not set</span>'
+    $('headNick').textContent = '“' + (nick || 'Bebot') + '”'
+    exitEdit()
+  })
+
+  render()
+</script>
+</body>
+</html>
