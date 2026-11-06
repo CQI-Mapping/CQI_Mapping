@@ -43,6 +43,10 @@ import { reportFileName } from '../../utils/download'
 
 const EMPTY = { code: '', course: '', description: '', programOutcomes: '' }
 
+// Semester tab labels for the category row — the same terms the create
+// form's Semester filter offers (1st, 2nd, Summer).
+const SEM_LABELS: Record<string, string> = { '1': '1st Sem', '2': '2nd Sem', '3': 'Summer' }
+
 // Raw reference lists the syllabus document is built from. The CLO page
 // already loads all of them for its suggestion machinery, so the reader
 // just reuses that fetch instead of querying again.
@@ -79,6 +83,8 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   const [editForm, setEditForm] = useState(EMPTY)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [archived, setArchived] = useState(false)
+  // Semester category tab ('' = all terms). Sits between Active and Archive.
+  const [semCat, setSemCat] = useState('')
   const [query, setQuery] = useState('')
   const [bulkBusy, setBulkBusy] = useState(false)
   // List (default) or grid card style — the user decides per browser.
@@ -113,11 +119,41 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   }, [])
 
   const isActive = (i: CourseLearningOutcomeStandalone) => !i.status || i.status === 'active'
+  // A CLO's term comes from its subject record — the row stores only the
+  // course code, resolved leniently the same way the syllabus reader does.
+  // Rows whose course text matches nothing belong to no term: they stay in
+  // Active and Archive, but no semester tab claims them.
+  const courseSemOf = (i: CourseLearningOutcomeStandalone) => {
+    const c = courses.find((x) => cloMatchesSubject(i.course || '', normalizeCode(x.code)))
+    return c ? String(c.semester ?? '').trim() : ''
+  }
   const q = query.trim().toLowerCase()
   const visible = items
-    .filter((i) => (archived ? !isActive(i) : isActive(i)))
+    .filter((i) => (archived
+      ? !isActive(i)
+      : isActive(i) && (semCat === '' || courseSemOf(i) === semCat)))
     .filter((i) => !q || [i.course, i.code, i.description, i.title].some((v) => (v || '').toLowerCase().includes(q)))
   const archivedCount = items.filter((i) => !isActive(i)).length
+
+  // Semester categories between Active and Archive — one tab per term the
+  // curriculum actually uses, so no permanently empty tab sits in the row.
+  // Badges count active CLOs whose subject runs in that term.
+  const semTabs = useMemo(
+    () =>
+      [...new Set(courses.map((c) => String(c.semester ?? '').trim()).filter(Boolean))]
+        .sort()
+        .map((s) => ({ value: s, label: SEM_LABELS[s] ?? `Sem ${s}` })),
+    [courses],
+  )
+  const semCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const i of items) {
+      if (!isActive(i)) continue
+      const s = courseSemOf(i)
+      if (s) counts.set(s, (counts.get(s) ?? 0) + 1)
+    }
+    return counts
+  }, [items, courses])
 
   // ── Syllabus reader ──────────────────────────────────────────────────
   // The opened CLO resolves to its subject by lenient course-code matching
@@ -741,9 +777,27 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
       ) : (
         <div className="program-panel">
           <div className="program-toolbar">
-            <div className="sd-tabs" style={{ marginBottom: 0, flex: 1 }}>
-              <button className={`sd-tab ${!archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(false)}>Active</button>
-              <button className={`sd-tab ${archived ? 'sd-tab--active' : ''}`} onClick={() => setArchived(true)}>
+            <div className="sd-tabs" style={{ marginBottom: 0, flex: 1, flexWrap: 'wrap' }}>
+              <button
+                className={`sd-tab ${!archived && semCat === '' ? 'sd-tab--active' : ''}`}
+                onClick={() => { setArchived(false); setSemCat('') }}
+              >Active</button>
+              {semTabs.map((s) => (
+                <button
+                  key={s.value}
+                  className={`sd-tab ${!archived && semCat === s.value ? 'sd-tab--active' : ''}`}
+                  onClick={() => { setArchived(false); setSemCat(s.value) }}
+                >
+                  {s.label}
+                  {(semCounts.get(s.value) ?? 0) > 0 && (
+                    <span className="sd-tab__count">{semCounts.get(s.value)}</span>
+                  )}
+                </button>
+              ))}
+              <button
+                className={`sd-tab ${archived ? 'sd-tab--active' : ''}`}
+                onClick={() => { setArchived(true); setSemCat('') }}
+              >
                 Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
               </button>
             </div>
@@ -773,8 +827,18 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
           </div>
           {visible.length === 0 ? (
             <div className="program-empty" style={{ marginTop: 14 }}>
-              <strong>No course learning outcomes yet.</strong>
-              <span>{query ? `No results for "${query}"` : 'Add your first CLO above.'}</span>
+              <strong>
+                {semCat && !archived
+                  ? `No CLOs for ${SEM_LABELS[semCat] ?? `Sem ${semCat}`} yet.`
+                  : 'No course learning outcomes yet.'}
+              </strong>
+              <span>
+                {query
+                  ? `No results for "${query}"`
+                  : semCat && !archived
+                    ? 'CLOs for subjects taught in this term will appear here.'
+                    : 'Add your first CLO above.'}
+              </span>
             </div>
           ) : viewMode === 'list' ? (
             <div className="resource-list">
