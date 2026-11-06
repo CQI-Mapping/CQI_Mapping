@@ -108,11 +108,17 @@ export default function Users() {
       // link; the name is left blank until the user fills it in on their
       // Profile page.
       const created = await adminCreateUser(createdEmail, '', '', role, programId || null)
-      await addActivityLog('user.created', {
-        entity: 'user',
-        entity_id: created?.id,
-        label: createdEmail,
-      })
+      // An administrator mint gets its own louder trail entry: promoting a
+      // colleague into the highest tier must read differently from the
+      // routine faculty adds that dominate the log.
+      await addActivityLog(
+        role === 'admin' ? 'user.admin_created' : 'user.created',
+        {
+          entity: 'user',
+          entity_id: created?.id,
+          label: createdEmail,
+        },
+      )
       const creator = users.find((u) => u.email === currentEmail)
       const creatorName = creator?.full_name || currentEmail
       const base = creatorName
