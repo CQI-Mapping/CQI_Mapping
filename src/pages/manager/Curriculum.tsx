@@ -16,9 +16,31 @@ import { useViewMode } from '../../hooks/useViewMode'
 import ViewModeToggle from '../../components/ViewModeToggle'
 import Icon from '../../components/icons'
 import type { Resource, Course } from '../../services/database'
+import { labelSchoolYearStart, schoolYearOptions } from '../../utils/schoolYear'
 
 const relId = (v: string | { id: string } | null | undefined) =>
   v && typeof v === 'object' ? v.id : v || ''
+
+/** The school-year picker shared by the create form and the inline edits:
+ *  one row per opening year ("2026-2027"). Left on the placeholder, the
+ *  save falls back to the year written in the curriculum's code. */
+function SyField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <label className="field">
+      <span>School year</span>
+      <select
+        className="input"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        <option value="">— read from code —</option>
+        {schoolYearOptions().map((y) => (
+          <option key={y} value={y}>{y}-{y + 1}</option>
+        ))}
+      </select>
+    </label>
+  )
+}
 
 interface CurriculumProps {
   userEmail: string
@@ -42,11 +64,16 @@ function Curriculum({ userEmail }: CurriculumProps) {
   const [code, setCode] = useState('')
   const [description, setDescription] = useState('')
   const [units, setUnits] = useState('')
+  // School year as the form keeps it — '' means "read it from the code".
+  // The map opens on the current school year's record, so this structured
+  // field is what makes that work without parsing the label by hand.
+  const [syStart, setSyStart] = useState('')
   // Inline-edit state (only one card edits at a time).
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editCode, setEditCode] = useState('')
   const [editDescription, setEditDescription] = useState('')
   const [editUnits, setEditUnits] = useState('')
+  const [editSyStart, setEditSyStart] = useState('')
   const [busy, setBusy] = useState(false)
   const [archived, setArchived] = useState(false)
   const [query, setQuery] = useState('')
@@ -117,7 +144,13 @@ function Curriculum({ userEmail }: CurriculumProps) {
       // The id only exists after the insert, so the audit entry has to wait for
       // the returned row — otherwise a created record goes into the log with no
       // way to trace it back.
-      const created = await createResource(codeValue, description.trim() || null, units === '' ? null : Number(units), userId)
+      const created = await createResource(
+        codeValue,
+        description.trim() || null,
+        units === '' ? null : Number(units),
+        userId,
+        syStart === '' ? labelSchoolYearStart(codeValue) : Number(syStart),
+      )
       await addActivityLog('resource.created', {
         entity: 'resource',
         entity_id: created.id,
@@ -126,6 +159,7 @@ function Curriculum({ userEmail }: CurriculumProps) {
       setCode('')
       setDescription('')
       setUnits('')
+      setSyStart('')
       setMessage('Resource created.')
       load()
     } catch (e) {
@@ -141,6 +175,7 @@ function Curriculum({ userEmail }: CurriculumProps) {
     setEditCode(item.code || '')
     setEditDescription(item.description || '')
     setEditUnits(item.units == null ? '' : String(item.units))
+    setEditSyStart(item.sy_start == null ? '' : String(item.sy_start))
   }
 
   const cancelEdit = () => {
@@ -148,6 +183,7 @@ function Curriculum({ userEmail }: CurriculumProps) {
     setEditCode('')
     setEditDescription('')
     setEditUnits('')
+    setEditSyStart('')
   }
 
   // Save the edited code/description/units + audit entry.
@@ -163,6 +199,7 @@ function Curriculum({ userEmail }: CurriculumProps) {
         code: codeValue,
         description: editDescription.trim() || null,
         units: editUnits === '' ? null : Number(editUnits),
+        sy_start: editSyStart === '' ? labelSchoolYearStart(codeValue) : Number(editSyStart),
       })
       await addActivityLog('resource.updated', {
         entity: 'resource',
@@ -221,6 +258,7 @@ function Curriculum({ userEmail }: CurriculumProps) {
             required
           />
         </label>
+        <SyField value={syStart} onChange={setSyStart} />
         <label className="field">
           <span>Curriculum description</span>
           <textarea
@@ -291,6 +329,7 @@ function Curriculum({ userEmail }: CurriculumProps) {
                         onChange={(e) => setEditCode(e.target.value)}
                       />
                     </label>
+                    <SyField value={editSyStart} onChange={setEditSyStart} />
                     <label className="field">
                       <span>Curriculum description</span>
                       <textarea
@@ -327,6 +366,7 @@ function Curriculum({ userEmail }: CurriculumProps) {
                       <div className="resource-card__meta">
                         <span className={`status-badge status-badge--${item.status}`}>{item.status}</span>
                         {item.units != null && <span>{item.units} unit{item.units === 1 ? '' : 's'}</span>}
+                        {item.sy_start != null && <span>SY {item.sy_start}-{item.sy_start + 1}</span>}
                         <span>by {(typeof item.created_by === 'object' && item.created_by?.full_name) || 'Unknown'}</span>
                         <span>{new Date(item.created_at).toLocaleString()}</span>
                       </div>
@@ -375,6 +415,7 @@ function Curriculum({ userEmail }: CurriculumProps) {
                         onChange={(e) => setEditCode(e.target.value)}
                       />
                     </label>
+                    <SyField value={editSyStart} onChange={setEditSyStart} />
                     <label className="field">
                       <span>Curriculum description</span>
                       <textarea
@@ -416,6 +457,7 @@ function Curriculum({ userEmail }: CurriculumProps) {
                     {item.description && <p className="program-card__desc">{item.description}</p>}
                     <div style={{ display: 'flex', gap: 10, fontSize: 12, color: '#64748b' }}>
                       {item.units != null && <span>{item.units} unit{item.units === 1 ? '' : 's'}</span>}
+                      {item.sy_start != null && <span>SY {item.sy_start}-{item.sy_start + 1}</span>}
                       <span>by {(typeof item.created_by === 'object' && item.created_by?.full_name) || 'Unknown'}</span>
                       <span>{new Date(item.created_at).toLocaleString()}</span>
                     </div>

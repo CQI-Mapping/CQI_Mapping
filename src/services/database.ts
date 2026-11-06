@@ -146,6 +146,12 @@ export interface Resource {
     code: string | null
     description: string | null
     units: number | null
+    /**
+     * The school year's opening year (2026 for SY 2026-2027). Optional
+     * because the column is a migration (020) a database may predate; the
+     * map falls back to the year parsed out of the label when it is unset.
+     */
+    sy_start?: number | null
     status: string
     created_by: string | { full_name: string | null }
     created_at: string
@@ -444,11 +450,12 @@ export async function createResource(
     code: string,
     description: string | null,
     units: number | null,
-    userId: string
+    userId: string,
+    syStart: number | null = null
   ): Promise<Resource> {
     const { data, error } = await supabase
     .from('resources')
-      .insert({ title: code, code, description, units, created_by: userId })
+      .insert({ title: code, code, description, units, sy_start: syStart, created_by: userId })
       .select()
       .single()
     if (error) throw error
@@ -457,7 +464,7 @@ export async function createResource(
 
 export async function updateResource(
   id: string,
-  updates: Partial<Pick<Resource, 'title' | 'code' | 'description' | 'units' | 'status'>>
+  updates: Partial<Pick<Resource, 'title' | 'code' | 'description' | 'units' | 'status' | 'sy_start'>>
 ): Promise<Resource> {
   const { data, error } = await supabase
     .from('resources')
