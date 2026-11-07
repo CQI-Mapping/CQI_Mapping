@@ -146,10 +146,14 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
           accent: '#15803d',
           icon: 'po',
           sub: 'Program outcomes mapping',
+          // The warning names its own basis ("of your 27") so its count
+          // can't be mistaken for another list's rows.
           hint: unreferencedPos
-            ? `${unreferencedPos} PO${unreferencedPos === 1 ? '' : 's'} carry no outcomes`
+            ? unreferencedPos === 1
+              ? `1 of your ${adminPos.length} POs carries no outcomes`
+              : `${unreferencedPos} of your ${adminPos.length} POs carry no outcomes`
             : adminPos.length
-              ? 'Every PO carries outcomes'
+              ? 'All your POs carry outcomes'
               : null,
           warn: unreferencedPos > 0,
           navId: 'program-outcomes',
