@@ -29,7 +29,7 @@
 //     the response reports welcomeEmailSent:false; the user falls back to
 //     "Forgot password" on the sign-in page.
 //
-//   npx supabase secrets set RESEND_API_KEY=re_... WELCOME_FROM_EMAIL="CQI Monitoring <accounts@your-domain>" APP_URL=https://your-app-url
+//   npx supabase secrets set RESEND_API_KEY=re_... WELCOME_FROM_EMAIL="LANTAW <accounts@your-domain>" APP_URL=https://your-app-url
 //
 // Redeploy after changing this file:
 //   npx supabase login
@@ -211,10 +211,10 @@ function buildEmailHtml(args: {
   const escapedRole = escapeHtml(roleLabel)
 
   // Greeting + intro sentence differ between the first invite and a re-send.
-  const title = args.resend ? 'Your CQI Monitoring sign-in link' : 'Welcome to CQI Monitoring'
+  const title = args.resend ? 'Your LANTAW sign-in link' : 'Welcome to LANTAW'
   const intro = args.resend
     ? `Here is a new one-time sign-in link for your account, sent by <b>${inviter}</b>. If your previous link expired or never arrived, use this one.`
-    : `An account has been created for you as a <b>${escapedRole}</b> on the CQI Monitoring System by ${inviter}.`
+    : `An account has been created for you as a <b>${escapedRole}</b> on the LANTAW by ${inviter}.`
 
   let actionBlock: string
   if (args.setupLink) {
@@ -296,13 +296,13 @@ async function sendWelcomeEmail(args: {
   // A fresh invitation re-send: different subject/intro so the recipient
   // isn't left wondering why their account is "created" yet again.
   const intro = args.resend
-    ? `Here is a new one-time sign-in link for your CQI Monitoring System ` +
+    ? `Here is a new one-time sign-in link for your LANTAW ` +
       `(NBSC · Institute of Computer Studies) account, sent by ${args.inviterName}.`
-    : `An account has been created for you on the CQI Monitoring System ` +
+    : `An account has been created for you on the LANTAW ` +
       `(NBSC · Institute of Computer Studies) by ${args.inviterName}.`
   const subject = args.resend
-    ? 'Your CQI Monitoring sign-in link'
-    : 'Welcome to CQI Monitoring'
+    ? 'Your LANTAW sign-in link'
+    : 'Welcome to LANTAW'
   const bodyLines = args.setupLink
     ? `Role: ${roleLabel}\n` +
       `Sign-in email: ${args.to}\n` +
@@ -340,7 +340,7 @@ async function sendWelcomeEmail(args: {
           `Hello ${args.name || args.to},\n\n` +
           intro + `\n\n` +
           bodyLines +
-          `— CQI Monitoring System`,
+          `— LANTAW`,
         html: buildEmailHtml(args),
       }),
     })

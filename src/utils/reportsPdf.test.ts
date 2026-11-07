@@ -106,7 +106,7 @@ const base: ReportsPdfModel = {
     semester: '1',
     generated: 'October 17, 2026, 02:24 PM',
     reportId: 'CQI-OVR-20261017',
-    source: 'CQI Monitoring System',
+    source: 'LANTAW',
   },
   kpis: [
     { label: 'Total Programs', value: '1', sub: 'BSIT' },
@@ -180,7 +180,7 @@ describe('renderReportsPdf masthead and title band', () => {
   renderReportsPdf(doc, base)
 
   it('names the system with the department and tagline', () => {
-    expect(texts.some((t) => t.text === 'CQI MONITORING SYSTEM')).toBe(true)
+    expect(texts.some((t) => t.text === 'LANTAW')).toBe(true)
     expect(texts.some((t) => t.text.includes('BSIT Department'))).toBe(true)
     for (const line of base.meta.tagline) {
       expect(texts.some((t) => t.text === line)).toBe(true)
@@ -319,7 +319,7 @@ describe('renderReportsPdf pagination', () => {
     // The centered `Page N of total` stamp is gone -- it collided with the
     // long department · institute line to its left.
     for (let page = 1; page <= total; page += 1) {
-      expect(texts.some((t) => t.text === 'CQI Monitoring System' && t.page === page)).toBe(true)
+      expect(texts.some((t) => t.text === 'LANTAW' && t.page === page)).toBe(true)
       expect(
         texts.some((t) => t.text === 'Data-Driven Decisions for Quality Education' && t.page === page),
       ).toBe(true)
@@ -327,7 +327,7 @@ describe('renderReportsPdf pagination', () => {
   })
 
   it('identifies the document on every page after the first', () => {
-    const headers = pageOf('CQI MONITORING SYSTEM')
+    const headers = pageOf('LANTAW')
     expect(new Set(headers.map((t) => t.page)).size).toBeGreaterThan(1)
   })
 })

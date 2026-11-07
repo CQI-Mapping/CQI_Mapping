@@ -532,7 +532,7 @@ function SecurityPrivacy({ profile, onNavigate }: SecurityPrivacyProps) {
         <div className="modal-overlay" onClick={() => setPolicyOpen(false)}>
           <div className="modal pp-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Privacy policy">
             <div className="modal__header">
-              <h3>Privacy policy — CQI Monitoring</h3>
+              <h3>Privacy policy — LANTAW</h3>
               <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>NBSC · Institute of Computer Studies</p>
             </div>
             <div className="modal__body">
@@ -545,7 +545,7 @@ function SecurityPrivacy({ profile, onNavigate }: SecurityPrivacyProps) {
                 </dd>
                 <dt>Why we store it</dt>
                 <dd>
-                  The CQI Monitoring System tracks curricula, outcomes, and reports. Your name and role
+                  The LANTAW tracks curricula, outcomes, and reports. Your name and role
                   appear on records and reports you create or review, and the audit trail shows who changed
                   what — that attribution is the point of the monitoring process.
                 </dd>
