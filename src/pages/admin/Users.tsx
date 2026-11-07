@@ -33,6 +33,25 @@ const NICKNAME_MAX_LENGTH = 40
     since a designation like "Department Chairperson" is a mouthful. */
 const ACADEMIC_MAX_LENGTH = 100
 
+// GoTrue's vague blanket error for a failed account INSERT. Everything in the
+// creation transaction is already verified working by the time it reaches the
+// database except one thing: the on_auth_user_created trigger whose handler
+// seeds the profile row (see Migration 020, which heals the two drift causes
+// and reports a third). The raw 500 tells the admin nothing; this hands them
+// the exact next step instead.
+function friendlyCreateError(e: unknown): string {
+  const message = e instanceof Error ? e.message : String(e)
+  if (message === 'Database error creating new user') {
+    return (
+      'The account-seeding trigger on the database is failing — run ' +
+      'supabase/migrations/021-handle-new-user-raw-app-metadata.sql in the Supabase SQL Editor ' +
+      '(it repairs the trigger and its self-running probe reports the exact verdict), then verify with ' +
+      '"node scripts/diag-admin-create.mjs". See README §Troubleshooting.'
+    )
+  }
+  return message
+}
+
 export default function Users() {
   // Draft persists the email across page navigation. No password state:
   // the Edge Function generates one server-side (nobody sees it) and
@@ -108,11 +127,17 @@ export default function Users() {
       // link; the name is left blank until the user fills it in on their
       // Profile page.
       const created = await adminCreateUser(createdEmail, '', '', role, programId || null)
-      await addActivityLog('user.created', {
-        entity: 'user',
-        entity_id: created?.id,
-        label: createdEmail,
-      })
+      // An administrator mint gets its own louder trail entry: promoting a
+      // colleague into the highest tier must read differently from the
+      // routine faculty adds that dominate the log.
+      await addActivityLog(
+        role === 'admin' ? 'user.admin_created' : 'user.created',
+        {
+          entity: 'user',
+          entity_id: created?.id,
+          label: createdEmail,
+        },
+      )
       const creator = users.find((u) => u.email === currentEmail)
       const creatorName = creator?.full_name || currentEmail
       const base = creatorName
@@ -130,7 +155,7 @@ export default function Users() {
       setProgramId('')
       loadUsers()
     } catch (e) {
-      setError('Failed to create user: ' + (e instanceof Error ? e.message : String(e)))
+      setError('Failed to create user: ' + friendlyCreateError(e))
     } finally { setBusy(false) }
   }
 

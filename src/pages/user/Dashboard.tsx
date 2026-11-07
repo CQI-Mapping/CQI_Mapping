@@ -11,13 +11,11 @@ import type { ReactNode } from 'react'
 import {
   fetchCourses,
   fetchCourseLearningOutcomesStandalone,
-  fetchProgramOutcomesStandalone,
 } from '../../services/database'
 import type {
   Profile,
   Course,
   CourseLearningOutcomeStandalone,
-  ProgramOutcomeStandalone,
 } from '../../services/database'
 import CloViewModal from '../../components/CloViewModal'
 import MapBrief from '../../components/MapBrief'
@@ -25,8 +23,8 @@ import MapPreview from '../../components/MapPreview'
 import { useClock } from '../../hooks/useClock'
 import { localISODate, timeGreeting } from '../../utils/clock'
 import { timeAgo } from '../../utils/time'
-import { groupOutcomesBySubject, ownFigures, planNextStep, staleOutcomeRefs, weeklyEditTrend } from '../../utils/facultyDashboard'
-import type { EditWeek, NextStep } from '../../utils/facultyDashboard'
+import { groupOutcomesBySubject, ownFigures, weeklyEditTrend } from '../../utils/facultyDashboard'
+import type { EditWeek } from '../../utils/facultyDashboard'
 
 interface DashboardProps {
   profile: Profile | null
@@ -118,40 +116,6 @@ const ACTIONS: Array<{ page: string; label: string; hint: string; tone: string; 
   },
 ]
 
-type HeroCopy = { title: string; detail: string; action: string | null }
-
-/** The hero's next-step card: what to do next, and the button that starts it. */
-function describeNextStep(next: NextStep): HeroCopy {
-  switch (next.kind) {
-    case 'no-subjects':
-      return {
-        title: 'No subjects yet',
-        detail: 'Outcomes are written against subjects. They appear here once the program adds them.',
-        action: null,
-      }
-    case 'start':
-      return {
-        title: `Start with ${next.subject.code}`,
-        detail: [next.subject.title, 'no active outcomes from you yet'].filter(Boolean).join(' · '),
-        action: 'Write outcomes',
-      }
-    case 'next':
-      return {
-        title: `Next up: ${next.subject.code}`,
-        detail: [
-          next.subject.title,
-          `${next.missing} of ${next.total} subjects still need your outcomes`,
-        ].filter(Boolean).join(' · '),
-        action: 'Continue outcomes',
-      }
-    case 'done':
-      return {
-        title: 'Every subject is covered',
-        detail: 'You hold outcomes for every subject. Keep them current as the program changes.',
-        action: 'Review outcomes',
-      }
-  }
-}
 
 function FacStat({
   icon,
@@ -227,7 +191,6 @@ function EditTrend({ weeks }: { weeks: EditWeek[] }) {
 function Dashboard({ profile, onNavigate }: DashboardProps) {
   const [courses, setCourses] = useState<Course[]>([])
   const [clos, setClos] = useState<CourseLearningOutcomeStandalone[]>([])
-  const [pos, setPos] = useState<ProgramOutcomeStandalone[]>([])
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
   const [viewItem, setViewItem] = useState<CourseLearningOutcomeStandalone | null>(null)
@@ -236,14 +199,12 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
   const lastLoad = useRef(0)
   const load = useCallback(async (opts: { silent?: boolean } = {}) => {
     try {
-      const [courses, outs, outcomes] = await Promise.all([
+      const [courses, outs] = await Promise.all([
         fetchCourses(),
         fetchCourseLearningOutcomesStandalone(),
-        fetchProgramOutcomesStandalone(),
       ])
       setCourses(courses)
       setClos(outs)
-      setPos(outcomes)
       setFailed(false)
       lastLoad.current = Date.now()
     } catch {
@@ -259,10 +220,9 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
   useEffect(() => { void load() }, [load])
 
   // Returning to the tab is the natural moment to catch up: changes made
-  // elsewhere (a manager renaming or archiving a Program Outcome the faculty
-  // member's CLOs point at, a new subject in the curriculum) reach the
-  // figures, the next step and the notice strip without a manual reload.
-  // Throttled so alt-tab wandering cannot hammer the tables.
+  // elsewhere (a manager reworking the curriculum, new subjects) reach the
+  // figures and the next step without a manual reload. Throttled so
+  // alt-tab wandering cannot hammer the tables.
   useEffect(() => {
     const onWake = () => {
       if (document.visibilityState === 'visible' && Date.now() - lastLoad.current >= 30_000) {
@@ -283,21 +243,7 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
   const pending = loading ? 'Loading…' : 'Unavailable right now'
   const figures = useMemo(() => ownFigures(clos, courses, now), [clos, courses, now])
   const trend = useMemo(() => weeklyEditTrend(clos, now), [clos, now])
-
-  // The proactive strip's fuel: the faculty member's references that no
-  // longer resolve since the manager's list moved on. The distinct codes go
-  // in the copy, comma-joined, beyond four collapsed to a count.
-  const stale = useMemo(() => staleOutcomeRefs(clos, pos), [clos, pos])
-  const staleCodes = useMemo(() => {
-    const codes = [...new Set(stale.flatMap((r) => r.missing))]
-    return codes.slice(0, 4).join(', ') + (codes.length > 4 ? ` … +${codes.length - 4} more` : '')
-  }, [stale])
   const subjects = useMemo(() => groupOutcomesBySubject(clos, courses), [clos, courses])
-  const hero = useMemo<HeroCopy>(() => {
-    if (loading) return { title: 'Loading your workspace', detail: '', action: null }
-    if (failed) return { title: 'Could not load your outcomes', detail: 'Refresh the page to try again.', action: null }
-    return describeNextStep(planNextStep(courses, clos))
-  }, [loading, failed, courses, clos])
   const name = profile?.nickname || profile?.full_name || profile?.email?.split('@')[0] || 'Welcome'
 
   return (
@@ -322,50 +268,7 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
           </p>
         </div>
 
-        <aside className="fac-next" aria-label="Next step">
-          <span className="fac-next__label">Next step</span>
-          <h2 className="fac-next__title">{hero.title}</h2>
-          {hero.detail && <p className="fac-next__detail">{hero.detail}</p>}
-          {hero.action && (
-            <button type="button" className="btn btn--primary fac-next__btn" onClick={() => go('clo')}>
-              {hero.action} →
-            </button>
-          )}
-        </aside>
       </section>
-
-      {ready && stale.length > 0 && (
-        <div
-          role="status"
-          className="fac-notice"
-          style={{
-            display: 'flex', alignItems: 'center', gap: 10,
-            background: '#fefce8', border: '1px solid #fde047',
-            color: '#713f12', padding: '10px 14px', borderRadius: 12,
-          }}
-        >
-          <span style={{ color: '#a16207', flexShrink: 0 }}>
-            <Glyph size={16}>
-              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-              <line x1="12" y1="9" x2="12" y2="13" />
-              <line x1="12" y1="17" x2="12.01" y2="17" />
-            </Glyph>
-          </span>
-          <p style={{ flex: 1, fontSize: 13, lineHeight: 1.5, margin: 0 }}>
-            {stale.length} of your outcome{stale.length === 1 ? '' : 's'} point{stale.length === 1 ? 's' : ''} at a
-            Program Outcome that no longer exists — <strong>{staleCodes}</strong>. The manager's
-            list changed since you wrote them.
-          </p>
-          <button
-            type="button"
-            className="btn btn--ghost btn--sm"
-            style={{ color: '#713f12', borderColor: '#fde047', flexShrink: 0 }}
-            onClick={() => go('clo')}
-          >
-            Review →
-          </button>
-        </div>
-      )}
 
       <div className="fac-stats" aria-busy={loading}>
         <FacStat
@@ -442,6 +345,10 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
           self-contained: it fetches its own data and carries its own panel
           frame and Generate Map link. */}
       <MapPreview profile={profile} onNavigate={onNavigate} />
+
+      <section className="fac-program">
+        <MapBrief profile={profile} onNavigate={onNavigate} />
+      </section>
 
       <div className="fac-main">
         <section className="fac-card card-enter" aria-labelledby="fac-subjects-title">
@@ -523,14 +430,6 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
           </footer>
         </section>
       </div>
-
-      <section className="fac-program" aria-labelledby="fac-program-title">
-        <header className="fac-program__head">
-          <h2 id="fac-program-title">Program at a glance</h2>
-          <p>The curriculum on this account. The figures update as outcomes change.</p>
-        </header>
-        <MapBrief profile={profile} onNavigate={onNavigate} />
-      </section>
 
       {viewItem && <CloViewModal item={viewItem} onClose={() => setViewItem(null)} />}
     </div>

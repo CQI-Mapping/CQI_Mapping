@@ -408,7 +408,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
           semester: reportSemester,
           generated,
           reportId: `CQI-OVR-${stamp}`,
-          source: 'CQI Monitoring System',
+          source: 'LANTAW',
         },
         kpis: [
           { label: 'Total Programs', value: String(programs.length), sub: program!.code },
@@ -628,7 +628,7 @@ function Reports({ profile, onNavigate }: ReportsProps) {
               <span className="reports-footer__mark">
                 <Icon name="cap" size={15} />
               </span>
-              CQI Monitoring System
+              LANTAW
               <span className="reports-footer__sep">|</span>
               {program ? `${program.code} Department` : 'All Programs'}
               <span className="reports-footer__sep">·</span>

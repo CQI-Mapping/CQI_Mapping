@@ -55,6 +55,7 @@ import {
   buildSchoolYearOptions,
   buildExamTypeOptions,
   composeTerm,
+  SEMESTERS,
   describeTosError,
   programIdForLabel,
 } from '../../utils/tosOptions'
@@ -209,6 +210,12 @@ export default function TOS() {
   const [examList, setExamList] = useState<TosExamRow[]>([])
   const [archived, setArchived] = useState(false)
   const [archivedCount, setArchivedCount] = useState(0)
+  // School-year and semester slicers for the library ('' = all), trailing the
+  // Active/Archive pair the way the CLO page's dropdowns do. Picking one
+  // leaves the archived view and filters the active list, and the status
+  // buttons reset both.
+  const [yearCat, setYearCat] = useState('')
+  const [semCat, setSemCat] = useState('')
   /**
    * The card whose blueprint is open inline, or null.
    *
@@ -579,11 +586,66 @@ export default function TOS() {
   }, [])
 
   // The panel's tab decides which half of the list it shows, the same way the
-  // Curriculum page's Active/Archive tabs do.
+  // Curriculum page's Active/Archive tabs do. The by-year and by-semester
+  // slicers act on the active list only — archived rows are history — and
+  // each axis clears independently. A blueprint whose header left a value
+  // blank is claimed by no slicer; it stays in both views.
+  const yearOf = (r: TosExamRow) => (r.school_year ?? '').trim()
+  const semOf = (r: TosExamRow) => (r.semester ?? '').trim()
   const visibleExams = useMemo(
-    () => examList.filter((r) => (archived ? r.status === 'archived' : r.status !== 'archived')),
-    [examList, archived],
+    () =>
+      examList.filter((r) => (archived
+        ? r.status === 'archived'
+        : r.status !== 'archived'
+          && (yearCat === '' || yearOf(r) === yearCat)
+          && (semCat === '' || semOf(r) === semCat))),
+    [examList, archived, yearCat, semCat],
   )
+
+  // Slicer options from what the active blueprints actually use (the CLO
+  // page's rule): school years sorted by their opening year, semesters in
+  // their listed order with an off-list value trailing. Counts respect the
+  // sibling pick — semester counts live inside the chosen year, year counts
+  // inside the chosen semester.
+  const yearOptions = useMemo(
+    () =>
+      [...new Set(examList.filter((r) => r.status !== 'archived').map(yearOf).filter(Boolean))]
+        .sort((a, b) => (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0) || a.localeCompare(b)),
+    [examList],
+  )
+  const semOptions = useMemo(
+    () =>
+      [...new Set(examList.filter((r) => r.status !== 'archived').map(semOf).filter(Boolean))]
+        .sort((a, b) => {
+          const rank = (s: string) => {
+            const i = SEMESTERS.indexOf(s)
+            return i === -1 ? SEMESTERS.length : i
+          }
+          return rank(a) - rank(b) || a.localeCompare(b)
+        }),
+    [examList],
+  )
+  const semCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const r of examList) {
+      if (r.status === 'archived') continue
+      if (yearCat !== '' && yearOf(r) !== yearCat) continue
+      const s = semOf(r)
+      if (s) counts.set(s, (counts.get(s) ?? 0) + 1)
+    }
+    return counts
+  }, [examList, yearCat])
+  const yearCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const r of examList) {
+      if (r.status === 'archived') continue
+      if (semCat !== '' && semOf(r) !== semCat) continue
+      const y = yearOf(r)
+      if (y) counts.set(y, (counts.get(y) ?? 0) + 1)
+    }
+    return counts
+  }, [examList, semCat])
+  const scopeLabel = [yearCat, semCat].filter(Boolean).join(' · ')
 
   // ---- picker options ---------------------------------------------------
 
@@ -630,7 +692,7 @@ export default function TOS() {
   return (
     <div className="syllabus-doc">
       {/* Screen-only page banner; the document's own letterhead follows. */}
-      <PageBanner title="Generate TOS" sub="Build the table of specifications for every exam you write." />
+      <PageBanner title="Generate TOS" sub="Build the table of specifications — your guide in making the GRASPS." />
 
       {/* ---- exam header ---- */}
       <div className="panel tos-panel no-print">
@@ -828,30 +890,71 @@ export default function TOS() {
           used. */}
       <div className="panel table-wrap tos-library no-print">
         <div className="program-toolbar">
-          <div className="sd-tabs" style={{ marginBottom: 0, flex: 1 }}>
+          <div className="sd-tabs" style={{ marginBottom: 0, flex: 1, flexWrap: 'wrap' }}>
             <button
               className={`sd-tab ${!archived ? 'sd-tab--active' : ''}`}
-              onClick={() => setArchived(false)}
+              onClick={() => { setArchived(false); setYearCat(''); setSemCat('') }}
             >
               Active
             </button>
             <button
               className={`sd-tab ${archived ? 'sd-tab--active' : ''}`}
-              onClick={() => setArchived(true)}
+              onClick={() => { setArchived(true); setYearCat(''); setSemCat('') }}
             >
               Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
             </button>
+            {/* By-year and by-term slicers trail Archive like the CLO page's:
+                picking a value switches to the active view and filters it,
+                "All" clears that axis. Counts in each list respect the other
+                pick. The option labels are the blueprint's own stored
+                header values, so dropdown and card always agree. */}
+            <select
+              className="input input--sm"
+              aria-label="Filter by school year"
+              style={{ width: 'auto', flexShrink: 0, alignSelf: 'center' }}
+              value={yearCat}
+              onChange={(e) => { setYearCat(e.target.value); if (e.target.value) setArchived(false) }}
+            >
+              <option value="">All school years</option>
+              {yearOptions.map((y) => (
+                <option key={y} value={y}>
+                  {(yearCounts.get(y) ?? 0) > 0 ? `${y} (${yearCounts.get(y)})` : y}
+                </option>
+              ))}
+            </select>
+            <select
+              className="input input--sm"
+              aria-label="Filter by semester"
+              style={{ width: 'auto', flexShrink: 0, alignSelf: 'center' }}
+              value={semCat}
+              onChange={(e) => { setSemCat(e.target.value); if (e.target.value) setArchived(false) }}
+            >
+              <option value="">All semesters</option>
+              {semOptions.map((s) => (
+                <option key={s} value={s}>
+                  {(semCounts.get(s) ?? 0) > 0 ? `${s} (${semCounts.get(s)})` : s}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
         <div className="resource-list">
           {visibleExams.length === 0 && (
             <div className="program-empty" style={{ marginTop: 14 }}>
-              <strong>No {archived ? 'archived' : 'saved'} blueprints yet.</strong>
+              <strong>
+                {archived
+                  ? 'No archived blueprints yet.'
+                  : scopeLabel
+                    ? `No blueprints for ${scopeLabel} yet.`
+                    : 'No saved blueprints yet.'}
+              </strong>
               <span>
                 {archived
                   ? 'Archived blueprints stay here — nothing is deleted.'
-                  : 'Fill in the blueprint above and press Save.'}
+                  : scopeLabel
+                    ? 'Blueprints matching the picks will appear here.'
+                    : 'Fill in the blueprint above and press Save.'}
               </span>
             </div>
           )}

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import type { KeyboardEvent } from 'react'
 import {
   fetchAllProfiles,
   fetchStrategicGoals,
@@ -19,32 +20,153 @@ interface DashboardProps {
   onNavigate?: (page: string) => void
 }
 
+/** One KPI tile: the count, where it opens, and a second truth under it —
+ *  the split that makes "how many" an actionable figure. */
+interface StatSpec {
+  label: string
+  value: number
+  accent: string
+  icon: string
+  sub: string
+  /** The extra line under the sub: role split or archived count.
+   *  Optional — the PO tile carries no second line. null when the
+   *  fetch failed. */
+  hint?: string | null
+  /** Warn tone (amber) when the hint names a gap worth acting on. */
+  warn?: boolean
+  /** Where the tile lands; without one the tile stays a figure only. */
+  navId?: string
+  title?: string
+}
+
+// Row-level active rule, the same one the map and CLO pages apply.
+const isActiveRow = <T extends { status?: string }>(x: T) => !x.status || x.status === 'active'
+
+const archivedCountOf = (rows: Array<{ status?: string }>) =>
+  rows.filter((r) => r.status === 'archived').length
+
+// A failed read degrades to an empty array — the tile then reads 0 like the
+// other tables' failures instead of stalling the whole row.
+async function safeRows<T>(fn: () => Promise<T[]>): Promise<T[]> {
+  try {
+    return await fn()
+  } catch {
+    return []
+  }
+}
+
 function Dashboard({ profile, onNavigate }: DashboardProps) {
-  const [stats, setStats] = useState<Array<{ label: string; value: number | null; accent: string; icon: string; sub: string }>>([])
+  const [stats, setStats] = useState<StatSpec[]>([])
   const [recent, setRecent] = useState<ActivityLogEntry[]>([])
   const loading = stats.length === 0
 
   useEffect(() => {
     let cancelled = false
-    const counters = [
-      { label: 'Users', icon: 'users', sub: 'Registered profiles', accent: '#64748b', load: () => fetchAllProfiles() },
-      { label: 'Strategic Goals', icon: 'goals', sub: 'Institutional goals', accent: '#4d7c0f', load: () => fetchStrategicGoals() },
-      { label: 'Program Educational Objectives', icon: 'peo', sub: 'Graduate PEOs', accent: '#4d7c0f', load: () => fetchProgramEducationalObjectives() },
-      { label: 'Program Outcomes', icon: 'po', sub: 'Program outcomes mapping', accent: '#15803d', load: () => fetchProgramOutcomesStandalone() },
-      { label: 'Course Learning Outcomes', icon: 'clo', sub: 'CLOs per course', accent: '#15803d', load: () => fetchCourseLearningOutcomesStandalone() },
-      { label: 'CHED Memo Orders', icon: 'ched', sub: 'CHED policies', accent: '#4d7c0f', load: () => fetchChedMemoOrders() },
-    ]
-    Promise.all(counters.map(async (c) => {
-      try {
-        return { label: c.label, value: (await c.load()).length, accent: c.accent, icon: c.icon, sub: c.sub }
-      } catch {
-        return { label: c.label, value: 0, accent: c.accent, icon: c.icon, sub: c.sub }
+    // Every counter feeds its tile's second truth from the same read, so the
+    // figure and its meaning can never disagree: role split for Users,
+    // archived counts for the archives, and for Program Outcomes the count
+    // of POs no active outcome names — the system's own linkage rule.
+    Promise.all([
+      safeRows(fetchAllProfiles),
+      safeRows(fetchStrategicGoals),
+      safeRows(fetchProgramEducationalObjectives),
+      safeRows(fetchProgramOutcomesStandalone),
+      safeRows(fetchCourseLearningOutcomesStandalone),
+      safeRows(fetchChedMemoOrders),
+    ]).then(([profiles, goals, peos, pos, clos, ched]) => {
+      if (cancelled) return
+      const roles = { admin: 0, manager: 0, user: 0 }
+      for (const p of profiles) {
+        if (p.role === 'admin') roles.admin++
+        else if (p.role === 'manager') roles.manager++
+        else roles.user++
       }
-    }))
-      .then((rows) => { if (!cancelled) setStats(rows) })
+      const activePos = pos.filter(isActiveRow)
+      // The tile mirrors the admin's own Program Outcomes page, which reads
+      // source='admin' — the rows the admin entered. The manager's official
+      // Curriculum-Mapping list sits in the same table as source='manager'
+      // (the shared brief's total already carries it), so this figure is the
+      // admin's own input, active rows only.
+      const adminPos = activePos.filter((p) => p.source === 'admin')
+
+      const setStatsRows: StatSpec[] = [
+        {
+          label: 'Users',
+          value: profiles.length,
+          accent: '#64748b',
+          icon: 'users',
+          sub: 'Registered profiles',
+          hint: profiles.length
+            ? `${roles.admin} admin · ${roles.manager} manager · ${roles.user} faculty`
+            : null,
+          navId: 'users',
+          title: 'Open Users & Accounts',
+        },
+        {
+          label: 'Strategic Goals',
+          value: goals.length,
+          accent: '#4d7c0f',
+          icon: 'goals',
+          sub: 'Institutional goals',
+          hint: goals.length ? `${archivedCountOf(goals)} archived` : null,
+          navId: 'strategic-goals',
+          title: 'Open Strategic Goals',
+        },
+        {
+          label: 'Program Educational Objectives',
+          value: peos.length,
+          accent: '#4d7c0f',
+          icon: 'peo',
+          sub: 'Graduate PEOs',
+          hint: peos.length ? `${archivedCountOf(peos)} archived` : null,
+          navId: 'peos',
+          title: 'Open Program Educational Objectives',
+        },
+        {
+          label: 'Program Outcomes',
+          // The figure mirrors the Program Outcomes page: rows the admin
+          // entered (source='admin'), active only. Archived rows, other
+          // CMO sets and the manager's own list are not this figure.
+          value: adminPos.length,
+          accent: '#15803d',
+          icon: 'po',
+          sub: 'Program outcomes mapping',
+          navId: 'program-outcomes',
+          title: 'Open Program Outcomes',
+        },
+        {
+          label: 'Course Learning Outcomes',
+          value: clos.length,
+          accent: '#15803d',
+          icon: 'clo',
+          sub: 'CLOs per course',
+          hint: clos.length ? `${archivedCountOf(clos)} archived` : null,
+          // Admin manages CLOs through the report's per-course lists —
+          // there is no admin CLO editor page of its own.
+          navId: 'view',
+          title: 'Open Curriculum Report — CLOs per course',
+        },
+        {
+          label: 'CHED Memo Orders',
+          value: ched.length,
+          accent: '#4d7c0f',
+          icon: 'ched',
+          sub: 'CHED policies',
+          hint: ched.length ? `${archivedCountOf(ched)} archived` : null,
+          navId: 'ched-memo',
+          title: 'Open CHED Memorandum Orders',
+        },
+      ]
+      setStats(setStatsRows)
+    })
+    fetchActivityLogs()
+      .then((logs) => {
+        if (!cancelled) setRecent(logs.slice(0, 5))
+      })
       .catch(() => {})
-    fetchActivityLogs().then((logs) => { if (!cancelled) setRecent(logs.slice(0, 5)) }).catch(() => {})
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const go = (id: string) => onNavigate?.(id)
@@ -88,17 +210,44 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
               <span className="stat-card__sub">Loading</span>
             </div>
           ))
-          : stats.map((s) => (
-          <div className="stat-card stat-card--2026 card-enter" key={s.label}>
-            <div className="stat-card__accent" style={{ background: s.accent }} />
-            <div className="stat-card__icon" style={{ background: s.accent, color: '#fff' }}>
-              <StatIcon type={s.icon} />
-            </div>
-            <span className="stat-card__label">{s.label}</span>
-            <span className="stat-card__value">{s.value ?? '—'}</span>
-            <span className="stat-card__sub">{s.sub}</span>
-          </div>
-        ))}
+          : stats.map((s) => {
+            // A live tile behaves like a button (click + Enter/Space open its
+            // page); a tile without a destination stays a plain figure.
+            const live = s.navId
+              ? {
+                  role: 'button' as const,
+                  tabIndex: 0,
+                  title: s.title,
+                  style: { cursor: 'pointer' as const },
+                  onClick: () => go(s.navId!),
+                  onKeyDown: (e: KeyboardEvent<HTMLDivElement>) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      go(s.navId!)
+                    }
+                  },
+                }
+              : {}
+            return (
+              <div className="stat-card stat-card--2026 card-enter" key={s.label} {...live}>
+                <div className="stat-card__accent" style={{ background: s.accent }} />
+                <div className="stat-card__icon" style={{ background: s.accent, color: '#fff' }}>
+                  <StatIcon type={s.icon} />
+                </div>
+                <span className="stat-card__label">{s.label}</span>
+                <span className="stat-card__value">{s.value ?? '—'}</span>
+                <span className="stat-card__sub">{s.sub}</span>
+                {s.hint && (
+                  <span
+                    className="stat-card__hint"
+                    style={{ color: s.warn ? '#b45309' : '#64748b', fontSize: 11, marginTop: 2 }}
+                  >
+                    {s.hint}
+                  </span>
+                )}
+              </div>
+            )
+          })}
       </div>
 
       {/* The program's curriculum at a glance — the blocks that used to open
@@ -106,7 +255,7 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
           between the KPI tiles and the two panels: figures first, then the
           Year·Semester map with amber prerequisite wires and the
           press-to-trace spotlight, then summary + coverage chart. */}
-      <MapBrief profile={profile} onNavigate={onNavigate}>
+      <MapBrief profile={profile} onNavigate={onNavigate} dedupeCoreCounts>
         {/* Picks its curriculum the same way Generate Map's landing boot
             does — the viewer's program, else BSIT, else the first. */}
         <MapPreview profile={profile} onNavigate={onNavigate} />
@@ -128,9 +277,9 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
             </button>
             <button className="quick-action" type="button" onClick={() => go('program-outcomes')}>
               <span className="quick-action__icon" style={{ background: '#15803d' }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"/></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><path d="M3 3v18h18"/><path d="M7 16l3-3 3 3 5-8"/></svg>
               </span>
-              <span className="quick-action__text"><strong>Review Outcomes</strong><small>PO alignment check</small></span>
+              <span className="quick-action__text"><strong>Add Program Outcomes</strong><small>Your own PO list</small></span>
               <svg className="quick-action__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 18l6-6-6-6"/></svg>
             </button>
             <button className="quick-action" type="button" onClick={() => go('subject-view')}>
@@ -138,6 +287,20 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><circle cx="12" cy="12" r="3" /><path d="M19.07 18.93A10 10 0 0 0 21 12M2.93 5.07A10 10 0 0 1 12 3" /><path d="M12 12m-7 0a7 7 0 0 1 14 0" /></svg>
               </span>
               <span className="quick-action__text"><strong>Generate Map</strong><small>Start Visualization</small></span>
+              <svg className="quick-action__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+            <button className="quick-action" type="button" onClick={() => go('view')}>
+              <span className="quick-action__icon" style={{ background: '#15803d' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+              </span>
+              <span className="quick-action__text"><strong>Curriculum Report</strong><small>Print &amp; export views</small></span>
+              <svg className="quick-action__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+            <button className="quick-action" type="button" onClick={() => go('users')}>
+              <span className="quick-action__icon" style={{ background: '#64748b' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              </span>
+              <span className="quick-action__text"><strong>Users &amp; Accounts</strong><small>Roles &amp; access</small></span>
               <svg className="quick-action__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 18l6-6-6-6"/></svg>
             </button>
             <button className="quick-action" type="button" onClick={() => go('activity-logs')}>

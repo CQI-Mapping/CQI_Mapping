@@ -343,7 +343,11 @@ BEGIN
     -- and always seed, so normal account creation is untouched. A
     -- registered email that signs in with Google does not reach this
     -- trigger at all: GoTrue matches the existing row and simply signs in.
-    IF NEW.app_metadata->>'provider' = 'google'
+    -- (2026-11-06: NEW.app_metadata was never a column of auth.users — reading it
+    --  raised 42703 on every INSERT since 017, while CREATE succeeded. GoTrue's
+    --  column for this is raw_app_meta_data. Corrected in place; see
+    --  migrations/021 for the heal + the runtime probe that catches this class.)
+    IF NEW.raw_app_meta_data->>'provider' = 'google'
        AND NOT EXISTS (
            SELECT 1 FROM public.profiles
            WHERE lower(email) = lower(NEW.email)

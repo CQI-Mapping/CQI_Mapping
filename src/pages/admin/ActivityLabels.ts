@@ -92,6 +92,7 @@ export const ACTION_LABELS: Record<string, string> = {
 
   // User administration
   'user.created': 'Created user account',
+  'user.admin_created': 'Created administrator account',
   'user.deleted': 'Deleted user account',
   'user.archived': 'Archived user account',
   'user.restored': 'Restored user account',

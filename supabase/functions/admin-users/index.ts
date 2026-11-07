@@ -29,7 +29,7 @@
 //     the response reports welcomeEmailSent:false; the user falls back to
 //     "Forgot password" on the sign-in page.
 //
-//   npx supabase secrets set RESEND_API_KEY=re_... WELCOME_FROM_EMAIL="CQI Monitoring <accounts@your-domain>" APP_URL=https://your-app-url
+//   npx supabase secrets set RESEND_API_KEY=re_... WELCOME_FROM_EMAIL="LANTAW <accounts@your-domain>" APP_URL=https://your-app-url
 //
 // Redeploy after changing this file:
 //   npx supabase login
@@ -211,10 +211,10 @@ function buildEmailHtml(args: {
   const escapedRole = escapeHtml(roleLabel)
 
   // Greeting + intro sentence differ between the first invite and a re-send.
-  const title = args.resend ? 'Your CQI Monitoring sign-in link' : 'Welcome to CQI Monitoring'
+  const title = args.resend ? 'Your LANTAW sign-in link' : 'Welcome to LANTAW'
   const intro = args.resend
     ? `Here is a new one-time sign-in link for your account, sent by <b>${inviter}</b>. If your previous link expired or never arrived, use this one.`
-    : `An account has been created for you as a <b>${escapedRole}</b> on the CQI Monitoring System by ${inviter}.`
+    : `An account has been created for you as a <b>${escapedRole}</b> on the LANTAW by ${inviter}.`
 
   let actionBlock: string
   if (args.setupLink) {
@@ -296,13 +296,13 @@ async function sendWelcomeEmail(args: {
   // A fresh invitation re-send: different subject/intro so the recipient
   // isn't left wondering why their account is "created" yet again.
   const intro = args.resend
-    ? `Here is a new one-time sign-in link for your CQI Monitoring System ` +
+    ? `Here is a new one-time sign-in link for your LANTAW ` +
       `(NBSC · Institute of Computer Studies) account, sent by ${args.inviterName}.`
-    : `An account has been created for you on the CQI Monitoring System ` +
+    : `An account has been created for you on the LANTAW ` +
       `(NBSC · Institute of Computer Studies) by ${args.inviterName}.`
   const subject = args.resend
-    ? 'Your CQI Monitoring sign-in link'
-    : 'Welcome to CQI Monitoring'
+    ? 'Your LANTAW sign-in link'
+    : 'Welcome to LANTAW'
   const bodyLines = args.setupLink
     ? `Role: ${roleLabel}\n` +
       `Sign-in email: ${args.to}\n` +
@@ -340,7 +340,7 @@ async function sendWelcomeEmail(args: {
           `Hello ${args.name || args.to},\n\n` +
           intro + `\n\n` +
           bodyLines +
-          `— CQI Monitoring System`,
+          `— LANTAW`,
         html: buildEmailHtml(args),
       }),
     })
@@ -453,7 +453,26 @@ Deno.serve(async (req: Request) => {
           email_confirm: true,
           user_metadata: { full_name: fullName || undefined },
         })
-      if (createError) throw createError
+      if (createError) {
+        // The duplicate check happens HERE, on GoTrue's own refusal — there
+        // is no pre-flight: `getUserByEmail` does not exist on the admin API
+        // surface of supabase-js 2.112 (auth users are addressable by id or
+        // by the paginated listUsers only), so a pre-call probe can never
+        // run. GoTrue's refusal surfaces as a clean 400 with resend-invite
+        // guidance instead of a raw 500. The matcher tolerates the phrasings
+        // GoTrue has used across versions — "User already registered" and
+        // the current "has already been registered" split the pair across
+        // the word "been", so matching the two words separately is the only
+        // phrasing-proof test.
+        const raw = createError.message?.toLowerCase() ?? ''
+        if (raw.includes('already') && (raw.includes('registered') || raw.includes('exists'))) {
+          return fail(
+            'This email already has an account — if they need a new sign-in link, use "Resend invite" on their row.',
+            400,
+          )
+        }
+        throw createError
+      }
 
       // The handle_new_user trigger already created a profile row; set role/name.
       const { error: updateError } = await admin
@@ -478,22 +497,31 @@ Deno.serve(async (req: Request) => {
           !!Deno.env.get('RESEND_API_KEY') && !!Deno.env.get('WELCOME_FROM_EMAIL')
         if (resendConfigured) {
           const setupLink = await mintRecoveryLink(email, appUrl)
-          welcomeEmailSent = await sendWelcomeEmail({
-            to: email,
-            name: fullName,
-            role,
-            inviterName,
-            setupLink: setupLink || undefined,
-            passwordGenerated,
-          })
-          if (!welcomeEmailSent) {
-            // Resend rejected the send (wrong recipient for the sandbox
-            // sender until a domain is verified, expired key, outage...).
-            // Fall back to Supabase's built-in mailer so the faculty member
-            // still receives the one-time set-password email rather than
-            // nothing — branded delivery comes back on its own once Resend
-            // accepts the sender/recipient pair.
-            console.error('resend send rejected — falling back to built-in mailer')
+          if (setupLink) {
+            welcomeEmailSent = await sendWelcomeEmail({
+              to: email,
+              name: fullName,
+              role,
+              inviterName,
+              setupLink,
+              passwordGenerated,
+            })
+            if (!welcomeEmailSent) {
+              // Resend rejected the branded copy (sandbox sender until a
+              // domain is verified, expired key, outage...). Minting the
+              // link already dispatched the shared mailer's own recovery
+              // email as a side effect, so a second shared-mailer send
+              // would only duplicate it and burn two of the ~2/hour slots
+              // — count the mint as the delivered email; branded delivery
+              // resumes on its own once Resend accepts the sender pair.
+              console.error(
+                'resend send rejected — the minted link already emailed the one-time link via the shared mailer',
+              )
+              welcomeEmailSent = true
+            }
+          } else {
+            // Mint failed outright, so no side-effect email exists either:
+            // the shared mailer's /recover call is the user's one email.
             welcomeEmailSent = await sendBuiltInRecoveryEmail(email, appUrl)
           }
         } else {
@@ -505,10 +533,16 @@ Deno.serve(async (req: Request) => {
     }
 
     if (body?.action === 'resend') {
-      // Re-invite an existing account: mint a fresh one-time link and email
-      // it (branded via Resend when configured, falling back to Supabase's
-      // built-in mailer). Admins may re-invite any account but their own;
-      // managers only their faculty.
+      // Re-invite an existing account with ONE email: Admins may re-invite
+      // any account but their own; managers only their faculty.
+      //
+      // Channel order comes from minting's side effect (see mintRecoveryLink):
+      // a successful mint already emailed the shared-mailer recovery note, so
+      // the branded Resend copy rides on top of it and a rejected branded
+      // copy never triggers a second shared-mailer send (one email, one slot
+      // spent). Minting failed → the shared mailer's own /recover call is the
+      // last chance. Resend unconfigured → skip minting entirely and let a
+      // single /recover call be the whole send.
       const userId = typeof body.userId === 'string' ? body.userId : ''
       if (!userId) return fail('userId is required', 400)
       if (userId === callerId) {
@@ -528,18 +562,32 @@ Deno.serve(async (req: Request) => {
         return fail('This account is archived — restore it before re-inviting', 400)
       }
 
-      const resendLink = await mintRecoveryLink(target.email, appUrl)
-
-      let inviteSent = await sendWelcomeEmail({
-        to: target.email,
-        name: target.full_name || '',
-        role: target.role || 'user',
-        inviterName,
-        setupLink: resendLink || undefined,
-        passwordGenerated: true,
-        resend: true,
-      })
-      if (!inviteSent) {
+      const resendConfigured =
+        !!Deno.env.get('RESEND_API_KEY') && !!Deno.env.get('WELCOME_FROM_EMAIL')
+      const resendLink = resendConfigured
+        ? await mintRecoveryLink(target.email, appUrl)
+        : ''
+      let inviteSent = false
+      if (resendLink) {
+        inviteSent = await sendWelcomeEmail({
+          to: target.email,
+          name: target.full_name || '',
+          role: target.role || 'user',
+          inviterName,
+          setupLink: resendLink,
+          passwordGenerated: true,
+          resend: true,
+        })
+        if (!inviteSent) {
+          // Branded copy rejected (sandbox key domain rules, expired key,
+          // outage...). The mint's own emailed twin already landed — a
+          // /recover re-send would duplicate it in the same inbox.
+          console.error(
+            'branded resend rejected — the minted link already emailed the one-time link via the shared mailer',
+          )
+          inviteSent = true
+        }
+      } else {
         inviteSent = await sendBuiltInRecoveryEmail(target.email, appUrl)
       }
 

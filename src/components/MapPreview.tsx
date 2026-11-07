@@ -4,7 +4,7 @@
 // dashboards. Self-contained the way MapBrief is: it fetches its own data and
 // picks a curriculum the same first-pick the map's landing boot takes — the
 // viewer's program when it carries one, else BSIT, else the first that does,
-// then the first anchored course's curriculum.
+// then that program's current-school-year curriculum.
 //
 // Forked from Map.tsx's renderCurriculumMap on purpose rather than shared:
 // the page's renderer is fused to its inspection card, zoom machinery and
@@ -21,6 +21,7 @@ import {
 } from '../services/database'
 import type { Program, Course, Resource, UserRole } from '../services/database'
 import { normalizeCode } from '../utils/courseCodes'
+import { CURRENT_SY_START, labelSchoolYearStart } from '../utils/schoolYear'
 
 /** Stands in for program assignments the account may not carry yet — the same
  *  rule MapBrief applies: until every account is bound to its program, BSIT
@@ -123,8 +124,10 @@ function MapPreview({ profile, onNavigate }: MapPreviewProps) {
   // ── Which curriculum to draw ── the map's landing boot, shortened: a
   // program qualifies when at least one of its courses carries a curriculum
   // that exists in Resources. The viewer's program wins when it qualifies,
-  // then BSIT, then the first that does; the first anchored course picks
-  // which curriculum of the winner to show.
+  // then BSIT, then the first that does. The curriculum itself is picked by
+  // program year, the same rule the map's boot takes: among the program's
+  // assigned records, one covering the current school year wins (structured
+  // field; the label's pair second), else the first anchor's assignment.
   const curriculum = useMemo(() => {
     const cidOf = (c: Course): string | null => {
       const opt = c.curriculum_id
@@ -146,12 +149,18 @@ function MapPreview({ profile, onNavigate }: MapPreviewProps) {
     )
     const program = viewerProgram ?? servedProgram ?? qualified[0] ?? null
     if (!program) return null
-    const anchor = courses.find((c) => {
+    const assigned: Resource[] = []
+    for (const c of courses) {
+      if (pidOf(c) !== program.id) continue
       const cid = cidOf(c)
-      return pidOf(c) === program.id && cid != null && curricula.some((r) => r.id === cid)
-    })
-    const cid = anchor ? cidOf(anchor) : null
-    return cid ? curricula.find((r) => r.id === cid) ?? null : null
+      if (!cid || assigned.some((r) => r.id === cid)) continue
+      const rec = curricula.find((r) => r.id === cid)
+      if (rec) assigned.push(rec)
+    }
+    if (assigned.length === 0) return null
+    const eff = (r: Resource) =>
+      r.sy_start ?? labelSchoolYearStart(`${r.code ?? ''} ${r.title ?? ''}`)
+    return assigned.find((r) => eff(r) === CURRENT_SY_START) ?? assigned[0]
   }, [programs, courses, curricula, profile?.program_id])
 
   // ── Its subjects ── matched through curriculum_id exactly like the page's

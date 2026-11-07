@@ -46,6 +46,7 @@ const EMPTY = { code: '', course: '', description: '', programOutcomes: '' }
 // Semester tab labels for the category row — the same terms the create
 // form's Semester filter offers (1st, 2nd, Summer).
 const SEM_LABELS: Record<string, string> = { '1': '1st Sem', '2': '2nd Sem', '3': 'Summer' }
+const YEAR_LABELS: Record<string, string> = { '1': '1st Year', '2': '2nd Year', '3': '3rd Year', '4': '4th Year' }
 
 // Raw reference lists the syllabus document is built from. The CLO page
 // already loads all of them for its suggestion machinery, so the reader
@@ -70,7 +71,7 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
     deleteFn: deleteCourseLearningOutcomeStandalone,
     scope: 'Course Learning Outcome',
   })
-  const { items, loading, error, message, busy, handleCreate, handleUpdate, handleDelete, handleToggleStatus } = crud
+  const { items, loading, error, message, busy, handleCreate, handleUpdate, handleToggleStatus } = crud
 
   const [poSuggestions, setPoSuggestions] = useState<SuggestionOption[]>([])
   const [poTexts, setPoTexts] = useState<PoText[]>([])
@@ -83,9 +84,10 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   const [editForm, setEditForm] = useState(EMPTY)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [archived, setArchived] = useState(false)
-  // Semester category tab ('' = all terms). The tabs trail the Active/Archive
-  // pair; picking one leaves the archived view and filters the active list
-  // to the term.
+  // Year and semester category filters ('' = all). The dropdowns trail the
+  // Active/Archive pair; picking one leaves the archived view and filters
+  // the active list, and the status buttons reset both.
+  const [yearCat, setYearCat] = useState('')
   const [semCat, setSemCat] = useState('')
   const [query, setQuery] = useState('')
   const [bulkBusy, setBulkBusy] = useState(false)
@@ -121,41 +123,75 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
   }, [])
 
   const isActive = (i: CourseLearningOutcomeStandalone) => !i.status || i.status === 'active'
-  // A CLO's term comes from its subject record — the row stores only the
-  // course code, resolved leniently the same way the syllabus reader does.
-  // Rows whose course text matches nothing belong to no term: they stay in
-  // Active and Archive, but no semester tab claims them.
+  // A CLO's place in the curriculum — its year and term — comes from its
+  // subject record: the row stores only the course code, resolved leniently
+  // the same way the syllabus reader does. Rows whose course text matches
+  // nothing belong to no year and no term: they stay in Active and Archive,
+  // but neither dropdown claims them.
   const courseSemOf = (i: CourseLearningOutcomeStandalone) => {
     const c = courses.find((x) => cloMatchesSubject(i.course || '', normalizeCode(x.code)))
     return c ? String(c.semester ?? '').trim() : ''
+  }
+  const courseYearOf = (i: CourseLearningOutcomeStandalone) => {
+    const c = courses.find((x) => cloMatchesSubject(i.course || '', normalizeCode(x.code)))
+    return c ? String(c.year_level ?? '').trim() : ''
   }
   const q = query.trim().toLowerCase()
   const visible = items
     .filter((i) => (archived
       ? !isActive(i)
-      : isActive(i) && (semCat === '' || courseSemOf(i) === semCat)))
+      : isActive(i)
+        && (yearCat === '' || courseYearOf(i) === yearCat)
+        && (semCat === '' || courseSemOf(i) === semCat)))
     .filter((i) => !q || [i.course, i.code, i.description, i.title].some((v) => (v || '').toLowerCase().includes(q)))
   const archivedCount = items.filter((i) => !isActive(i)).length
 
-  // Semester categories trailing the Active/Archive pair — one tab per term
-  // the curriculum actually uses, so no permanently empty tab sits in the
-  // row. Badges count active CLOs whose subject runs in that term.
-  const semTabs = useMemo(
+  // Year and semester dropdown options trailing the Active/Archive pair —
+  // one option per year or term the curriculum actually uses, so nothing
+  // unused is ever listed. Counts respect the sibling dropdown (slicer
+  // rule): semester counts live inside the chosen year, year counts inside
+  // the chosen term.
+  const semOptions = useMemo(
     () =>
       [...new Set(courses.map((c) => String(c.semester ?? '').trim()).filter(Boolean))]
         .sort()
         .map((s) => ({ value: s, label: SEM_LABELS[s] ?? `Sem ${s}` })),
     [courses],
   )
+  const yearOptions = useMemo(
+    () =>
+      [...new Set(courses.map((c) => String(c.year_level ?? '').trim()).filter(Boolean))]
+        .sort((a, b) => Number(a) - Number(b) || a.localeCompare(b))
+        .map((y) => ({ value: y, label: YEAR_LABELS[y] ?? `Year ${y}` })),
+    [courses],
+  )
   const semCounts = useMemo(() => {
     const counts = new Map<string, number>()
     for (const i of items) {
       if (!isActive(i)) continue
+      if (yearCat !== '' && courseYearOf(i) !== yearCat) continue
       const s = courseSemOf(i)
       if (s) counts.set(s, (counts.get(s) ?? 0) + 1)
     }
     return counts
-  }, [items, courses])
+  }, [items, courses, yearCat])
+  const yearCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const i of items) {
+      if (!isActive(i)) continue
+      if (semCat !== '' && courseSemOf(i) !== semCat) continue
+      const y = courseYearOf(i)
+      if (y) counts.set(y, (counts.get(y) ?? 0) + 1)
+    }
+    return counts
+  }, [items, courses, semCat])
+
+  // The empty-state scope label: the picks in both dropdowns, e.g.
+  // "1st Year · 1st Sem".
+  const scopeLabel = [
+    yearCat && (YEAR_LABELS[yearCat] ?? `Year ${yearCat}`),
+    semCat && (SEM_LABELS[semCat] ?? `Sem ${semCat}`),
+  ].filter(Boolean).join(' · ')
 
   // ── Syllabus reader ──────────────────────────────────────────────────
   // The opened CLO resolves to its subject by lenient course-code matching
@@ -781,27 +817,47 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
           <div className="program-toolbar">
             <div className="sd-tabs" style={{ marginBottom: 0, flex: 1, flexWrap: 'wrap' }}>
               <button
-                className={`sd-tab ${!archived && semCat === '' ? 'sd-tab--active' : ''}`}
-                onClick={() => { setArchived(false); setSemCat('') }}
+                className={`sd-tab ${!archived ? 'sd-tab--active' : ''}`}
+                onClick={() => { setArchived(false); setYearCat(''); setSemCat('') }}
               >Active</button>
               <button
                 className={`sd-tab ${archived ? 'sd-tab--active' : ''}`}
-                onClick={() => { setArchived(true); setSemCat('') }}
+                onClick={() => { setArchived(true); setYearCat(''); setSemCat('') }}
               >
                 Archive {archivedCount > 0 && <span className="sd-tab__count">{archivedCount}</span>}
               </button>
-              {semTabs.map((s) => (
-                <button
-                  key={s.value}
-                  className={`sd-tab ${!archived && semCat === s.value ? 'sd-tab--active' : ''}`}
-                  onClick={() => { setArchived(false); setSemCat(s.value) }}
-                >
-                  {s.label}
-                  {(semCounts.get(s.value) ?? 0) > 0 && (
-                    <span className="sd-tab__count">{semCounts.get(s.value)}</span>
-                  )}
-                </button>
-              ))}
+              {/* The by-year and by-term filters are one compact dropdown
+                  each, trailing Archive like slicers: choosing a value
+                  switches to the active view and filters it; "All" clears
+                  that axis. Counts in each list respect the other pick. */}
+              <select
+                className="input input--sm"
+                aria-label="Filter by year"
+                style={{ width: 'auto', flexShrink: 0, alignSelf: 'center' }}
+                value={yearCat}
+                onChange={(e) => { setYearCat(e.target.value); if (e.target.value) setArchived(false) }}
+              >
+                <option value="">All years</option>
+                {yearOptions.map((y) => (
+                  <option key={y.value} value={y.value}>
+                    {(yearCounts.get(y.value) ?? 0) > 0 ? `${y.label} (${yearCounts.get(y.value)})` : y.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="input input--sm"
+                aria-label="Filter by semester"
+                style={{ width: 'auto', flexShrink: 0, alignSelf: 'center' }}
+                value={semCat}
+                onChange={(e) => { setSemCat(e.target.value); if (e.target.value) setArchived(false) }}
+              >
+                <option value="">All semesters</option>
+                {semOptions.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {(semCounts.get(s.value) ?? 0) > 0 ? `${s.label} (${semCounts.get(s.value)})` : s.label}
+                  </option>
+                ))}
+              </select>
             </div>
             <ViewModeToggle mode={viewMode} onChange={setViewMode} />
             <label className="program-search" aria-label="Search CLOs">
@@ -830,15 +886,15 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
           {visible.length === 0 ? (
             <div className="program-empty" style={{ marginTop: 14 }}>
               <strong>
-                {semCat && !archived
-                  ? `No CLOs for ${SEM_LABELS[semCat] ?? `Sem ${semCat}`} yet.`
+                {(semCat || yearCat) && !archived && scopeLabel
+                  ? `No CLOs for ${scopeLabel} yet.`
                   : 'No course learning outcomes yet.'}
               </strong>
               <span>
                 {query
                   ? `No results for "${query}"`
-                  : semCat && !archived
-                    ? 'CLOs for subjects taught in this term will appear here.'
+                  : (semCat || yearCat) && !archived
+                    ? 'CLOs whose subject matches will appear here.'
                     : 'Add your first CLO above.'}
               </span>
             </div>
@@ -864,9 +920,6 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                         <button className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleToggleStatus(item, `clo.${isActive(item) ? 'archived' : 'restored'}`)} disabled={busy || !!editingId} title={isActive(item) ? 'Archive' : 'Restore'}>
                           <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} />
                         </button>
-                        {!isActive(item) && (
-                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'clo.deleted', item)} disabled={busy || !!editingId} style={{ marginLeft: 'auto' }} title="Delete"><Icon name="trash" size={13} /></button>
-                        )}
                       </div>
                     </>
                   )}
@@ -896,9 +949,6 @@ export default function CourseLearningOutcomes({ userEmail }: { userEmail: strin
                         <button className={`btn btn--sm ${isActive(item) ? 'btn--ghost' : 'btn--primary'}`} onClick={() => handleToggleStatus(item, `clo.${isActive(item) ? 'archived' : 'restored'}`)} disabled={busy || !!editingId} title={isActive(item) ? 'Archive' : 'Restore'}>
                           <Icon name={isActive(item) ? 'archive' : 'restore'} size={13} />
                         </button>
-                        {!isActive(item) && (
-                          <button className="btn btn--danger btn--sm" onClick={() => handleDelete(item.id, 'clo.deleted', item)} disabled={busy || !!editingId} style={{ marginLeft: 'auto' }} title="Delete"><Icon name="trash" size={13} /></button>
-                        )}
                       </div>
                     </>
                   )}

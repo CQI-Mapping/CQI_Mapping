@@ -161,7 +161,7 @@ function Sidebar({ navItems, activePage, onNavigate, onLogout, role, isOpen, onT
               logo image; admins are not bounded to a program and keep the
               neutral C monogram. One color/size rule in Sidebar.css keeps
               both aligned to the same slot. */}
-          <div className="hdr__brand" aria-label={role === 'admin' ? 'CQI Monitoring' : 'CQI Monitoring — BSIT'}>
+          <div className="hdr__brand" aria-label={role === 'admin' ? 'LANTAW' : 'LANTAW — BSIT'}>
             {role === 'admin' ? (
               <span className="hdr__mark hdr__mark--temp" aria-hidden="true">C</span>
             ) : (
