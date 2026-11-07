@@ -30,6 +30,8 @@ interface PoCoverageBar {
 export interface PoCoverageDetail {
   code: string
   course: string
+  /** The subject's full name (resolved from the program's course list). */
+  courseTitle: string | null
   title: string | null
   description: string | null
 }
@@ -256,6 +258,9 @@ function PoCoverageBars({
                 <li key={`${d.code}-${i}`} className="pocov__popover__item">
                   <strong>{d.code}</strong>
                   <span className="pocov__popover__subj"> · {d.course}</span>
+                  {d.courseTitle && d.courseTitle.trim() !== "" && d.courseTitle.trim().toLowerCase() !== d.course.trim().toLowerCase() && (
+                    <span className="pocov__popover__subject"> — {d.courseTitle}</span>
+                  )}
                   {(d.description || d.title) && (
                     <span className="pocov__popover__desc">{preview(d.description || d.title)}</span>
                   )}

@@ -282,6 +282,11 @@ function MapBrief({ profile, onNavigate, children, dedupeCoreCounts }: MapBriefP
   // their subject and description — so the chart's hover can point at the work
   // instead of just a percentage.
   const poDetails = useMemo(() => {
+    // Subject title lookup: a CLO only carries the course code, but the hover
+    // should name the subject, so resolve the code against the program's list.
+    const courseTitleByCode = new Map(
+      programCourseList.map((c) => [normalizeCode(c.code), c.title] as const),
+    )
     const byKey = new Map<string, PoCoverageDetail[]>()
     for (const link of mapping.links) {
       for (const key of link.poKeys) {
@@ -289,6 +294,7 @@ function MapBrief({ profile, onNavigate, children, dedupeCoreCounts }: MapBriefP
         list.push({
           code: link.clo.code,
           course: link.clo.course,
+          courseTitle: courseTitleByCode.get(normalizeCode(link.clo.course)) ?? null,
           title: link.clo.title,
           description: link.clo.description,
         })
@@ -301,7 +307,7 @@ function MapBrief({ profile, onNavigate, children, dedupeCoreCounts }: MapBriefP
       if (list && list.length > 0) record[row.outcome.code] = list
     }
     return record
-  }, [mapping])
+  }, [mapping, programCourseList])
 
   const courseOutcomeRows = useMemo(
     () => courseOutcomes(programCourseList, programClos),

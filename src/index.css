@@ -5803,6 +5803,14 @@ button.reports-panel__more:hover {
   color: #475569;
 }
 
+.pocov__popover__subject {
+  color: #475569;
+  font-size: 11px;
+  display: block;
+  margin-top: 1px;
+  font-style: italic;
+}
+
 .pocov__popover__desc {
   display: block;
   margin-top: 2px;
