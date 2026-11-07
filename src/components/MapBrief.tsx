@@ -365,15 +365,21 @@ function MapBrief({ profile, onNavigate, children }: MapBriefProps) {
                     : `(${subjectCoverage.fully} / ${subjectCoverage.total} subjects)`
               }
             />
-            <KpiCard
-              label="Unmapped / Incomplete"
-              value={summary.unaligned + mapping.gaps.length}
-              sub={
-                pipelineEmpty
-                  ? `${summary.unaligned} unanchored outcomes · no CLOs yet`
-                  : `${mapping.gaps.length} CLOs unmapped · ${summary.unaligned} outcomes unanchored`
-              }
-            />
+            {/* Gap tile for admin and manager oversight only: to a faculty
+                reader "unmapped / unanchored" is an unactionable accusation
+                (their own lists and the coverage tile already tell them
+                where the work stands), so the faculty brief skips it. */}
+            {profile?.role !== 'user' && (
+              <KpiCard
+                label="Unmapped / Incomplete"
+                value={summary.unaligned + mapping.gaps.length}
+                sub={
+                  pipelineEmpty
+                    ? `${summary.unaligned} unanchored outcomes · no CLOs yet`
+                    : `${mapping.gaps.length} CLOs unmapped · ${summary.unaligned} outcomes unanchored`
+                }
+              />
+            )}
           </div>
 
           {/* ---- slotted children between the tiles and the panels ---- */}
