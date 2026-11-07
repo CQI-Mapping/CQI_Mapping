@@ -21,6 +21,7 @@ import {
   fetchProgramOutcomesStandalone,
   fetchProgramEducationalObjectives,
   fetchCourseLearningOutcomesStandalone,
+  fetchCourseLearningOutcomePoolForMap,
   fetchStrategicGoals,
   fetchChedMemoOrders,
 } from '../services/database'
@@ -62,6 +63,10 @@ interface MapBriefProps {
       (Programs, Courses, Coverage, Unmapped stay; those are the brief's own
       dividend and none of the tiles duplicate them). */
   dedupeCoreCounts?: boolean
+  /** Show the program's full CLO picture instead of the signed-in user's own
+      slice — used by faculty dashboards that want the same coverage view the
+      admin sees (the Generate Map pool is already readable by every role). */
+  programWide?: boolean
 }
 
 /** Stands in for program assignments the account may not carry yet, the way
@@ -167,7 +172,7 @@ function KpiCard({
   )
 }
 
-function MapBrief({ profile, onNavigate, children, dedupeCoreCounts }: MapBriefProps) {
+function MapBrief({ profile, onNavigate, children, dedupeCoreCounts, programWide }: MapBriefProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [programs, setPrograms] = useState<Program[]>([])
@@ -189,7 +194,9 @@ function MapBrief({ profile, onNavigate, children, dedupeCoreCounts }: MapBriefP
       fetchCourses(),
       fetchProgramOutcomesStandalone(),
       fetchProgramEducationalObjectives(),
-      fetchCourseLearningOutcomesStandalone(),
+      programWide
+        ? fetchCourseLearningOutcomePoolForMap().catch(() => fetchCourseLearningOutcomesStandalone())
+        : fetchCourseLearningOutcomesStandalone(),
       fetchStrategicGoals(),
       fetchChedMemoOrders(),
     ])
