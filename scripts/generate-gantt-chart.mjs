@@ -54,12 +54,13 @@ const SZ = 20          // half-points -> 10pt body text
 
 // The plan, in days [first, last], focused purely on BUILDING the system —
 // each row is a real module of the CQI app, grouped by build phase
-// (day 0 is the start date).
+// (day 0 is the start date). banner/shade stay uniform (TEAL/BLUE) to
+// match the printed appendix sample's monochrome look.
 const PHASES = [
-  { title: 'PLANNING PHASE', banner: '2E75B6', shade: 'BDD7EE', tasks: [
+  { title: 'PLANNING PHASE', banner: TEAL, shade: BLUE, tasks: [
     ['Set Up Project (Vite + React + Supabase)', 0, 6],
   ]},
-  { title: 'DESIGN AND DEVELOPMENT PHASE', banner: '31859C', shade: 'A9D3E5', tasks: [
+  { title: 'DESIGN AND DEVELOPMENT PHASE', banner: TEAL, shade: BLUE, tasks: [
     ['Design Database Schema & RLS Policies', 5, 14],
     ['Build Authentication & Session Handling', 12, 23],
     ['Build Role-Based Navigation & Page Gating', 19, 29],
@@ -73,11 +74,11 @@ const PHASES = [
     ['Build Reports (Map, PO Coverage, PDF/Excel Exports)', 70, 82],
     ['Build Profile, Security & Audit Logs', 75, 88],
   ]},
-  { title: 'TESTING PHASE', banner: '548235', shade: 'C6E0B4', tasks: [
+  { title: 'TESTING PHASE', banner: TEAL, shade: BLUE, tasks: [
     ['UI Polish & Error Handling', 82, 93],
     ['Unit Testing (Vitest) & Bug Fixes', 85, 96],
   ]},
-  { title: 'DEPLOYMENT PHASE', banner: 'C55A11', shade: 'F8CBAD', tasks: [
+  { title: 'DEPLOYMENT PHASE', banner: TEAL, shade: BLUE, tasks: [
     ['Deploy to Supabase & Final Demo Prep', 98, 109],
   ]},
 ]
@@ -132,10 +133,10 @@ const CELL_BORDERS = { top: LINE, bottom: LINE, left: LINE, right: LINE }
 const run = (text, opts = {}) => new TextRun({ text, font: FONT, size: SZ, ...opts })
 
 /** Simple one-line cell paragraph list. */
-const line = (text, { bold = false, center = false, size = SZ, color } = {}) => [
+const line = (text, { bold = false, center = false, size = SZ, color, italic = false } = {}) => [
   new Paragraph({
     alignment: center ? AlignmentType.CENTER : AlignmentType.LEFT,
-    children: text ? [run(text, { bold, size, ...(color ? { color } : {}) })] : [],
+    children: text ? [run(text, { bold, size, italic, ...(color ? { color } : {}) })] : [],
   }),
 ]
 
@@ -251,7 +252,7 @@ function monthSheetChildren(sheetIndex) {
 // Columns: TASK | START | DAYS | END | a month timeline where every month is
 // quartered into "1st 2nd 3rd 4th" 7-day blocks; a task shades every quarter
 // column its day range touches, giving the diagonal staircase of the sample.
-const TASK_PCT = 26, START_PCT = 9, DAYS_PCT = 5, END_PCT = 9
+const TASK_PCT = 30, START_PCT = 8, DAYS_PCT = 5, END_PCT = 8
 
 function trackerChildren() {
   // Calendar months the timeline touches, in order: AUGUST … NOVEMBER 2026
@@ -281,14 +282,14 @@ function trackerChildren() {
     new TableRow({
       height: { value: 420, rule: HeightRule.ATLEAST },
       children: [cell(
-        line(PROJECT_TITLE, { bold: true, center: true }),
+        line(PROJECT_TITLE, { bold: true, center: true, italic: true }),
         { columnSpan: TOTAL_COLS, widthPct: 100 },
       )],
     }),
     new TableRow({
       height: { value: 440, rule: HeightRule.ATLEAST },
       children: [cell(
-        line('DAILY TASK TRACKER', { bold: true, center: true, color: 'FFFFFF' }),
+        line('DAILY TASK TRACKER', { bold: true, center: true, color: 'FFFFFF', italic: true }),
         { columnSpan: TOTAL_COLS, widthPct: 100, fill: TEAL },
       )],
     }),
@@ -297,10 +298,10 @@ function trackerChildren() {
       tableHeader: true,
       height: { value: 460, rule: HeightRule.ATLEAST },
       children: [
-        cell(line('Task', { bold: true, color: 'FFFFFF' }), { fill: TEAL, rowSpan: 3, widthPct: TASK_PCT }),
-        cell(line('Start', { bold: true, center: true, color: 'FFFFFF' }), { fill: TEAL, rowSpan: 3, widthPct: START_PCT }),
-        cell(line('Days', { bold: true, center: true, color: 'FFFFFF' }), { fill: TEAL, rowSpan: 3, widthPct: DAYS_PCT }),
-        cell(line('End', { bold: true, center: true, color: 'FFFFFF' }), { fill: TEAL, rowSpan: 3, widthPct: END_PCT }),
+        cell(line('Task', { bold: true, color: 'FFFFFF', italic: true }), { fill: TEAL, rowSpan: 3, widthPct: TASK_PCT }),
+        cell(line('Start', { bold: true, center: true, color: 'FFFFFF', italic: true }), { fill: TEAL, rowSpan: 3, widthPct: START_PCT }),
+        cell(line('Days', { bold: true, center: true, color: 'FFFFFF', italic: true }), { fill: TEAL, rowSpan: 3, widthPct: DAYS_PCT }),
+        cell(line('End', { bold: true, center: true, color: 'FFFFFF', italic: true }), { fill: TEAL, rowSpan: 3, widthPct: END_PCT }),
         cell(line(String(dayDate(endDay).getFullYear()), { bold: true, size: 16, center: true }), { columnSpan: COLS }),
       ],
     }),
@@ -312,7 +313,7 @@ function trackerChildren() {
           new Date(m.year, m.month, 1)
             .toLocaleDateString('en-US', { month: 'long' })
             .toUpperCase(),
-          { bold: true, center: true, size: 18, color: 'FFFFFF' },
+          { bold: true, center: true, size: 18, color: 'FFFFFF', italic: true },
         ), { columnSpan: 4, fill: TEAL, widthPct: QUARTER_PCT * 4 })),
     }),
     // Quarter cells 1st 2nd 3rd 4th
@@ -333,7 +334,7 @@ function trackerChildren() {
     rows.push(new TableRow({
       height: { value: 420, rule: HeightRule.ATLEAST },
       children: [
-        cell(line(phase.title, { bold: true, color: 'FFFFFF' }), { fill: phase.banner, columnSpan: 4 }),
+        cell(line(phase.title, { bold: true, color: 'FFFFFF', italic: true }), { fill: phase.banner, columnSpan: 4 }),
         ...Array.from({ length: COLS }, () => cell(line(''))),
       ],
     }))
@@ -370,14 +371,6 @@ function trackerChildren() {
     new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
       rows,
-    }),
-    // Colored phase legend under the chart — chips shaded per phase
-    new Paragraph({
-      spacing: { before: 120 },
-      children: PHASES.flatMap((p, i) => [
-        new TextRun({ text: '  ', font: FONT, size: SZ, shading: { type: ShadingType.CLEAR, fill: p.shade, color: 'auto' } }),
-        new TextRun({ text: ` ${p.title}${i < PHASES.length - 1 ? '    •' : ''}`, font: FONT, size: 16 }),
-      ]),
     }),
   ]
 }
