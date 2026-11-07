@@ -432,7 +432,7 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
           <h2 id="fac-program-title">Program at a glance</h2>
           <p>The curriculum on this account. The figures update as outcomes change.</p>
         </header>
-        <MapBrief profile={profile} onNavigate={onNavigate} programWide />
+        <MapBrief profile={profile} onNavigate={onNavigate} />
       </section>
 
       {viewItem && <CloViewModal item={viewItem} onClose={() => setViewItem(null)} />}
