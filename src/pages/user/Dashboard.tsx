@@ -18,7 +18,6 @@ import type {
   CourseLearningOutcomeStandalone,
 } from '../../services/database'
 import CloViewModal from '../../components/CloViewModal'
-import MapBrief from '../../components/MapBrief'
 import MapPreview from '../../components/MapPreview'
 import { useClock } from '../../hooks/useClock'
 import { localISODate, timeGreeting } from '../../utils/clock'
@@ -345,14 +344,6 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
           self-contained: it fetches its own data and carries its own panel
           frame and Generate Map link. */}
       <MapPreview profile={profile} onNavigate={onNavigate} />
-
-      <section className="fac-program" aria-labelledby="fac-program-title">
-        <header className="fac-program__head">
-          <h2 id="fac-program-title">Program at a glance</h2>
-          <p>The curriculum on this account. The figures update as outcomes change.</p>
-        </header>
-        <MapBrief profile={profile} onNavigate={onNavigate} />
-      </section>
 
       <div className="fac-main">
         <section className="fac-card card-enter" aria-labelledby="fac-subjects-title">
