@@ -88,6 +88,9 @@ function PoCoverageBars({
   const [order, setOrder] = useState<'code' | 'height'>('code')
   // Hover state: which bar and where the cursor sits, so the bubble can follow.
   const [hover, setHover] = useState<{ index: number; x: number; y: number } | null>(null)
+  // A clicked bar stays open so the reader can copy a code or read a long
+  // description without keeping the mouse perfectly still.
+  const [pinned, setPinned] = useState<{ index: number; x: number; y: number } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const uncoveredNames = uncoveredCodes ?? []
@@ -129,20 +132,21 @@ function PoCoverageBars({
   const shorten = n > 8
   const y = (percent: number) => TOP + PLOT_H - (PLOT_H * percent) / 100
 
-  const hovered = hover !== null ? bars[hover.index] : null
+  const active = pinned ?? hover
+  const hovered = active !== null ? bars[active.index] : null
   const hoveredDetails = hovered && !hovered.muted ? details?.[hovered.key] ?? [] : []
   const hoveredUncovered = hovered?.muted ? uncoveredNames : []
 
   // Keep the bubble inside the container horizontally.
   const containerW = containerRef.current?.clientWidth ?? WIDTH
   const bubbleLeft =
-    hover === null
+    active === null
       ? 0
-      : Math.min(Math.max(hover.x + 14, 8), Math.max(containerW - 300, 8))
-  const bubbleTop = hover === null ? 0 : Math.max(hover.y - 10, 8)
+      : Math.min(Math.max(active.x + 14, 8), Math.max(containerW - 300, 8))
+  const bubbleTop = active === null ? 0 : Math.max(active.y - 10, 8)
 
   return (
-    <div className="pocov" ref={containerRef}>
+    <div className="pocov" ref={containerRef} onClick={() => setPinned(null)}>
       <div className="pocov__sort" role="group" aria-label="Bar order">
         <button
           type="button"
@@ -187,15 +191,16 @@ function PoCoverageBars({
             <g
               key={`${b.label}-${i}`}
               onMouseEnter={(e) => {
-                const rect = (e.currentTarget as SVGGElement).getBoundingClientRect()
+                if (pinned) return
                 const cRect = containerRef.current?.getBoundingClientRect()
                 setHover({
                   index: i,
-                  x: rect.left + rect.width / 2 - (cRect?.left ?? 0),
-                  y: rect.top - (cRect?.top ?? 0),
+                  x: e.clientX - (cRect?.left ?? 0),
+                  y: e.clientY - (cRect?.top ?? 0),
                 })
               }}
               onMouseMove={(e) => {
+                if (pinned) return
                 const cRect = containerRef.current?.getBoundingClientRect()
                 setHover((h) =>
                   h && h.index === i
@@ -203,7 +208,26 @@ function PoCoverageBars({
                     : h,
                 )
               }}
-              onMouseLeave={() => setHover((h) => (h && h.index === i ? null : h))}
+              onMouseLeave={() => {
+                if (pinned) return
+                setHover((h) => (h && h.index === i ? null : h))
+              }}
+              onClick={(e) => {
+                e.stopPropagation()
+                if (pinned && pinned.index === i) {
+                  setPinned(null)
+                } else {
+                  const rect = (e.currentTarget as SVGGElement).getBoundingClientRect()
+                  const cRect = containerRef.current?.getBoundingClientRect()
+                  setPinned({
+                    index: i,
+                    x: rect.left + rect.width / 2 - (cRect?.left ?? 0),
+                    y: rect.top - (cRect?.top ?? 0),
+                  })
+                  setHover(null)
+                }
+              }}
+              style={{ cursor: 'pointer' }}
             >
               <title>{b.title}</title>
               {/* 0% draws a stub so an empty slot reads as an empty slot. */}
@@ -213,7 +237,7 @@ function PoCoverageBars({
                 width={barW}
                 height={Math.max(PLOT_H + TOP - top, 2)}
                 rx={3}
-                className={b.muted ? 'pocov__bar pocov__bar--muted' : 'pocov__bar'}
+                className={[b.muted ? 'pocov__bar pocov__bar--muted' : 'pocov__bar', pinned && pinned.index === i ? 'pocov__bar--pinned' : ''].filter(Boolean).join(' ')}
               />
               <text x={x + barW / 2} y={top - 7} textAnchor="middle" className="pocov__value">
                 {b.percent}%
@@ -226,16 +250,32 @@ function PoCoverageBars({
         })}
       </svg>
 
-      {hover !== null && hovered && (
+      {active !== null && hovered && (
         <div
           className={`pocov__popover${hovered.muted ? ' pocov__popover--muted' : ''}`}
-          style={{ left: bubbleLeft, top: bubbleTop, transform: 'translate(0, -100%)' }}
+          style={{
+            left: bubbleLeft,
+            top: bubbleTop,
+            transform: 'translate(0, -100%)',
+            pointerEvents: pinned ? 'auto' : 'none',
+          }}
           role="tooltip"
+          onClick={(e) => e.stopPropagation()}
         >
           <div className="pocov__popover__head">
             {hovered.label === 'None'
               ? `${uncovered} outcome${uncovered === 1 ? '' : 's'} no CLO reaches`
               : `${hovered.label} — ${hovered.percent}% of ${totalClos} CLOs`}
+            {pinned && (
+              <button
+                type="button"
+                className="pocov__popover__close"
+                onClick={() => setPinned(null)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            )}
           </div>
           {hovered.muted ? (
             <ul className="pocov__popover__list">

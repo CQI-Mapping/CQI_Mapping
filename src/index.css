@@ -5833,6 +5833,36 @@ button.reports-panel__more:hover {
   font-size: 11px;
 }
 
+/* Pinned bar: a soft ring so the reader can see which bar the open bubble
+   belongs to, after the cursor has moved away. */
+.pocov__bar--pinned {
+  stroke: #0f172a;
+  stroke-width: 1.5;
+  stroke-opacity: 0.55;
+}
+
+.pocov__popover__close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  border: 0;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.pocov__popover__close:hover {
+  color: #0f172a;
+}
+
+.pocov__popover__head {
+  position: relative;
+  padding-right: 18px;
+}
+
 /* ---- footer ---- */
 
 .reports-footer {
