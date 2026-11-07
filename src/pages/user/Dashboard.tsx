@@ -23,8 +23,8 @@ import MapPreview from '../../components/MapPreview'
 import { useClock } from '../../hooks/useClock'
 import { localISODate, timeGreeting } from '../../utils/clock'
 import { timeAgo } from '../../utils/time'
-import { groupOutcomesBySubject, ownFigures, planNextStep, weeklyEditTrend } from '../../utils/facultyDashboard'
-import type { EditWeek, NextStep } from '../../utils/facultyDashboard'
+import { groupOutcomesBySubject, ownFigures, weeklyEditTrend } from '../../utils/facultyDashboard'
+import type { EditWeek } from '../../utils/facultyDashboard'
 
 interface DashboardProps {
   profile: Profile | null
@@ -116,40 +116,6 @@ const ACTIONS: Array<{ page: string; label: string; hint: string; tone: string; 
   },
 ]
 
-type HeroCopy = { title: string; detail: string; action: string | null }
-
-/** The hero's next-step card: what to do next, and the button that starts it. */
-function describeNextStep(next: NextStep): HeroCopy {
-  switch (next.kind) {
-    case 'no-subjects':
-      return {
-        title: 'No subjects yet',
-        detail: 'Outcomes are written against subjects. They appear here once the program adds them.',
-        action: null,
-      }
-    case 'start':
-      return {
-        title: `Start with ${next.subject.code}`,
-        detail: [next.subject.title, 'no active outcomes from you yet'].filter(Boolean).join(' · '),
-        action: 'Write outcomes',
-      }
-    case 'next':
-      return {
-        title: `Next up: ${next.subject.code}`,
-        detail: [
-          next.subject.title,
-          `${next.missing} of ${next.total} subjects still need your outcomes`,
-        ].filter(Boolean).join(' · '),
-        action: 'Continue outcomes',
-      }
-    case 'done':
-      return {
-        title: 'Every subject is covered',
-        detail: 'You hold outcomes for every subject. Keep them current as the program changes.',
-        action: 'Review outcomes',
-      }
-  }
-}
 
 function FacStat({
   icon,
@@ -278,11 +244,6 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
   const figures = useMemo(() => ownFigures(clos, courses, now), [clos, courses, now])
   const trend = useMemo(() => weeklyEditTrend(clos, now), [clos, now])
   const subjects = useMemo(() => groupOutcomesBySubject(clos, courses), [clos, courses])
-  const hero = useMemo<HeroCopy>(() => {
-    if (loading) return { title: 'Loading your workspace', detail: '', action: null }
-    if (failed) return { title: 'Could not load your outcomes', detail: 'Refresh the page to try again.', action: null }
-    return describeNextStep(planNextStep(courses, clos))
-  }, [loading, failed, courses, clos])
   const name = profile?.nickname || profile?.full_name || profile?.email?.split('@')[0] || 'Welcome'
 
   return (
@@ -307,16 +268,6 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
           </p>
         </div>
 
-        <aside className="fac-next" aria-label="Next step">
-          <span className="fac-next__label">Next step</span>
-          <h2 className="fac-next__title">{hero.title}</h2>
-          {hero.detail && <p className="fac-next__detail">{hero.detail}</p>}
-          {hero.action && (
-            <button type="button" className="btn btn--primary fac-next__btn" onClick={() => go('clo')}>
-              {hero.action} →
-            </button>
-          )}
-        </aside>
       </section>
 
       <div className="fac-stats" aria-busy={loading}>
