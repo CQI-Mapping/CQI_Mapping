@@ -365,11 +365,11 @@ function MapBrief({ profile, onNavigate, children }: MapBriefProps) {
                     : `(${subjectCoverage.fully} / ${subjectCoverage.total} subjects)`
               }
             />
-            {/* Gap tile for the admin's oversight alone — managers rework and
-                archive curricula, and the faculty brief is their work already;
-                "unmapped / unanchored" reads as an accusation rather than a
-                both-figures party, so only the admin's brief carries it. */}
-            {profile?.role === 'admin' && (
+            {/* Gap tile for admin and manager oversight only: to a faculty
+                reader "unmapped / unanchored" is an unactionable accusation
+                (their own lists and the coverage tile already tell them
+                where the work stands), so the faculty brief skips it. */}
+            {profile?.role !== 'user' && (
               <KpiCard
                 label="Unmapped / Incomplete"
                 value={summary.unaligned + mapping.gaps.length}
