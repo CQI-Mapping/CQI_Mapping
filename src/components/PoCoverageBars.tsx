@@ -82,10 +82,6 @@ function PoCoverageBars({
   totalClos,
   details,
 }: PoCoverageBarsProps) {
-  // The chart's one control: read the bars in code order, or let the tallest
-  // speak first. The folded "None" bar always closes the row — it is the
-  // finding, not a competitor for first place.
-  const [order, setOrder] = useState<'code' | 'height'>('code')
   // Hover state: which bar and where the cursor sits, so the bubble can follow.
   const [hover, setHover] = useState<{ index: number; x: number; y: number } | null>(null)
   // A clicked bar stays open so the reader can copy a code or read a long
@@ -101,14 +97,7 @@ function PoCoverageBars({
           uncoveredNames.length > 8 ? ` … +${uncoveredNames.length - 8} more` : ''
         }`
 
-  const view =
-    order === 'height'
-      ? [...rows].sort(
-          (a, b) => b.percent - a.percent || a.code.localeCompare(b.code, undefined, { numeric: true }),
-        )
-      : rows
-
-  const bars: { label: string; percent: number; title: string; muted?: boolean; key: string }[] = view.map(
+  const bars: { label: string; percent: number; title: string; muted?: boolean; key: string }[] = rows.map(
     (r) => ({
       label: poLabel(r.code),
       percent: r.percent,
@@ -147,22 +136,6 @@ function PoCoverageBars({
 
   return (
     <div className="pocov" ref={containerRef} onClick={() => setPinned(null)}>
-      <div className="pocov__sort" role="group" aria-label="Bar order">
-        <button
-          type="button"
-          className={order === 'code' ? 'pocov__sortbtn pocov__sortbtn--on' : 'pocov__sortbtn'}
-          onClick={() => setOrder('code')}
-        >
-          A–Z
-        </button>
-        <button
-          type="button"
-          className={order === 'height' ? 'pocov__sortbtn pocov__sortbtn--on' : 'pocov__sortbtn'}
-          onClick={() => setOrder('height')}
-        >
-          Tallest first
-        </button>
-      </div>
       <svg
         className="pocov__chart"
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
