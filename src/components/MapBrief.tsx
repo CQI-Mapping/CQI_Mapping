@@ -56,6 +56,11 @@ interface MapBriefProps {
       dashboard's OBE Curriculum Map (components/MapPreview.tsx), so the
       figures above and the picture below read as one continuous brief. */
   children?: ReactNode
+  /** The host dashboard already counts CLOs, POs and PEOs in its own live
+      tiles directly above — skip the brief's copies of the same figures
+      (Programs, Courses, Coverage, Unmapped stay; those are the brief's own
+      dividend and none of the tiles duplicate them). */
+  dedupeCoreCounts?: boolean
 }
 
 /** Stands in for program assignments the account may not carry yet, the way
@@ -161,7 +166,7 @@ function KpiCard({
   )
 }
 
-function MapBrief({ profile, onNavigate, children }: MapBriefProps) {
+function MapBrief({ profile, onNavigate, children, dedupeCoreCounts }: MapBriefProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [programs, setPrograms] = useState<Program[]>([])
@@ -336,24 +341,33 @@ function MapBrief({ profile, onNavigate, children }: MapBriefProps) {
                   : 'Across all academic years'
               }
             />
-            <KpiCard
-              label="Total CLO's"
-              value={programClos.length}
-              sub={program ? `${program.code} courses` : 'From all courses'}
-            />
-            <KpiCard
-              label="Total PO's"
-              value={officialOutcomes.length}
-              sub={[
-                otherActiveOutcomes > 0 ? `${otherActiveOutcomes} additional` : null,
-                archivedOutcomes > 0 ? `${archivedOutcomes} archived` : null,
-              ].filter(Boolean).join(' · ') || 'Program Outcomes'}
-            />
-            <KpiCard
-              label="Total PEO's"
-              value={peos.length}
-              sub="Program Educational Objectives"
-            />
+            {/* The host dashboard's live tiles already count CLOs, POs and
+                PEOs directly above — its dedupe flag skips the brief's
+                copies so the figures appear once, not twice. */}
+            {!dedupeCoreCounts && (
+              <KpiCard
+                label="Total CLO's"
+                value={programClos.length}
+                sub={program ? `${program.code} courses` : 'From all courses'}
+              />
+            )}
+            {!dedupeCoreCounts && (
+              <KpiCard
+                label="Total PO's"
+                value={officialOutcomes.length}
+                sub={[
+                  otherActiveOutcomes > 0 ? `${otherActiveOutcomes} additional` : null,
+                  archivedOutcomes > 0 ? `${archivedOutcomes} archived` : null,
+                ].filter(Boolean).join(' · ') || 'Program Outcomes'}
+              />
+            )}
+            {!dedupeCoreCounts && (
+              <KpiCard
+                label="Total PEO's"
+                value={peos.length}
+                sub="Program Educational Objectives"
+              />
+            )}
             <KpiCard
               label="Mapping Coverage"
               value={subjectCoverage.total === 0 ? '—' : `${subjectCoverage.percent}%`}

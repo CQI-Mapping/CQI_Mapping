@@ -255,7 +255,7 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
           between the KPI tiles and the two panels: figures first, then the
           Year·Semester map with amber prerequisite wires and the
           press-to-trace spotlight, then summary + coverage chart. */}
-      <MapBrief profile={profile} onNavigate={onNavigate}>
+      <MapBrief profile={profile} onNavigate={onNavigate} dedupeCoreCounts>
         {/* Picks its curriculum the same way Generate Map's landing boot
             does — the viewer's program, else BSIT, else the first. */}
         <MapPreview profile={profile} onNavigate={onNavigate} />
