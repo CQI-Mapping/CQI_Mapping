@@ -96,7 +96,13 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
       const referenced = new Set(
         clos.filter(isActiveRow).flatMap((c) => extractPoCodes(c.title || '')),
       )
-      const unreferencedPos = activePos.filter((p) => !referenced.has(normalizeCode(p.code))).length
+      // The tile mirrors the admin's own Program Outcomes page, which reads
+      // source='admin' — the rows the admin entered. The manager's official
+      // Curriculum-Mapping list sits in the same table as source='manager'
+      // (the shared brief's total already carries it), so this figure is the
+      // admin's own input, active rows only.
+      const adminPos = activePos.filter((p) => p.source === 'admin')
+      const unreferencedPos = adminPos.filter((p) => !referenced.has(normalizeCode(p.code))).length
 
       const setStatsRows: StatSpec[] = [
         {
@@ -133,16 +139,16 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
         },
         {
           label: 'Program Outcomes',
-          // The headline counts what the Program Outcomes page offers now —
-          // active rows only. The table's archived rows and other CMO sets
-          // are history, not figure material.
-          value: activePos.length,
+          // The figure mirrors the Program Outcomes page: rows the admin
+          // entered (source='admin'), active only. Archived rows, other
+          // CMO sets and the manager's own list are not this figure.
+          value: adminPos.length,
           accent: '#15803d',
           icon: 'po',
           sub: 'Program outcomes mapping',
           hint: unreferencedPos
             ? `${unreferencedPos} PO${unreferencedPos === 1 ? '' : 's'} carry no outcomes`
-            : activePos.length
+            : adminPos.length
               ? 'Every PO carries outcomes'
               : null,
           warn: unreferencedPos > 0,
