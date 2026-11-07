@@ -289,8 +289,8 @@ function trackerChildren() {
     new TableRow({
       height: { value: 440, rule: HeightRule.ATLEAST },
       children: [cell(
-        line('DAILY TASK TRACKER', { bold: true, center: true, color: 'FFFFFF', italic: true }),
-        { columnSpan: TOTAL_COLS, widthPct: 100, fill: TEAL },
+        line('DAILY TASK TRACKER', { bold: true, center: true, italic: true }),
+        { columnSpan: TOTAL_COLS, widthPct: 100 },
       )],
     }),
     // Header band: TASK/START/DAYS/END then the year over the month columns
@@ -334,7 +334,7 @@ function trackerChildren() {
     rows.push(new TableRow({
       height: { value: 420, rule: HeightRule.ATLEAST },
       children: [
-        cell(line(phase.title, { bold: true, color: 'FFFFFF', italic: true }), { fill: phase.banner, columnSpan: 4 }),
+        cell(line(phase.title, { bold: true, color: 'FFFFFF', italic: true, center: true }), { fill: phase.banner, columnSpan: 4 }),
         ...Array.from({ length: COLS }, () => cell(line(''))),
       ],
     }))
