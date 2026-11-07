@@ -145,7 +145,11 @@ const cell = (paras, { widthPct, shaded, fill, columnSpan, rowSpan } = {}) =>
     borders: CELL_BORDERS,
     verticalAlign: VerticalAlign.CENTER,
     width: widthPct ? { size: widthPct, type: WidthType.PERCENTAGE } : undefined,
-    shading: shaded ? { type: ShadingType.CLEAR, fill: shaded, color: 'auto' } : undefined,
+    // `shaded` (week/month layouts) and `fill` (tracker layout) both carry
+    // colors — honor either one.
+    shading: (fill ?? shaded)
+      ? { type: ShadingType.CLEAR, fill: fill ?? shaded, color: 'auto' }
+      : undefined,
     columnSpan,
     rowSpan,
     children: paras,
