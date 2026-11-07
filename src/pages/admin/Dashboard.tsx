@@ -277,9 +277,9 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
             </button>
             <button className="quick-action" type="button" onClick={() => go('program-outcomes')}>
               <span className="quick-action__icon" style={{ background: '#15803d' }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"/></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><path d="M3 3v18h18"/><path d="M7 16l3-3 3 3 5-8"/></svg>
               </span>
-              <span className="quick-action__text"><strong>Review Outcomes</strong><small>PO alignment check</small></span>
+              <span className="quick-action__text"><strong>Add Program Outcomes</strong><small>Your own PO list</small></span>
               <svg className="quick-action__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 18l6-6-6-6"/></svg>
             </button>
             <button className="quick-action" type="button" onClick={() => go('subject-view')}>
@@ -287,6 +287,20 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><circle cx="12" cy="12" r="3" /><path d="M19.07 18.93A10 10 0 0 0 21 12M2.93 5.07A10 10 0 0 1 12 3" /><path d="M12 12m-7 0a7 7 0 0 1 14 0" /></svg>
               </span>
               <span className="quick-action__text"><strong>Generate Map</strong><small>Start Visualization</small></span>
+              <svg className="quick-action__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+            <button className="quick-action" type="button" onClick={() => go('view')}>
+              <span className="quick-action__icon" style={{ background: '#15803d' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+              </span>
+              <span className="quick-action__text"><strong>Curriculum Report</strong><small>Print &amp; export views</small></span>
+              <svg className="quick-action__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+            <button className="quick-action" type="button" onClick={() => go('users')}>
+              <span className="quick-action__icon" style={{ background: '#64748b' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              </span>
+              <span className="quick-action__text"><strong>Users &amp; Accounts</strong><small>Roles &amp; access</small></span>
               <svg className="quick-action__arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 18l6-6-6-6"/></svg>
             </button>
             <button className="quick-action" type="button" onClick={() => go('activity-logs')}>
