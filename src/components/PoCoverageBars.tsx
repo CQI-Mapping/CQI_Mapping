@@ -25,6 +25,9 @@ interface PoCoverageBarsProps {
   rows: PoCoverageBar[]
   /** Program outcomes nothing maps to. */
   uncovered: number
+  /** Their codes, so the folded bar can say which outcomes it holds —
+   *  a count alone leaves "where is PO 2?" unanswered. */
+  uncoveredCodes?: string[]
   /** Covered outcomes left out of the chart for width. */
   hidden: number
   totalClos: number
@@ -47,7 +50,16 @@ const GRID = [0, 25, 50, 75, 100]
 /** "PO 12" -> "12", once the axis needs it for width. */
 const shortLabel = (code: string) => code.replace(/^PO[\s-]?/i, '') || code
 
-function PoCoverageBars({ rows, uncovered, hidden, totalClos }: PoCoverageBarsProps) {
+function PoCoverageBars({ rows, uncovered, uncoveredCodes, hidden, totalClos }: PoCoverageBarsProps) {
+  // The folded bar names its outcomes — eight codes read fine in a tooltip;
+  // past that the note under the chart still answers the count question.
+  const uncoveredNames = uncoveredCodes ?? []
+  const listing =
+    uncoveredNames.length === 0
+      ? ''
+      : ` — ${uncoveredNames.slice(0, 8).join(', ')}${
+          uncoveredNames.length > 8 ? ` … +${uncoveredNames.length - 8} more` : ''
+        }`
   const bars: { label: string; percent: number; title: string; muted?: boolean }[] = rows.map(
     (r) => ({
       label: poLabel(r.code),
@@ -59,7 +71,7 @@ function PoCoverageBars({ rows, uncovered, hidden, totalClos }: PoCoverageBarsPr
     bars.push({
       label: 'None',
       percent: 0,
-      title: `${uncovered} program outcomes no learning outcome reaches`,
+      title: `${uncovered} program outcome${uncovered === 1 ? '' : 's'} no learning outcome reaches${listing}`,
       muted: true,
     })
   }
@@ -123,7 +135,11 @@ function PoCoverageBars({ rows, uncovered, hidden, totalClos }: PoCoverageBarsPr
       <p className="pocov__note">
         Of {totalClos} learning outcomes
         {hidden > 0 && ` · ${hidden} more covered outcomes not charted`}
-        {uncovered > 0 && ` · ${uncovered} outcomes no CLO reaches`}.
+        {uncovered > 0 &&
+          ` · ${uncovered} outcome${uncovered === 1 ? '' : 's'} no CLO reaches${
+            uncoveredNames.length > 0 && uncoveredNames.length <= 8 ? `: ${uncoveredNames.join(', ')}` : ''
+          }`}
+        .
       </p>
     </div>
   )

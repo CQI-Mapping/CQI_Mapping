@@ -470,6 +470,7 @@ function MapBrief({ profile, onNavigate, children, dedupeCoreCounts }: MapBriefP
                     count: r.cloCount,
                   }))}
                   uncovered={charted.uncovered}
+                  uncoveredCodes={charted.uncoveredCodes}
                   hidden={charted.hidden}
                   totalClos={mapping.totalClos}
                 />

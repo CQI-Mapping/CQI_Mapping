@@ -157,16 +157,24 @@ export function buildMappingReport(
 export function chartableOutcomes(report: MappingReport, limit = 12): {
   rows: PoCoverageRow[]
   uncovered: number
+  /** The uncovered codes themselves, chart order — a bare count strands
+   *  questions like "where is PO 2?" with nothing to point at. */
+  uncoveredCodes: string[]
   hidden: number
 } {
   // Chart order is outcome order, not entry order -- the codes sort
   // numerically, so PO 12 does not land before PO 6 however the rows arrived.
-  const covered = report.coverage
-    .filter((r) => r.cloCount > 0)
-    .sort((a, b) => a.outcome.code.localeCompare(b.outcome.code, undefined, { numeric: true }))
+  const byCode = (a: { outcome: PoOutcome }, b: { outcome: PoOutcome }) =>
+    a.outcome.code.localeCompare(b.outcome.code, undefined, { numeric: true })
+  const covered = report.coverage.filter((r) => r.cloCount > 0).sort(byCode)
   const rows = covered.slice(0, limit)
-  const uncovered = report.coverage.length - covered.length
-  return { rows, uncovered, hidden: Math.max(covered.length - limit, 0) }
+  const uncoveredCodes = report.coverage
+    .filter((r) => r.cloCount === 0)
+    .sort(byCode)
+    .map((r) => poLabel(r.outcome.code))
+  const uncovered = uncoveredCodes.length
+  const hidden = Math.max(covered.length - limit, 0)
+  return { rows, uncovered, uncoveredCodes, hidden }
 }
 
 /** Anchor keys in play, for the matrix's column list. */

@@ -126,10 +126,12 @@ describe('buildMappingReport', () => {
 describe('chartableOutcomes', () => {
   it('charts the covered outcomes and counts the ones nothing reaches', () => {
     const report = buildMappingReport([clo()], outcomes)
-    const { rows, uncovered } = chartableOutcomes(report)
+    const { rows, uncovered, uncoveredCodes } = chartableOutcomes(report)
     // In outcome order, which is parsed-number order: PO 6 before PO 12.
     expect(rows.map((r) => r.outcome.key)).toEqual(['PO6', 'PO12'])
     expect(uncovered).toBe(3)
+    // The folded bar can name its outcomes: the codes chart order spells.
+    expect(uncoveredCodes).toEqual(['PO 1', 'PO 8', 'PO 14'])
   })
 
   it('caps the bars and says how many it left out', () => {
