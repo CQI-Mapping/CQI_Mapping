@@ -133,13 +133,16 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
         },
         {
           label: 'Program Outcomes',
-          value: pos.length,
+          // The headline counts what the Program Outcomes page offers now —
+          // active rows only. The table's archived rows and other CMO sets
+          // are history, not figure material.
+          value: activePos.length,
           accent: '#15803d',
           icon: 'po',
           sub: 'Program outcomes mapping',
           hint: unreferencedPos
             ? `${unreferencedPos} PO${unreferencedPos === 1 ? '' : 's'} carry no outcomes`
-            : pos.length
+            : activePos.length
               ? 'Every PO carries outcomes'
               : null,
           warn: unreferencedPos > 0,
