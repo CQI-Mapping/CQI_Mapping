@@ -346,6 +346,14 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
           frame and Generate Map link. */}
       <MapPreview profile={profile} onNavigate={onNavigate} />
 
+      <section className="fac-program" aria-labelledby="fac-program-title">
+        <header className="fac-program__head">
+          <h2 id="fac-program-title">Program at a glance</h2>
+          <p>The curriculum on this account. The figures update as outcomes change.</p>
+        </header>
+        <MapBrief profile={profile} onNavigate={onNavigate} />
+      </section>
+
       <div className="fac-main">
         <section className="fac-card card-enter" aria-labelledby="fac-subjects-title">
           <header className="fac-card__head">
@@ -426,14 +434,6 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
           </footer>
         </section>
       </div>
-
-      <section className="fac-program" aria-labelledby="fac-program-title">
-        <header className="fac-program__head">
-          <h2 id="fac-program-title">Program at a glance</h2>
-          <p>The curriculum on this account. The figures update as outcomes change.</p>
-        </header>
-        <MapBrief profile={profile} onNavigate={onNavigate} />
-      </section>
 
       {viewItem && <CloViewModal item={viewItem} onClose={() => setViewItem(null)} />}
     </div>
