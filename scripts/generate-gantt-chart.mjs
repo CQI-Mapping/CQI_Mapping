@@ -44,26 +44,26 @@ const SZ = 20          // half-points -> 10pt body text
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
-// The plan, in days: [label, first day, last day] — day 0 is the start
-// date. A week's sheet lists every activity that touches any of its days,
-// shaded day by day.
+// The plan, in days, focused purely on BUILDING the system — each row is a
+// real module of the CQI app (day 0 is the start date). A week's sheet
+// lists every task that touches any of its days, shaded day by day.
 const ACTIVITIES = [
-  ['Revised Title', 0, 2],
-  ['Identify the Research Problem and Objectives', 0, 9],
-  ['Conduct Interviews / Gather Information', 10, 22],
-  ['System Design (Database Schema, RLS Policies, Mockups)', 21, 35],
-  ['Set Up Backend (Supabase Auth + RLS)', 31, 43],
-  ['Develop Login & Role-Based Access', 37, 49],
-  ['Develop Admin Module', 44, 56],
-  ['Develop Manager Module', 50, 62],
-  ['Develop Faculty Module (CLOs, TOS, Syllabus)', 56, 69],
-  ['Develop Reports & Exports (PDF, Excel, Word)', 63, 75],
-  ['Build Subject Graph (d3)', 70, 80],
-  ['Write Documentation (Chapters 1–2)', 47, 79],
-  ['Unit Testing + UAT & Bug Fixes', 76, 88],
-  ['Write Documentation (Chapters 3–5)', 80, 95],
-  ['Prepare PowerPoint Presentation', 96, 104],
-  ['Final Presentation (Defense)', 103, 109],
+  ['Set Up Project (Vite + React + Supabase)', 0, 6],
+  ['Design Database Schema & RLS Policies', 5, 14],
+  ['Build Authentication & Session Handling', 12, 23],
+  ['Build Role-Based Navigation & Page Gating', 19, 29],
+  ['Build Admin Module: User & Role Management', 28, 40],
+  ['Build Admin Module: Programs, CMOs & Config Tables', 35, 47],
+  ['Build Curriculum Records (Create/Edit/Archive/Delete)', 44, 56],
+  ['Build CLO Pages & PO Suggestion Input', 51, 62],
+  ['Build TOS Generator (Grid, Blueprint, Excel Export)', 57, 69],
+  ['Build Syllabus / View Page & Word Export', 64, 75],
+  ['Build Subject Graph (d3)', 68, 79],
+  ['Build Reports (Map, PO Coverage, PDF/Excel Exports)', 70, 82],
+  ['Build Profile, Security & Audit Logs', 75, 88],
+  ['UI Polish & Error Handling', 82, 93],
+  ['Unit Testing (Vitest) & Bug Fixes', 85, 96],
+  ['Deploy to Supabase & Final Demo Prep', 98, 109],
 ]
 
 // ── Timeline maths ──────────────────────────────────────────────────────────
