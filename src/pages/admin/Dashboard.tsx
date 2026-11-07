@@ -10,7 +10,6 @@ import {
   fetchActivityLogs,
 } from '../../services/database'
 import type { Profile, ActivityLogEntry } from '../../services/database'
-import { normalizeCode } from '../../utils/courseCodes'
 import { useClock } from '../../hooks/useClock'
 import { localISODate, timeGreeting } from '../../utils/clock'
 import MapBrief from '../../components/MapBrief'
@@ -29,9 +28,10 @@ interface StatSpec {
   accent: string
   icon: string
   sub: string
-  /** The extra line under the sub: role split, archived count, or the
-   *  unreferenced-PO warning. null when the fetch failed. */
-  hint: string | null
+  /** The extra line under the sub: role split or archived count.
+   *  Optional — the PO tile carries no second line. null when the
+   *  fetch failed. */
+  hint?: string | null
   /** Warn tone (amber) when the hint names a gap worth acting on. */
   warn?: boolean
   /** Where the tile lands; without one the tile stays a figure only. */
@@ -44,17 +44,6 @@ const isActiveRow = <T extends { status?: string }>(x: T) => !x.status || x.stat
 
 const archivedCountOf = (rows: Array<{ status?: string }>) =>
   rows.filter((r) => r.status === 'archived').length
-
-// The system links POs to outcomes through the CLO title's code list —
-// "PO 1, PO 2". A PO never named there is unreferenced. Small local copy of
-// Map.tsx's extractor (the two views reading the same rule the same way).
-const extractPoCodes = (text: string): string[] => {
-  const re = /PO\s*-?\s*(\d+)/gi
-  const out: string[] = []
-  let m: RegExpExecArray | null
-  while ((m = re.exec(text)) !== null) out.push(normalizeCode(`PO-${m[1]}`))
-  return out
-}
 
 // A failed read degrades to an empty array — the tile then reads 0 like the
 // other tables' failures instead of stalling the whole row.
@@ -93,16 +82,12 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
         else roles.user++
       }
       const activePos = pos.filter(isActiveRow)
-      const referenced = new Set(
-        clos.filter(isActiveRow).flatMap((c) => extractPoCodes(c.title || '')),
-      )
       // The tile mirrors the admin's own Program Outcomes page, which reads
       // source='admin' — the rows the admin entered. The manager's official
       // Curriculum-Mapping list sits in the same table as source='manager'
       // (the shared brief's total already carries it), so this figure is the
       // admin's own input, active rows only.
       const adminPos = activePos.filter((p) => p.source === 'admin')
-      const unreferencedPos = adminPos.filter((p) => !referenced.has(normalizeCode(p.code))).length
 
       const setStatsRows: StatSpec[] = [
         {
@@ -146,16 +131,6 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
           accent: '#15803d',
           icon: 'po',
           sub: 'Program outcomes mapping',
-          // The warning names its own basis ("of your 27") so its count
-          // can't be mistaken for another list's rows.
-          hint: unreferencedPos
-            ? unreferencedPos === 1
-              ? `1 of your ${adminPos.length} POs carries no outcomes`
-              : `${unreferencedPos} of your ${adminPos.length} POs carry no outcomes`
-            : adminPos.length
-              ? 'All your POs carry outcomes'
-              : null,
-          warn: unreferencedPos > 0,
           navId: 'program-outcomes',
           title: 'Open Program Outcomes',
         },
