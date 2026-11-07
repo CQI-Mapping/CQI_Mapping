@@ -5349,6 +5349,25 @@ textarea.input {
   margin-bottom: 14px;
 }
 
+/* ---- the dashboard brief's KPI row carries fewer than eight tiles (the
+   Unmapped card is role-scoped), so a fixed column count strands empty
+   cells at the row's tail. The dashboards run four columns, and the last
+   cards grow across the leftover columns to close the row. ---- */
+.map-brief .reports-kpis {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* Six tiles (faculty and manager): the last two cards split the second line. */
+.map-brief .reports-kpis > .reports-kpi:nth-child(4n + 1):nth-last-child(2),
+.map-brief .reports-kpis > .reports-kpi:nth-child(4n + 2):last-child {
+  grid-column: span 2;
+}
+
+/* Seven tiles (admin, with the Unmapped card): the last card closes the row. */
+.map-brief .reports-kpis > .reports-kpi:last-child:nth-child(4n + 3) {
+  grid-column: span 2;
+}
+
 .reports-kpi {
   min-width: 0;
   padding: 14px 8px 13px;
@@ -5750,6 +5769,18 @@ button.reports-panel__more:hover {
 @media (max-width: 860px) {
   .reports-kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* Dashboard scope: two-column wrap resets the desktop spans, and only an
+     odd last card takes the full row to keep the wrap blank-free. */
+  .map-brief .reports-kpis > .reports-kpi:nth-child(4n + 1):nth-last-child(2),
+  .map-brief .reports-kpis > .reports-kpi:nth-child(4n + 2):last-child,
+  .map-brief .reports-kpis > .reports-kpi:last-child:nth-child(4n + 3) {
+    grid-column: auto;
+  }
+
+  .map-brief .reports-kpis > .reports-kpi:last-child:nth-child(odd) {
+    grid-column: span 2;
   }
 
   .reports-banner__side,
