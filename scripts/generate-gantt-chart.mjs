@@ -155,14 +155,35 @@ function sheetChildren(sheetIndex) {
       }))
   const COL_PCT = (100 - ACTIVITY_PCT) / cols.length
 
+  // Week-mode column headers: the day name on top with its real calendar
+  // date under it — "Monday" over "Nov 9" — so every column is recognisable
+  // at a glance without reading the heading.
+  const dayColHeader = (c) =>
+    new TableCell({
+      borders: CELL_BORDERS,
+      verticalAlign: VerticalAlign.CENTER,
+      width: { size: COL_PCT, type: WidthType.PERCENTAGE },
+      children: [
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [run(DAY_NAMES[c.dayIndex], { bold: true })],
+        }),
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [run(short(new Date(weekStart(first).getTime() + c.dayIndex * 86400000)), { size: 18 })],
+        }),
+      ],
+    })
+
   const headerRow = new TableRow({
     tableHeader: true,
-    height: { value: 480, rule: HeightRule.ATLEAST },
+    height: { value: 620, rule: HeightRule.ATLEAST },
     children: [
-      cell(SHEET_MODE === 'week' ? 'Activities' : 'Activities', {
-        widthPct: ACTIVITY_PCT, bold: true, center: true,
-      }),
-      ...cols.map((c) => cell(c.name, { widthPct: COL_PCT, bold: true, center: true })),
+      cell('Activities', { widthPct: ACTIVITY_PCT, bold: true, center: true }),
+      ...cols.map((c) =>
+        SHEET_MODE === 'week'
+          ? dayColHeader(c)
+          : cell(c.name, { widthPct: COL_PCT, bold: true, center: true })),
     ],
   })
 
