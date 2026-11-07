@@ -56,10 +56,10 @@ const SZ = 20          // half-points -> 10pt body text
 // each row is a real module of the CQI app, grouped by build phase
 // (day 0 is the start date).
 const PHASES = [
-  { title: 'PLANNING PHASE', tasks: [
+  { title: 'PLANNING PHASE', banner: '2E75B6', shade: 'BDD7EE', tasks: [
     ['Set Up Project (Vite + React + Supabase)', 0, 6],
   ]},
-  { title: 'DESIGN AND DEVELOPMENT PHASE', tasks: [
+  { title: 'DESIGN AND DEVELOPMENT PHASE', banner: '31859C', shade: 'A9D3E5', tasks: [
     ['Design Database Schema & RLS Policies', 5, 14],
     ['Build Authentication & Session Handling', 12, 23],
     ['Build Role-Based Navigation & Page Gating', 19, 29],
@@ -73,11 +73,11 @@ const PHASES = [
     ['Build Reports (Map, PO Coverage, PDF/Excel Exports)', 70, 82],
     ['Build Profile, Security & Audit Logs', 75, 88],
   ]},
-  { title: 'TESTING PHASE', tasks: [
+  { title: 'TESTING PHASE', banner: '548235', shade: 'C6E0B4', tasks: [
     ['UI Polish & Error Handling', 82, 93],
     ['Unit Testing (Vitest) & Bug Fixes', 85, 96],
   ]},
-  { title: 'DEPLOYMENT PHASE', tasks: [
+  { title: 'DEPLOYMENT PHASE', banner: 'C55A11', shade: 'F8CBAD', tasks: [
     ['Deploy to Supabase & Final Demo Prep', 98, 109],
   ]},
 ]
@@ -273,23 +273,34 @@ function trackerChildren() {
     return mi * 4 + quarter - 1
   }
 
+  const TOTAL_COLS = 4 + COLS
+  const QUARTER_PCT = (100 - TASK_PCT - START_PCT - DAYS_PCT - END_PCT) / COLS
+
   const rows = [
-    // Banner: project title + "DAILY TASK TRACKER", as on the sample
+    // Banner: project title, then a teal "DAILY TASK TRACKER" band
     new TableRow({
-      children: [cell(line(PROJECT_TITLE, { bold: true, center: true }), {})],
+      height: { value: 420, rule: HeightRule.ATLEAST },
+      children: [cell(
+        line(PROJECT_TITLE, { bold: true, center: true }),
+        { columnSpan: TOTAL_COLS, widthPct: 100 },
+      )],
     }),
     new TableRow({
-      children: [cell(line('DAILY TASK TRACKER', { bold: true, center: true }), {})],
+      height: { value: 440, rule: HeightRule.ATLEAST },
+      children: [cell(
+        line('DAILY TASK TRACKER', { bold: true, center: true, color: 'FFFFFF' }),
+        { columnSpan: TOTAL_COLS, widthPct: 100, fill: TEAL },
+      )],
     }),
     // Header band: TASK/START/DAYS/END then the year over the month columns
     new TableRow({
       tableHeader: true,
       height: { value: 460, rule: HeightRule.ATLEAST },
       children: [
-        cell(line('Task', { bold: true }), { fill: TEAL, rowSpan: 3, widthPct: TASK_PCT }),
-        cell(line('Start', { bold: true, center: true }), { fill: TEAL, rowSpan: 3, widthPct: START_PCT }),
-        cell(line('Days', { bold: true, center: true }), { fill: TEAL, rowSpan: 3, widthPct: DAYS_PCT }),
-        cell(line('End', { bold: true, center: true }), { fill: TEAL, rowSpan: 3, widthPct: END_PCT }),
+        cell(line('Task', { bold: true, color: 'FFFFFF' }), { fill: TEAL, rowSpan: 3, widthPct: TASK_PCT }),
+        cell(line('Start', { bold: true, center: true, color: 'FFFFFF' }), { fill: TEAL, rowSpan: 3, widthPct: START_PCT }),
+        cell(line('Days', { bold: true, center: true, color: 'FFFFFF' }), { fill: TEAL, rowSpan: 3, widthPct: DAYS_PCT }),
+        cell(line('End', { bold: true, center: true, color: 'FFFFFF' }), { fill: TEAL, rowSpan: 3, widthPct: END_PCT }),
         cell(line(String(dayDate(endDay).getFullYear()), { bold: true, size: 16, center: true }), { columnSpan: COLS }),
       ],
     }),
@@ -301,8 +312,8 @@ function trackerChildren() {
           new Date(m.year, m.month, 1)
             .toLocaleDateString('en-US', { month: 'long' })
             .toUpperCase(),
-          { bold: true, center: true, size: 18 },
-        ), { columnSpan: 4, fill: TEAL })),
+          { bold: true, center: true, size: 18, color: 'FFFFFF' },
+        ), { columnSpan: 4, fill: TEAL, widthPct: QUARTER_PCT * 4 })),
     }),
     // Quarter cells 1st 2nd 3rd 4th
     new TableRow({
@@ -310,20 +321,20 @@ function trackerChildren() {
       height: { value: 380, rule: HeightRule.ATLEAST },
       children: months.map((m) =>
         Array.from({ length: 4 }, (_, q) =>
-          cell(line(['1st', '2nd', '3rd', '4th'][q], { bold: true, size: 16, center: true }), {
+          cell(line(['1st', '2nd', '3rd', '4th'][q], { bold: true, size: 16, center: true, color: 'FFFFFF' }), {
             fill: TEAL,
-            widthPct: (100 - TASK_PCT - START_PCT - DAYS_PCT - END_PCT) / COLS,
+            widthPct: QUARTER_PCT,
           }))).flat(),
     }),
   ]
 
   for (const phase of PHASES) {
-    // Teal phase banner across the TASK/START/DAYS/END columns
+    // Colored phase banner across the TASK/START/DAYS/END columns
     rows.push(new TableRow({
       height: { value: 420, rule: HeightRule.ATLEAST },
       children: [
-        cell(line(phase.title, { bold: true, color: 'FFFFFF' }), { fill: TEAL, columnSpan: 4 }),
-        ...Array.from({ length: COLS }, () => cell(line(''), {})),
+        cell(line(phase.title, { bold: true, color: 'FFFFFF' }), { fill: phase.banner, columnSpan: 4 }),
+        ...Array.from({ length: COLS }, () => cell(line(''))),
       ],
     }))
     for (const [label, a, b] of phase.tasks) {
@@ -338,8 +349,8 @@ function trackerChildren() {
           cell(line(mdy(dayDate(b)), { size: 18, center: true })),
           ...Array.from({ length: COLS }, (_, col) =>
             cell(line(''), {
-              fill: col >= startCol && col <= endCol ? BLUE : undefined,
-              widthPct: (100 - TASK_PCT - START_PCT - DAYS_PCT - END_PCT) / COLS,
+              fill: col >= startCol && col <= endCol ? phase.shade : undefined,
+              widthPct: QUARTER_PCT,
             })),
         ],
       }))
@@ -359,6 +370,14 @@ function trackerChildren() {
     new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
       rows,
+    }),
+    // Colored phase legend under the chart — chips shaded per phase
+    new Paragraph({
+      spacing: { before: 120 },
+      children: PHASES.flatMap((p, i) => [
+        new TextRun({ text: '  ', font: FONT, size: SZ, shading: { type: ShadingType.CLEAR, fill: p.shade, color: 'auto' } }),
+        new TextRun({ text: ` ${p.title}${i < PHASES.length - 1 ? '    •' : ''}`, font: FONT, size: 16 }),
+      ]),
     }),
   ]
 }
