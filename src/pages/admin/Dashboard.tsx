@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import type { KeyboardEvent } from 'react'
 import {
   fetchAllProfiles,
   fetchStrategicGoals,
@@ -9,6 +10,7 @@ import {
   fetchActivityLogs,
 } from '../../services/database'
 import type { Profile, ActivityLogEntry } from '../../services/database'
+import { normalizeCode } from '../../utils/courseCodes'
 import { useClock } from '../../hooks/useClock'
 import { localISODate, timeGreeting } from '../../utils/clock'
 import MapBrief from '../../components/MapBrief'
@@ -19,32 +21,164 @@ interface DashboardProps {
   onNavigate?: (page: string) => void
 }
 
+/** One KPI tile: the count, where it opens, and a second truth under it —
+ *  the split that makes "how many" an actionable figure. */
+interface StatSpec {
+  label: string
+  value: number
+  accent: string
+  icon: string
+  sub: string
+  /** The extra line under the sub: role split, archived count, or the
+   *  unreferenced-PO warning. null when the fetch failed. */
+  hint: string | null
+  /** Warn tone (amber) when the hint names a gap worth acting on. */
+  warn?: boolean
+  /** Where the tile lands; without one the tile stays a figure only. */
+  navId?: string
+  title?: string
+}
+
+// Row-level active rule, the same one the map and CLO pages apply.
+const isActiveRow = <T extends { status?: string }>(x: T) => !x.status || x.status === 'active'
+
+const archivedCountOf = (rows: Array<{ status?: string }>) =>
+  rows.filter((r) => r.status === 'archived').length
+
+// The system links POs to outcomes through the CLO title's code list —
+// "PO 1, PO 2". A PO never named there is unreferenced. Small local copy of
+// Map.tsx's extractor (the two views reading the same rule the same way).
+const extractPoCodes = (text: string): string[] => {
+  const re = /PO\s*-?\s*(\d+)/gi
+  const out: string[] = []
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) out.push(normalizeCode(`PO-${m[1]}`))
+  return out
+}
+
+// A failed read degrades to an empty array — the tile then reads 0 like the
+// other tables' failures instead of stalling the whole row.
+async function safeRows<T>(fn: () => Promise<T[]>): Promise<T[]> {
+  try {
+    return await fn()
+  } catch {
+    return []
+  }
+}
+
 function Dashboard({ profile, onNavigate }: DashboardProps) {
-  const [stats, setStats] = useState<Array<{ label: string; value: number | null; accent: string; icon: string; sub: string }>>([])
+  const [stats, setStats] = useState<StatSpec[]>([])
   const [recent, setRecent] = useState<ActivityLogEntry[]>([])
   const loading = stats.length === 0
 
   useEffect(() => {
     let cancelled = false
-    const counters = [
-      { label: 'Users', icon: 'users', sub: 'Registered profiles', accent: '#64748b', load: () => fetchAllProfiles() },
-      { label: 'Strategic Goals', icon: 'goals', sub: 'Institutional goals', accent: '#4d7c0f', load: () => fetchStrategicGoals() },
-      { label: 'Program Educational Objectives', icon: 'peo', sub: 'Graduate PEOs', accent: '#4d7c0f', load: () => fetchProgramEducationalObjectives() },
-      { label: 'Program Outcomes', icon: 'po', sub: 'Program outcomes mapping', accent: '#15803d', load: () => fetchProgramOutcomesStandalone() },
-      { label: 'Course Learning Outcomes', icon: 'clo', sub: 'CLOs per course', accent: '#15803d', load: () => fetchCourseLearningOutcomesStandalone() },
-      { label: 'CHED Memo Orders', icon: 'ched', sub: 'CHED policies', accent: '#4d7c0f', load: () => fetchChedMemoOrders() },
-    ]
-    Promise.all(counters.map(async (c) => {
-      try {
-        return { label: c.label, value: (await c.load()).length, accent: c.accent, icon: c.icon, sub: c.sub }
-      } catch {
-        return { label: c.label, value: 0, accent: c.accent, icon: c.icon, sub: c.sub }
+    // Every counter feeds its tile's second truth from the same read, so the
+    // figure and its meaning can never disagree: role split for Users,
+    // archived counts for the archives, and for Program Outcomes the count
+    // of POs no active outcome names — the system's own linkage rule.
+    Promise.all([
+      safeRows(fetchAllProfiles),
+      safeRows(fetchStrategicGoals),
+      safeRows(fetchProgramEducationalObjectives),
+      safeRows(fetchProgramOutcomesStandalone),
+      safeRows(fetchCourseLearningOutcomesStandalone),
+      safeRows(fetchChedMemoOrders),
+    ]).then(([profiles, goals, peos, pos, clos, ched]) => {
+      if (cancelled) return
+      const roles = { admin: 0, manager: 0, user: 0 }
+      for (const p of profiles) {
+        if (p.role === 'admin') roles.admin++
+        else if (p.role === 'manager') roles.manager++
+        else roles.user++
       }
-    }))
-      .then((rows) => { if (!cancelled) setStats(rows) })
+      const activePos = pos.filter(isActiveRow)
+      const referenced = new Set(
+        clos.filter(isActiveRow).flatMap((c) => extractPoCodes(c.title || '')),
+      )
+      const unreferencedPos = activePos.filter((p) => !referenced.has(normalizeCode(p.code))).length
+
+      const setStatsRows: StatSpec[] = [
+        {
+          label: 'Users',
+          value: profiles.length,
+          accent: '#64748b',
+          icon: 'users',
+          sub: 'Registered profiles',
+          hint: profiles.length
+            ? `${roles.admin} admin · ${roles.manager} manager · ${roles.user} faculty`
+            : null,
+          navId: 'users',
+          title: 'Open Users & Accounts',
+        },
+        {
+          label: 'Strategic Goals',
+          value: goals.length,
+          accent: '#4d7c0f',
+          icon: 'goals',
+          sub: 'Institutional goals',
+          hint: goals.length ? `${archivedCountOf(goals)} archived` : null,
+          navId: 'strategic-goals',
+          title: 'Open Strategic Goals',
+        },
+        {
+          label: 'Program Educational Objectives',
+          value: peos.length,
+          accent: '#4d7c0f',
+          icon: 'peo',
+          sub: 'Graduate PEOs',
+          hint: peos.length ? `${archivedCountOf(peos)} archived` : null,
+          navId: 'peos',
+          title: 'Open Program Educational Objectives',
+        },
+        {
+          label: 'Program Outcomes',
+          value: pos.length,
+          accent: '#15803d',
+          icon: 'po',
+          sub: 'Program outcomes mapping',
+          hint: unreferencedPos
+            ? `${unreferencedPos} PO${unreferencedPos === 1 ? '' : 's'} carry no outcomes`
+            : pos.length
+              ? 'Every PO carries outcomes'
+              : null,
+          warn: unreferencedPos > 0,
+          navId: 'program-outcomes',
+          title: 'Open Program Outcomes',
+        },
+        {
+          label: 'Course Learning Outcomes',
+          value: clos.length,
+          accent: '#15803d',
+          icon: 'clo',
+          sub: 'CLOs per course',
+          hint: clos.length ? `${archivedCountOf(clos)} archived` : null,
+          // Admin manages CLOs through the report's per-course lists —
+          // there is no admin CLO editor page of its own.
+          navId: 'view',
+          title: 'Open Curriculum Report — CLOs per course',
+        },
+        {
+          label: 'CHED Memo Orders',
+          value: ched.length,
+          accent: '#4d7c0f',
+          icon: 'ched',
+          sub: 'CHED policies',
+          hint: ched.length ? `${archivedCountOf(ched)} archived` : null,
+          navId: 'ched-memo',
+          title: 'Open CHED Memorandum Orders',
+        },
+      ]
+      setStats(setStatsRows)
+    })
+    fetchActivityLogs()
+      .then((logs) => {
+        if (!cancelled) setRecent(logs.slice(0, 5))
+      })
       .catch(() => {})
-    fetchActivityLogs().then((logs) => { if (!cancelled) setRecent(logs.slice(0, 5)) }).catch(() => {})
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const go = (id: string) => onNavigate?.(id)
@@ -88,17 +222,44 @@ function Dashboard({ profile, onNavigate }: DashboardProps) {
               <span className="stat-card__sub">Loading</span>
             </div>
           ))
-          : stats.map((s) => (
-          <div className="stat-card stat-card--2026 card-enter" key={s.label}>
-            <div className="stat-card__accent" style={{ background: s.accent }} />
-            <div className="stat-card__icon" style={{ background: s.accent, color: '#fff' }}>
-              <StatIcon type={s.icon} />
-            </div>
-            <span className="stat-card__label">{s.label}</span>
-            <span className="stat-card__value">{s.value ?? '—'}</span>
-            <span className="stat-card__sub">{s.sub}</span>
-          </div>
-        ))}
+          : stats.map((s) => {
+            // A live tile behaves like a button (click + Enter/Space open its
+            // page); a tile without a destination stays a plain figure.
+            const live = s.navId
+              ? {
+                  role: 'button' as const,
+                  tabIndex: 0,
+                  title: s.title,
+                  style: { cursor: 'pointer' as const },
+                  onClick: () => go(s.navId!),
+                  onKeyDown: (e: KeyboardEvent<HTMLDivElement>) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      go(s.navId!)
+                    }
+                  },
+                }
+              : {}
+            return (
+              <div className="stat-card stat-card--2026 card-enter" key={s.label} {...live}>
+                <div className="stat-card__accent" style={{ background: s.accent }} />
+                <div className="stat-card__icon" style={{ background: s.accent, color: '#fff' }}>
+                  <StatIcon type={s.icon} />
+                </div>
+                <span className="stat-card__label">{s.label}</span>
+                <span className="stat-card__value">{s.value ?? '—'}</span>
+                <span className="stat-card__sub">{s.sub}</span>
+                {s.hint && (
+                  <span
+                    className="stat-card__hint"
+                    style={{ color: s.warn ? '#b45309' : '#64748b', fontSize: 11, marginTop: 2 }}
+                  >
+                    {s.hint}
+                  </span>
+                )}
+              </div>
+            )
+          })}
       </div>
 
       {/* The program's curriculum at a glance — the blocks that used to open
