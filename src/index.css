@@ -5737,6 +5737,94 @@ button.reports-panel__more:hover {
   color: #fff;
 }
 
+/* Messenger-style hover bubble: a small card that names the learning
+   outcomes behind a bar — code, subject and description — instead of the
+   bare "PO 1: 3 of 20 CLOs" the native tooltip used to show. */
+.pocov {
+  position: relative;
+}
+
+.pocov__popover {
+  position: absolute;
+  z-index: 30;
+  width: 280px;
+  max-width: calc(100% - 16px);
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 14px 34px -10px rgba(15, 23, 42, 0.28), 0 2px 8px rgba(15, 23, 42, 0.08);
+  padding: 10px 12px 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #1e293b;
+  animation: pocov-pop 120ms ease-out;
+  pointer-events: none;
+}
+
+.pocov__popover--muted {
+  background: #f1f5f9;
+}
+
+@keyframes pocov-pop {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.pocov__popover__head {
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 6px;
+}
+
+.pocov__popover__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 170px;
+  overflow-y: auto;
+}
+
+.pocov__popover__item {
+  padding: 5px 0;
+  border-top: 1px solid #f1f5f9;
+}
+
+.pocov__popover__item:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.pocov__popover__item strong {
+  color: #15803d;
+  font-weight: 600;
+}
+
+.pocov__popover__subj {
+  color: #475569;
+}
+
+.pocov__popover__desc {
+  display: block;
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.pocov__popover__none {
+  color: #64748b;
+  font-style: italic;
+  font-size: 11px;
+}
+
+.pocov__popover__sub {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #f1f5f9;
+  color: #64748b;
+  font-size: 11px;
+}
+
 /* ---- footer ---- */
 
 .reports-footer {

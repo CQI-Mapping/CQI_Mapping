@@ -12,8 +12,12 @@
 // Outcomes no learning outcome reaches are NOT plotted as 27 stubs: the chart
 // shows the covered outcomes plus one bar for the rest, which is the finding
 // and matches the "No Mapping" entry in the matrix legend beside it.
+//
+// Hovering a bar opens a Messenger-style bubble naming the learning outcomes
+// behind it — code, subject and description — so the chart is not just a
+// percentage but a pointer to the work.
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { poLabel } from '../utils/cloPoMapping'
 
 interface PoCoverageBar {
@@ -22,16 +26,25 @@ interface PoCoverageBar {
   count: number
 }
 
+/** One learning outcome behind a bar — code, subject and description. */
+export interface PoCoverageDetail {
+  code: string
+  course: string
+  title: string | null
+  description: string | null
+}
+
 interface PoCoverageBarsProps {
   rows: PoCoverageBar[]
   /** Program outcomes nothing maps to. */
   uncovered: number
-  /** Their codes, so the folded bar can say which outcomes it holds —
-   *  a count alone leaves "where is PO 2?" unanswered. */
+  /** Their codes, so the folded bar can say which outcomes it holds. */
   uncoveredCodes?: string[]
   /** Covered outcomes left out of the chart for width. */
   hidden: number
   totalClos: number
+  /** Learning outcomes behind each bar, keyed by the outcome's code. */
+  details?: Record<string, PoCoverageDetail[]>
 }
 
 // 320 tall: the panel's row height is set by the 33-row summary beside it,
@@ -51,13 +64,30 @@ const GRID = [0, 25, 50, 75, 100]
 /** "PO 12" -> "12", once the axis needs it for width. */
 const shortLabel = (code: string) => code.replace(/^PO[\s-]?/i, '') || code
 
-function PoCoverageBars({ rows, uncovered, uncoveredCodes, hidden, totalClos }: PoCoverageBarsProps) {
+/** Trim a description to a readable preview. */
+const preview = (text: string | null, max = 110) => {
+  if (!text) return ''
+  const t = text.trim()
+  if (t.length <= max) return t
+  return t.slice(0, max).trimEnd() + '…'
+}
+
+function PoCoverageBars({
+  rows,
+  uncovered,
+  uncoveredCodes,
+  hidden,
+  totalClos,
+  details,
+}: PoCoverageBarsProps) {
   // The chart's one control: read the bars in code order, or let the tallest
   // speak first. The folded "None" bar always closes the row — it is the
   // finding, not a competitor for first place.
   const [order, setOrder] = useState<'code' | 'height'>('code')
-  // The folded bar names its outcomes — eight codes read fine in a tooltip;
-  // past that the note under the chart still answers the count question.
+  // Hover state: which bar and where the cursor sits, so the bubble can follow.
+  const [hover, setHover] = useState<{ index: number; x: number; y: number } | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
   const uncoveredNames = uncoveredCodes ?? []
   const listing =
     uncoveredNames.length === 0
@@ -65,37 +95,52 @@ function PoCoverageBars({ rows, uncovered, uncoveredCodes, hidden, totalClos }: 
       : ` — ${uncoveredNames.slice(0, 8).join(', ')}${
           uncoveredNames.length > 8 ? ` … +${uncoveredNames.length - 8} more` : ''
         }`
-  const bars: { label: string; percent: number; title: string; muted?: boolean }[] = (
-    // Order is a reading, not a fact: by code is the system's list; by height
-    // drops the insight first — which outcome the curriculum leans on hardest.
+
+  const view =
     order === 'height'
       ? [...rows].sort(
           (a, b) => b.percent - a.percent || a.code.localeCompare(b.code, undefined, { numeric: true }),
         )
       : rows
-  ).map((r) => ({
-    label: poLabel(r.code),
-    percent: r.percent,
-    title: `${poLabel(r.code)}: ${r.count} of ${totalClos} CLOs`,
-  }))
+
+  const bars: { label: string; percent: number; title: string; muted?: boolean; key: string }[] = view.map(
+    (r) => ({
+      label: poLabel(r.code),
+      percent: r.percent,
+      title: `${poLabel(r.code)}: ${r.count} of ${totalClos} CLOs`,
+      key: r.code,
+    }),
+  )
   if (uncovered > 0) {
     bars.push({
       label: 'None',
       percent: 0,
       title: `${uncovered} program outcome${uncovered === 1 ? '' : 's'} no learning outcome reaches${listing}`,
       muted: true,
+      key: '__none__',
     })
   }
 
   const n = bars.length
   const slot = n === 0 ? PLOT_W : PLOT_W / n
   const barW = Math.min(slot * 0.5, 44)
-  // Five bars and their labels fit upright; past that the axis shortens them.
   const shorten = n > 8
   const y = (percent: number) => TOP + PLOT_H - (PLOT_H * percent) / 100
 
+  const hovered = hover !== null ? bars[hover.index] : null
+  const hoveredDetails = hovered && !hovered.muted ? details?.[hovered.key] ?? [] : []
+  const hoveredUncovered = hovered?.muted ? uncoveredNames : []
+
+  // Keep the bubble inside the container horizontally.
+  const containerW = containerRef.current?.clientWidth ?? WIDTH
+  const bubbleLeft =
+    hover === null
+      ? 0
+      : Math.min(Math.max(hover.x + 14, 8), Math.max(containerW - 300, 8))
+  const bubbleTop = hover === null ? 0 : Math.max(hover.y - 10, 8)
+
   return (
-    <div className="pocov">
+    <div className="pocov" ref={containerRef}>
       <div className="pocov__sort" role="group" aria-label="Bar order">
         <button
           type="button"
@@ -137,7 +182,27 @@ function PoCoverageBars({ rows, uncovered, uncoveredCodes, hidden, totalClos }: 
           const x = LEFT + slot * i + (slot - barW) / 2
           const top = y(b.percent)
           return (
-            <g key={`${b.label}-${i}`}>
+            <g
+              key={`${b.label}-${i}`}
+              onMouseEnter={(e) => {
+                const rect = (e.currentTarget as SVGGElement).getBoundingClientRect()
+                const cRect = containerRef.current?.getBoundingClientRect()
+                setHover({
+                  index: i,
+                  x: rect.left + rect.width / 2 - (cRect?.left ?? 0),
+                  y: rect.top - (cRect?.top ?? 0),
+                })
+              }}
+              onMouseMove={(e) => {
+                const cRect = containerRef.current?.getBoundingClientRect()
+                setHover((h) =>
+                  h && h.index === i
+                    ? { index: i, x: e.clientX - (cRect?.left ?? 0), y: e.clientY - (cRect?.top ?? 0) }
+                    : h,
+                )
+              }}
+              onMouseLeave={() => setHover((h) => (h && h.index === i ? null : h))}
+            >
               <title>{b.title}</title>
               {/* 0% draws a stub so an empty slot reads as an empty slot. */}
               <rect
@@ -158,6 +223,53 @@ function PoCoverageBars({ rows, uncovered, uncoveredCodes, hidden, totalClos }: 
           )
         })}
       </svg>
+
+      {hover !== null && hovered && (
+        <div
+          className={`pocov__popover${hovered.muted ? ' pocov__popover--muted' : ''}`}
+          style={{ left: bubbleLeft, top: bubbleTop, transform: 'translate(0, -100%)' }}
+          role="tooltip"
+        >
+          <div className="pocov__popover__head">
+            {hovered.label === 'None'
+              ? `${uncovered} outcome${uncovered === 1 ? '' : 's'} no CLO reaches`
+              : `${hovered.label} — ${hovered.percent}% of ${totalClos} CLOs`}
+          </div>
+          {hovered.muted ? (
+            <ul className="pocov__popover__list">
+              {hoveredUncovered.length === 0 ? (
+                <li className="pocov__popover__none">No outcome codes recorded.</li>
+              ) : (
+                hoveredUncovered.map((code) => (
+                  <li key={code} className="pocov__popover__item">
+                    <strong>{code}</strong>
+                    <span className="pocov__popover__desc">No learning outcome names this outcome.</span>
+                  </li>
+                ))
+              )}
+            </ul>
+          ) : hoveredDetails.length === 0 ? (
+            <p className="pocov__popover__none">No learning outcome names this outcome yet.</p>
+          ) : (
+            <ul className="pocov__popover__list">
+              {hoveredDetails.map((d, i) => (
+                <li key={`${d.code}-${i}`} className="pocov__popover__item">
+                  <strong>{d.code}</strong>
+                  <span className="pocov__popover__subj"> · {d.course}</span>
+                  {(d.description || d.title) && (
+                    <span className="pocov__popover__desc">{preview(d.description || d.title)}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          {!hovered.muted && hoveredDetails.length > 0 && (
+            <div className="pocov__popover__sub">
+              {hoveredDetails.length} learning outcome{hoveredDetails.length === 1 ? '' : 's'} behind this bar
+            </div>
+          )}
+        </div>
+      )}
 
       <p className="pocov__note">
         Of {totalClos} learning outcomes

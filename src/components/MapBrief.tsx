@@ -46,6 +46,7 @@ import { isManagerCmCategory, isManagerOutcome } from '../utils/report'
 import type { MappingStatus } from '../utils/reportsPdfModel'
 import { normalizeCode } from '../utils/courseCodes'
 import PoCoverageBars from './PoCoverageBars'
+import type { PoCoverageDetail } from './PoCoverageBars'
 
 interface MapBriefProps {
   /** The fields of the signed-in profile this brief reads: the role names
@@ -277,6 +278,31 @@ function MapBrief({ profile, onNavigate, children, dedupeCoreCounts }: MapBriefP
   const mapping = useMemo(() => buildMappingReport(programClos, activeOutcomes), [programClos, activeOutcomes])
   const charted = useMemo(() => chartableOutcomes(mapping), [mapping])
 
+  // What sits behind each bar: the learning outcomes naming the outcome, with
+  // their subject and description — so the chart's hover can point at the work
+  // instead of just a percentage.
+  const poDetails = useMemo(() => {
+    const byKey = new Map<string, PoCoverageDetail[]>()
+    for (const link of mapping.links) {
+      for (const key of link.poKeys) {
+        const list = byKey.get(key) ?? []
+        list.push({
+          code: link.clo.code,
+          course: link.clo.course,
+          title: link.clo.title,
+          description: link.clo.description,
+        })
+        byKey.set(key, list)
+      }
+    }
+    const record: Record<string, PoCoverageDetail[]> = {}
+    for (const row of mapping.coverage) {
+      const list = byKey.get(row.outcome.key)
+      if (list && list.length > 0) record[row.outcome.code] = list
+    }
+    return record
+  }, [mapping])
+
   const courseOutcomeRows = useMemo(
     () => courseOutcomes(programCourseList, programClos),
     [programCourseList, programClos],
@@ -473,6 +499,7 @@ function MapBrief({ profile, onNavigate, children, dedupeCoreCounts }: MapBriefP
                   uncoveredCodes={charted.uncoveredCodes}
                   hidden={charted.hidden}
                   totalClos={mapping.totalClos}
+                  details={poDetails}
                 />
               )}
             </section>
