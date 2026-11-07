@@ -363,15 +363,9 @@ function trackerChildren() {
   }
 
   return [
-    // School header, like the printed sheet: name, thin rule, title
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      children: [run(SCHOOL_NAME, { size: 28 })],
-    }),
-    new Paragraph({
-      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: '000000', space: 1 } },
-      children: [run('')],
-    }),
+    // The printed sample starts the page straight with the tracker table —
+    // its school name is vertical margin text, not a header line — so no
+    // school banner here; the title rows live in the table itself.
     new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
       rows,
