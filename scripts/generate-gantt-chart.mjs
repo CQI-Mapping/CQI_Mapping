@@ -418,8 +418,11 @@ function buildDocument(mode) {
     sections: [{
       properties: {
         page: {
-          // A4 landscape, 0.5" margins — wide enough for the columns
-          size: { width: 16838, height: 11906, orientation: PageOrientation.LANDSCAPE },
+          // A4 landscape, 0.5" margins — wide enough for the columns.
+          // NOTE: docx swaps width/height itself when orientation is
+          // LANDSCAPE, so portrait dimensions are passed here on purpose;
+          // giving pre-swapped numbers produces a portrait page by mistake.
+          size: { width: 11906, height: 16838, orientation: PageOrientation.LANDSCAPE },
           margin: { top: 720, bottom: 720, left: 720, right: 720 },
         },
       },
