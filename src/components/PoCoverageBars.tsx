@@ -13,6 +13,7 @@
 // shows the covered outcomes plus one bar for the rest, which is the finding
 // and matches the "No Mapping" entry in the matrix legend beside it.
 
+import { useState } from 'react'
 import { poLabel } from '../utils/cloPoMapping'
 
 interface PoCoverageBar {
@@ -51,6 +52,10 @@ const GRID = [0, 25, 50, 75, 100]
 const shortLabel = (code: string) => code.replace(/^PO[\s-]?/i, '') || code
 
 function PoCoverageBars({ rows, uncovered, uncoveredCodes, hidden, totalClos }: PoCoverageBarsProps) {
+  // The chart's one control: read the bars in code order, or let the tallest
+  // speak first. The folded "None" bar always closes the row — it is the
+  // finding, not a competitor for first place.
+  const [order, setOrder] = useState<'code' | 'height'>('code')
   // The folded bar names its outcomes — eight codes read fine in a tooltip;
   // past that the note under the chart still answers the count question.
   const uncoveredNames = uncoveredCodes ?? []
@@ -60,13 +65,19 @@ function PoCoverageBars({ rows, uncovered, uncoveredCodes, hidden, totalClos }: 
       : ` — ${uncoveredNames.slice(0, 8).join(', ')}${
           uncoveredNames.length > 8 ? ` … +${uncoveredNames.length - 8} more` : ''
         }`
-  const bars: { label: string; percent: number; title: string; muted?: boolean }[] = rows.map(
-    (r) => ({
-      label: poLabel(r.code),
-      percent: r.percent,
-      title: `${poLabel(r.code)}: ${r.count} of ${totalClos} CLOs`,
-    }),
-  )
+  const bars: { label: string; percent: number; title: string; muted?: boolean }[] = (
+    // Order is a reading, not a fact: by code is the system's list; by height
+    // drops the insight first — which outcome the curriculum leans on hardest.
+    order === 'height'
+      ? [...rows].sort(
+          (a, b) => b.percent - a.percent || a.code.localeCompare(b.code, undefined, { numeric: true }),
+        )
+      : rows
+  ).map((r) => ({
+    label: poLabel(r.code),
+    percent: r.percent,
+    title: `${poLabel(r.code)}: ${r.count} of ${totalClos} CLOs`,
+  }))
   if (uncovered > 0) {
     bars.push({
       label: 'None',
@@ -85,6 +96,22 @@ function PoCoverageBars({ rows, uncovered, uncoveredCodes, hidden, totalClos }: 
 
   return (
     <div className="pocov">
+      <div className="pocov__sort" role="group" aria-label="Bar order">
+        <button
+          type="button"
+          className={order === 'code' ? 'pocov__sortbtn pocov__sortbtn--on' : 'pocov__sortbtn'}
+          onClick={() => setOrder('code')}
+        >
+          A–Z
+        </button>
+        <button
+          type="button"
+          className={order === 'height' ? 'pocov__sortbtn pocov__sortbtn--on' : 'pocov__sortbtn'}
+          onClick={() => setOrder('height')}
+        >
+          Tallest first
+        </button>
+      </div>
       <svg
         className="pocov__chart"
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}

@@ -5712,6 +5712,31 @@ button.reports-panel__more:hover {
   color: #94a3b8;
 }
 
+/* Bar order control: code order is the system's reading; height order is
+   the "where does the curriculum lean hardest?" reading. */
+.pocov__sort {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.pocov__sortbtn {
+  padding: 3px 10px;
+  font-size: 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.pocov__sortbtn--on {
+  background: #15803d;
+  border-color: #15803d;
+  color: #fff;
+}
+
 /* ---- footer ---- */
 
 .reports-footer {
